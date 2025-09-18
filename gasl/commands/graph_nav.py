@@ -5,15 +5,17 @@ Graph Navigation command handlers.
 from typing import Any, List, Dict
 from .base import CommandHandler
 from ..types import Command, ExecutionResult, Provenance
+from ..validation import LLMJudgeValidator
 from ..adapters.base import GraphAdapter
 
 
 class GraphNavHandler(CommandHandler):
     """Handles graph navigation commands: GRAPHWALK, GRAPHCONNECT, SUBGRAPH, GRAPHPATTERN."""
     
-    def __init__(self, state_store, context_store, adapter: GraphAdapter):
+    def __init__(self, state_store, context_store, adapter: GraphAdapter, llm_func=None):
         super().__init__(state_store, context_store)
         self.adapter = adapter
+        self.validator = LLMJudgeValidator(llm_func) if llm_func else None
     
     def can_handle(self, command: Command) -> bool:
         return command.command_type in ["GRAPHWALK", "GRAPHCONNECT", "SUBGRAPH", "GRAPHPATTERN"]
@@ -107,7 +109,8 @@ class GraphNavHandler(CommandHandler):
         self.context_store.set("last_walk_result", walked_data)
         print(f"DEBUG: GRAPHWALK - stored {len(walked_data)} nodes in last_walk_result")
         
-        return self._create_result(
+        # Create initial result
+        result_obj = self._create_result(
             command=command,
             status="success",
             data=walked_data,
@@ -115,6 +118,22 @@ class GraphNavHandler(CommandHandler):
             provenance=[self._create_provenance("graph-walk", "graphwalk", 
                                                from_variable=from_var, depth=depth)]
         )
+        
+        # Validate with LLM judge if available
+        if self.validator and len(walked_data) > 0:
+            validation = self.validator.validate_command_success(
+                command.command_type, command.args, walked_data, len(walked_data)
+            )
+            
+            if not validation.get("valid", True):
+                # Override status if LLM judge says it failed
+                result_obj.status = "error"
+                result_obj.error_message = f"LLM Judge Validation Failed: {validation.get('reason', 'Unknown validation failure')}"
+                print(f"DEBUG: GRAPHWALK - LLM Judge validation failed: {validation}")
+            else:
+                print(f"DEBUG: GRAPHWALK - LLM Judge validation passed: {validation.get('reason', 'Valid')}")
+        
+        return result_obj
     
     def _execute_graphconnect(self, command: Command) -> ExecutionResult:
         """Execute GRAPHCONNECT command."""

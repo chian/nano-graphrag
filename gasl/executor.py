@@ -36,15 +36,15 @@ class GASLExecutor:
         self.handlers = [
             # Core commands
             DeclareHandler(self.state_store, self.context_store),
-            FindHandler(self.state_store, self.context_store, adapter),
+            FindHandler(self.state_store, self.context_store, adapter, llm_func),
             ProcessHandler(self.state_store, self.context_store, llm_func),
             ClassifyHandler(self.state_store, self.context_store, llm_func),
             UpdateHandler(self.state_store, self.context_store),
-            CountHandler(self.state_store, self.context_store),
+            CountHandler(self.state_store, self.context_store, llm_func),
             DebugHandler(self.state_store, self.context_store),
             
             # New command categories
-            GraphNavHandler(self.state_store, self.context_store, adapter),
+            GraphNavHandler(self.state_store, self.context_store, adapter, llm_func),
             MultiVarHandler(self.state_store, self.context_store),
             DataTransformHandler(self.state_store, self.context_store, llm_func),
             FieldCalcHandler(self.state_store, self.context_store, llm_func),

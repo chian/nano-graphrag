@@ -5,6 +5,7 @@ Object Creation command handlers.
 from typing import Any, List, Dict
 from .base import CommandHandler
 from ..types import Command, ExecutionResult, Provenance
+from ..validation import LLMJudgeValidator
 
 
 class ObjectCreateHandler(CommandHandler):
@@ -13,6 +14,7 @@ class ObjectCreateHandler(CommandHandler):
     def __init__(self, state_store, context_store, llm_func=None):
         super().__init__(state_store, context_store)
         self.llm_func = llm_func
+        self.validator = LLMJudgeValidator(llm_func) if llm_func else None
     
     def can_handle(self, command: Command) -> bool:
         return command.command_type in ["CREATE", "GENERATE"]
@@ -104,19 +106,41 @@ class ObjectCreateHandler(CommandHandler):
         llm_response = self.llm_func.call(prompt)
         print(f"DEBUG: GENERATE - LLM Response:\n{llm_response}\n")
         
-        # Parse LLM response
+        # Parse LLM response - handle both JSON and markdown
         try:
             import json
-            generate_result = json.loads(llm_response)
+            import re
+            
+            # Try to extract JSON from response (in case it's wrapped in markdown)
+            json_match = re.search(r'```json\s*(\{.*?\})\s*```', llm_response, re.DOTALL)
+            if json_match:
+                json_str = json_match.group(1)
+                generate_result = json.loads(json_str)
+            else:
+                # Try parsing the whole response as JSON
+                generate_result = json.loads(llm_response)
+            
             generated_objects = generate_result.get("generated_objects", [])
             
-            # Store generated objects in context
+            # Store generated objects in both context and state
             result_key = f"generated_{content_type}"
             self.context_store.set(result_key, generated_objects)
             
-            print(f"DEBUG: GENERATE - generated {len(generated_objects)} {content_type} objects")
+            # Also store in state as a new variable
+            state_var_name = f"generated_{content_type}"
+            if not self.state_store.has_variable(state_var_name):
+                self.state_store.declare_variable(state_var_name, "LIST", f"Generated {content_type} content")
             
-            return self._create_result(
+            # Update the state variable with generated content
+            var_data = self.state_store.get_variable(state_var_name)
+            if isinstance(var_data, dict) and "items" in var_data:
+                var_data["items"] = generated_objects
+                self.state_store._save_state()
+            
+            print(f"DEBUG: GENERATE - generated {len(generated_objects)} {content_type} objects and stored in {state_var_name}")
+            
+            # Create initial result
+            result_obj = self._create_result(
                 command=command,
                 status="success",
                 data=generated_objects,
@@ -124,6 +148,22 @@ class ObjectCreateHandler(CommandHandler):
                 provenance=[self._create_provenance("generate", "generate",
                                                    content_type=content_type, source_variable=source_variable)]
             )
+            
+            # Validate with LLM judge if available
+            if self.validator and len(generated_objects) > 0:
+                validation = self.validator.validate_command_success(
+                    command.command_type, command.args, generated_objects, len(generated_objects)
+                )
+                
+                if not validation.get("valid", True):
+                    # Override status if LLM judge says it failed
+                    result_obj.status = "error"
+                    result_obj.error_message = f"LLM Judge Validation Failed: {validation.get('reason', 'Unknown validation failure')}"
+                    print(f"DEBUG: GENERATE - LLM Judge validation failed: {validation}")
+                else:
+                    print(f"DEBUG: GENERATE - LLM Judge validation passed: {validation.get('reason', 'Valid')}")
+            
+            return result_obj
             
         except json.JSONDecodeError:
             return self._create_result(command=command, status="error",

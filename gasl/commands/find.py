@@ -6,14 +6,16 @@ from typing import Any, List
 from .base import CommandHandler
 from ..types import Command, ExecutionResult, Provenance
 from ..adapters.base import GraphAdapter
+from ..validation import LLMJudgeValidator
 
 
 class FindHandler(CommandHandler):
     """Handles FIND commands for graph traversal."""
     
-    def __init__(self, state_store, context_store, adapter: GraphAdapter):
+    def __init__(self, state_store, context_store, adapter: GraphAdapter, llm_func=None):
         super().__init__(state_store, context_store)
         self.adapter = adapter
+        self.validator = LLMJudgeValidator(llm_func) if llm_func else None
     
     def can_handle(self, command: Command) -> bool:
         return command.command_type == "FIND"
@@ -59,16 +61,41 @@ class FindHandler(CommandHandler):
                 )
             ]
             
-            status = "success" if result else "empty"
-            count = len(result) if isinstance(result, list) else (1 if result else 0)
+            # More meaningful status based on actual results
+            if not result:
+                status = "empty"
+                count = 0
+            elif isinstance(result, list) and len(result) == 0:
+                status = "empty" 
+                count = 0
+            else:
+                status = "success"
+                count = len(result) if isinstance(result, list) else (1 if result else 0)
             
-            return self._create_result(
+            # Create initial result
+            result_obj = self._create_result(
                 command=command,
                 status=status,
                 data=result,
                 count=count,
                 provenance=provenance
             )
+            
+            # Validate with LLM judge if available
+            if self.validator and status == "success":
+                validation = self.validator.validate_command_success(
+                    command.command_type, command.args, result, count
+                )
+                
+                if not validation.get("valid", True):
+                    # Override status if LLM judge says it failed
+                    result_obj.status = "error"
+                    result_obj.error_message = f"LLM Judge Validation Failed: {validation.get('reason', 'Unknown validation failure')}"
+                    print(f"DEBUG: FIND - LLM Judge validation failed: {validation}")
+                else:
+                    print(f"DEBUG: FIND - LLM Judge validation passed: {validation.get('reason', 'Valid')}")
+            
+            return result_obj
             
         except Exception as e:
             return self._create_result(

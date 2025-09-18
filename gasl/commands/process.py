@@ -5,6 +5,7 @@ PROCESS command handler.
 from typing import Any, List, Dict
 from .base import CommandHandler
 from ..types import Command, ExecutionResult, Provenance
+from ..validation import LLMJudgeValidator
 
 
 class ProcessHandler(CommandHandler):
@@ -13,6 +14,7 @@ class ProcessHandler(CommandHandler):
     def __init__(self, state_store, context_store, llm_func):
         super().__init__(state_store, context_store)
         self.llm_func = llm_func
+        self.validator = LLMJudgeValidator(llm_func) if llm_func else None
     
     def can_handle(self, command: Command) -> bool:
         return command.command_type == "PROCESS"
@@ -51,59 +53,16 @@ class ProcessHandler(CommandHandler):
             print(f"DEBUG: PROCESS - LLM Response:\n{llm_response}\n")
             
             # Parse LLM response
-            try:
-                import json
-                parsed_result = json.loads(llm_response)
-                
-                # Extract included items (the filtered results)
-                included_items = parsed_result.get("included", [])
-                
-                # Check if this is a filtering operation or field calculation
-                if "included" in parsed_result and "excluded" in parsed_result:
-                    # This is a filtering operation - map LLM results back to original node format
-                    filtered_nodes = []
-                    for item in included_items:
-                        # Find the original node data by matching the ID
-                        original_node = self._find_original_node(data, item.get("id", ""))
-                        if original_node:
-                            filtered_nodes.append(original_node)
-                    
-                    # Store results in target variable
-                    self._store_processed_data(target_variable, filtered_nodes)
-                    print(f"DEBUG: PROCESS - Updated {target_variable} with {len(filtered_nodes)} filtered items")
-                    
-                elif "processed_items" in parsed_result:
-                    # This is a field calculation operation - use the processed items directly
-                    processed_items = parsed_result["processed_items"]
-                    self._store_processed_data(target_variable, processed_items)
-                    print(f"DEBUG: PROCESS - Updated {target_variable} with {len(processed_items)} processed items")
-                    
-                else:
-                    # Fallback to original behavior
-                    filtered_nodes = []
-                    for item in included_items:
-                        original_node = self._find_original_node(data, item.get("id", ""))
-                        if original_node:
-                            filtered_nodes.append(original_node)
-                    
-                    self._store_processed_data(target_variable, filtered_nodes)
-                    print(f"DEBUG: PROCESS - Updated {target_variable} with {len(filtered_nodes)} filtered items")
-                
-                # Store full LLM analysis in context
-                result_key = f"process_{variable}_{len(self.context_store.keys())}"
-                self.context_store.set(result_key, parsed_result)
-                
-                result = {
-                    "filtered_items": included_items,
-                    "analysis": parsed_result,
-                    "count": len(included_items)
-                }
-                
-            except json.JSONDecodeError:
-                # If LLM response is not valid JSON, store as text
-                result_key = f"process_{variable}_{len(self.context_store.keys())}"
-                self.context_store.set(result_key, llm_response)
-                result = {"raw_response": llm_response, "count": 0}
+            result = self._parse_process_response(llm_response, data)
+            
+            # Store results in target variable
+            processed_items = result.get("processed_items", [])
+            self._store_processed_data(target_variable, processed_items)
+            print(f"DEBUG: PROCESS - Updated {target_variable} with {len(processed_items)} processed items using {result.get('processing_method', 'unknown')} method")
+            
+            # Store full result in context
+            result_key = f"process_{variable}_{len(self.context_store.keys())}"
+            self.context_store.set(result_key, result)
             
             # Create provenance
             provenance = [
@@ -116,13 +75,39 @@ class ProcessHandler(CommandHandler):
                 )
             ]
             
-            return self._create_result(
+            # Determine status based on actual work done
+            if "processed_items" in result:
+                status = "success" if len(result['processed_items']) > 0 else "empty"
+            elif "filtered_items" in result:
+                status = "success" if len(result['filtered_items']) > 0 else "empty"
+            else:
+                status = "empty"
+            
+            # Create initial result
+            result_obj = self._create_result(
                 command=command,
-                status="success",
+                status=status,
                 data=result,
-                count=1,
+                count=len(result.get('filtered_items', [])) if 'filtered_items' in result else len(result.get('processed_items', [])),
                 provenance=provenance
             )
+            
+            # Validate with LLM judge if available
+            if self.validator and status == "success":
+                validation = self.validator.validate_command_success(
+                    command.command_type, command.args, result, 
+                    len(result.get('filtered_items', [])) if 'filtered_items' in result else len(result.get('processed_items', []))
+                )
+                
+                if not validation.get("valid", True):
+                    # Override status if LLM judge says it failed
+                    result_obj.status = "error"
+                    result_obj.error_message = f"LLM Judge Validation Failed: {validation.get('reason', 'Unknown validation failure')}"
+                    print(f"DEBUG: PROCESS - LLM Judge validation failed: {validation}")
+                else:
+                    print(f"DEBUG: PROCESS - LLM Judge validation passed: {validation.get('reason', 'Valid')}")
+            
+            return result_obj
             
         except Exception as e:
             return self._create_result(

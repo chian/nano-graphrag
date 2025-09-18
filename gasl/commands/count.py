@@ -5,10 +5,15 @@ COUNT command handler.
 from typing import Any, List, Dict
 from .base import CommandHandler
 from ..types import Command, ExecutionResult, Provenance
+from ..validation import LLMJudgeValidator
 
 
 class CountHandler(CommandHandler):
     """Handles COUNT commands for counting field values."""
+    
+    def __init__(self, state_store, context_store, llm_func=None):
+        super().__init__(state_store, context_store)
+        self.validator = LLMJudgeValidator(llm_func) if llm_func else None
     
     def can_handle(self, command: Command) -> bool:
         return command.command_type == "COUNT"
@@ -57,7 +62,8 @@ class CountHandler(CommandHandler):
             
             print(f"DEBUG: COUNT - created {len(result)} count entries")
             
-            return self._create_result(
+            # Create initial result
+            result_obj = self._create_result(
                 command=command,
                 status="success",
                 data=result,
@@ -66,6 +72,22 @@ class CountHandler(CommandHandler):
                                                  field=field_name, condition=condition,
                                                  group_by=group_by, unique=unique)]
             )
+            
+            # Validate with LLM judge if available
+            if self.validator and len(result) > 0:
+                validation = self.validator.validate_command_success(
+                    command.command_type, command.args, result, len(result)
+                )
+                
+                if not validation.get("valid", True):
+                    # Override status if LLM judge says it failed
+                    result_obj.status = "error"
+                    result_obj.error_message = f"LLM Judge Validation Failed: {validation.get('reason', 'Unknown validation failure')}"
+                    print(f"DEBUG: COUNT - LLM Judge validation failed: {validation}")
+                else:
+                    print(f"DEBUG: COUNT - LLM Judge validation passed: {validation.get('reason', 'Valid')}")
+            
+            return result_obj
             
         except Exception as e:
             return self._create_result(
@@ -212,14 +234,19 @@ class CountHandler(CommandHandler):
     
     def _store_count_result(self, result_var: str, result: List[Dict]) -> None:
         """Store count result in variable."""
-        # Check if target variable exists in state store
-        if self.state_store.has_variable(result_var):
-            var_data = self.state_store.get_variable(result_var)
-            if isinstance(var_data, dict) and "items" in var_data:
-                var_data["items"] = result
-                self.state_store._save_state()
-            else:
-                self.state_store.update_variable(result_var, result)
+        # Create state variable if it doesn't exist
+        if not self.state_store.has_variable(result_var):
+            self.state_store.declare_variable(result_var, "LIST", f"Count results for {result_var}")
+        
+        # Store in state
+        var_data = self.state_store.get_variable(result_var)
+        if isinstance(var_data, dict) and "items" in var_data:
+            var_data["items"] = result
+            self.state_store._save_state()
         else:
-            # Store in context store if not in state
-            self.context_store.set(result_var, result)
+            self.state_store.update_variable(result_var, result)
+        
+        # Also store in context for immediate access
+        self.context_store.set(result_var, result)
+        
+        print(f"DEBUG: COUNT - stored {len(result)} count entries in {result_var}")

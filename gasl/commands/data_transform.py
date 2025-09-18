@@ -5,6 +5,7 @@ Data Transformation command handlers.
 from typing import Any, List, Dict
 from .base import CommandHandler
 from ..types import Command, ExecutionResult, Provenance
+from ..validation import LLMJudgeValidator
 
 
 class DataTransformHandler(CommandHandler):
@@ -13,6 +14,7 @@ class DataTransformHandler(CommandHandler):
     def __init__(self, state_store, context_store, llm_func=None):
         super().__init__(state_store, context_store)
         self.llm_func = llm_func
+        self.validator = LLMJudgeValidator(llm_func) if llm_func else None
     
     def can_handle(self, command: Command) -> bool:
         return command.command_type in ["TRANSFORM", "RESHAPE", "AGGREGATE", "PIVOT"]
@@ -248,7 +250,8 @@ class DataTransformHandler(CommandHandler):
         
         print(f"DEBUG: AGGREGATE - created {len(result_list)} aggregated groups")
         
-        return self._create_result(
+        # Create initial result
+        result_obj = self._create_result(
             command=command,
             status="success",
             data=result_list,
@@ -256,6 +259,22 @@ class DataTransformHandler(CommandHandler):
             provenance=[self._create_provenance("aggregate", "aggregate",
                                                variable=variable, by_field=by_field, operation=operation)]
         )
+        
+        # Validate with LLM judge if available
+        if self.validator and len(result_list) > 0:
+            validation = self.validator.validate_command_success(
+                command.command_type, command.args, result_list, len(result_list)
+            )
+            
+            if not validation.get("valid", True):
+                # Override status if LLM judge says it failed
+                result_obj.status = "error"
+                result_obj.error_message = f"LLM Judge Validation Failed: {validation.get('reason', 'Unknown validation failure')}"
+                print(f"DEBUG: AGGREGATE - LLM Judge validation failed: {validation}")
+            else:
+                print(f"DEBUG: AGGREGATE - LLM Judge validation passed: {validation.get('reason', 'Valid')}")
+        
+        return result_obj
     
     def _execute_pivot(self, command: Command) -> ExecutionResult:
         """Execute PIVOT command."""
