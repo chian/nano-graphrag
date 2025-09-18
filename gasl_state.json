@@ -1,0 +1,197 @@
+{
+  "version": "0.1",
+  "created_at": "2025-09-18T10:20:58.202730",
+  "updated_at": "2025-09-18T10:21:11.187838",
+  "query": "Find all authors and show me their connections",
+  "config": {
+    "stop_on_error": true,
+    "continue_on_empty": false
+  },
+  "variables": {
+    "authors": {
+      "_meta": {
+        "type": "LIST",
+        "description": "List of all author nodes (PERSON entities)"
+      },
+      "items": []
+    },
+    "author_connections": {
+      "_meta": {
+        "type": "LIST",
+        "description": "Connections (edges) for each author node"
+      },
+      "items": []
+    }
+  },
+  "history": [
+    {
+      "step_id": "find-authors-and-show-connections-001-step-1",
+      "command": "DECLARE authors AS LIST WITH_DESCRIPTION \"List of all author nodes (PERSON entities)\"",
+      "status": "success",
+      "result_count": 1,
+      "duration_ms": 0,
+      "timestamp": "2025-09-18T10:21:00.889409",
+      "error_message": null,
+      "provenance": [
+        {
+          "source_id": "gasl-declare",
+          "doc_id": null,
+          "offset_start": null,
+          "offset_end": null,
+          "snippet": null,
+          "extraction": {
+            "method": "declare_variable",
+            "variable": "authors",
+            "type": "LIST",
+            "description": "List of all author nodes (PERSON entities)"
+          }
+        }
+      ]
+    },
+    {
+      "step_id": "find-authors-and-show-connections-001-step-2",
+      "command": "FIND nodes with entity_type=PERSON",
+      "status": "success",
+      "result_count": 1000,
+      "duration_ms": 6,
+      "timestamp": "2025-09-18T10:21:00.896236",
+      "error_message": null,
+      "provenance": [
+        {
+          "source_id": "graph-adapter",
+          "doc_id": null,
+          "offset_start": null,
+          "offset_end": null,
+          "snippet": null,
+          "extraction": {
+            "method": "find",
+            "target": "nodes",
+            "criteria": "entity_type=PERSON",
+            "filters": {
+              "entity_type": "\"PERSON\"",
+              "raw_criteria": "entity_type=PERSON"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "step_id": "find-authors-and-show-connections-001-step-3",
+      "command": "DECLARE author_connections AS LIST WITH_DESCRIPTION \"Connections (edges) for each author node\"",
+      "status": "success",
+      "result_count": 1,
+      "duration_ms": 0,
+      "timestamp": "2025-09-18T10:21:00.896894",
+      "error_message": null,
+      "provenance": [
+        {
+          "source_id": "gasl-declare",
+          "doc_id": null,
+          "offset_start": null,
+          "offset_end": null,
+          "snippet": null,
+          "extraction": {
+            "method": "declare_variable",
+            "variable": "author_connections",
+            "type": "LIST",
+            "description": "Connections (edges) for each author node"
+          }
+        }
+      ]
+    },
+    {
+      "step_id": "find-authors-and-show-connections-001-step-4",
+      "command": "GRAPHWALK from last_nodes_result follow any depth 2",
+      "status": "success",
+      "result_count": 50000,
+      "duration_ms": 91,
+      "timestamp": "2025-09-18T10:21:00.988459",
+      "error_message": null,
+      "provenance": [
+        {
+          "source_id": "graph-walk",
+          "doc_id": null,
+          "offset_start": null,
+          "offset_end": null,
+          "snippet": null,
+          "extraction": {
+            "method": "graphwalk",
+            "from_variable": "last_nodes_result",
+            "depth": 1
+          }
+        }
+      ]
+    },
+    {
+      "step_id": "find-authors-and-show-connections-001-step-5",
+      "command": "UPDATE author_connections with last_graphwalk_result operation: replace",
+      "status": "error",
+      "result_count": 0,
+      "duration_ms": 0,
+      "timestamp": "2025-09-18T10:21:00.989107",
+      "error_message": "Source variable last_graphwalk_result not found in context or state",
+      "provenance": []
+    },
+    {
+      "step_id": "plan-authors-connections-001-step-1",
+      "command": "FIND nodes with entity_type=PERSON",
+      "status": "success",
+      "result_count": 1000,
+      "duration_ms": 6,
+      "timestamp": "2025-09-18T10:21:11.086675",
+      "error_message": null,
+      "provenance": [
+        {
+          "source_id": "graph-adapter",
+          "doc_id": null,
+          "offset_start": null,
+          "offset_end": null,
+          "snippet": null,
+          "extraction": {
+            "method": "find",
+            "target": "nodes",
+            "criteria": "entity_type=PERSON",
+            "filters": {
+              "entity_type": "\"PERSON\"",
+              "raw_criteria": "entity_type=PERSON"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "step_id": "plan-authors-connections-001-step-2",
+      "command": "GRAPHWALK from last_nodes_result follow any depth 2",
+      "status": "success",
+      "result_count": 50000,
+      "duration_ms": 100,
+      "timestamp": "2025-09-18T10:21:11.187219",
+      "error_message": null,
+      "provenance": [
+        {
+          "source_id": "graph-walk",
+          "doc_id": null,
+          "offset_start": null,
+          "offset_end": null,
+          "snippet": null,
+          "extraction": {
+            "method": "graphwalk",
+            "from_variable": "last_nodes_result",
+            "depth": 1
+          }
+        }
+      ]
+    },
+    {
+      "step_id": "plan-authors-connections-001-step-3",
+      "command": "UPDATE author_connections with last_graphwalk_result operation: replace",
+      "status": "error",
+      "result_count": 0,
+      "duration_ms": 0,
+      "timestamp": "2025-09-18T10:21:11.187832",
+      "error_message": "Source variable last_graphwalk_result not found in context or state",
+      "provenance": []
+    }
+  ],
+  "replay": []
+}

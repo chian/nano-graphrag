@@ -1,0 +1,208 @@
+<?xml version='1.0' encoding='utf-8'?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd"><key id="d7" for="edge" attr.name="order" attr.type="long"/>
+<key id="d6" for="edge" attr.name="source_id" attr.type="string"/>
+<key id="d5" for="edge" attr.name="description" attr.type="string"/>
+<key id="d4" for="edge" attr.name="weight" attr.type="double"/>
+<key id="d3" for="node" attr.name="clusters" attr.type="string"/>
+<key id="d2" for="node" attr.name="source_id" attr.type="string"/>
+<key id="d1" for="node" attr.name="description" attr.type="string"/>
+<key id="d0" for="node" attr.name="entity_type" attr.type="string"/>
+<graph edgedefault="undirected"><node id="&quot;ARTIFICIAL INTELLIGENCE&quot;">
+  <data key="d0">"EVENT"</data>
+  <data key="d1">"Artificial Intelligence (AI) refers to the broad field of computer science focused on creating systems capable of performing tasks that typically require human intelligence, such as learning, reasoning, and problem-solving. AI is transforming work and life by enabling new capabilities across industries."</data>
+  <data key="d2">chunk-e02cd1235b94041b8074924c0843ccec</data>
+  <data key="d3">[{"level": 0, "cluster": 0}]</data>
+</node>
+<node id="&quot;MACHINE LEARNING&quot;">
+  <data key="d0">"EVENT"</data>
+  <data key="d1">"Machine learning is a subset of artificial intelligence involving algorithms that process large amounts of data to identify patterns and make predictions. It is widely used in various applications and industries."</data>
+  <data key="d2">chunk-e02cd1235b94041b8074924c0843ccec</data>
+  <data key="d3">[{"level": 0, "cluster": 1}]</data>
+</node>
+<node id="&quot;DEEP LEARNING&quot;">
+  <data key="d0">"EVENT"</data>
+  <data key="d1">"Deep learning is a specialized subset of machine learning that utilizes neural networks with multiple layers to solve complex problems, such as image and speech recognition."</data>
+  <data key="d2">chunk-e02cd1235b94041b8074924c0843ccec</data>
+  <data key="d3">[{"level": 0, "cluster": 4}]</data>
+</node>
+<node id="&quot;NATURAL LANGUAGE PROCESSING&quot;">
+  <data key="d0">"EVENT"</data>
+  <data key="d1">"Natural language processing (NLP) is a branch of AI that enables computers to understand, interpret, and generate human language, facilitating communication between humans and machines."</data>
+  <data key="d2">chunk-e02cd1235b94041b8074924c0843ccec</data>
+  <data key="d3">[{"level": 0, "cluster": 2}]</data>
+</node>
+<node id="&quot;COMPUTER VISION&quot;">
+  <data key="d0">"EVENT"</data>
+  <data key="d1">"Computer vision is a field of AI that allows machines to interpret and analyze visual information from the world, enabling applications such as image recognition and autonomous vehicles."</data>
+  <data key="d2">chunk-e02cd1235b94041b8074924c0843ccec</data>
+  <data key="d3">[{"level": 0, "cluster": 3}]</data>
+</node>
+<node id="&quot;HEALTHCARE&quot;">
+  <data key="d0">"ORGANIZATION"</data>
+  <data key="d1">"Healthcare refers to the industry focused on the maintenance and improvement of health through prevention, diagnosis, treatment, and recovery. AI technologies are being applied to healthcare for improved diagnostics, patient care, and operational efficiency."</data>
+  <data key="d2">chunk-e02cd1235b94041b8074924c0843ccec</data>
+  <data key="d3">[{"level": 0, "cluster": 0}]</data>
+</node>
+<node id="&quot;FINANCE&quot;">
+  <data key="d0">"ORGANIZATION"</data>
+  <data key="d1">"Finance is the industry concerned with the management of money, banking, investments, and financial services. AI is used in finance for fraud detection, risk assessment, and automated trading."</data>
+  <data key="d2">chunk-e02cd1235b94041b8074924c0843ccec</data>
+  <data key="d3">[{"level": 0, "cluster": 0}]</data>
+</node>
+<node id="&quot;TRANSPORTATION&quot;">
+  <data key="d0">"ORGANIZATION"</data>
+  <data key="d1">"Transportation is the industry responsible for the movement of people and goods. AI applications in transportation include autonomous vehicles, route optimization, and predictive maintenance."</data>
+  <data key="d2">chunk-e02cd1235b94041b8074924c0843ccec</data>
+  <data key="d3">[{"level": 0, "cluster": 0}]</data>
+</node>
+<node id="&quot;ENTERTAINMENT&quot;">
+  <data key="d0">"ORGANIZATION"</data>
+  <data key="d1">"Entertainment is the industry that provides amusement and enjoyment through media, games, and performances. AI is used in entertainment for content recommendation, personalization, and creative production."</data>
+  <data key="d2">chunk-e02cd1235b94041b8074924c0843ccec</data>
+  <data key="d3">[{"level": 0, "cluster": 0}]</data>
+</node>
+<node id="&quot;NEURAL NETWORKS&quot;">
+  <data key="d0">"EVENT"</data>
+  <data key="d1">"Neural networks are computational models inspired by the human brain, consisting of interconnected nodes (neurons) that process information in layers. They are fundamental to deep learning and are used to solve complex problems such as image and speech recognition."</data>
+  <data key="d2">chunk-e02cd1235b94041b8074924c0843ccec</data>
+  <data key="d3">[{"level": 0, "cluster": 4}]</data>
+</node>
+<node id="&quot;DATA&quot;">
+  <data key="d0">"EVENT"</data>
+  <data key="d1">"Data refers to the vast amounts of information processed by machine learning algorithms to identify patterns and make predictions. It is a critical resource for all AI technologies."</data>
+  <data key="d2">chunk-e02cd1235b94041b8074924c0843ccec</data>
+  <data key="d3">[{"level": 0, "cluster": 1}]</data>
+</node>
+<node id="&quot;PATTERNS&quot;">
+  <data key="d0">"EVENT"</data>
+  <data key="d1">"Patterns are recurring structures or trends identified within data by machine learning algorithms, enabling predictions and insights."</data>
+  <data key="d2">chunk-e02cd1235b94041b8074924c0843ccec</data>
+  <data key="d3">[{"level": 0, "cluster": 1}]</data>
+</node>
+<node id="&quot;PREDICTIONS&quot;">
+  <data key="d0">"EVENT"</data>
+  <data key="d1">"Predictions are outcomes or forecasts generated by AI and machine learning algorithms based on identified patterns in data."</data>
+  <data key="d2">chunk-e02cd1235b94041b8074924c0843ccec</data>
+  <data key="d3">[{"level": 0, "cluster": 1}]</data>
+</node>
+<node id="&quot;PROBLEMS&quot;">
+  <data key="d0">"EVENT"</data>
+  <data key="d1">"Problems refer to complex challenges or tasks that AI technologies, such as deep learning and computer vision, are designed to solve."</data>
+  <data key="d2">chunk-e02cd1235b94041b8074924c0843ccec</data>
+  <data key="d3">[{"level": 0, "cluster": 4}]</data>
+</node>
+<node id="&quot;HUMAN LANGUAGE&quot;">
+  <data key="d0">"EVENT"</data>
+  <data key="d1">"Human language is the natural language used by people for communication. Natural language processing enables computers to understand and generate human language."</data>
+  <data key="d2">chunk-e02cd1235b94041b8074924c0843ccec</data>
+  <data key="d3">[{"level": 0, "cluster": 2}]</data>
+</node>
+<node id="&quot;VISUAL INFORMATION&quot;">
+  <data key="d0">"EVENT"</data>
+  <data key="d1">"Visual information refers to images and other visual data that computer vision technologies interpret and analyze."</data>
+  <data key="d2">chunk-e02cd1235b94041b8074924c0843ccec</data>
+  <data key="d3">[{"level": 0, "cluster": 3}]</data>
+</node>
+<node id="&quot;INDUSTRIES&quot;">
+  <data key="d0">"ORGANIZATION"</data>
+  <data key="d1">"Industries are sectors of economic activity, such as healthcare, finance, transportation, and entertainment, where AI technologies are being applied."</data>
+  <data key="d2">chunk-e02cd1235b94041b8074924c0843ccec</data>
+  <data key="d3">[{"level": 0, "cluster": 0}]</data>
+</node>
+<edge source="&quot;ARTIFICIAL INTELLIGENCE&quot;" target="&quot;MACHINE LEARNING&quot;">
+  <data key="d4">10.0</data>
+  <data key="d5">"Machine learning is a subset of artificial intelligence, providing foundational algorithms for AI applications."</data>
+  <data key="d6">chunk-e02cd1235b94041b8074924c0843ccec</data>
+  <data key="d7">1</data>
+</edge>
+<edge source="&quot;ARTIFICIAL INTELLIGENCE&quot;" target="&quot;NATURAL LANGUAGE PROCESSING&quot;">
+  <data key="d4">9.0</data>
+  <data key="d5">"Natural language processing is a branch of artificial intelligence focused on language understanding and generation."</data>
+  <data key="d6">chunk-e02cd1235b94041b8074924c0843ccec</data>
+  <data key="d7">1</data>
+</edge>
+<edge source="&quot;ARTIFICIAL INTELLIGENCE&quot;" target="&quot;COMPUTER VISION&quot;">
+  <data key="d4">9.0</data>
+  <data key="d5">"Computer vision is a field within artificial intelligence that enables machines to interpret visual data."</data>
+  <data key="d6">chunk-e02cd1235b94041b8074924c0843ccec</data>
+  <data key="d7">1</data>
+</edge>
+<edge source="&quot;ARTIFICIAL INTELLIGENCE&quot;" target="&quot;HEALTHCARE&quot;">
+  <data key="d4">8.0</data>
+  <data key="d5">"AI technologies are being applied in healthcare to improve diagnostics, patient care, and efficiency."</data>
+  <data key="d6">chunk-e02cd1235b94041b8074924c0843ccec</data>
+  <data key="d7">1</data>
+</edge>
+<edge source="&quot;ARTIFICIAL INTELLIGENCE&quot;" target="&quot;FINANCE&quot;">
+  <data key="d4">8.0</data>
+  <data key="d5">"AI is used in finance for tasks such as fraud detection, risk assessment, and automated trading."</data>
+  <data key="d6">chunk-e02cd1235b94041b8074924c0843ccec</data>
+  <data key="d7">1</data>
+</edge>
+<edge source="&quot;ARTIFICIAL INTELLIGENCE&quot;" target="&quot;TRANSPORTATION&quot;">
+  <data key="d4">8.0</data>
+  <data key="d5">"AI is transforming transportation through autonomous vehicles, route optimization, and predictive maintenance."</data>
+  <data key="d6">chunk-e02cd1235b94041b8074924c0843ccec</data>
+  <data key="d7">1</data>
+</edge>
+<edge source="&quot;ARTIFICIAL INTELLIGENCE&quot;" target="&quot;ENTERTAINMENT&quot;">
+  <data key="d4">8.0</data>
+  <data key="d5">"AI is used in entertainment for content recommendation, personalization, and creative production."</data>
+  <data key="d6">chunk-e02cd1235b94041b8074924c0843ccec</data>
+  <data key="d7">1</data>
+</edge>
+<edge source="&quot;ARTIFICIAL INTELLIGENCE&quot;" target="&quot;INDUSTRIES&quot;">
+  <data key="d4">8.0</data>
+  <data key="d5">"Artificial intelligence technologies are being applied across various industries, transforming their operations and capabilities."</data>
+  <data key="d6">chunk-e02cd1235b94041b8074924c0843ccec</data>
+  <data key="d7">1</data>
+</edge>
+<edge source="&quot;MACHINE LEARNING&quot;" target="&quot;DEEP LEARNING&quot;">
+  <data key="d4">10.0</data>
+  <data key="d5">"Deep learning is a specialized subset of machine learning, utilizing neural networks for complex problem solving."</data>
+  <data key="d6">chunk-e02cd1235b94041b8074924c0843ccec</data>
+  <data key="d7">1</data>
+</edge>
+<edge source="&quot;MACHINE LEARNING&quot;" target="&quot;DATA&quot;">
+  <data key="d4">10.0</data>
+  <data key="d5">"Machine learning algorithms process vast amounts of data to identify patterns and make predictions."</data>
+  <data key="d6">chunk-e02cd1235b94041b8074924c0843ccec</data>
+  <data key="d7">1</data>
+</edge>
+<edge source="&quot;MACHINE LEARNING&quot;" target="&quot;PATTERNS&quot;">
+  <data key="d4">9.0</data>
+  <data key="d5">"Machine learning algorithms identify patterns within data to enable predictions."</data>
+  <data key="d6">chunk-e02cd1235b94041b8074924c0843ccec</data>
+  <data key="d7">1</data>
+</edge>
+<edge source="&quot;MACHINE LEARNING&quot;" target="&quot;PREDICTIONS&quot;">
+  <data key="d4">9.0</data>
+  <data key="d5">"Machine learning algorithms make predictions based on patterns found in data."</data>
+  <data key="d6">chunk-e02cd1235b94041b8074924c0843ccec</data>
+  <data key="d7">1</data>
+</edge>
+<edge source="&quot;DEEP LEARNING&quot;" target="&quot;NEURAL NETWORKS&quot;">
+  <data key="d4">10.0</data>
+  <data key="d5">"Deep learning utilizes neural networks with multiple layers to solve complex problems."</data>
+  <data key="d6">chunk-e02cd1235b94041b8074924c0843ccec</data>
+  <data key="d7">1</data>
+</edge>
+<edge source="&quot;DEEP LEARNING&quot;" target="&quot;PROBLEMS&quot;">
+  <data key="d4">8.0</data>
+  <data key="d5">"Deep learning is used to solve complex problems that are difficult for traditional algorithms."</data>
+  <data key="d6">chunk-e02cd1235b94041b8074924c0843ccec</data>
+  <data key="d7">1</data>
+</edge>
+<edge source="&quot;NATURAL LANGUAGE PROCESSING&quot;" target="&quot;HUMAN LANGUAGE&quot;">
+  <data key="d4">10.0</data>
+  <data key="d5">"Natural language processing enables computers to understand and generate human language."</data>
+  <data key="d6">chunk-e02cd1235b94041b8074924c0843ccec</data>
+  <data key="d7">1</data>
+</edge>
+<edge source="&quot;COMPUTER VISION&quot;" target="&quot;VISUAL INFORMATION&quot;">
+  <data key="d4">10.0</data>
+  <data key="d5">"Computer vision allows machines to interpret and analyze visual information."</data>
+  <data key="d6">chunk-e02cd1235b94041b8074924c0843ccec</data>
+  <data key="d7">1</data>
+</edge>
+</graph></graphml>
