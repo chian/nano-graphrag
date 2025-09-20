@@ -19,6 +19,8 @@ from .commands import (
     GraphNavHandler, MultiVarHandler, DataTransformHandler, 
     FieldCalcHandler, ObjectCreateHandler, PatternAnalysisHandler
 )
+from .commands.iterate import IterateHandler
+from .micro_actions import MicroActionFramework
 from .errors import ExecutionError, ParseError
 
 
@@ -32,16 +34,20 @@ class GASLExecutor:
         self.state_store = StateStore(state_file)
         self.context_store = ContextStore()
         
+        # Initialize micro-action framework
+        self.micro_framework = MicroActionFramework(llm_func, self.state_store, self.context_store)
+        
         # Initialize command handlers
         self.handlers = [
             # Core commands
             DeclareHandler(self.state_store, self.context_store),
             FindHandler(self.state_store, self.context_store, adapter, llm_func),
-            ProcessHandler(self.state_store, self.context_store, llm_func),
+            ProcessHandler(self.state_store, self.context_store, llm_func, self.micro_framework),
             ClassifyHandler(self.state_store, self.context_store, llm_func),
             UpdateHandler(self.state_store, self.context_store),
             CountHandler(self.state_store, self.context_store, llm_func),
             DebugHandler(self.state_store, self.context_store),
+            IterateHandler(self.state_store, self.context_store, self.micro_framework),
             
             # New command categories
             GraphNavHandler(self.state_store, self.context_store, adapter, llm_func),

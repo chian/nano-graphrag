@@ -217,10 +217,11 @@ class CountHandler(CommandHandler):
         return sorted(result, key=lambda x: (x["group"], x["count"]), reverse=True)
     
     def _get_nested_field(self, item: Dict, field_path: str) -> Any:
-        """Get nested field value using dot notation."""
+        """Get nested field value using dot notation with automatic path resolution."""
         if not field_path:
             return None
         
+        # First try the exact field path
         keys = field_path.split('.')
         value = item
         
@@ -228,9 +229,35 @@ class CountHandler(CommandHandler):
             if isinstance(value, dict) and key in value:
                 value = value[key]
             else:
-                return None
+                break
+        else:
+            # If we successfully traversed all keys, return the value
+            return value
         
-        return value
+        # If exact path failed, try to find the field in common nested locations
+        if '.' not in field_path:
+            # Try common nested locations for single field names
+            common_paths = [
+                f"data.{field_path}",
+                f"properties.{field_path}",
+                f"attributes.{field_path}",
+                field_path  # Try the original path again
+            ]
+            
+            for path in common_paths:
+                keys = path.split('.')
+                value = item
+                
+                for key in keys:
+                    if isinstance(value, dict) and key in value:
+                        value = value[key]
+                    else:
+                        break
+                else:
+                    # Found the field, return it
+                    return value
+        
+        return None
     
     def _store_count_result(self, result_var: str, result: List[Dict]) -> None:
         """Store count result in variable."""

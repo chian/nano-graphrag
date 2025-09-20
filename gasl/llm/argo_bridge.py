@@ -65,6 +65,7 @@ Available Graph Schema:
 - Node Properties: {schema.get('node_properties', [])}
 - Edge Properties: {schema.get('edge_properties', [])}
 
+
 Current State Variables:
 {self._format_state(state)}
 
@@ -89,6 +90,12 @@ CORE COMMANDS:
 DEBUG COMMANDS:
 - SHOW <var> [limit <n>] - Display variable contents
 - INSPECT <var> - Analyze data structure and content
+
+MICRO-ACTION COMMANDS:
+- ITERATE <source_var> BATCH_SIZE <N> WITH <COMMAND> instruction: "<instruction>" - Process large datasets in controlled batches
+  * Use when you need explicit control over batch size
+  * Works with PROCESS, CLASSIFY, COUNT, AGGREGATE
+  * Example: ITERATE authors_list BATCH_SIZE 10 WITH PROCESS instruction: "Filter human authors"
 
 GRAPH NAVIGATION:
 - GRAPHWALK from <var> follow <relationship> [depth <n>]
@@ -269,6 +276,12 @@ CORE COMMANDS:
 DEBUG COMMANDS:
 - SHOW <var> [limit <n>] - Display variable contents
 - INSPECT <var> - Analyze data structure and content
+
+MICRO-ACTION COMMANDS:
+- ITERATE <source_var> BATCH_SIZE <N> WITH <COMMAND> instruction: "<instruction>" - Process large datasets in controlled batches
+  * Use when you need explicit control over batch size
+  * Works with PROCESS, CLASSIFY, COUNT, AGGREGATE
+  * Example: ITERATE authors_list BATCH_SIZE 10 WITH PROCESS instruction: "Filter human authors"
 
 GRAPH NAVIGATION:
 - GRAPHWALK from <var> follow <relationship> [depth <n>]

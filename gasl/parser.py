@@ -25,6 +25,7 @@ class GASLParser:
             "COUNT": r"COUNT.*AS.*",
             "SHOW": r"SHOW\s+([a-zA-Z_][a-zA-Z0-9_.]*)(?:\s+limit\s+(\d+))?",
             "INSPECT": r"INSPECT\s+([a-zA-Z_][a-zA-Z0-9_.]*)",
+            "ITERATE": r"ITERATE\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+BATCH_SIZE\s+(\d+)\s+WITH\s+(\w+)\s+instruction:\s*([^;]+)",
             
             # Graph navigation commands
             "GRAPHWALK": r"GRAPHWALK\s+from\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+follow\s+([^;]+?)(?:\s+depth\s+(\d+))?",
@@ -125,6 +126,12 @@ class GASLParser:
             args["instruction"] = groups[1].strip()
             if command_type == "PROCESS" and len(groups) > 2 and groups[2]:
                 args["target_variable"] = groups[2]
+        
+        elif command_type == "ITERATE":
+            args["source_var"] = groups[0]
+            args["batch_size"] = int(groups[1])
+            args["sub_command"] = groups[2]
+            args["instruction"] = groups[3].strip()
         
         elif command_type == "COUNT":
             # More flexible COUNT parsing
@@ -383,11 +390,18 @@ class GASLParser:
                     next_keyword = pos
             
             if next_keyword:
-                args["field_name"] = text[field_start:next_keyword].strip()
+                field_text = text[field_start:next_keyword].strip()
                 text = text[next_keyword:].strip()
             else:
-                args["field_name"] = text[field_start:].strip()
+                field_text = text[field_start:].strip()
                 text = ""
+            
+            # Handle "unique" keyword in field name
+            if field_text.endswith(" unique"):
+                args["field_name"] = field_text[:-7].strip()  # Remove " unique"
+                args["unique"] = True
+            else:
+                args["field_name"] = field_text
         
         # Extract where condition
         if text.startswith("where"):

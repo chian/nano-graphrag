@@ -122,14 +122,24 @@ class NetworkXAdapter(GraphAdapter):
         # Check entity_type filter
         if "entity_type" in filters:
             entity_type = filters["entity_type"]
-            if data.get("entity_type") != f'"{entity_type}"' and data.get("entity_type") != entity_type:
-                return False
+            node_entity_type = data.get("entity_type")
+            if node_entity_type == f'"{entity_type}"':
+                pass  # Match found with quotes
+            elif node_entity_type == entity_type:
+                pass  # Match found without quotes
+            else:
+                return False  # No match found
         
         # Check relationship_name filter (for nodes, this might be in data)
         if "relationship_name" in filters:
             relationship_name = filters["relationship_name"]
-            if data.get("relationship_name") != f'"{relationship_name}"' and data.get("relationship_name") != relationship_name:
-                return False
+            node_relationship_name = data.get("relationship_name")
+            if node_relationship_name == f'"{relationship_name}"':
+                pass  # Match found with quotes
+            elif node_relationship_name == relationship_name:
+                pass  # Match found without quotes
+            else:
+                return False  # No match found
         
         # Check description contains filter
         if "description_contains" in filters:
@@ -175,8 +185,13 @@ class NetworkXAdapter(GraphAdapter):
         # Check relationship_name filter
         if "relationship_name" in filters:
             relationship_name = filters["relationship_name"]
-            if data.get("relationship_name") != f'"{relationship_name}"' and data.get("relationship_name") != relationship_name:
-                return False
+            edge_relationship_name = data.get("relationship_name")
+            if edge_relationship_name == f'"{relationship_name}"':
+                pass  # Match found with quotes
+            elif edge_relationship_name == relationship_name:
+                pass  # Match found without quotes
+            else:
+                return False  # No match found
         
         # Check description contains filter
         if "description_contains" in filters:
