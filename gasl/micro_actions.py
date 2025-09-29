@@ -5,6 +5,7 @@ Micro-action framework for handling large datasets with batching.
 from typing import Any, List, Dict, Optional
 from .types import Command, ExecutionResult, Provenance
 from .llm.argo_bridge import ArgoBridgeLLM
+from .utils import normalize_node_id
 
 
 class MicroActionFramework:
@@ -44,6 +45,7 @@ class MicroActionFramework:
             # Execute the core command logic on this batch
             batch_result = self._execute_single_batch(batch, command_type, instruction)
             
+            print(f"DEBUG: MICRO_ACTIONS - Batch {batch_num} status: {batch_result.status}")
             if batch_result.status == "success":
                 # Extract results based on command type
                 if command_type == "PROCESS":
@@ -57,14 +59,37 @@ class MicroActionFramework:
                 else:
                     batch_items = batch_result.data.get("items", [])
                 
+                print(f"DEBUG: MICRO_ACTIONS - Batch {batch_num} extracted {len(batch_items)} items")
                 all_results.extend(batch_items)
             else:
                 print(f"DEBUG: MICRO_ACTIONS - Batch {batch_num} failed: {batch_result.error_message}")
         
         print(f"DEBUG: MICRO_ACTIONS - Completed processing {len(all_results)} total items")
         
-        # Create final result with all accumulated items
-        return self._create_batched_result(command_type, instruction, all_results, len(data), target_variable)
+        # Save the processed data back to storage and create new version
+        if target_variable and all_results:
+            self._save_to_state(target_variable, all_results, command_type)
+            
+            # Auto-create version if we have a versioned graph
+            if hasattr(self, 'versioned_graph') and self.versioned_graph:
+                # Apply modifications to current graph
+                current_graph = self.versioned_graph.get_current_graph()
+                self._apply_modifications_to_graph(current_graph, all_results, target_variable)
+                
+                # Create new version
+                self.versioned_graph.create_version_after_command(
+                    command_type,
+                    f"{command_type}: {instruction[:50]}{'...' if len(instruction) > 50 else ''}",
+                    current_graph,
+                    {"items_processed": len(all_results), "target_variable": target_variable}
+                )
+        
+        # Create final result
+        return self._create_result(
+            status="success" if all_results else "empty",
+            data={"processed_items": all_results} if command_type == "PROCESS" else {"items": all_results},
+            count=len(all_results)
+        )
     
     def _execute_single_batch(self, batch: List[Dict], command_type: str, instruction: str) -> ExecutionResult:
         """Execute core command logic on a single batch - the shared execution logic."""
@@ -85,64 +110,118 @@ class MicroActionFramework:
         prompt = self._create_process_prompt(batch, instruction)
         llm_response = self.llm_func.call(prompt)
         
+        # Parse JSON response (only catch JSON errors, not programming errors)
+        import json
         try:
-            import json
             parsed_result = json.loads(llm_response)
-            
-            if "processed_items" in parsed_result:
-                processed_items = parsed_result["processed_items"]
-            elif "included" in parsed_result:
-                # Map back to original nodes
-                processed_items = []
-                for item in parsed_result.get("included", []):
-                    original_node = self._find_original_node(batch, item.get("id", ""))
-                    if original_node:
-                        processed_items.append(original_node)
-            else:
-                processed_items = []
-            
-            return self._create_result(
-                status="success",
-                data={"processed_items": processed_items},
-                count=len(processed_items)
-            )
-            
         except json.JSONDecodeError:
             return self._create_error_result("Failed to parse LLM response as JSON")
+        
+        if "processed_items" in parsed_result:
+            # Handle dynamic field names - merge the new fields back into original nodes
+            processed_items = []
+            print(f"DEBUG: MICRO_ACTIONS - Processing {len(parsed_result['processed_items'])} items from LLM response")
+            for processed_item in parsed_result["processed_items"]:
+                # Find the original node
+                original_node = self._find_original_node(batch, processed_item.get("id", ""))
+                print(f"DEBUG: MICRO_ACTIONS - Looking for node ID '{processed_item.get('id', '')}', found: {original_node is not None}")
+                if original_node:
+                    # Create a copy of the original node
+                    updated_node = original_node.copy()
+                    
+                    # Add all fields from the processed item (except id, name, reason)
+                    new_fields = []
+                    for key, value in processed_item.items():
+                        if key not in ["id", "name", "reason"]:
+                            updated_node[key] = value
+                            new_fields.append(f"{key}={value}")
+                    
+                    print(f"DEBUG: MICRO_ACTIONS - Added fields to node {processed_item.get('id', '')}: {', '.join(new_fields)}")
+                    processed_items.append(updated_node)
+        elif "included" in parsed_result:
+            # Map back to original nodes
+            processed_items = []
+            for item in parsed_result.get("included", []):
+                original_node = self._find_original_node(batch, item.get("id", ""))
+                if original_node:
+                    processed_items.append(original_node)
+        else:
+            processed_items = []
+        
+        return self._create_result(
+            status="success",
+            data={"processed_items": processed_items},
+            count=len(processed_items)
+        )
+    
+    def _find_original_node(self, data: List[Dict], target_id: str) -> Dict:
+        """Find the original node by ID, with quote normalization."""
+        target_normalized = normalize_node_id(target_id)
+        
+        for item in data:
+            if isinstance(item, dict):
+                # Check for stable_id in nested data structure (FIND results)
+                if "data" in item and isinstance(item["data"], dict):
+                    item_stable_id = item["data"].get("stable_id")
+                    if item_stable_id and normalize_node_id(item_stable_id) == target_normalized:
+                        return item
+                
+                # Check for stable_id in flat structure
+                item_stable_id = item.get("stable_id")
+                if item_stable_id and normalize_node_id(item_stable_id) == target_normalized:
+                    return item
+                
+                # Fallback: check direct ID field (for backward compatibility)
+                item_id = item.get("id")
+                if item_id and normalize_node_id(item_id) == target_normalized:
+                    return item
+        
+        # If not found, show debug info
+        print(f"DEBUG: MICRO_ACTIONS - Could not find node '{target_id}' (normalized: '{target_normalized}') in batch data")
+        if data and len(data) > 0:
+            sample_item = data[0]
+            print(f"DEBUG: MICRO_ACTIONS - Sample batch item structure: {list(sample_item.keys()) if isinstance(sample_item, dict) else type(sample_item)}")
+            if isinstance(sample_item, dict):
+                if "id" in sample_item:
+                    print(f"DEBUG: MICRO_ACTIONS - Sample batch item top-level ID: '{sample_item['id']}' (normalized: '{normalize_node_id(sample_item['id'])}')")
+                if "data" in sample_item and isinstance(sample_item["data"], dict):
+                    data_id = sample_item["data"].get("id", "no_id_in_data")
+                    print(f"DEBUG: MICRO_ACTIONS - Sample batch item data.id: '{data_id}' (normalized: '{normalize_node_id(data_id)}')")
+        return None
     
     def _classify_batch(self, batch: List[Dict], instruction: str) -> ExecutionResult:
         """Core CLASSIFY logic for a single batch."""
         prompt = self._create_classify_prompt(batch, instruction)
         llm_response = self.llm_func.call(prompt)
         
+        # Parse JSON response (only catch JSON errors, not programming errors)
+        import json
         try:
-            import json
             parsed_result = json.loads(llm_response)
-            
-            # Update original nodes with category field
-            updated_items = []
-            for item in batch:
-                item_copy = item.copy()
-                # Find classification for this item
-                item_id = item.get("id", "")
-                category = "unknown"
-                
-                for classified_item in parsed_result.get("classified_items", []):
-                    if classified_item.get("id") == item_id:
-                        category = classified_item.get("category", "unknown")
-                        break
-                
-                item_copy["category"] = category
-                updated_items.append(item_copy)
-            
-            return self._create_result(
-                status="success",
-                data={"updated_items": updated_items},
-                count=len(updated_items)
-            )
-            
         except json.JSONDecodeError:
             return self._create_error_result("Failed to parse LLM response as JSON")
+        
+        # Update original nodes with category field
+        updated_items = []
+        for item in batch:
+            item_copy = item.copy()
+            # Find classification for this item
+            item_id = item.get("id", "")
+            category = "unknown"
+            
+            for classified_item in parsed_result.get("classified_items", []):
+                if classified_item.get("id") == item_id:
+                    category = classified_item.get("category", "unknown")
+                    break
+            
+            item_copy["category"] = category
+            updated_items.append(item_copy)
+        
+        return self._create_result(
+            status="success",
+            data={"updated_items": updated_items},
+            count=len(updated_items)
+        )
     
     def _count_batch(self, batch: List[Dict], instruction: str) -> ExecutionResult:
         """Core COUNT logic for a single batch."""
@@ -213,54 +292,46 @@ class MicroActionFramework:
         return min(50, len(data))  # Cap at 50 items
     
     def _create_process_prompt(self, data: List[Dict], instruction: str) -> str:
-        """Create prompt for PROCESS command."""
-        prompt = f"""You are processing graph data according to this instruction: {instruction}
-
-Data to process (list of nodes):
-{self._format_data_for_llm(data)}
-
-Instructions:
-1. Analyze each node's content (name, description, properties) according to the instruction
-2. Return a JSON object with this structure:
-{{
-  "processed_items": [
-    {{"id": "node_id", "name": "node_name", "processed_field": "value", "reason": "explanation"}},
-    ...
-  ],
-  "summary": {{
-    "total_processed": 0,
-    "processing_type": "description of what was processed"
-  }}
-}}
-
-Be thorough in your analysis and provide clear reasoning for each decision.
-"""
-        return prompt
+        """Create prompt for PROCESS command using unified prompt system."""
+        from nano_graphrag.prompt_system import QueryAwarePromptSystem
+        
+        # Use the unified prompt system
+        prompt_system = QueryAwarePromptSystem()
+        
+        # Get the base prompt from the prompts directory
+        base_prompt = prompt_system.get_prompt("process_batch")
+        
+        # Format the data for LLM consumption
+        formatted_data = self._format_data_for_llm(data)
+        
+        # Compose the final prompt with the data and instruction
+        final_prompt = base_prompt.format(
+            instruction=instruction,
+            data=formatted_data
+        )
+        
+        return final_prompt
     
     def _create_classify_prompt(self, data: List[Dict], instruction: str) -> str:
-        """Create prompt for CLASSIFY command."""
-        prompt = f"""You are classifying graph data according to this instruction: {instruction}
-
-Data to classify (list of nodes):
-{self._format_data_for_llm(data)}
-
-Instructions:
-1. Classify each node according to the instruction
-2. Return a JSON object with this structure:
-{{
-  "classified_items": [
-    {{"id": "node_id", "name": "node_name", "category": "classification", "reason": "explanation"}},
-    ...
-  ],
-  "summary": {{
-    "total_classified": 0,
-    "categories_found": []
-  }}
-}}
-
-Be consistent in your classifications and provide clear reasoning.
-"""
-        return prompt
+        """Create prompt for CLASSIFY command using unified prompt system."""
+        from nano_graphrag.prompt_system import QueryAwarePromptSystem
+        
+        # Use the unified prompt system
+        prompt_system = QueryAwarePromptSystem()
+        
+        # Get the base prompt from the prompts directory
+        base_prompt = prompt_system.get_prompt("classify_batch")
+        
+        # Format the data for LLM consumption
+        formatted_data = self._format_data_for_llm(data)
+        
+        # Compose the final prompt with the data and instruction
+        final_prompt = base_prompt.format(
+            instruction=instruction,
+            data=formatted_data
+        )
+        
+        return final_prompt
     
     def _format_data_for_llm(self, data: List[Dict]) -> str:
         """Format data for LLM consumption."""
@@ -270,26 +341,33 @@ Be consistent in your classifications and provide clear reasoning.
         formatted = []
         for i, item in enumerate(data):
             if isinstance(item, dict):
-                node_id = item.get('id', f'item_{i}')
-                name = item.get('name', 'Unknown')
-                description = item.get('description', 'No description')
-                entity_type = item.get('entity_type', 'Unknown')
+                # Get stable ID and name
+                if 'data' in item and isinstance(item['data'], dict):
+                    data_dict = item['data']
+                    stable_id = data_dict.get('stable_id', f'item_{i}')
+                    name = item.get('id', 'Unknown')  # The top-level ID is the entity name
+                    description = data_dict.get('description', 'No description')
+                    entity_type = data_dict.get('entity_type', 'Unknown')
+                else:
+                    # Handle flat structure (for processed data)
+                    stable_id = item.get('stable_id', f'item_{i}')
+                    name = item.get('name', item.get('id', 'Unknown'))
+                    description = item.get('description', 'No description')
+                    entity_type = item.get('entity_type', 'Unknown')
                 
-                formatted.append(f"Node {i+1}:")
-                formatted.append(f"  ID: {node_id}")
+                processed_field = item.get('processed_field', 'No processed field')
+                
+                # Show both original and normalized IDs
+                normalized_id = normalize_node_id(name)
+                formatted.append(f"Node {i+1} (ID: {name} -> normalized: {normalized_id}):")
                 formatted.append(f"  Name: {name}")
                 formatted.append(f"  Entity Type: {entity_type}")
                 formatted.append(f"  Description: {description}")
+                formatted.append(f"  Processed Field: {processed_field}")
                 formatted.append("")
         
         return "\n".join(formatted)
     
-    def _find_original_node(self, data: List[Dict], target_id: str) -> Optional[Dict]:
-        """Find the original node data by matching the ID."""
-        for node in data:
-            if isinstance(node, dict) and node.get("id") == target_id:
-                return node
-        return None
     
     def _create_result(self, status: str, data: Dict, count: int) -> ExecutionResult:
         """Create a basic ExecutionResult."""
@@ -321,37 +399,53 @@ Be consistent in your classifications and provide clear reasoning.
             error_message=error_message
         )
     
-    def _create_batched_result(self, command_type: str, instruction: str, 
-                              all_results: List[Dict], original_count: int, 
-                              target_variable: str = None) -> ExecutionResult:
-        """Create final result for batched processing."""
+    def _save_to_state(self, target_variable: str, all_results: List[Dict], command_type: str) -> None:
+        """Save processed data back to the state and context stores."""
+        print(f"DEBUG: MICRO_ACTIONS - Saving {len(all_results)} processed items back to {target_variable}")
         
-        # Store results in state if target variable is provided
-        if target_variable and all_results:
-            self._store_results_in_state(target_variable, all_results, command_type)
+        # Store in context store (for immediate access by next commands)
+        if self.context_store:
+            self.context_store.set(target_variable, all_results)
+            print(f"DEBUG: MICRO_ACTIONS - Saved to context store: {target_variable}")
         
-        return self._create_result(
-            status="success",
-            data={"processed_items": all_results},
-            count=len(all_results)
-        )
+        # Also store in state store if available (for persistence)
+        if self.state_store:
+            self.state_store.set_variable_with_fields(
+                target_variable,
+                all_results,
+                "LIST",
+                f"Processed data from {command_type} command"
+            )
+            print(f"DEBUG: MICRO_ACTIONS - Saved to state store: {target_variable}")
     
-    def _store_results_in_state(self, target_variable: str, results: List[Dict], command_type: str) -> None:
-        """Store processed results back to the state variable."""
-        if command_type == "PROCESS":
-            # For PROCESS, store as processed_items
-            self.state_store.update_variable(target_variable, results, "replace")
-        elif command_type == "CLASSIFY":
-            # For CLASSIFY, store as classified_items
-            self.state_store.update_variable(target_variable, results, "replace")
-        elif command_type == "COUNT":
-            # For COUNT, store as count_results
-            self.state_store.update_variable(target_variable, results, "replace")
-        elif command_type == "AGGREGATE":
-            # For AGGREGATE, store as aggregated_groups
-            self.state_store.update_variable(target_variable, results, "replace")
-        else:
-            # Default storage
-            self.state_store.update_variable(target_variable, results, "replace")
+    def _save_to_graph(self, target_variable: str, all_results: List[Dict], command_type: str) -> None:
+        """Save processed data back to the graph (for future implementation)."""
+        # This would be implemented if we need to save back to the actual graph structure
+        # For now, the state/context storage should be sufficient
+        pass
+    
+    def _apply_modifications_to_graph(self, graph: 'nx.Graph', processed_data: List[Dict], target_variable: str) -> None:
+        """Apply processed data modifications directly to the NetworkX graph."""
+        print(f"DEBUG: MICRO_ACTIONS - Applying {len(processed_data)} modifications to graph")
         
-        print(f"DEBUG: MICRO_ACTIONS - Stored {len(results)} results in {target_variable}")
+        modifications_applied = 0
+        for item in processed_data:
+            if not isinstance(item, dict):
+                continue
+                
+            node_id = item.get('id')
+            if not node_id:
+                continue
+            
+            # Check if node exists in graph
+            if node_id in graph.nodes:
+                # Apply all new fields to the graph node
+                for key, value in item.items():
+                    if key not in ['id', 'name', 'reason', 'data', 'type']:  # Skip metadata fields
+                        graph.nodes[node_id][key] = value
+                        print(f"DEBUG: MICRO_ACTIONS - Added {key}={value} to node {node_id}")
+                        modifications_applied += 1
+            else:
+                print(f"DEBUG: MICRO_ACTIONS - Warning: Node {node_id} not found in graph")
+        
+        print(f"DEBUG: MICRO_ACTIONS - Applied {modifications_applied} field modifications to graph")

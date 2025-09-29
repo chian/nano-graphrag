@@ -24,6 +24,17 @@ class NetworkXAdapter(GraphAdapter):
             supported_edge_properties=self._get_edge_properties()
         )
     
+    def get_schema(self) -> Dict[str, Any]:
+        """Get graph schema information."""
+        return {
+            "node_labels": self._get_node_labels(),
+            "edge_types": self._get_edge_types(),
+            "node_properties": self._get_node_properties(),
+            "edge_properties": self._get_edge_properties(),
+            "total_nodes": self.graph.number_of_nodes(),
+            "total_edges": self.graph.number_of_edges()
+        }
+    
     def find_nodes(self, filters: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Find nodes matching filters."""
         try:
@@ -220,7 +231,11 @@ class NetworkXAdapter(GraphAdapter):
         """Get available node labels (entity types)."""
         labels = set()
         for _, data in self.graph.nodes(data=True):
+            # Try direct entity_type first
             entity_type = data.get("entity_type")
+            if not entity_type and "data" in data:
+                # Try nested data structure
+                entity_type = data.get("data", {}).get("entity_type")
             if entity_type:
                 # Remove quotes if present
                 clean_type = entity_type.strip('"')

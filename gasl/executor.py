@@ -19,6 +19,10 @@ from .commands import (
     GraphNavHandler, MultiVarHandler, DataTransformHandler, 
     FieldCalcHandler, ObjectCreateHandler, PatternAnalysisHandler
 )
+from .commands.add_field import AddFieldHandler
+from .commands.create_nodes import CreateNodesHandler
+from .commands.create_edges import CreateEdgesHandler
+from .commands.create_groups import CreateGroupsHandler
 from .commands.iterate import IterateHandler
 from .micro_actions import MicroActionFramework
 from .errors import ExecutionError, ParseError
@@ -27,15 +31,22 @@ from .errors import ExecutionError, ParseError
 class GASLExecutor:
     """Main execution engine for GASL plans."""
     
-    def __init__(self, adapter: GraphAdapter, llm_func, state_file: str = "gasl_state.json"):
+    def __init__(self, adapter: GraphAdapter, llm_func, state_file: str = None):
         self.adapter = adapter
         self.llm_func = llm_func
         self.parser = GASLParser()
         self.state_store = StateStore(state_file)
         self.context_store = ContextStore()
         
+        # Get versioned graph from adapter if available
+        versioned_graph = getattr(adapter, 'versioned_graph', None)
+        
         # Initialize micro-action framework
         self.micro_framework = MicroActionFramework(llm_func, self.state_store, self.context_store)
+        
+        # Pass versioned graph to micro framework
+        if versioned_graph:
+            self.micro_framework.versioned_graph = versioned_graph
         
         # Initialize command handlers
         self.handlers = [
@@ -47,6 +58,12 @@ class GASLExecutor:
             UpdateHandler(self.state_store, self.context_store),
             CountHandler(self.state_store, self.context_store, llm_func),
             DebugHandler(self.state_store, self.context_store),
+            
+            # Graph modification commands
+            AddFieldHandler(self.state_store, self.context_store, llm_func),
+            CreateNodesHandler(self.state_store, self.context_store, adapter, llm_func),
+            CreateEdgesHandler(self.state_store, self.context_store, adapter, llm_func),
+            CreateGroupsHandler(self.state_store, self.context_store, adapter, llm_func),
             IterateHandler(self.state_store, self.context_store, self.micro_framework),
             
             # New command categories
@@ -192,7 +209,8 @@ class GASLExecutor:
             # Create plan prompt
             plan_prompt = self.llm_func.create_plan_prompt(query, schema, current_state.get("variables", {}), history)
             
-            # Get plan from LLM
+            # Get plan from LLM (prompt will be printed by the call method)
+            print(f"🔄 ITERATION {iteration} - Generating Plan...")
             plan_response = self.llm_func.call(plan_prompt)
             print(f"DEBUG: LLM Response:\n{plan_response}\n")
             
@@ -204,25 +222,6 @@ class GASLExecutor:
                 # Execute plan
                 result = self.execute_plan(plan_json)
                 all_results.append(result)
-                
-                # Show results to LLM for strategy adaptation
-                if result["status"] == "completed":
-                    # Prepare results for analysis
-                    final_state = result["final_state"]
-                    variables = final_state.get("variables", {})
-                    
-                    # Get current schema for strategy adaptation
-                    current_schema = self.get_schema()
-                    
-                    # Create strategy adaptation prompt to help LLM learn from results
-                    strategy_prompt = self.llm_func.create_strategy_adaptation_prompt(query, variables, iteration, current_schema)
-                    strategy_response = self.llm_func.call(strategy_prompt)
-                    print(f"DEBUG: Strategy Analysis (Iteration {iteration}):\n{strategy_response}\n")
-                    
-                    # Check if LLM suggests continuing with a new approach
-                    if "PROCESS" in strategy_response or "filter" in strategy_response.lower() or "refine" in strategy_response.lower():
-                        print(f"DEBUG: LLM suggests continuing with refinement. Starting iteration {iteration + 1}...")
-                        continue  # Continue to next iteration instead of breaking
                 
                 # Check if we should continue
                 if result["status"] == "completed":
@@ -244,6 +243,20 @@ class GASLExecutor:
                         print(f"DEBUG: Query not yet answered, continuing to iteration {iteration + 1}")
                         if iteration >= max_iterations - 1:
                             print(f"DEBUG: Reached max iterations ({max_iterations}) without answering query")
+                            break
+                        
+                        # Show results to LLM for strategy adaptation
+                        # Prepare results for analysis
+                        current_schema = self.get_schema()
+                        
+                        # Create strategy adaptation prompt to help LLM learn from results
+                        strategy_prompt = self.llm_func.create_strategy_adaptation_prompt(query, variables, iteration, current_schema, validation_response)
+                        strategy_response = self.llm_func.call(strategy_prompt)
+                        print(f"DEBUG: Strategy Analysis (Iteration {iteration}):\n{strategy_response}\n")
+                        
+                        # Store validation hint and strategy insights for next iteration
+                        self.state_store.set_validation_hint(validation_response)
+                        self.state_store.set_strategy_insights(strategy_response)
                 
             except json.JSONDecodeError:
                 # LLM didn't return valid JSON, try again

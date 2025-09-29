@@ -29,7 +29,7 @@ class FlexibleParser:
             "PROCESS": ["with", "instruction", "AS"],
             "CLASSIFY": ["with", "instruction"],
             "UPDATE": ["with", "operation", "where"],
-            "COUNT": ["FIND", "nodes", "with", "field", "where", "group by", "unique", "AS"],
+            "COUNT": ["where", "AS"],
             "SELECT": ["FIELDS", "AS"],
             "SET": ["=", "to"],
             "REQUIRE": ["condition"],

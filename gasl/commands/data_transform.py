@@ -188,6 +188,7 @@ class DataTransformHandler(CommandHandler):
         
         for item in data:
             group_key = self._get_nested_field(item, by_field)
+            print(f"DEBUG: AGGREGATE - item: {item}, by_field: {by_field}, group_key: {group_key}")
             if group_key is None:
                 group_key = "unknown"
             
@@ -275,6 +276,49 @@ class DataTransformHandler(CommandHandler):
                 print(f"DEBUG: AGGREGATE - LLM Judge validation passed: {validation.get('reason', 'Valid')}")
         
         return result_obj
+    
+    def _get_nested_field(self, item: Dict, field_path: str) -> Any:
+        """Get nested field value using dot notation with automatic path resolution."""
+        if not field_path:
+            return None
+        
+        # First try the exact field path
+        keys = field_path.split('.')
+        value = item
+        
+        for key in keys:
+            if isinstance(value, dict) and key in value:
+                value = value[key]
+            else:
+                break
+        else:
+            # If we successfully traversed all keys, return the value
+            return value
+        
+        # If exact path failed, try to find the field in common nested locations
+        if '.' not in field_path:
+            # Try common nested locations for single field names
+            common_paths = [
+                f"data.{field_path}",
+                f"properties.{field_path}",
+                f"attributes.{field_path}",
+                field_path  # Try the original path again
+            ]
+            
+            for path in common_paths:
+                keys = path.split('.')
+                value = item
+                
+                for key in keys:
+                    if isinstance(value, dict) and key in value:
+                        value = value[key]
+                    else:
+                        break
+                else:
+                    # If we successfully traversed all keys, return the value
+                    return value
+        
+        return None
     
     def _execute_pivot(self, command: Command) -> ExecutionResult:
         """Execute PIVOT command."""

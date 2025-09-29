@@ -195,9 +195,18 @@ Be consistent in your classification and provide clear reasoning for each decisi
         for i, item in enumerate(sample_data):
             if isinstance(item, dict):
                 node_id = item.get('id', f'item_{i}')
-                name = item.get('name', 'Unknown')
-                description = item.get('description', 'No description')
-                entity_type = item.get('entity_type', 'Unknown')
+                
+                # Handle nested data structure from FIND command
+                if 'data' in item and isinstance(item['data'], dict):
+                    data = item['data']
+                    name = node_id  # Use ID as name since there's no separate name field
+                    description = data.get('description', 'No description')
+                    entity_type = data.get('entity_type', 'Unknown')
+                else:
+                    # Handle flat structure
+                    name = item.get('name', node_id)
+                    description = item.get('description', 'No description')
+                    entity_type = item.get('entity_type', 'Unknown')
                 
                 formatted.append(f"Item {i+1}:")
                 formatted.append(f"  ID: {node_id}")

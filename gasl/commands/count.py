@@ -6,6 +6,7 @@ from typing import Any, List, Dict
 from .base import CommandHandler
 from ..types import Command, ExecutionResult, Provenance
 from ..validation import LLMJudgeValidator
+from ..utils import normalize_string
 
 
 class CountHandler(CommandHandler):
@@ -19,25 +20,20 @@ class CountHandler(CommandHandler):
         return command.command_type == "COUNT"
     
     def execute(self, command: Command) -> ExecutionResult:
-        """Execute COUNT command."""
+        """Execute COUNT command - count items matching condition."""
         try:
             args = command.args
-            source = args.get("source")  # Could be a variable or "FIND"
-            field_name = args["field_name"]
+            source = args["source"]
             condition = args.get("condition", "all")
-            group_by = args.get("group_by")
-            unique = args.get("unique", False)
             result_var = args["result_var"]
             
-            print(f"DEBUG: COUNT - source: {source}, field: {field_name}, condition: {condition}, group_by: {group_by}, unique: {unique}")
+            print(f"DEBUG: COUNT - source: {source}, condition: {condition}")
             
             # Get data to count
             if source == "FIND":
-                # This is a direct graph query
                 find_criteria = args.get("criteria", "")
                 data = self._execute_find_query(find_criteria)
             else:
-                # This is counting from existing variable
                 data = self._get_variable_data(source)
             
             if not data:
@@ -49,45 +45,29 @@ class CountHandler(CommandHandler):
             
             # Apply condition filter if specified
             if condition != "all":
+                print(f"DEBUG: COUNT - Before filtering: {len(data)} items")
+                if data and len(data) > 0:
+                    print(f"DEBUG: COUNT - Sample item keys: {list(data[0].keys()) if isinstance(data[0], dict) else 'not a dict'}")
                 data = self._apply_condition_filter(data, condition)
+                print(f"DEBUG: COUNT - After filtering: {len(data)} items")
             
-            # Perform counting
-            if group_by:
-                result = self._count_with_grouping(data, field_name, group_by, unique)
-            else:
-                result = self._count_field_values(data, field_name, unique)
+            # Count items
+            count = len(data)
             
             # Store result
+            result = {"count": count, "condition": condition, "source": source}
             self._store_count_result(result_var, result)
             
-            print(f"DEBUG: COUNT - created {len(result)} count entries")
+            print(f"DEBUG: COUNT - counted {count} items")
             
-            # Create initial result
-            result_obj = self._create_result(
+            return self._create_result(
                 command=command,
                 status="success",
                 data=result,
-                count=len(result),
-                provenance=[self._create_provenance("count", "count",
-                                                 field=field_name, condition=condition,
-                                                 group_by=group_by, unique=unique)]
+                count=1,
+                provenance=[self._create_provenance("count", "count_items",
+                                                 source=source, condition=condition)]
             )
-            
-            # Validate with LLM judge if available
-            if self.validator and len(result) > 0:
-                validation = self.validator.validate_command_success(
-                    command.command_type, command.args, result, len(result)
-                )
-                
-                if not validation.get("valid", True):
-                    # Override status if LLM judge says it failed
-                    result_obj.status = "error"
-                    result_obj.error_message = f"LLM Judge Validation Failed: {validation.get('reason', 'Unknown validation failure')}"
-                    print(f"DEBUG: COUNT - LLM Judge validation failed: {validation}")
-                else:
-                    print(f"DEBUG: COUNT - LLM Judge validation passed: {validation.get('reason', 'Valid')}")
-            
-            return result_obj
             
         except Exception as e:
             return self._create_result(
@@ -119,7 +99,9 @@ class CountHandler(CommandHandler):
         # Try state
         if self.state_store.has_variable(variable_name):
             var_data = self.state_store.get_variable(variable_name)
-            if isinstance(var_data, dict) and "items" in var_data:
+            if isinstance(var_data, dict) and "value" in var_data:
+                return var_data["value"]
+            elif isinstance(var_data, dict) and "items" in var_data:
                 return var_data["items"]
             else:
                 return var_data if isinstance(var_data, list) else [var_data]
@@ -145,14 +127,33 @@ class CountHandler(CommandHandler):
             field, value = condition.split(" contains ", 1)
             field_value = self._get_nested_field(item, field.strip())
             return value.strip().lower() in str(field_value).lower()
+        elif " matches " in condition:
+            field, pattern = condition.split(" matches ", 1)
+            field_value = self._get_nested_field(item, field.strip())
+            if field_value is None:
+                return False
+            
+            # Handle regex pattern (remove / delimiters if present)
+            pattern = pattern.strip()
+            if pattern.startswith('/') and pattern.endswith('/'):
+                pattern = pattern[1:-1]
+            
+            import re
+            try:
+                return bool(re.match(pattern, str(field_value), re.IGNORECASE))
+            except re.error:
+                # If regex is invalid, fall back to simple string matching
+                return False
         elif " = " in condition:
             field, value = condition.split(" = ", 1)
             field_value = self._get_nested_field(item, field.strip())
-            return str(field_value) == value.strip()
+            result = normalize_string(str(field_value)) == normalize_string(value.strip())
+            print(f"DEBUG: COUNT - Item {item.get('id', 'unknown')}: field '{field.strip()}' = '{field_value}' vs '{value.strip()}' -> {result}")
+            return result
         elif " != " in condition:
             field, value = condition.split(" != ", 1)
             field_value = self._get_nested_field(item, field.strip())
-            return str(field_value) != value.strip()
+            return normalize_string(str(field_value)) != normalize_string(value.strip())
         
         return True
     

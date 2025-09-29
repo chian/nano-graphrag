@@ -14,62 +14,41 @@ class GASLParser:
     
     def __init__(self):
         self.flexible_parser = FlexibleParser()
-        # Command patterns
+        # Command patterns - Streamlined set
         self.patterns = {
             # Core commands
             "DECLARE": r"DECLARE\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+AS\s+(DICT|LIST|COUNTER)(?:\s+WITH_DESCRIPTION\s+\"([^\"]*)\")?",
-            "FIND": r"FIND\s+(nodes|edges|paths)\s+(?:with\s+)?([^;]+)",
-            "CLASSIFY": r"CLASSIFY\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+(?:with\s+)?([^;]+)",
+            "FIND": r"FIND\s+(nodes|edges|paths)\s+(?:with\s+)?(.+?)(?:\s+AS\s+([a-zA-Z_][a-zA-Z0-9_.]*))?$",
             "PROCESS": r"PROCESS\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+(?:with\s+)?([^;]+)(?:\s+AS\s+([a-zA-Z_][a-zA-Z0-9_.]*))?",
-            "UPDATE": r"UPDATE\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+(?:with\s+)?([^;]+)",
             "COUNT": r"COUNT.*AS.*",
-            "SHOW": r"SHOW\s+([a-zA-Z_][a-zA-Z0-9_.]*)(?:\s+limit\s+(\d+))?",
-            "INSPECT": r"INSPECT\s+([a-zA-Z_][a-zA-Z0-9_.]*)",
-            "ITERATE": r"ITERATE\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+BATCH_SIZE\s+(\d+)\s+WITH\s+(\w+)\s+instruction:\s*([^;]+)",
+            "AGGREGATE": r"AGGREGATE\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+by\s+([^;]+?)\s+with\s+([^;]+)",
+            "UPDATE": r"UPDATE\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+(?:with\s+)?([^;]+)",
+            
+            # Graph modification commands
+            "ADD_FIELD": r"ADD_FIELD\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+field:\s*([^;]+?)\s*=\s*([a-zA-Z_][a-zA-Z0-9_.]*)",
+            "CREATE_NODES": r"CREATE_NODES\s+from\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+(?:with\s+)?([^;]+)",
+            "CREATE_EDGES": r"CREATE_EDGES\s+from\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+(?:with\s+)?([^;]+)",
+            "CREATE_GROUPS": r"CREATE_GROUPS\s+from\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+(?:with\s+)?([^;]+)",
+            
+            # Analysis commands
+            "CLASSIFY": r"CLASSIFY\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+(?:with\s+)?([^;]+)",
+            "SCORE": r"SCORE\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+(?:with\s+)?([^;]+)",
+            "RANK": r"RANK\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+by\s+([^;]+?)(?:\s+order\s+(desc|asc))?",
             
             # Graph navigation commands
             "GRAPHWALK": r"GRAPHWALK\s+from\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+follow\s+([^;]+?)(?:\s+depth\s+(\d+))?",
-            "GRAPHCONNECT": r"GRAPHCONNECT\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+to\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+via\s+([^;]+)",
             "SUBGRAPH": r"SUBGRAPH\s+around\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+radius\s+(\d+)(?:\s+include\s+([^;]+))?",
             "GRAPHPATTERN": r"GRAPHPATTERN\s+find\s+([^;]+?)\s+in\s+([a-zA-Z_][a-zA-Z0-9_.]*)",
             
-            # Multi-variable commands
+            # Data combination commands
             "JOIN": r"JOIN\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+with\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+on\s+([^;]+?)\s+AS\s+([a-zA-Z_][a-zA-Z0-9_.]*)",
             "MERGE": r"MERGE\s+([^;]+?)\s+AS\s+([a-zA-Z_][a-zA-Z0-9_.]*)",
             "COMPARE": r"COMPARE\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+with\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+on\s+([^;]+?)\s+AS\s+([a-zA-Z_][a-zA-Z0-9_.]*)",
             
-            # Data transformation commands
-            "TRANSFORM": r"TRANSFORM\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+(?:with\s+)?([^;]+)",
-            "RESHAPE": r"RESHAPE\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+from\s+([^;]+?)\s+to\s+([^;]+)",
-            "AGGREGATE": r"AGGREGATE\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+by\s+([^;]+?)\s+with\s+([^;]+)",
-            "PIVOT": r"PIVOT\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+on\s+([^;]+?)\s+by\s+([^;]+)",
-            
-            # Field calculation commands
-            "CALCULATE": r"CALCULATE\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+add\s+field:\s*([^;]+)",
-            "SCORE": r"SCORE\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+(?:with\s+)?([^;]+)",
-            "RANK": r"RANK\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+by\s+([^;]+?)(?:\s+order\s+(desc|asc))?",
-            "WEIGHT": r"WEIGHT\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+(?:with\s+)?([^;]+)",
-            
-            # Object creation commands
-            "CREATE": r"CREATE\s+(nodes|edges|summary)\s+from\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+(?:with\s+)?([^;]+)",
-            "GENERATE": r"GENERATE\s+([^;]+?)\s+from\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+(?:with\s+)?([^;]+)",
-            
-            # Pattern analysis commands
-            "CLUSTER": r"CLUSTER\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+(?:with\s+)?([^;]+)",
-            "DETECT": r"DETECT\s+patterns\s+in\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+(?:with\s+)?([^;]+)",
-            "GROUP": r"GROUP\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+by\s+([^;]+?)(?:\s+with\s+([^;]+))?",
-            "ANALYZE": r"ANALYZE\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+for\s+([^;]+)",
-            
-            # Control flow commands
+            # Utility commands
+            "SHOW": r"SHOW\s+([a-zA-Z_][a-zA-Z0-9_.]*)(?:\s+limit\s+(\d+))?",
             "SELECT": r"SELECT\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+FIELDS\s+([^;]+)\s+AS\s+([a-zA-Z_][a-zA-Z0-9_.]*)",
-            "SET": r"SET\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s*=\s*([^;]+)",
-            "REQUIRE": r"REQUIRE\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+(?:is\s+)?([^;]+)",
-            "ASSERT": r"ASSERT\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+(?:is\s+)?([^;]+)",
-            "ON": r"ON\s+(success|error|empty)\s+(?:do\s+)?([^;]+)",
-            "TRY": r"TRY\s+([^;]+)",
-            "CATCH": r"CATCH\s+([^;]+)",
-            "FINALLY": r"FINALLY\s+([^;]+)",
-            "CANCEL": r"CANCEL\s+PLAN\s+\"([^\"]*)\""
+            "SET": r"SET\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s*=\s*([^;]+)"
         }
     
     def parse_plan(self, plan_json: Dict[str, Any]) -> List[Command]:
@@ -120,12 +99,28 @@ class GASLParser:
         elif command_type == "FIND":
             args["target"] = groups[0]  # nodes, edges, paths
             args["criteria"] = groups[1].strip()
+            if len(groups) > 2 and groups[2]:  # AS clause
+                args["result_var"] = groups[2].strip()
         
-        elif command_type in ["PROCESS", "UPDATE", "ANALYZE", "CLASSIFY"]:
+        elif command_type in ["PROCESS", "UPDATE", "CLASSIFY", "SCORE"]:
             args["variable"] = groups[0]
             args["instruction"] = groups[1].strip()
             if command_type == "PROCESS" and len(groups) > 2 and groups[2]:
                 args["target_variable"] = groups[2]
+        
+        elif command_type == "ADD_FIELD":
+            args["variable"] = groups[0]
+            args["field_name"] = groups[1].strip()
+            args["source_variable"] = groups[2].strip()
+        
+        elif command_type in ["CREATE_NODES", "CREATE_EDGES", "CREATE_GROUPS"]:
+            args["source_variable"] = groups[0]
+            args["spec"] = groups[1].strip() if len(groups) > 1 and groups[1] else None
+        
+        elif command_type == "RANK":
+            args["variable"] = groups[0]
+            args["field"] = groups[1].strip()
+            args["order"] = groups[2] if len(groups) > 2 and groups[2] else "asc"
         
         elif command_type == "ITERATE":
             args["source_var"] = groups[0]
@@ -348,7 +343,7 @@ class GASLParser:
         return "variable" in args and "instruction" in args
     
     def _parse_count_command(self, command_string: str) -> Dict[str, Any]:
-        """Flexible COUNT command parser."""
+        """Simple COUNT command parser: COUNT <source> [where <condition>] AS <result_var>."""
         args = {}
         
         # Remove COUNT and clean up
@@ -358,7 +353,7 @@ class GASLParser:
         if text.startswith("FIND nodes with"):
             # Extract criteria
             criteria_start = text.find("with") + 4
-            criteria_end = text.find("field")
+            criteria_end = text.find("AS")
             if criteria_end > criteria_start:
                 args["source"] = "FIND"
                 args["criteria"] = text[criteria_start:criteria_end].strip()
@@ -378,72 +373,35 @@ class GASLParser:
                 if space_pos > 0:
                     args["source"] = text[:space_pos]
                     text = text[space_pos:].strip()
+                else:
+                    # No space found, entire text is source
+                    args["source"] = text
+                    text = ""
         
-        # Extract field name
-        if text.startswith("field"):
-            field_start = text.find("field") + 5
-            # Find next keyword
-            next_keyword = None
-            for keyword in ["where", "group by", "AS"]:
-                pos = text.find(keyword, field_start)
-                if pos > field_start and (next_keyword is None or pos < next_keyword):
-                    next_keyword = pos
-            
-            if next_keyword:
-                field_text = text[field_start:next_keyword].strip()
-                text = text[next_keyword:].strip()
-            else:
-                field_text = text[field_start:].strip()
-                text = ""
-            
-            # Handle "unique" keyword in field name
-            if field_text.endswith(" unique"):
-                args["field_name"] = field_text[:-7].strip()  # Remove " unique"
-                args["unique"] = True
-            else:
-                args["field_name"] = field_text
-        
-        # Extract where condition
+        # Extract condition
         if text.startswith("where"):
             where_start = text.find("where") + 5
-            group_pos = text.find("group by")
-            as_pos = text.find("AS")
-            
-            next_pos = len(text)
-            if group_pos > where_start:
-                next_pos = min(next_pos, group_pos)
+            # Find AS keyword
+            as_pos = text.find("AS", where_start)
             if as_pos > where_start:
-                next_pos = min(next_pos, as_pos)
-            
-            if next_pos < len(text):
-                args["condition"] = text[where_start:next_pos].strip()
-                text = text[next_pos:].strip()
-            else:
-                args["condition"] = text[where_start:].strip()
-                text = ""
-        
-        # Extract group by
-        if text.startswith("group by"):
-            group_start = text.find("group by") + 8
-            as_pos = text.find("AS")
-            
-            if as_pos > group_start:
-                args["group_by"] = text[group_start:as_pos].strip()
+                condition_text = text[where_start:as_pos].strip()
                 text = text[as_pos:].strip()
             else:
-                args["group_by"] = text[group_start:].strip()
+                condition_text = text[where_start:].strip()
                 text = ""
+            
+            args["condition"] = condition_text
+        else:
+            args["condition"] = "all"
         
-        # Extract unique flag
-        args["unique"] = "unique" in command_string
-        
-        # Extract AS result variable
+        # Extract result variable
         if text.startswith("AS"):
-            as_start = text.find("AS") + 2
-            args["result_var"] = text[as_start:].strip()
-        
-        # Set defaults
-        args.setdefault("condition", "all")
+            result_start = text.find("AS") + 2
+            result_var = text[result_start:].strip()
+            args["result_var"] = result_var
+        else:
+            # If no AS clause, use a default name
+            args["result_var"] = "count_result"
         
         return args
     

@@ -26,7 +26,12 @@ class SelectHandler(CommandHandler):
             if self.context_store.has(source):
                 data = self.context_store.get(source)
             elif self.state_store.has_variable(source):
-                data = self.state_store.get_variable(source)
+                var_data = self.state_store.get_variable(source)
+                # Handle state store variable structure (with _meta and items)
+                if isinstance(var_data, dict) and "items" in var_data:
+                    data = var_data["items"]
+                else:
+                    data = var_data
             else:
                 return self._create_result(
                     command=command,
@@ -76,14 +81,45 @@ class SelectHandler(CommandHandler):
             result = []
             for item in data:
                 if isinstance(item, dict):
-                    selected = {field: item.get(field) for field in fields}
+                    selected = {}
+                    for field in fields:
+                        # Handle nested field access (e.g., "data.description")
+                        if '.' in field:
+                            parts = field.split('.')
+                            value = item
+                            for part in parts:
+                                if isinstance(value, dict):
+                                    value = value.get(part)
+                                else:
+                                    value = None
+                                    break
+                            selected[field] = value
+                        else:
+                            # Direct field access
+                            selected[field] = item.get(field)
                     result.append(selected)
                 else:
                     result.append(item)
             return result
         elif isinstance(data, dict):
             # Handle single dict
-            return {field: data.get(field) for field in fields}
+            result = {}
+            for field in fields:
+                # Handle nested field access (e.g., "data.description")
+                if '.' in field:
+                    parts = field.split('.')
+                    value = data
+                    for part in parts:
+                        if isinstance(value, dict):
+                            value = value.get(part)
+                        else:
+                            value = None
+                            break
+                    result[field] = value
+                else:
+                    # Direct field access
+                    result[field] = data.get(field)
+            return result
         else:
             # Return as-is for other types
             return data

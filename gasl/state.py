@@ -55,14 +55,14 @@ class ContextStore:
 class StateStore:
     """Persistent storage for accumulated results and metadata."""
     
-    def __init__(self, state_file: str):
-        self.state_file = Path(state_file)
+    def __init__(self, state_file: str = None):
+        self.state_file = Path(state_file) if state_file else None
         self._state: Dict[str, Any] = {}
         self._load_state()
     
     def _load_state(self) -> None:
         """Load state from file."""
-        if self.state_file.exists():
+        if self.state_file and self.state_file.exists():
             try:
                 with open(self.state_file, 'r') as f:
                     self._state = json.load(f)
@@ -81,20 +81,23 @@ class StateStore:
             "config": {},
             "variables": {},
             "history": [],
-            "replay": []
+            "replay": [],
+            "validation_hint": None,
+            "strategy_insights": None
         }
         self._save_state()
     
     def _save_state(self) -> None:
         """Save state to file."""
         self._state["updated_at"] = datetime.now().isoformat()
-        try:
-            # Ensure directory exists
-            self.state_file.parent.mkdir(parents=True, exist_ok=True)
-            with open(self.state_file, 'w') as f:
-                json.dump(self._state, f, indent=2, default=str)
-        except IOError as e:
-            raise StateError(f"Failed to save state file: {e}")
+        if self.state_file:
+            try:
+                # Ensure directory exists
+                self.state_file.parent.mkdir(parents=True, exist_ok=True)
+                with open(self.state_file, 'w') as f:
+                    json.dump(self._state, f, indent=2, default=str)
+            except IOError as e:
+                raise StateError(f"Failed to save state file: {e}")
     
     def set_query(self, query: str) -> None:
         """Set the original query."""
@@ -223,3 +226,75 @@ class StateStore:
     def clear_state(self) -> None:
         """Clear all state data."""
         self._initialize_empty_state()
+    
+    def set_validation_hint(self, hint: str) -> None:
+        """Set validation hint for next iteration."""
+        self._state["validation_hint"] = hint
+        self._save_state()
+    
+    def get_validation_hint(self) -> str:
+        """Get validation hint from previous iteration."""
+        return self._state.get("validation_hint")
+    
+    def set_strategy_insights(self, insights: str) -> None:
+        """Set strategy insights from previous iteration."""
+        self._state["strategy_insights"] = insights
+        self._save_state()
+    
+    def get_strategy_insights(self) -> str:
+        """Get strategy insights from previous iteration."""
+        return self._state.get("strategy_insights")
+    
+    def add_field_metadata(self, variable_name: str, field_name: str, description: str, source: str = None) -> str:
+        """Add field metadata with conflict resolution."""
+        if variable_name not in self._state["variables"]:
+            raise StateError(f"Variable {variable_name} does not exist")
+        
+        # Get existing fields for this variable
+        var_data = self._state["variables"][variable_name]
+        if "fields" not in var_data:
+            var_data["fields"] = {}
+        
+        # Resolve field name conflicts
+        actual_field_name = self._resolve_field_name_conflict(var_data["fields"], field_name)
+        
+        # Add field metadata
+        var_data["fields"][actual_field_name] = {
+            "description": description,
+            "source": source or "ADD_FIELD command",
+            "created_at": datetime.now().isoformat()
+        }
+        
+        self._save_state()
+        return actual_field_name
+    
+    def _resolve_field_name_conflict(self, existing_fields: Dict[str, Any], field_name: str) -> str:
+        """Resolve field name conflicts by auto-generating names."""
+        if field_name not in existing_fields:
+            return field_name
+        
+        counter = 1
+        while f"{field_name}_{counter}" in existing_fields:
+            counter += 1
+        
+        return f"{field_name}_{counter}"
+    
+    def get_field_metadata(self, variable_name: str) -> Dict[str, Any]:
+        """Get field metadata for a variable."""
+        if variable_name not in self._state["variables"]:
+            return {}
+        
+        var_data = self._state["variables"][variable_name]
+        return var_data.get("fields", {})
+    
+    def set_variable_with_fields(self, name: str, value: Any, var_type: str, description: str = None, fields: Dict[str, Any] = None) -> None:
+        """Set a variable with field metadata."""
+        self._state["variables"][name] = {
+            "value": value,
+            "type": var_type,
+            "description": description,
+            "fields": fields or {},
+            "created_at": datetime.now().isoformat(),
+            "updated_at": datetime.now().isoformat()
+        }
+        self._save_state()

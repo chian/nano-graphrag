@@ -50,6 +50,11 @@ class FindHandler(CommandHandler):
             # Also store as last_nodes_result for compatibility
             self.context_store.set("last_nodes_result", result)
             
+            # Store with user-specified variable name if AS clause was used
+            if "result_var" in args and args["result_var"]:
+                self.context_store.set(args["result_var"], result)
+                print(f"DEBUG: FIND - Saved result to variable: {args['result_var']}")
+            
             # Create provenance
             provenance = [
                 self._create_provenance(

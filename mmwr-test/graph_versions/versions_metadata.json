@@ -1,0 +1,13 @@
+{
+  "current_version": "v0_base",
+  "lineage": {},
+  "metadata": {
+    "v0_base": {
+      "description": "Base graph loaded from GraphML",
+      "timestamp": "2025-09-29T17:20:47.448494",
+      "command": "LOAD_BASE",
+      "parent": null,
+      "hash": "0f0bd06c"
+    }
+  }
+}

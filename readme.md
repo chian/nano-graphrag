@@ -411,6 +411,85 @@ See [ROADMAP.md](./docs/ROADMAP.md)
 
 
 
+## GASL (Graph Analysis and Scripting Language)
+
+`nano-graphrag` includes GASL, a domain-specific language for querying and manipulating knowledge graphs. GASL provides a streamlined set of commands for graph analysis, data transformation, and field creation.
+
+### Core Commands
+
+#### **Discovery & Data Retrieval**
+- `DECLARE` - Create variables (DICT, LIST, COUNTER)
+- `FIND` - Discover nodes/edges/paths with optional grouping
+- `SHOW` - Display variable contents
+- `SET` - Set variable values
+
+#### **Data Processing**
+- `PROCESS` - Transform individual items (creates new variables)
+- `COUNT` - Count frequencies and unique values
+- `AGGREGATE` - Mathematical aggregations (sum, avg, min, max, count)
+
+#### **Graph Modification**
+- `ADD_FIELD` - Add fields to nodes/edges with auto-generated conflict resolution
+- `CREATE_NODES` - Create new nodes in the graph
+- `CREATE_EDGES` - Create new edges/relationships
+- `CREATE_GROUPS` - Create group nodes from aggregations
+
+#### **Data Combination**
+- `JOIN` - Combine variables on matching fields
+- `MERGE` - Combine multiple variables
+- `COMPARE` - Compare variables on specific fields
+
+### Field Management
+
+GASL automatically manages field metadata with descriptions:
+- Fields are auto-generated when conflicts occur (`field_name_1`, `field_name_2`)
+- Each field includes a description of its purpose and source
+- The LLM can always see available fields and their descriptions
+
+### Example Workflows
+
+#### **Author Frequency Analysis**
+```
+FIND nodes with entity_type=PERSON AS person_nodes
+PROCESS person_nodes with instruction: "Extract author names from description" AS author_names
+ADD_FIELD person_nodes field: author_name = author_names
+COUNT person_nodes field author_name unique AS author_frequency
+```
+
+#### **Multi-Dataset Analysis**
+```
+FIND nodes with entity_type=PERSON AS person_nodes
+FIND nodes with entity_type=EVENT AS event_nodes
+PROCESS person_nodes with instruction: "Extract author names" AS person_authors
+PROCESS event_nodes with instruction: "Extract author names" AS event_authors
+ADD_FIELD person_nodes field: author_name = person_authors
+ADD_FIELD event_nodes field: author_name = event_authors
+JOIN person_nodes with event_nodes on author_name AS combined_authors
+```
+
+### Usage
+
+#### Run GASL Analysis
+
+```bash
+# Run a GASL query on your papers directory
+python gasl_main.py --working-dir /path/to/your/papers --query "create a histogram of how often author names appear" --max-iterations 3
+
+# Test individual commands
+python test_commands.py "FIND nodes with entity_type=PERSON" --working-dir /path/to/your/papers
+```
+
+#### Working Directory Structure
+
+Your papers directory will contain:
+- Your original paper files (PDFs, text files, etc.)
+- `graph_chunk_entity_relation.graphml` - Generated knowledge graph (auto-created by nano-graphrag)
+- `gasl_state.json` - GASL state file (auto-created)
+- `test_state.json` - Test command state file (auto-created)
+- Other nano-graphrag cache files (auto-created)
+
+All files are stored in your papers directory to keep everything organized and avoid conflicts between different projects.
+
 ## Issues
 
 - `nano-graphrag` didn't implement the `covariates` feature of `GraphRAG`

@@ -152,7 +152,7 @@ class UpdateHandler(CommandHandler):
             )
     
     def _apply_filter(self, data: List[Any], condition: str) -> List[Any]:
-        """Apply filter condition to data."""
+        """Apply filter condition to data. UPDATE only supports basic filtering for data modification."""
         import re
         
         # Handle "description contains" condition
@@ -180,6 +180,21 @@ class UpdateHandler(CommandHandler):
                         if search_text in entity_type:
                             filtered.append(item)
                 return filtered
+        
+        # Handle "id equals" condition for precise updates
+        elif "id equals" in condition.lower():
+            match = re.search(r"id equals ['\"]([^'\"]*)['\"]", condition, re.IGNORECASE)
+            if match:
+                target_id = match.group(1)
+                filtered = []
+                for item in data:
+                    if isinstance(item, dict) and item.get("id") == target_id:
+                        filtered.append(item)
+                return filtered
+        
+        # For complex filtering, return error - use PROCESS instead
+        else:
+            raise ValueError(f"UPDATE command does not support complex filtering: '{condition}'. Use PROCESS command for complex filtering tasks.")
         
         # Default: return all data if no recognized condition
         return data
