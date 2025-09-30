@@ -535,7 +535,6 @@ python generate_synthesis_qa.py --working-dir /path/to/your/graph --num-question
 #### **Data Processing**
 - `PROCESS` - Transform individual items using LLM intelligence
 - `CLASSIFY` - Categorize items using LLM
-- `TRANSFORM` - Transform data using LLM intelligence
 - `UPDATE` - Update state variables with data transformations
 
 #### **Graph Navigation**
@@ -547,26 +546,19 @@ python generate_synthesis_qa.py --working-dir /path/to/your/graph --num-question
 #### **Data Analysis**
 - `COUNT` - Count frequencies and unique values with grouping
 - `AGGREGATE` - Mathematical aggregations (sum, avg, min, max, count)
-- `ANALYZE` - Perform analysis on data
 - `CLUSTER` - Cluster similar items using LLM
-- `DETECT` - Detect patterns in data
 
 #### **Data Combination**
 - `JOIN` - Combine variables on matching fields
 - `MERGE` - Combine multiple variables
 - `COMPARE` - Compare variables on specific fields
-- `PIVOT` - Create pivot tables from data
 
 #### **Field Operations**
-- `CALCULATE` - Add calculated fields to data
-- `SCORE` - Score items using LLM evaluation
 - `RANK` - Rank items by a field
-- `WEIGHT` - Assign weights to items using LLM
 
 #### **Object Creation**
 - `CREATE` - Create new graph objects (nodes, edges, summaries)
 - `GENERATE` - Generate new content using LLM
-- `RESHAPE` - Change data structure format
 
 #### **Control Flow**
 - `REQUIRE` - Require conditions to be met
@@ -583,6 +575,7 @@ GASL automatically manages field metadata with descriptions:
 - The LLM can always see available fields and their descriptions
 
 ### Example Workflows
+
 
 #### **Author Frequency Analysis**
 ```

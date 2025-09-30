@@ -223,14 +223,22 @@ class GASLExecutor:
                 result = self.execute_plan(plan_json)
                 all_results.append(result)
                 
+                print(f"DEBUG: Plan execution result status: '{result['status']}'")
+                print(f"DEBUG: Status type: {type(result['status'])}")
+                print(f"DEBUG: Status repr: {repr(result['status'])}")
+                
                 # Check if we should continue
-                if result["status"] == "completed":
+                if result["status"] in ["completed", "success"]:
+                    print(f"DEBUG: Plan completed successfully, checking for completion validation")
                     # Check if we have enough information to answer
                     final_state = result["final_state"]
                     variables = final_state.get("variables", {})
                     
+                    print(f"DEBUG: Final state variables: {list(variables.keys())}")
+                    
                     # Use LLM to validate if query was actually answered
                     validation_prompt = self.llm_func.create_completion_validator_prompt(query, variables)
+                    print(f"DEBUG: Sending completion validation prompt to LLM")
                     validation_response = self.llm_func.call(validation_prompt).strip().upper()
                     
                     print(f"DEBUG: Completion validation: {validation_response}")
@@ -302,11 +310,28 @@ class GASLExecutor:
                     results[var_name] = {k: v for k, v in var_data.items() if k != "_meta"}
                 elif var_type == "COUNTER":
                     results[var_name] = var_data.get("value", 0)
+            elif isinstance(var_data, dict) and "value" in var_data:
+                # Handle variables stored as {"value": [...]} without _meta
+                results[var_name] = var_data["value"]
             else:
                 results[var_name] = var_data
         
         # Create analysis prompt
+        print(f"DEBUG: FINAL ANSWER - Query: {query}")
+        print(f"DEBUG: FINAL ANSWER - Results keys: {list(results.keys())}")
+        for key, value in results.items():
+            if isinstance(value, list):
+                print(f"DEBUG: FINAL ANSWER - {key}: {len(value)} items")
+                if value and isinstance(value[0], dict):
+                    print(f"DEBUG: FINAL ANSWER - First item keys: {list(value[0].keys())}")
+            else:
+                print(f"DEBUG: FINAL ANSWER - {key}: {value}")
+        
         analysis_prompt = self.llm_func.create_analysis_prompt(query, results)
+        print(f"DEBUG: FINAL ANSWER - Analysis prompt being sent to LLM:")
+        print("=" * 80)
+        print(analysis_prompt)
+        print("=" * 80)
         
         # Get final answer from LLM
         return self.llm_func.call(analysis_prompt)

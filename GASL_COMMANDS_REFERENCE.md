@@ -23,9 +23,23 @@ This document provides a comprehensive reference for all Graph Analysis & State 
 ### PROCESS
 **Purpose**: Complex LLM-based data processing and filtering
 **Syntax**: `PROCESS <variable> with <instruction>`
+**Best For**: Text processing, classification, string operations, complex logical reasoning on descriptions
+**Avoid For**: Numeric comparisons, mathematical operations, statistical filtering
 **Examples**:
 - `PROCESS raw_authors with instruction: filter to only human authors`
 - `PROCESS publications with instruction: extract publication years and categorize by decade`
+- `PROCESS descriptions with instruction: classify sentiment as positive, negative, or neutral`
+
+] WITH logic="OR" INTO high_risk_cases
+```
+
+**Features**:
+- Type-safe: Ensures fields are numeric (int/float)
+- Null-safe: Automatically filters out null values
+- Type coercion: Converts string numbers to numeric types
+- Error handling: Logs issues without crashing
+- Performance: 100x faster than LLM-based PROCESS for numeric filters
+- Supports: AND/OR logic, multiple conditions, all comparison operators
 
 ### CLASSIFY
 **Purpose**: LLM-based categorization of items
@@ -106,21 +120,6 @@ This document provides a comprehensive reference for all Graph Analysis & State 
 
 ## Data Transformation Commands
 
-### TRANSFORM
-**Purpose**: Transform data using LLM intelligence
-**Syntax**: `TRANSFORM <variable> with <transformation_instruction>`
-**Examples**:
-- `TRANSFORM raw_text with instruction: extract structured data from unstructured text`
-- `TRANSFORM names with instruction: standardize name formats`
-
-### RESHAPE
-**Purpose**: Change data structure format
-**Syntax**: `RESHAPE <variable> from <from_format> to <to_format>`
-**Formats**: `list`, `dict`, `flat`, `hierarchical`
-**Examples**:
-- `RESHAPE authors from list to dict`
-- `RESHAPE papers from flat to hierarchical`
-
 ### AGGREGATE
 **Purpose**: Group and aggregate data
 **Syntax**: `AGGREGATE <variable> by <group_field> with <operation>`
@@ -129,44 +128,12 @@ This document provides a comprehensive reference for all Graph Analysis & State 
 - `AGGREGATE papers by author_id with count`
 - `AGGREGATE citations by year with sum`
 
-### PIVOT
-**Purpose**: Create pivot table from data
-**Syntax**: `PIVOT <variable> on <pivot_field> by <value_field>`
-**Examples**:
-- `PIVOT publications on year by author_id`
-- `PIVOT collaborations on institution by author_id`
-
-## Field Calculation Commands
-
-### CALCULATE
-**Purpose**: Add calculated fields to data
-**Syntax**: `CALCULATE <variable> add field: <field_name> = <computation>`
-**Examples**:
-- `CALCULATE authors add field: name_length = description_length`
-- `CALCULATE papers add field: citation_density = count_citations`
-
-### SCORE
-**Purpose**: Score items using LLM evaluation
-**Syntax**: `SCORE <variable> with <scoring_criteria>`
-**Examples**:
-- `SCORE authors with criteria: research impact and collaboration`
-- `SCORE papers with criteria: novelty and methodology quality`
-
 ### RANK
 **Purpose**: Rank items by a field
 **Syntax**: `RANK <variable> by <field> [order desc|asc]`
 **Examples**:
 - `RANK authors by publication_count order desc`
 - `RANK papers by citation_count order asc`
-
-### WEIGHT
-**Purpose**: Assign weights to items using LLM
-**Syntax**: `WEIGHT <variable> with <weighting_criteria>`
-**Examples**:
-- `WEIGHT authors with criteria: importance in research community`
-- `WEIGHT papers with criteria: relevance to query topic`
-
-## Object Creation Commands
 
 ### CREATE
 **Purpose**: Create new graph objects from data
@@ -192,28 +159,12 @@ This document provides a comprehensive reference for all Graph Analysis & State 
 - `CLUSTER authors with criteria: research interests and collaboration patterns`
 - `CLUSTER papers with criteria: topic similarity`
 
-### DETECT
-**Purpose**: Detect patterns in data
-**Syntax**: `DETECT patterns in <variable> with <pattern_type>`
-**Examples**:
-- `DETECT patterns in collaborations with type: collaboration_networks`
-- `DETECT patterns in citations with type: citation_chains`
-
 ### GROUP
 **Purpose**: Group items by field values
 **Syntax**: `GROUP <variable> by <field> [with <aggregation>]`
 **Examples**:
 - `GROUP authors by institution with count`
 - `GROUP papers by year with sum citations`
-
-### ANALYZE
-**Purpose**: Perform analysis on data
-**Syntax**: `ANALYZE <variable> for <analysis_type>`
-**Examples**:
-- `ANALYZE authors for collaboration_network_analysis`
-- `ANALYZE papers for citation_impact_analysis`
-
-## Control Flow Commands
 
 ### SELECT
 **Purpose**: Select specific fields from data
@@ -314,7 +265,6 @@ This document provides a comprehensive reference for all Graph Analysis & State 
 - DEBUG
 
 ### Partially Implemented (Placeholders)
-- ANALYZE
 - REQUIRE
 - ASSERT
 - ON
@@ -325,9 +275,9 @@ This document provides a comprehensive reference for all Graph Analysis & State 
 - Graph Navigation: GRAPHWALK, GRAPHCONNECT, SUBGRAPH, GRAPHPATTERN
 - Multi-Variable: JOIN, MERGE, COMPARE
 - Object Creation: CREATE, GENERATE
-- Pattern Analysis: CLUSTER, DETECT, GROUP
-- Data Transformation: TRANSFORM, RESHAPE, AGGREGATE, PIVOT
-- Field Operations: CALCULATE, SCORE, RANK, WEIGHT
+- Pattern Analysis: CLUSTER, GROUP
+- Data Transformation: AGGREGATE
+- Field Operations: RANK
 - Iteration: ITERATE
 
 ## Usage Patterns
@@ -337,21 +287,20 @@ This document provides a comprehensive reference for all Graph Analysis & State 
 2. `FIND` relevant nodes/edges in graph
 3. `PROCESS` or `CLASSIFY` data as needed
 4. `UPDATE` state variables with processed data
-5. `ANALYZE` or `GENERATE` final results
+5. `GENERATE` final results
 
 ### Complex Analysis Workflow
 1. `DECLARE` multiple variables for different data types
 2. `FIND` various graph elements
 3. `JOIN` or `MERGE` related data
-4. `TRANSFORM` data using LLM intelligence
+4. `PROCESS` data using LLM intelligence
 5. `AGGREGATE` or `GROUP` for statistical analysis
-6. `SCORE` or `RANK` for prioritization
+6. `RANK` for prioritization
 7. `GENERATE` comprehensive reports
 
 ### Graph Exploration Workflow
 1. `GRAPHWALK` to explore graph structure
 2. `SUBGRAPH` to focus on relevant areas
 3. `GRAPHPATTERN` to find specific patterns
-4. `DETECT` patterns in the data
-5. `CLUSTER` similar elements
-6. `ANALYZE` for insights
+4. `CLUSTER` similar elements
+5. `GROUP` related data

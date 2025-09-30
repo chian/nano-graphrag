@@ -1,13 +1,26 @@
 {
-  "current_version": "v0_base",
-  "lineage": {},
+  "current_version": "v2_process",
+  "lineage": {
+    "v2_process": "v0_base"
+  },
   "metadata": {
     "v0_base": {
       "description": "Base graph loaded from GraphML",
-      "timestamp": "2025-09-29T17:20:47.448494",
+      "timestamp": "2025-09-30T11:13:10.220065",
       "command": "LOAD_BASE",
       "parent": null,
-      "hash": "0f0bd06c"
+      "hash": "d41d6092"
+    },
+    "v2_process": {
+      "description": "PROCESS: instruction: filter to only those countries associ...",
+      "timestamp": "2025-09-30T11:13:32.133829",
+      "command": "PROCESS",
+      "parent": "v0_base",
+      "hash": "ca0b140a",
+      "details": {
+        "items_processed": 50,
+        "target_variable": "country_nodes"
+      }
     }
   }
 }

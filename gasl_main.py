@@ -233,27 +233,6 @@ def main():
         print("="*80)
         print(result["final_answer"])
         
-        if args.verbose:
-            print("\n" + "="*80)
-            print("DETAILED RESULTS:")
-            print("="*80)
-            print(f"Iterations: {result['iterations']}")
-            print(f"Final State Variables:")
-            variables = result["final_state"].get("variables", {})
-            for var_name, var_data in variables.items():
-                if isinstance(var_data, dict) and "_meta" in var_data:
-                    var_type = var_data["_meta"]["type"]
-                    if var_type == "LIST":
-                        count = len(var_data.get("items", []))
-                        print(f"  - {var_name} ({var_type}): {count} items")
-                    elif var_type == "DICT":
-                        keys = [k for k in var_data.keys() if k != "_meta"]
-                        print(f"  - {var_name} ({var_type}): {len(keys)} keys")
-                    elif var_type == "COUNTER":
-                        value = var_data.get("value", 0)
-                        print(f"  - {var_name} ({var_type}): {value}")
-                else:
-                    print(f"  - {var_name}: {var_data}")
         
         # Save state to file
         state_file = Path(args.state_file)
@@ -273,6 +252,8 @@ def main():
         sys.exit(1)
     except Exception as e:
         print(f"Unexpected error: {e}")
+        import traceback
+        traceback.print_exc()
         sys.exit(1)
 
 

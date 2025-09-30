@@ -17,9 +17,9 @@ class FlexibleParser:
             "DECLARE", "FIND", "PROCESS", "CLASSIFY", "UPDATE", "COUNT",
             "SELECT", "SET", "REQUIRE", "ASSERT", "ON", "TRY", "CATCH", "CANCEL",
             "GRAPHWALK", "GRAPHCONNECT", "SUBGRAPH", "GRAPHPATTERN",
-            "JOIN", "MERGE", "COMPARE", "TRANSFORM", "RESHAPE", "AGGREGATE",
-            "PIVOT", "CALCULATE", "SCORE", "RANK", "WEIGHT", "CREATE", "GENERATE",
-            "CLUSTER", "DETECT", "GROUP", "ANALYZE"
+            "JOIN", "MERGE", "COMPARE", "AGGREGATE",
+            "RANK", "CREATE", "GENERATE",
+            "CLUSTER", "GROUP"
         ]
         
         # Keywords for different command types
@@ -44,20 +44,12 @@ class FlexibleParser:
             "JOIN": ["with", "on", "AS"],
             "MERGE": ["with", "AS"],
             "COMPARE": ["with", "AS"],
-            "TRANSFORM": ["with", "AS"],
-            "RESHAPE": ["from", "to", "AS"],
             "AGGREGATE": ["by", "with", "AS"],
-            "PIVOT": ["by", "AS"],
-            "CALCULATE": ["with", "AS"],
-            "SCORE": ["with", "AS"],
             "RANK": ["by", "AS"],
-            "WEIGHT": ["by", "AS"],
             "CREATE": ["with", "AS"],
             "GENERATE": ["from", "with", "format", "AS"],
             "CLUSTER": ["with", "AS"],
-            "DETECT": ["with", "AS"],
-            "GROUP": ["by", "AS"],
-            "ANALYZE": ["with", "AS"]
+            "GROUP": ["by", "AS"]
         }
     
     def parse_command(self, command_text: str, line_number: int = 1) -> Command:

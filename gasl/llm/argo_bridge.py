@@ -132,7 +132,7 @@ class ArgoBridgeLLM:
     def _format_state(self, state: Dict[str, Any]) -> str:
         """Format state for prompt."""
         if not state:
-            return "No state variables defined yet."
+            return "No state variables defined yet.\n\nIMPORTANT: You must DECLARE state variables first before doing any meaningful work. Use DECLARE commands to create the data structures you need based on the query. For example:\n- DECLARE country_analysis AS DICT WITH_DESCRIPTION \"Analysis results for countries\"\n- DECLARE country_list AS LIST WITH_DESCRIPTION \"List of countries found\"\n- DECLARE country_count AS COUNTER WITH_DESCRIPTION \"Count of countries meeting criteria\""
         
         formatted = []
         for key, value in state.items():
@@ -143,7 +143,7 @@ class ArgoBridgeLLM:
                     count = len(value.get("items", []))
                     formatted.append(f"- {key} ({var_type}): {count} items - {description}")
                     
-                    # Show available fields for LIST variables
+                    # Show available fields for LIST variables (schema only - no actual data)
                     items = value.get("items", [])
                     if items and isinstance(items, list) and len(items) > 0:
                         # Analyze first few items to determine available fields
@@ -152,17 +152,20 @@ class ArgoBridgeLLM:
                             formatted.append(f"  🔍 AVAILABLE FIELDS (use these exact names in commands):")
                             for field_name, field_type in sample_fields.items():
                                 formatted.append(f"    - {field_name}: {field_type}")
-                            
-                            # Show sample data structure
-                            formatted.append(f"  📋 Sample item structure:")
-                            sample_item = items[0]
-                            if isinstance(sample_item, dict):
-                                for field, val in sample_item.items():
-                                    if isinstance(val, str) and len(val) > 50:
-                                        val = val[:47] + "..."
-                                    formatted.append(f"    - {field}: {val}")
-                            else:
-                                formatted.append(f"    - {sample_item}")
+                        else:
+                            # Fallback to standard graph entity schema
+                            formatted.append(f"  🔍 AVAILABLE FIELDS (use these exact names in commands):")
+                            formatted.append(f"    - entity_type: string")
+                            formatted.append(f"    - description: string")
+                            formatted.append(f"    - source_id: string")
+                            formatted.append(f"    - clusters: string")
+                    else:
+                        # If no items, show standard graph entity schema
+                        formatted.append(f"  🔍 AVAILABLE FIELDS (use these exact names in commands):")
+                        formatted.append(f"    - entity_type: string")
+                        formatted.append(f"    - description: string")
+                        formatted.append(f"    - source_id: string")
+                        formatted.append(f"    - clusters: string")
                                 
                 elif var_type == "DICT":
                     keys = [k for k in value.keys() if k != "_meta"]
@@ -171,7 +174,13 @@ class ArgoBridgeLLM:
                     count = value.get("value", 0)
                     formatted.append(f"- {key} ({var_type}): {count} - {description}")
             else:
-                formatted.append(f"- {key}: {value}")
+                # For non-GASL variables, show only type and count, not actual data
+                if isinstance(value, list):
+                    formatted.append(f"- {key} (list): {len(value)} items")
+                elif isinstance(value, dict):
+                    formatted.append(f"- {key} (dict): {len(value)} keys")
+                else:
+                    formatted.append(f"- {key}: {type(value).__name__}")
         
         return "\n".join(formatted)
     
@@ -225,11 +234,9 @@ class ArgoBridgeLLM:
         for key, value in results.items():
             if isinstance(value, list):
                 formatted.append(f"{key}: {len(value)} items")
-                # Show first few items
-                for i, item in enumerate(value[:3]):
+                # Show all items
+                for i, item in enumerate(value):
                     formatted.append(f"  {i+1}. {item}")
-                if len(value) > 3:
-                    formatted.append(f"  ... and {len(value) - 3} more")
             else:
                 formatted.append(f"{key}: {value}")
         
