@@ -261,6 +261,41 @@ This document provides a comprehensive reference for all Graph Analysis & State 
 **Purpose**: Cancel execution
 **Syntax**: `CANCEL PLAN "<plan_id>"`
 
+### ADD_FIELD
+**Purpose**: Add fields to nodes/edges with auto-generated conflict resolution
+**Syntax**: `ADD_FIELD <variable> field: <field_name> = <value>`
+**Examples**:
+- `ADD_FIELD authors field: author_name = extracted_names`
+- `ADD_FIELD papers field: publication_year = extracted_years`
+
+### CREATE_NODES
+**Purpose**: Create new nodes in the graph
+**Syntax**: `CREATE_NODES from <source_variable> [with <specification>]`
+**Examples**:
+- `CREATE_NODES from authors with type: PERSON`
+- `CREATE_NODES from institutions with type: ORGANIZATION`
+
+### CREATE_EDGES
+**Purpose**: Create new edges/relationships
+**Syntax**: `CREATE_EDGES from <source_variable> [with <specification>]`
+**Examples**:
+- `CREATE_EDGES from collaborations with type: COLLABORATED_WITH`
+- `CREATE_EDGES from citations with type: CITED_BY`
+
+### CREATE_GROUPS
+**Purpose**: Create group nodes from aggregations
+**Syntax**: `CREATE_GROUPS from <source_variable> [with <specification>]`
+**Examples**:
+- `CREATE_GROUPS from author_counts with type: AUTHOR_GROUP`
+- `CREATE_GROUPS from institution_stats with type: INSTITUTION_GROUP`
+
+### DEBUG
+**Purpose**: Debug and inspect variables
+**Syntax**: `DEBUG <variable> [with <options>]`
+**Examples**:
+- `DEBUG authors`
+- `DEBUG analysis_results with verbose`
+
 ## Command Categories by Implementation Status
 
 ### Fully Implemented
@@ -269,16 +304,14 @@ This document provides a comprehensive reference for all Graph Analysis & State 
 - PROCESS
 - CLASSIFY
 - UPDATE
-- TRANSFORM
-- RESHAPE
-- AGGREGATE
-- PIVOT
-- CALCULATE
-- SCORE
-- RANK
-- WEIGHT
+- COUNT
 - SELECT
 - SET
+- ADD_FIELD
+- CREATE_NODES
+- CREATE_EDGES
+- CREATE_GROUPS
+- DEBUG
 
 ### Partially Implemented (Placeholders)
 - ANALYZE
@@ -293,6 +326,9 @@ This document provides a comprehensive reference for all Graph Analysis & State 
 - Multi-Variable: JOIN, MERGE, COMPARE
 - Object Creation: CREATE, GENERATE
 - Pattern Analysis: CLUSTER, DETECT, GROUP
+- Data Transformation: TRANSFORM, RESHAPE, AGGREGATE, PIVOT
+- Field Operations: CALCULATE, SCORE, RANK, WEIGHT
+- Iteration: ITERATE
 
 ## Usage Patterns
 

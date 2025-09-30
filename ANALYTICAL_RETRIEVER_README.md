@@ -26,9 +26,8 @@ A flexible, systematic approach to querying knowledge graphs that adapts the cog
 ## Files Created
 
 1. **`analytical_retriever.py`** - Main analytical retriever implementation
-2. **`test_analytical_retriever.py`** - Test script for the analytical retriever
-3. **`run_analytical_retriever.py`** - Integration script with Argo Bridge API
-4. **`ANALYTICAL_RETRIEVER_README.md`** - This documentation
+2. **`run_analytical_retriever.py`** - Integration script with Argo Bridge API
+3. **`ANALYTICAL_RETRIEVER_README.md`** - This documentation
 
 ## Usage
 
@@ -69,7 +68,8 @@ python run_analytical_retriever.py --working-dir "/path/to/your/knowledge/graph"
 ### Test the System
 
 ```bash
-python test_analytical_retriever.py /path/to/your/knowledge/graph "Find all authors and their co-authorship relationships"
+# Use the main script with verbose output for testing
+python run_analytical_retriever.py --working-dir /path/to/your/knowledge/graph --query "Find all authors and their co-authorship relationships" --verbose
 ```
 
 ## How It Works

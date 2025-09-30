@@ -193,6 +193,13 @@ Below are the components you can use:
 - Check [examples/benchmarks](./examples/benchmarks) to see few comparisons between components.
 - **Always welcome to contribute more components.**
 
+### Additional Features
+
+- **QA Generation**: Built-in scripts for generating complex reasoning question-answer pairs from knowledge graphs (see [Question-Answer Generation](#question-answer-generation) section)
+- **Dynamic Entity Type Generation**: Automatically generates relevant entity types based on user queries and document content
+- **Query-Aware Processing**: All prompts and processing are optimized based on the specific user query
+- **Analytical Retriever**: Advanced query decomposition and systematic graph analysis (see [Analytical Retriever](./ANALYTICAL_RETRIEVER_README.md))
+
 ## Advances
 
 
@@ -235,17 +242,38 @@ You can integrate that context into your customized prompt.
 </details>
 
 <details>
-<summary>Prompt</summary>
+<summary>Prompt System</summary>
 
-`nano-graphrag` use prompts from `nano_graphrag.prompt.PROMPTS` dict object. You can play with it and replace any prompt inside.
+`nano-graphrag` uses a query-aware prompt system that dynamically optimizes prompts based on user queries. The system loads prompts from the `prompts/` directory and can optimize them using LLM intelligence.
 
-Some important prompts:
+**Key Features:**
+- **Query-Aware Optimization**: Prompts are automatically optimized for specific user queries
+- **File-Based Prompts**: Prompts are stored as individual files in the `prompts/` directory
+- **Backward Compatibility**: The old `PROMPTS` dictionary interface is still supported
+- **Caching**: Optimized prompts are cached for performance
 
-- `PROMPTS["entity_extraction"]` is used to extract the entities and relations from a text chunk.
-- `PROMPTS["community_report"]` is used to organize and summary the graph cluster's description.
-- `PROMPTS["local_rag_response"]` is the system prompt template of the local search generation.
-- `PROMPTS["global_reduce_rag_response"]` is the system prompt template of the global search generation.
-- `PROMPTS["fail_response"]` is the fallback response when nothing is related to the user query.
+**Important Prompts:**
+
+- `entity_extraction` - Extract entities and relations from text chunks
+- `entity_type_generation` - Generate entity types dynamically based on user queries
+- `community_report` - Organize and summarize graph cluster descriptions
+- `local_rag_response` - System prompt for local search generation
+- `global_reduce_rag_response` - System prompt for global search generation
+- `plan_generation` - Generate execution plans for complex queries
+- `process_batch` - Process batches of data with LLM
+- `classify_batch` - Classify batches of data with LLM
+
+**Usage:**
+```python
+from nano_graphrag.prompt_system import QueryAwarePromptSystem, set_prompt_system
+
+# Create a query-aware prompt system
+prompt_system = QueryAwarePromptSystem(llm_func=your_llm_func)
+set_prompt_system(prompt_system)
+
+# Get optimized prompts
+prompt = prompt_system.get_prompt("entity_extraction", user_query="your query", optimize=True)
+```
 
 </details>
 
@@ -265,7 +293,39 @@ GraphRAG(...,chunk_func=chunking_by_seperators,...)
 
 </details>
 
+<details>
+<summary>Dynamic Entity Type Generation</summary>
 
+`nano-graphrag` includes a dynamic entity type generation system that automatically determines relevant entity types based on your specific query and document content, rather than using a fixed set of entity types.
+
+**Key Features:**
+- **Query-Aware**: Entity types are generated based on the user's specific query
+- **Content-Adaptive**: Types are tailored to the actual content being processed
+- **Frequency-Based Filtering**: Only entity types that appear frequently across chunks are selected
+- **Fallback Support**: Falls back to top-N most frequent types if no types meet the frequency threshold
+
+**How It Works:**
+1. The system analyzes your query to understand what types of entities are relevant
+2. For each text chunk, it generates potential entity types using LLM
+3. It aggregates entity types across all chunks and filters by frequency
+4. Only entity types that appear in 2+ chunks (or top 12 if none meet threshold) are used
+
+**Usage:**
+```python
+from nano_graphrag.entity_type_generator import generate_entity_types_for_chunks
+
+# Generate entity types for your specific task
+entity_types = await generate_entity_types_for_chunks(
+    task="Find all authors and their collaborations",
+    chunks=your_chunks,
+    llm_func=your_llm_func,
+    per_chunk=True
+)
+```
+
+This ensures that entity extraction is always relevant to your specific use case and document content.
+
+</details>
 
 <details>
 <summary>LLM Function</summary>
@@ -411,33 +471,109 @@ See [ROADMAP.md](./docs/ROADMAP.md)
 
 
 
+## Question-Answer Generation
+
+`nano-graphrag` includes powerful scripts for generating complex reasoning question-answer pairs from knowledge graphs, perfect for creating training data that requires `<think>` tokens.
+
+### QA Generation Scripts
+
+#### **Multi-Hop Reasoning Questions** (`generate_multihop_qa.py`)
+Generates questions that require chaining facts across multiple hops in the knowledge graph:
+
+```bash
+python generate_multihop_qa.py --working-dir /path/to/your/graph --num-questions 10 --path-length 2
+```
+
+**Features:**
+- Finds random paths of specified length in the graph
+- Generates questions requiring multi-step reasoning
+- Creates detailed answers with step-by-step explanations
+- Perfect for training models on complex reasoning tasks
+
+#### **Synthesis Questions** (`generate_synthesis_qa.py`)
+Generates "why" and "how" questions that require synthesizing information from entity contexts:
+
+```bash
+python generate_synthesis_qa.py --working-dir /path/to/your/graph --num-questions 10
+```
+
+**Features:**
+- Identifies central nodes with high connectivity
+- Aggregates rich context from entities and their relationships
+- Generates synthesis questions requiring deep understanding
+- Creates comprehensive answers showing information synthesis
+
+### Example Output
+
+**Multi-Hop Question:**
+- **Q:** "How might the use of prescription opioids among older adults be indirectly connected to the risk of heroin overdose in this population?"
+- **A:** Detailed step-by-step reasoning connecting prescription opioids → dependence → heroin use → overdose risk
+
+**Synthesis Question:**
+- **Q:** "How does the CDC integrate data from diverse surveillance systems to identify emerging public health threats?"
+- **A:** Comprehensive analysis synthesizing surveillance systems, reporting mechanisms, collaborations, and response strategies
+
+### Use Cases
+
+- **Training Data Generation**: Create high-quality QA pairs for fine-tuning language models
+- **Reasoning Evaluation**: Test model capabilities on complex multi-hop and synthesis tasks
+- **Educational Content**: Generate challenging questions for learning and assessment
+- **Research Applications**: Create datasets for reasoning research and evaluation
+
 ## GASL (Graph Analysis and Scripting Language)
 
-`nano-graphrag` includes GASL, a domain-specific language for querying and manipulating knowledge graphs. GASL provides a streamlined set of commands for graph analysis, data transformation, and field creation.
+`nano-graphrag` includes GASL, a domain-specific language for querying and manipulating knowledge graphs. GASL provides a comprehensive set of commands for graph analysis, data transformation, and field creation.
 
 ### Core Commands
 
 #### **Discovery & Data Retrieval**
-- `DECLARE` - Create variables (DICT, LIST, COUNTER)
-- `FIND` - Discover nodes/edges/paths with optional grouping
-- `SHOW` - Display variable contents
+- `DECLARE` - Create variables (DICT, LIST, COUNTER) with descriptions
+- `FIND` - Discover nodes/edges/paths with filtering criteria
 - `SET` - Set variable values
+- `SELECT` - Select specific fields from data
 
 #### **Data Processing**
-- `PROCESS` - Transform individual items (creates new variables)
-- `COUNT` - Count frequencies and unique values
-- `AGGREGATE` - Mathematical aggregations (sum, avg, min, max, count)
+- `PROCESS` - Transform individual items using LLM intelligence
+- `CLASSIFY` - Categorize items using LLM
+- `TRANSFORM` - Transform data using LLM intelligence
+- `UPDATE` - Update state variables with data transformations
 
-#### **Graph Modification**
-- `ADD_FIELD` - Add fields to nodes/edges with auto-generated conflict resolution
-- `CREATE_NODES` - Create new nodes in the graph
-- `CREATE_EDGES` - Create new edges/relationships
-- `CREATE_GROUPS` - Create group nodes from aggregations
+#### **Graph Navigation**
+- `GRAPHWALK` - Walk through graph following relationships
+- `GRAPHCONNECT` - Find connections between node sets
+- `SUBGRAPH` - Extract subgraph around specific nodes
+- `GRAPHPATTERN` - Find specific patterns in the graph
+
+#### **Data Analysis**
+- `COUNT` - Count frequencies and unique values with grouping
+- `AGGREGATE` - Mathematical aggregations (sum, avg, min, max, count)
+- `ANALYZE` - Perform analysis on data
+- `CLUSTER` - Cluster similar items using LLM
+- `DETECT` - Detect patterns in data
 
 #### **Data Combination**
 - `JOIN` - Combine variables on matching fields
 - `MERGE` - Combine multiple variables
 - `COMPARE` - Compare variables on specific fields
+- `PIVOT` - Create pivot tables from data
+
+#### **Field Operations**
+- `CALCULATE` - Add calculated fields to data
+- `SCORE` - Score items using LLM evaluation
+- `RANK` - Rank items by a field
+- `WEIGHT` - Assign weights to items using LLM
+
+#### **Object Creation**
+- `CREATE` - Create new graph objects (nodes, edges, summaries)
+- `GENERATE` - Generate new content using LLM
+- `RESHAPE` - Change data structure format
+
+#### **Control Flow**
+- `REQUIRE` - Require conditions to be met
+- `ASSERT` - Assert conditions (stops execution if false)
+- `ON` - Conditional execution based on status
+- `TRY/CATCH/FINALLY` - Error handling
+- `CANCEL` - Cancel execution
 
 ### Field Management
 
