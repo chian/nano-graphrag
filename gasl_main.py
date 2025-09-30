@@ -11,7 +11,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent / "examples"))
 
 from gasl import GASLExecutor
-from gasl.adapters import NetworkXAdapter, Neo4jAdapter
+from gasl.adapters import NetworkXAdapter
 from gasl.llm import ArgoBridgeLLM
 from gasl.graph_versioning import VersionedGraph, GraphVersionDebugger
 from gasl.errors import GASLError
@@ -174,7 +174,6 @@ def main():
     parser = argparse.ArgumentParser(description="GASL - Graph Analysis & State Language")
     parser.add_argument("--working-dir", required=True, help="Working directory with graph data")
     parser.add_argument("--query", required=True, help="Query to analyze")
-    parser.add_argument("--adapter", choices=["networkx", "neo4j"], default="networkx", help="Graph adapter to use")
     parser.add_argument("--state-file", help="State file path (defaults to working-dir/gasl_state.json)")
     parser.add_argument("--max-iterations", type=int, default=10, help="Maximum HDT iterations")
     parser.add_argument("--verbose", action="store_true", help="Verbose output")
@@ -206,17 +205,12 @@ def main():
         print(f"DEBUG: Graph loaded successfully, type: {graph_type}")
         
         # Create adapter
-        print(f"DEBUG: Creating {args.adapter} adapter...")
-        if args.adapter == "networkx":
-            # Pass the current graph from versioned graph to adapter
-            current_graph = graph.get_current_graph()
-            adapter = NetworkXAdapter(current_graph)
-            # Store reference to versioned graph for updates
-            adapter.versioned_graph = graph
-        elif args.adapter == "neo4j":
-            adapter = Neo4jAdapter(graph.get_current_graph())
-        else:
-            raise GASLError(f"Unknown adapter: {args.adapter}")
+        print(f"DEBUG: Creating NetworkX adapter...")
+        # Pass the current graph from versioned graph to adapter
+        current_graph = graph.get_current_graph()
+        adapter = NetworkXAdapter(current_graph)
+        # Store reference to versioned graph for updates
+        adapter.versioned_graph = graph
         print(f"DEBUG: Adapter created successfully")
         
         # Create LLM

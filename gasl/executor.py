@@ -250,7 +250,7 @@ class GASLExecutor:
                         current_schema = self.get_schema()
                         
                         # Create strategy adaptation prompt to help LLM learn from results
-                        strategy_prompt = self.llm_func.create_strategy_adaptation_prompt(query, variables, iteration, current_schema, validation_response)
+                        strategy_prompt = self.llm_func.create_strategy_adaptation_prompt(query, variables, iteration, current_schema, self.state_store.get_state())
                         strategy_response = self.llm_func.call(strategy_prompt)
                         print(f"DEBUG: Strategy Analysis (Iteration {iteration}):\n{strategy_response}\n")
                         

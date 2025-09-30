@@ -293,11 +293,26 @@ async def extract_entities(
     ordered_chunks = list(chunks.items())
 
     entity_extract_prompt = PROMPTS["entity_extraction"]
+    # dynamic entity-type generation per user task (query-aware). Fall back to default list.
+    # generate entity types (must succeed; no fallback)
+    from .entity_type_generator import generate_entity_types_for_chunks
+    task_text = global_config.get("user_query", "")
+    generated_entity_types = await generate_entity_types_for_chunks(
+        task=task_text,
+        chunks=chunks,
+        llm_func=use_llm_func,
+        per_chunk=True,
+    )
+    if not generated_entity_types:
+        raise RuntimeError("Dynamic entity type generation returned empty list")
+    entity_types_value = ",".join(generated_entity_types)
+    print(f"Dynamic entity types selected: {generated_entity_types}")
+
     context_base = dict(
         tuple_delimiter=PROMPTS["DEFAULT_TUPLE_DELIMITER"],
         record_delimiter=PROMPTS["DEFAULT_RECORD_DELIMITER"],
         completion_delimiter=PROMPTS["DEFAULT_COMPLETION_DELIMITER"],
-        entity_types=",".join(PROMPTS["DEFAULT_ENTITY_TYPES"]),
+        entity_types=entity_types_value,
     )
     continue_prompt = PROMPTS["entiti_continue_extraction"]
     if_loop_prompt = PROMPTS["entiti_if_loop_extraction"]

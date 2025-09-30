@@ -181,3 +181,22 @@ pyrightconfig.json
 
 # End of https://www.toptal.com/developers/gitignore/api/python
 
+# Test data and working directories
+mmwr-test/
+
+# Generated QA files (keep examples)
+# *_qa.json
+# multihop_qa.json
+# synthesis_qa.json
+
+# Graph cache and version files
+graphrag_cache/
+graph_versions/
+*.pkl
+*.graphml
+
+# State and cache files
+gasl_state.json
+kv_store_*.json
+vdb_*.json
+

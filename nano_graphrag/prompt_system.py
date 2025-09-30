@@ -152,7 +152,7 @@ class QueryAwarePromptSystem:
         
         # For prompts that contain JSON examples, use simple string formatting
         # instead of Jinja2 to avoid template syntax conflicts
-        if prompt_name in ['plan_generation', 'completion_validator', 'process_batch', 'classify_batch']:
+        if prompt_name in ['plan_generation', 'completion_validator', 'process_batch', 'classify_batch', 'entity_type_generation', 'entity_type_generation_json', 'community_report']:
             final_prompt = base_prompt
         else:
             # Compose with nested prompts for other prompts
