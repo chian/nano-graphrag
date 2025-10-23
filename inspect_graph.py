@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 """
 Inspect the knowledge graph directly to see what data is actually stored.
 """
