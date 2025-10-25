@@ -11,8 +11,8 @@ from ..errors import ExecutionError
 class CreateNodesHandler(CommandHandler):
     """Handler for CREATE_NODES command."""
     
-    def __init__(self, state_store, context_store, adapter, llm_func=None):
-        super().__init__(state_store, context_store)
+    def __init__(self, state_store, context_store, adapter, llm_func=None, state_manager=None):
+        super().__init__(state_store, context_store, state_manager)
         self.adapter = adapter
         self.llm_func = llm_func
     

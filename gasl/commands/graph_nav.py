@@ -12,8 +12,8 @@ from ..adapters.base import GraphAdapter
 class GraphNavHandler(CommandHandler):
     """Handles graph navigation commands: GRAPHWALK, GRAPHCONNECT, SUBGRAPH, GRAPHPATTERN."""
     
-    def __init__(self, state_store, context_store, adapter: GraphAdapter, llm_func=None):
-        super().__init__(state_store, context_store)
+    def __init__(self, state_store, context_store, adapter: GraphAdapter, llm_func=None, state_manager=None):
+        super().__init__(state_store, context_store, state_manager)
         self.adapter = adapter
         self.validator = LLMJudgeValidator(llm_func) if llm_func else None
     

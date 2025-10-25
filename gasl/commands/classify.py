@@ -11,8 +11,8 @@ from ..validation import LLMJudgeValidator
 class ClassifyHandler(CommandHandler):
     """Handles CLASSIFY commands for LLM-based classification."""
     
-    def __init__(self, state_store, context_store, llm_func):
-        super().__init__(state_store, context_store)
+    def __init__(self, state_store, context_store, llm_func, state_manager=None):
+        super().__init__(state_store, context_store, state_manager)
         self.llm_func = llm_func
         self.validator = LLMJudgeValidator(llm_func) if llm_func else None
     

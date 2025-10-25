@@ -7,16 +7,18 @@ from .base import CommandHandler
 from ..types import Command, ExecutionResult, Provenance
 from ..validation import LLMJudgeValidator
 from ..utils import normalize_node_id
+from ..state_manager import StateManager
 
 
 class ProcessHandler(CommandHandler):
     """Handles PROCESS commands for LLM-based data processing."""
     
-    def __init__(self, state_store, context_store, llm_func, micro_framework=None):
+    def __init__(self, state_store, context_store, llm_func, micro_framework=None, state_manager=None):
         super().__init__(state_store, context_store)
         self.llm_func = llm_func
         self.micro_framework = micro_framework
-        self.validator = LLMJudgeValidator(llm_func) if llm_func else None
+        self.validator = LLMJudgeValidator(llm_func)
+        self.state_manager = state_manager or StateManager(state_store, context_store)
     
     def can_handle(self, command: Command) -> bool:
         return command.command_type == "PROCESS"
@@ -28,23 +30,27 @@ class ProcessHandler(CommandHandler):
         instruction = args["instruction"]
         target_variable = args.get("target_variable", variable)  # Default to same variable
         
-        # Get data from context or state
-        data = None
-        if self.context_store.has(variable):
-            data = self.context_store.get(variable)
-        elif self.state_store.has_variable(variable):
-            data = self.state_store.get(variable)
-        else:
-            # If variable not found, try to get from last_nodes_result
-            if self.context_store.has("last_nodes_result"):
-                data = self.context_store.get("last_nodes_result")
-                print(f"DEBUG: PROCESS - Using last_nodes_result as data source: {len(data) if isinstance(data, list) else 'not a list'}")
-            else:
-                return self._create_result(
-                    command=command,
-                    status="error",
-                    error_message=f"Variable {variable} not found in context or state, and no last_nodes_result available"
-                )
+        print(f"🔍 PROCESS DEBUG: execute called with variable='{variable}', target_variable='{target_variable}', instruction='{instruction[:100]}...'")
+        
+        # Use centralized state manager to get data
+        self.state_manager.debug_variable_access(variable)
+        data = self.state_manager.get_variable_data(variable, fallback_to_last_nodes=True)
+        
+        if not data:
+            print(f"🔍 PROCESS DEBUG: No data found for variable '{variable}'")
+            return self._create_result(
+                command=command,
+                status="error",
+                error_message=f"Variable {variable} not found in context or state, and no last_nodes_result available"
+            )
+        
+        print(f"🔍 PROCESS DEBUG: Retrieved data with length={len(data)}")
+        
+        print(f"🔍 PROCESS DEBUG: Data type: {type(data)}")
+        if isinstance(data, list) and data:
+            print(f"🔍 PROCESS DEBUG: First data item keys: {list(data[0].keys()) if isinstance(data[0], dict) else 'not a dict'}")
+        elif isinstance(data, dict):
+            print(f"🔍 PROCESS DEBUG: Data dict keys: {list(data.keys())}")
         
         # Use MicroActionFramework for batching if available
         if self.micro_framework and isinstance(data, list) and len(data) > 20:
@@ -135,9 +141,21 @@ class ProcessHandler(CommandHandler):
         
         # Parse LLM response
         result = self._parse_process_response(llm_response, data)
+        print(f"🔍 PROCESS DEBUG: Parsed result keys: {list(result.keys())}")
+        print(f"🔍 PROCESS DEBUG: processed_items length: {len(result.get('processed_items', []))}")
+        print(f"🔍 PROCESS DEBUG: processing_method: {result.get('processing_method', 'unknown')}")
         
         # Store results in target variable
-        processed_items = result.get("processed_items", [])
+        # Handle both filtering and processing responses
+        if result.get('processing_method') == 'filter':
+            processed_items = result.get("filtered_items", [])
+        else:
+            processed_items = result.get("processed_items", [])
+        
+        print(f"🔍 PROCESS DEBUG: About to store {len(processed_items)} items in {target_variable}")
+        if processed_items:
+            print(f"🔍 PROCESS DEBUG: First item keys: {list(processed_items[0].keys()) if processed_items[0] else 'empty'}")
+        
         self._store_processed_data(target_variable, processed_items)
         print(f"DEBUG: PROCESS - Updated {target_variable} with {len(processed_items)} processed items using {result.get('processing_method', 'unknown')} method")
         
@@ -192,49 +210,45 @@ class ProcessHandler(CommandHandler):
     
     def _store_processed_data(self, target_variable: str, processed_data: List[Dict]) -> None:
         """Store processed data in the target variable."""
+        print(f"🔍 PROCESS DEBUG: _store_processed_data called with target_variable='{target_variable}', processed_data length={len(processed_data)}")
+        
         # Extract the new fields from processed_data and merge them back into original structure
         integrated_data = self._integrate_processed_fields(processed_data)
+        print(f"🔍 PROCESS DEBUG: integrated_data length={len(integrated_data)}")
         
-        # Always store in state store for persistence
-        if self.state_store.has_variable(target_variable):
-            # Update existing variable
-            self.state_store.update_variable(target_variable, integrated_data)
-        else:
-            # Create new variable in state store
-            self.state_store.set_variable_with_fields(
-                target_variable, 
-                integrated_data, 
-                "LIST", 
-                f"Processed data from {target_variable}"
-            )
-        
-        # Also store in context store for immediate access
-        self.context_store.set(target_variable, integrated_data)
+        # Use centralized state manager to store data
+        self.state_manager.store_variable_data(
+            target_variable, 
+            integrated_data, 
+            store_in_state=True, 
+            store_in_context=True,
+            description=f"Processed data from {target_variable}"
+        )
     
     def _integrate_processed_fields(self, processed_data: List[Dict]) -> List[Dict]:
         """Integrate processed fields back into the original data structure."""
         integrated = []
         
+        print(f"🔍 INTEGRATE DEBUG: Processing {len(processed_data)} items")
+        if processed_data:
+            print(f"🔍 INTEGRATE DEBUG: First item keys: {list(processed_data[0].keys())}")
+        
         for item in processed_data:
             if isinstance(item, dict):
-                # Create a new item with the original structure plus new fields
+                # For filtering responses, just return the item as-is since it already contains the relevant data
+                # The LLM has already filtered and included the relevant items
                 integrated_item = {}
                 
-                # Copy original fields (id, name, etc.)
+                # Copy all fields except metadata fields
                 for key, value in item.items():
-                    if key not in ['processed_field', 'reason']:
+                    if key not in ['reason']:  # Skip reason field but keep everything else
                         integrated_item[key] = value
-                
-                # Add the processed field with a meaningful name
-                if 'processed_field' in item and item['processed_field'] is not None:
-                    # Determine field name based on the processing context
-                    field_name = self._determine_field_name(item)
-                    integrated_item[field_name] = item['processed_field']
                 
                 integrated.append(integrated_item)
             else:
                 integrated.append(item)
         
+        print(f"🔍 INTEGRATE DEBUG: Final integrated data length: {len(integrated)}")
         return integrated
     
     def _determine_field_name(self, item: Dict) -> str:

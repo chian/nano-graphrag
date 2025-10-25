@@ -11,6 +11,7 @@ from pathlib import Path
 from .types import PlanObject, Command, ExecutionResult, HistoryEntry, StateSnapshot
 from .parser import GASLParser
 from .state import StateStore, ContextStore
+from .state_manager import StateManager
 from .adapters import GraphAdapter
 from .commands import (
     DeclareHandler, FindHandler, ProcessHandler, ClassifyHandler, UpdateHandler, CountHandler, DebugHandler,
@@ -37,6 +38,7 @@ class GASLExecutor:
         self.parser = GASLParser()
         self.state_store = StateStore(state_file)
         self.context_store = ContextStore()
+        self.state_manager = StateManager(self.state_store, self.context_store)
         
         # Get versioned graph from adapter if available
         versioned_graph = getattr(adapter, 'versioned_graph', None)
@@ -48,41 +50,41 @@ class GASLExecutor:
         if versioned_graph:
             self.micro_framework.versioned_graph = versioned_graph
         
-        # Initialize command handlers
+        # Initialize command handlers with centralized state manager
         self.handlers = [
             # Core commands
-            DeclareHandler(self.state_store, self.context_store),
-            FindHandler(self.state_store, self.context_store, adapter, llm_func),
-            ProcessHandler(self.state_store, self.context_store, llm_func, self.micro_framework),
-            ClassifyHandler(self.state_store, self.context_store, llm_func),
-            UpdateHandler(self.state_store, self.context_store),
-            CountHandler(self.state_store, self.context_store, llm_func),
-            DebugHandler(self.state_store, self.context_store),
+            DeclareHandler(self.state_store, self.context_store, self.state_manager),
+            FindHandler(self.state_store, self.context_store, adapter, llm_func, self.state_manager),
+            ProcessHandler(self.state_store, self.context_store, llm_func, self.micro_framework, self.state_manager),
+            ClassifyHandler(self.state_store, self.context_store, llm_func, self.state_manager),
+            UpdateHandler(self.state_store, self.context_store, self.state_manager),
+            CountHandler(self.state_store, self.context_store, llm_func, self.state_manager),
+            DebugHandler(self.state_store, self.context_store, self.state_manager),
             
             # Graph modification commands
-            AddFieldHandler(self.state_store, self.context_store, llm_func),
-            CreateNodesHandler(self.state_store, self.context_store, adapter, llm_func),
-            CreateEdgesHandler(self.state_store, self.context_store, adapter, llm_func),
-            CreateGroupsHandler(self.state_store, self.context_store, adapter, llm_func),
-            IterateHandler(self.state_store, self.context_store, self.micro_framework),
+            AddFieldHandler(self.state_store, self.context_store, llm_func, self.state_manager),
+            CreateNodesHandler(self.state_store, self.context_store, adapter, llm_func, self.state_manager),
+            CreateEdgesHandler(self.state_store, self.context_store, adapter, llm_func, self.state_manager),
+            CreateGroupsHandler(self.state_store, self.context_store, adapter, llm_func, self.state_manager),
+            IterateHandler(self.state_store, self.context_store, self.micro_framework, self.state_manager),
             
             # New command categories
-            GraphNavHandler(self.state_store, self.context_store, adapter, llm_func),
-            MultiVarHandler(self.state_store, self.context_store),
-            DataTransformHandler(self.state_store, self.context_store, llm_func),
-            FieldCalcHandler(self.state_store, self.context_store, llm_func),
-            ObjectCreateHandler(self.state_store, self.context_store, llm_func),
-            PatternAnalysisHandler(self.state_store, self.context_store, llm_func),
+            GraphNavHandler(self.state_store, self.context_store, adapter, llm_func, self.state_manager),
+            MultiVarHandler(self.state_store, self.context_store, self.state_manager),
+            DataTransformHandler(self.state_store, self.context_store, llm_func, self.state_manager),
+            FieldCalcHandler(self.state_store, self.context_store, llm_func, self.state_manager),
+            ObjectCreateHandler(self.state_store, self.context_store, llm_func, self.state_manager),
+            PatternAnalysisHandler(self.state_store, self.context_store, llm_func, self.state_manager),
             
             # Control flow commands
-            AnalyzeHandler(self.state_store, self.context_store, llm_func),
-            SelectHandler(self.state_store, self.context_store),
-            SetHandler(self.state_store, self.context_store),
-            RequireHandler(self.state_store, self.context_store),
-            AssertHandler(self.state_store, self.context_store),
-            OnHandler(self.state_store, self.context_store),
-            TryCatchHandler(self.state_store, self.context_store),
-            CancelHandler(self.state_store, self.context_store)
+            AnalyzeHandler(self.state_store, self.context_store, llm_func, self.state_manager),
+            SelectHandler(self.state_store, self.context_store, self.state_manager),
+            SetHandler(self.state_store, self.context_store, self.state_manager),
+            RequireHandler(self.state_store, self.context_store, self.state_manager),
+            AssertHandler(self.state_store, self.context_store, self.state_manager),
+            OnHandler(self.state_store, self.context_store, self.state_manager),
+            TryCatchHandler(self.state_store, self.context_store, self.state_manager),
+            CancelHandler(self.state_store, self.context_store, self.state_manager)
         ]
     
     def execute_plan(self, plan_json: Dict[str, Any]) -> Dict[str, Any]:
@@ -149,9 +151,11 @@ class GASLExecutor:
             
             # Execute command
             print(f"DEBUG: Executing command: {command.command_type} - {command.args}")
+            print(f"🔍 STATE DEBUG: Before command, state variables: {list(self.state_store.get_state().get('variables', {}).keys())}")
             result = handler.execute(command)
             result.duration_ms = int((time.time() - start_time) * 1000)
             print(f"DEBUG: Command result: {result.status} - count: {result.count}")
+            print(f"🔍 STATE DEBUG: After command, state variables: {list(self.state_store.get_state().get('variables', {}).keys())}")
             
             # Store FIND results in context store for subsequent commands
             if command.command_type == "FIND" and result.status == "success" and result.data:
@@ -195,6 +199,8 @@ class GASLExecutor:
         # Set initial query
         self.state_store.set_query(query)
         
+        print(f"🔍 STATE DEBUG: Initial state variables: {list(self.state_store.get_state().get('variables', {}).keys())}")
+        
         iteration = 0
         all_results = []
         
@@ -226,6 +232,7 @@ class GASLExecutor:
                 print(f"DEBUG: Plan execution result status: '{result['status']}'")
                 print(f"DEBUG: Status type: {type(result['status'])}")
                 print(f"DEBUG: Status repr: {repr(result['status'])}")
+                print(f"🔍 STATE DEBUG: After plan execution, state variables: {list(self.state_store.get_state().get('variables', {}).keys())}")
                 
                 # Check if we should continue
                 if result["status"] in ["completed", "success"]:
@@ -276,6 +283,10 @@ class GASLExecutor:
         # Generate final answer only if query was answered
         final_state = self.state_store.get_state()
         variables = final_state.get("variables", {})
+        
+        print(f"🔍 STATE DEBUG: Final state variables: {list(variables.keys())}")
+        for var_name, var_data in variables.items():
+            print(f"🔍 STATE DEBUG: {var_name}: {var_data}")
         
         # Validate if query was actually answered
         validation_prompt = self.llm_func.create_completion_validator_prompt(query, variables)

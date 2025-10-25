@@ -11,8 +11,8 @@ from ..errors import ExecutionError
 class AddFieldHandler(CommandHandler):
     """Handler for ADD_FIELD command."""
     
-    def __init__(self, state_store, context_store, llm_func=None):
-        super().__init__(state_store, context_store)
+    def __init__(self, state_store, context_store, llm_func=None, state_manager=None):
+        super().__init__(state_store, context_store, state_manager)
         self.llm_func = llm_func
     
     def can_handle(self, command: Command) -> bool:

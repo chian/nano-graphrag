@@ -64,6 +64,54 @@ pip install -e .
 pip install nano-graphrag
 ```
 
+### Python Environment Setup
+
+**IMPORTANT**: Before running any Python scripts in this project, you must activate the Python environment:
+
+```shell
+# Activate the py310 conda environment
+conda activate py310
+
+# Then run your Python scripts
+python your_script.py
+```
+
+This project requires specific dependencies that are installed in the `py310` conda environment. Always activate this environment before running any Python commands to avoid import errors.
+
+### ASM Papers Dataset
+
+This project includes processing capabilities for ASM (American Society for Microbiology) journal papers. The ASM papers are located at:
+
+```
+/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/
+```
+
+**Available Journals:**
+- AAC (Antimicrobial Agents and Chemotherapy)
+- AEM (Applied and Environmental Microbiology) 
+- CMR (Clinical Microbiology Reviews)
+- IAI (Infection and Immunity)
+- JB (Journal of Bacteriology)
+- ASM (American Society for Microbiology)
+- EcoSalPlus
+
+**Processed Papers Structure:**
+Processed papers contain the following structure:
+```
+{paper_id}/
+├── source_files/
+│   ├── graphrag_cache/
+│   │   └── graph_chunk_entity_relation.graphml  # Knowledge graph
+│   └── [extracted text files]
+├── graph_versions/
+└── [QA generation output files]
+```
+
+**Batch Processing:**
+Use the provided batch processing scripts to process ASM papers:
+- `batch_process_asm_papers.sh` - Process ASM papers with QA generation
+- `batch_process_aac_papers.sh` - Process AAC papers specifically
+
 
 
 ## Quick Start

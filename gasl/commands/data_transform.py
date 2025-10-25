@@ -11,8 +11,8 @@ from ..validation import LLMJudgeValidator
 class DataTransformHandler(CommandHandler):
     """Handles data transformation commands: TRANSFORM, RESHAPE, AGGREGATE, PIVOT."""
     
-    def __init__(self, state_store, context_store, llm_func=None):
-        super().__init__(state_store, context_store)
+    def __init__(self, state_store, context_store, llm_func=None, state_manager=None):
+        super().__init__(state_store, context_store, state_manager)
         self.llm_func = llm_func
         self.validator = LLMJudgeValidator(llm_func) if llm_func else None
     

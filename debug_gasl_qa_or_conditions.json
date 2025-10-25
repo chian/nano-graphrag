@@ -1,0 +1,9 @@
+[
+  {
+    "question": "A bacterial population acquires both a chromosomal mutation resulting in a GYRA D87Y mutation and a chromosomal mutation causing an OPRD premature stop codon. Considering the mechanistic roles of these specific genetic changes, which option best explains how these mutations together contribute to antibiotic resistance in this population?\n\nA) The GYRA D87Y mutation alters DNA gyrase, reducing antibiotic binding, while the OPRD premature stop codon disrupts porin function, decreasing antibiotic uptake, thus both mutations synergistically enhance resistance.\nB) The GYRA D87Y mutation increases antibiotic uptake, and the OPRD premature stop codon enhances DNA repair, leading to resistance.\nC) The GYRA D87Y mutation causes overexpression of efflux pumps, and the OPRD premature stop codon increases cell wall thickness, preventing antibiotic entry.\nD) The GYRA D87Y mutation inactivates ribosomal proteins, and the OPRD premature stop codon increases antibiotic degradation.\nE) The GYRA D87Y mutation enhances membrane permeability, and the OPRD premature stop codon upregulates antibiotic target proteins.\nF) The GYRA D87Y mutation leads to increased porin expression, and the OPRD premature stop codon reduces DNA gyrase activity.\nG) The GYRA D87Y mutation causes premature cell death, and the OPRD premature stop codon increases antibiotic sensitivity.\nH) The GYRA D87Y mutation and the OPRD premature stop codon both result in increased antibiotic binding to their targets, reducing resistance.",
+    "answer": "A",
+    "reasoning_type": "mechanistic",
+    "biological_focus": "genetic mutations and antibiotic resistance",
+    "quality_score": 5.0
+  }
+]

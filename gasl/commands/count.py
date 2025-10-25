@@ -12,8 +12,8 @@ from ..utils import normalize_string
 class CountHandler(CommandHandler):
     """Handles COUNT commands for counting field values."""
     
-    def __init__(self, state_store, context_store, llm_func=None):
-        super().__init__(state_store, context_store)
+    def __init__(self, state_store, context_store, llm_func=None, state_manager=None):
+        super().__init__(state_store, context_store, state_manager)
         self.validator = LLMJudgeValidator(llm_func) if llm_func else None
     
     def can_handle(self, command: Command) -> bool:

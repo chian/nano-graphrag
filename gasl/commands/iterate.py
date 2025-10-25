@@ -11,8 +11,8 @@ from ..micro_actions import MicroActionFramework
 class IterateHandler(CommandHandler):
     """Handles ITERATE commands for explicit micro-action control."""
     
-    def __init__(self, state_store, context_store, micro_framework: MicroActionFramework):
-        super().__init__(state_store, context_store)
+    def __init__(self, state_store, context_store, micro_framework: MicroActionFramework, state_manager=None):
+        super().__init__(state_store, context_store, state_manager)
         self.micro_framework = micro_framework
     
     def can_handle(self, command: Command) -> bool:

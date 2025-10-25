@@ -134,12 +134,24 @@ class NetworkXAdapter(GraphAdapter):
         if "entity_type" in filters:
             entity_type = filters["entity_type"]
             node_entity_type = data.get("entity_type")
-            if node_entity_type == f'"{entity_type}"':
-                pass  # Match found with quotes
-            elif node_entity_type == entity_type:
-                pass  # Match found without quotes
+            
+            # Handle multiple entity types (list)
+            if isinstance(entity_type, list):
+                match_found = False
+                for et in entity_type:
+                    if node_entity_type == et or node_entity_type == et.strip('"'):
+                        match_found = True
+                        break
+                if not match_found:
+                    return False
             else:
-                return False  # No match found
+                # Handle single entity type
+                if node_entity_type == f'"{entity_type}"':
+                    pass  # Match found with quotes
+                elif node_entity_type == entity_type:
+                    pass  # Match found without quotes
+                else:
+                    return False  # No match found
         
         # Check relationship_name filter (for nodes, this might be in data)
         if "relationship_name" in filters:

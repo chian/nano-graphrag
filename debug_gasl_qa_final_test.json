@@ -1,0 +1,9 @@
+[
+  {
+    "question": "If a bacterial population acquires a deletion or mutation of ampD, resulting in ampC overexpression and resistance to beta-lactam antibiotics, and another population develops inactivation or loss of oprD, leading to carbapenem resistance, which scenario best illustrates the difference between divergent and convergent evolution in the context of antibiotic resistance mechanisms described?\n\nA) Both populations exhibit convergent evolution because they develop resistance to the same antibiotic class through identical genetic changes.\nB) The ampD deletion and oprD inactivation represent divergent evolution because they confer resistance to different antibiotic classes via distinct mechanisms.\nC) Both populations show divergent evolution because they acquire resistance to unrelated antibiotics through unrelated mechanisms.\nD) The ampD deletion and oprD inactivation represent convergent evolution because both result in resistance to beta-lactam antibiotics by overexpressing ampC.\nE) Both populations exhibit convergent evolution because they develop resistance to carbapenems through loss of oprD.\nF) The ampD deletion and oprD inactivation represent convergent evolution because both involve mutations leading to antibiotic resistance, regardless of the specific antibiotic.\nG) Both populations show divergent evolution because they both overexpress ampC, but through different genetic events.\nH) The ampD deletion and oprD inactivation represent divergent evolution because both result in resistance to beta-lactam antibiotics by impairing iron uptake.",
+    "answer": "B",
+    "reasoning_type": "synthesis",
+    "biological_focus": "divergent and convergent evolution of antibiotic resistance",
+    "quality_score": 7.0
+  }
+]

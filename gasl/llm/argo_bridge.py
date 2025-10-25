@@ -48,10 +48,14 @@ class ArgoBridgeLLM:
     def call(self, prompt: str) -> str:
         """Make synchronous LLM call."""
         try:
-            # Run async call in event loop
-            loop = asyncio.get_event_loop()
-            result = loop.run_until_complete(self.call_async(prompt))
-            return result
+            # Check if we're in an async context
+            loop = asyncio.get_running_loop()
+            # If we're in an async context, we need to use a different approach
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(asyncio.run, self.call_async(prompt))
+                result = future.result()
+                return result
         except RuntimeError:
             # No event loop running, create new one
             result = asyncio.run(self.call_async(prompt))

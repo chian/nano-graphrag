@@ -11,9 +11,10 @@ from ..state import StateStore, ContextStore
 class CommandHandler(ABC):
     """Base class for all command handlers."""
     
-    def __init__(self, state_store: StateStore, context_store: ContextStore):
+    def __init__(self, state_store: StateStore, context_store: ContextStore, state_manager=None):
         self.state_store = state_store
         self.context_store = context_store
+        self.state_manager = state_manager
     
     @abstractmethod
     def can_handle(self, command: Command) -> bool:

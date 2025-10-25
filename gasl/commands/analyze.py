@@ -10,8 +10,8 @@ from ..types import Command, ExecutionResult, Provenance
 class AnalyzeHandler(CommandHandler):
     """Handles ANALYZE commands for LLM-based analysis."""
     
-    def __init__(self, state_store, context_store, llm_func):
-        super().__init__(state_store, context_store)
+    def __init__(self, state_store, context_store, llm_func, state_manager=None):
+        super().__init__(state_store, context_store, state_manager)
         self.llm_func = llm_func
     
     def can_handle(self, command: Command) -> bool:

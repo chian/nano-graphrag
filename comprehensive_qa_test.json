@@ -1,0 +1,23 @@
+[
+  {
+    "question": "During an infection caused by PSEUDOMONAS AERUGINOSA, if a CHROMOSOMAL MUTATION occurs resulting specifically in the GYRA D87Y MUTATION, which temporal sequence best explains how resistance evolves in the bacterial population?\n\nA) The GYRA D87Y MUTATION arises first, followed by the spread of PSEUDOMONAS AERUGINOSA, leading to resistance through chromosomal mutation.\nB) PSEUDOMONAS AERUGINOSA infects, then a CHROMOSOMAL MUTATION occurs, and subsequently the GYRA D87Y MUTATION develops, conferring resistance.\nC) Resistance develops before infection due to the presence of the GYRA D87Y MUTATION in the environment.\nD) The GYRA D87Y MUTATION occurs independently of CHROMOSOMAL MUTATION and does not affect resistance evolution.\nE) CHROMOSOMAL MUTATION occurs after resistance has already evolved in PSEUDOMONAS AERUGINOSA.\nF) PSEUDOMONAS AERUGINOSA acquires resistance through horizontal gene transfer, not involving chromosomal mutation or GYRA D87Y MUTATION.\nG) The GYRA D87Y MUTATION is lost during infection, preventing resistance evolution.\nH) Resistance evolves only if multiple chromosomal mutations occur simultaneously, not involving GYRA D87Y MUTATION.",
+    "answer": "B",
+    "reasoning_type": "temporal",
+    "biological_focus": "evolution of resistance during infection",
+    "quality_score": 5.0
+  },
+  {
+    "question": "A bacterial cell contains both an efflux pump regulated by a specific regulatory gene and produces CARBAPENEMASE, while another cell produces only EXTENDED SPECTRUM BETA-LACTAMASE (ESBL) without any efflux pump or regulatory gene involvement. Considering the roles of efflux pumps, regulatory genes, CARBAPENEMASE, and ESBL in multidrug resistance, which scenario best explains why the first cell is more likely to survive exposure to multiple classes of antibiotics?\n\nA) The efflux pump and regulatory gene together enable the cell to expel various antibiotics, and CARBAPENEMASE degrades carbapenems, providing broader resistance than ESBL alone.\nB) CARBAPENEMASE production alone is sufficient for resistance to all antibiotics, regardless of efflux pump or regulatory gene presence.\nC) The regulatory gene directly degrades antibiotics, making the efflux pump unnecessary for multidrug resistance.\nD) ESBL provides resistance to carbapenems, so the second cell is more resistant than the first.\nE) The efflux pump only affects \u03b2-lactam antibiotics, so its presence does not contribute to multidrug resistance.\nF) CARBAPENEMASE and ESBL have identical substrate profiles, so both cells have equal resistance.\nG) The regulatory gene suppresses CARBAPENEMASE activity, reducing resistance in the first cell.\nH) The efflux pump increases antibiotic entry into the cell, making the first cell more susceptible than the second.",
+    "answer": "A",
+    "reasoning_type": "synthesis",
+    "biological_focus": "role of efflux pumps and regulatory genes in multidrug resistance",
+    "quality_score": 7.0
+  },
+  {
+    "question": "In designing an experiment to determine the antibiotic susceptibility of a bacterial isolate, a researcher considers using BROTH MICRODILUTION with IRON-DEPLETED CATION-ADJUSTED MULLER-HINTON medium, MICROSCAN NM63, and WHOLE GENOME SEQUENCING (WGS) via MISEQ, ILLUMINA, followed by RESISTOME ANALYSIS. Which approach most directly combines phenotypic susceptibility testing with genotypic resistance profiling to provide both minimum inhibitory concentration data and identification of resistance genes?\n\nA) Use BROTH MICRODILUTION with IRON-DEPLETED CATION-ADJUSTED MULLER-HINTON medium and perform RESISTOME ANALYSIS on WGS (MISEQ, ILLUMINA) data  \nB) Use MICROSCAN NM63 alone for susceptibility testing  \nC) Use WGS (MISEQ, ILLUMINA) alone without phenotypic testing  \nD) Use BROTH MICRODILUTION alone without any genomic analysis  \nE) Use IRON-DEPLETED CATION-ADJUSTED MULLER-HINTON medium alone without any susceptibility or genomic testing  \nF) Use RESISTOME ANALYSIS alone without WGS data  \nG) Use MICROSCAN NM63 and IRON-DEPLETED CATION-ADJUSTED MULLER-HINTON medium together without genomic analysis  \nH) Use BROTH MICRODILUTION with standard medium and WGS without RESISTOME ANALYSIS",
+    "answer": "A",
+    "reasoning_type": "synthesis",
+    "biological_focus": "experimental design for antibiotic susceptibility testing",
+    "quality_score": 7.0
+  }
+]

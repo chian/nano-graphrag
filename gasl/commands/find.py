@@ -7,15 +7,17 @@ from .base import CommandHandler
 from ..types import Command, ExecutionResult, Provenance
 from ..adapters.base import GraphAdapter
 from ..validation import LLMJudgeValidator
+from ..state_manager import StateManager
 
 
 class FindHandler(CommandHandler):
     """Handles FIND commands for graph traversal."""
     
-    def __init__(self, state_store, context_store, adapter: GraphAdapter, llm_func=None):
+    def __init__(self, state_store, context_store, adapter: GraphAdapter, llm_func=None, state_manager=None):
         super().__init__(state_store, context_store)
         self.adapter = adapter
         self.validator = LLMJudgeValidator(llm_func) if llm_func else None
+        self.state_manager = state_manager or StateManager(state_store, context_store)
     
     def can_handle(self, command: Command) -> bool:
         return command.command_type == "FIND"
@@ -44,15 +46,22 @@ class FindHandler(CommandHandler):
                     error_message=f"Unknown target type: {target}"
                 )
             
-            # Store result in context
+            # Store result using centralized state manager
             result_key = f"find_{target}_{len(self.context_store.keys())}"
-            self.context_store.set(result_key, result)
+            self.state_manager.store_variable_data(result_key, result, store_in_state=False, store_in_context=True)
+            
             # Also store as last_nodes_result for compatibility
-            self.context_store.set("last_nodes_result", result)
+            self.state_manager.store_variable_data("last_nodes_result", result, store_in_state=False, store_in_context=True)
             
             # Store with user-specified variable name if AS clause was used
             if "result_var" in args and args["result_var"]:
-                self.context_store.set(args["result_var"], result)
+                self.state_manager.store_variable_data(
+                    args["result_var"], 
+                    result, 
+                    store_in_state=True,  # Store in state for persistence
+                    store_in_context=True,
+                    description=f"Nodes found with criteria: {criteria}"
+                )
                 print(f"DEBUG: FIND - Saved result to variable: {args['result_var']}")
             
             # Create provenance
@@ -120,21 +129,46 @@ class FindHandler(CommandHandler):
         # Entity type parsing - handle any variation of quotes, spaces, etc.
         if "entity_type" in criteria.lower():
             import re
-            # Match: entity_type=PERSON, entity_type="PERSON", entity_type='PERSON', entity_type = PERSON, etc.
-            patterns = [
-                r"entity_type\s*=\s*['\"]?([A-Z_]+)['\"]?",  # entity_type=PERSON or entity_type="PERSON"
-                r"entity_type\s*:\s*['\"]?([A-Z_]+)['\"]?",  # entity_type: PERSON
-                r"entity_type\s+['\"]?([A-Z_]+)['\"]?",      # entity_type PERSON
-            ]
-            
-            for pattern in patterns:
-                match = re.search(pattern, criteria, re.IGNORECASE)
-                if match:
-                    entity_type = match.group(1).strip()
-                    # Always store with double quotes to match data format
-                    filters["entity_type"] = f'"{entity_type}"'
-                    print(f"DEBUG: Extracted entity_type: '{entity_type}' -> '{filters['entity_type']}'")
-                    break
+            # Handle OR conditions by splitting on OR and processing each part
+            if " OR " in criteria.upper():
+                # Split on OR and process each part
+                parts = re.split(r'\s+OR\s+', criteria, flags=re.IGNORECASE)
+                entity_types = []
+                for part in parts:
+                    # Match: entity_type=PERSON, entity_type="PERSON", entity_type='PERSON', entity_type = PERSON, etc.
+                    patterns = [
+                        r"entity_type\s*=\s*['\"]?([A-Z_\s]+)['\"]?",  # entity_type=PERSON or entity_type="PERSON" or entity_type="RESISTANCE MECHANISM"
+                        r"entity_type\s*:\s*['\"]?([A-Z_\s]+)['\"]?",  # entity_type: PERSON
+                        r"entity_type\s+['\"]?([A-Z_\s]+)['\"]?",      # entity_type PERSON
+                    ]
+                    
+                    for pattern in patterns:
+                        match = re.search(pattern, part, re.IGNORECASE)
+                        if match:
+                            entity_type = match.group(1).strip()
+                            entity_types.append(f'"{entity_type}"')
+                            print(f"DEBUG: Extracted entity_type from OR part: '{entity_type}' -> '\"{entity_type}\"'")
+                            break
+                
+                if entity_types:
+                    filters["entity_type"] = entity_types
+                    print(f"DEBUG: Final entity_types: {entity_types}")
+            else:
+                # Single entity type (no OR)
+                patterns = [
+                    r"entity_type\s*=\s*['\"]?([A-Z_\s]+)['\"]?",  # entity_type=PERSON or entity_type="PERSON" or entity_type="RESISTANCE MECHANISM"
+                    r"entity_type\s*:\s*['\"]?([A-Z_\s]+)['\"]?",  # entity_type: PERSON
+                    r"entity_type\s+['\"]?([A-Z_\s]+)['\"]?",      # entity_type PERSON
+                ]
+                
+                for pattern in patterns:
+                    match = re.search(pattern, criteria, re.IGNORECASE)
+                    if match:
+                        entity_type = match.group(1).strip()
+                        # Always store with double quotes to match data format
+                        filters["entity_type"] = f'"{entity_type}"'
+                        print(f"DEBUG: Extracted entity_type: '{entity_type}' -> '{filters['entity_type']}'")
+                        break
         
         # Relationship name parsing
         if "relationship_name" in criteria.lower():

@@ -264,13 +264,109 @@ def create_clean_entity_label(node_data: dict, label_field: str, desc_field: str
     # If all else fails, return a generic label
     return "Entity"
 
-async def compile_state_for_idea(graph: nx.Graph, llm: ArgoBridgeLLM, idea: dict):
-    """Use the query strategy to compile relevant information from the graph."""
+async def compile_state_for_idea(graph: nx.Graph, llm: ArgoBridgeLLM, idea: dict, graph_samples: list = None):
+    """Use GASL to compile relevant information from the graph based on the idea."""
     
+    biological_focus = idea.get('biological_focus', '')
     query_strategy = idea.get('query_strategy', '')
+    
+    print(f"🔍 GASL State Compilation for: {biological_focus}")
+    print(f"📋 Query Strategy: {query_strategy}")
+    
+    # Step 1: Use GASL to explore the graph and find relevant data
+    # Create a general exploration query based on the biological focus
+    exploration_query = f"Explore the knowledge graph to find information related to {biological_focus}. Look for entities, relationships, and patterns that could be relevant for generating reasoning questions."
+    print(f"🔍 Exploration Query: {exploration_query[:200]}...")
+    
+    # Step 2: Use GASL to explore the graph
+    gasl_result = await solve_question_with_gasl(graph, llm, exploration_query)
+    print(f"🧠 GASL Result: {gasl_result.get('query_answered', False)}")
+    
+    # Step 3: Extract entities and relationships from GASL result
+    compiled_state = extract_state_from_gasl_result(gasl_result, idea)
+    print(f"📊 Extracted State: {len(compiled_state['entities'])} entities, {len(compiled_state['relationships'])} relationships")
+    
+    if not compiled_state['entities'] and not compiled_state['relationships']:
+        print("    - Not enough relevant entities found, skipping...")
+        return None
+    
+    return compiled_state
+
+async def generate_initial_question_from_idea(llm: ArgoBridgeLLM, idea: dict, graph_samples: list = None):
+    """Generate a GASL query question based on the idea and actual graph content."""
+    
+    reasoning_type = idea.get('reasoning_type', '')
+    biological_focus = idea.get('biological_focus', '')
+    example_question = idea.get('example_question', '')
+    
+    # Include graph context if available
+    graph_context = ""
+    if graph_samples:
+        graph_context = "\n\nACTUAL GRAPH CONTENT:\n"
+        for i, sample in enumerate(graph_samples[:3], 1):  # Show first 3 samples
+            center = sample['center_node']
+            graph_context += f"Sample {i}: {center.get('label', 'N/A')} ({center.get('type', 'N/A')})\n"
+            if 'description' in center:
+                graph_context += f"  Description: {center['description'][:150]}...\n"
+            if sample.get('neighbors'):
+                graph_context += f"  Connected to: {', '.join([n.get('label', 'N/A') for n in sample['neighbors'][:3]])}\n"
+        graph_context += "\n"
+    
+    prompt = f"""Based on this reasoning idea and the actual graph content, create a specific question that can be used to explore this knowledge graph:
+
+REASONING TYPE: {reasoning_type}
+BIOLOGICAL FOCUS: {biological_focus}
+EXAMPLE QUESTION: {example_question}{graph_context}
+
+Create a specific, answerable question that would guide exploration of THIS knowledge graph to find relevant entities and relationships. The question should be:
+1. Specific and focused on the biological concept
+2. Answerable by finding and analyzing the ACTUAL entities and relationships in this graph
+3. Clear enough to guide systematic graph exploration
+4. Based on the actual content shown above, not generic examples
+
+IMPORTANT: The question must be answerable using the actual entities and relationships present in this specific graph. Do not ask about entities that don't exist in this graph.
+
+Output ONLY the question, no additional text."""
+
+    response = await llm.call_async(prompt)
+    return response.strip()
+
+async def solve_question_with_gasl(graph: nx.Graph, llm: ArgoBridgeLLM, question: str):
+    """Use GASL to solve the question by exploring the graph."""
+    
+    from gasl.executor import GASLExecutor
+    from gasl.adapters import NetworkXAdapter
+    import tempfile
+    import os
+    
+    # Create a fresh state file for this question
+    state_file = tempfile.mktemp(suffix='.json', prefix='gasl_state_')
+    
+    # Create GASL adapter and executor with fresh state
+    adapter = NetworkXAdapter(graph)
+    executor = GASLExecutor(adapter, llm, state_file=state_file)
+    
+    print(f"🚀 Starting GASL hypothesis-driven traversal for: {question[:100]}...")
+    print(f"🔄 Using fresh state file: {state_file}")
+    
+    try:
+        # Run GASL hypothesis-driven traversal
+        result = executor.run_hypothesis_driven_traversal(question, max_iterations=5)
+        
+        print(f"✅ GASL completed: {result.get('iterations', 0)} iterations, answered: {result.get('query_answered', False)}")
+        
+        return result
+    finally:
+        # Clean up the temporary state file
+        if os.path.exists(state_file):
+            os.remove(state_file)
+            print(f"🧹 Cleaned up temporary state file: {state_file}")
+
+def extract_state_from_gasl_result(gasl_result: dict, idea: dict):
+    """Extract entities and relationships from GASL result into the expected format."""
+    
     biological_focus = idea.get('biological_focus', '')
     
-    # Parse the query strategy to find relevant nodes
     compiled_state = {
         'biological_focus': biological_focus,
         'entities': [],
@@ -278,91 +374,167 @@ async def compile_state_for_idea(graph: nx.Graph, llm: ArgoBridgeLLM, idea: dict
         'mechanisms': []
     }
     
-    # Dynamically detect available fields from the first few nodes
-    nodes_list = list(graph.nodes())
-    if not nodes_list:
-        return compiled_state
+    # Debug: Print the GASL result structure
+    print(f"🔍 DEBUG: GASL result keys: {list(gasl_result.keys())}")
+    if 'final_state' in gasl_result:
+        final_state = gasl_result.get('final_state', {})
+        print(f"🔍 DEBUG: final_state keys: {list(final_state.keys())}")
+        variables = final_state.get('variables', {})
+        print(f"🔍 DEBUG: variables keys: {list(variables.keys())}")
+    else:
+        print(f"🔍 DEBUG: No final_state in GASL result")
+        final_state = {}
+        variables = {}
     
-    sample_nodes = nodes_list[:min(10, len(nodes_list))]
-    available_fields = set()
-    for node in sample_nodes:
-        available_fields.update(graph.nodes[node].keys())
+    # Look for LIST variables that contain entities
+    for var_name, var_data in variables.items():
+        print(f"🔍 DEBUG: Processing variable '{var_name}' with type: {type(var_data)}")
+        if isinstance(var_data, dict):
+            # Check if it's a LIST type
+            if var_data.get('_meta', {}).get('type') == 'LIST':
+                items = var_data.get('items', [])
+                print(f"🔍 DEBUG: Found LIST with {len(items)} items")
+                for item in items:
+                    if isinstance(item, dict):
+                        # Create entity from GASL result
+                        entity = create_entity_from_gasl_item(item, var_name)
+                        if entity:
+                            compiled_state['entities'].append(entity)
+            # Check if it has a 'value' field with a list (like resistance_related_nodes)
+            elif isinstance(var_data.get('value'), list):
+                items = var_data.get('value', [])
+                print(f"🔍 DEBUG: Found variable with 'value' list containing {len(items)} items")
+                for item in items:
+                    if isinstance(item, dict):
+                        # Create entity from GASL result
+                        entity = create_entity_from_gasl_item(item, var_name)
+                        if entity:
+                            compiled_state['entities'].append(entity)
+            # Also check if it's a direct list of items (like relevant_nodes)
+            elif var_name == 'relevant_nodes' and isinstance(var_data.get('items'), list):
+                items = var_data.get('items', [])
+                print(f"🔍 DEBUG: Found relevant_nodes with {len(items)} items")
+                for item in items:
+                    if isinstance(item, dict):
+                        # Create entity from GASL result
+                        entity = create_entity_from_gasl_item(item, var_name)
+                        if entity:
+                            compiled_state['entities'].append(entity)
     
-    # Find the best field to use as a label
-    label_field = None
-    for preferred in ['label', 'name', 'title', 'id', 'text']:
-        if preferred in available_fields:
-            label_field = preferred
-            break
-    if not label_field and available_fields:
-        label_field = list(available_fields)[0]
-    
-    # Find description field
-    desc_field = None
-    for preferred in ['description', 'text', 'content', 'summary']:
-        if preferred in available_fields:
-            desc_field = preferred
-            break
-    
-    # Find type field
-    type_field = None
-    for preferred in ['type', 'category', 'class', 'kind']:
-        if preferred in available_fields:
-            type_field = preferred
-            break
-    
-    # Search for relevant nodes based on biological focus
-    relevant_nodes = []
-    focus_keywords = biological_focus.lower().split()
-    
-    for node_id in graph.nodes():
-        node_data = graph.nodes[node_id]
-        
-        # Get text content from available fields
-        text_content = ""
-        if label_field:
-            text_content += " " + str(node_data.get(label_field, '')).lower()
-        if desc_field:
-            text_content += " " + str(node_data.get(desc_field, '')).lower()
-        
-        # Check if node is relevant to biological focus
-        if any(keyword in text_content for keyword in focus_keywords):
-            # Create a clean, readable label
-            clean_label = create_clean_entity_label(node_data, label_field, desc_field)
-            
-            entity = {
-                'id': node_id,
-                'label': clean_label
-            }
-            if type_field:
-                entity['type'] = node_data.get(type_field, 'N/A')
-            if desc_field:
-                entity['description'] = node_data.get(desc_field, 'N/A')
-            
-            relevant_nodes.append(entity)
-    
-    # Limit to most relevant
-    compiled_state['entities'] = relevant_nodes[:10]
-    
-    # Create simple node IDs for LLM consumption (node_1, node_2, etc.)
+    # Create simple node IDs for LLM consumption
     node_id_mapping = {}
     for i, entity in enumerate(compiled_state['entities']):
         simple_id = f"node_{i+1}"
         node_id_mapping[entity['id']] = simple_id
         entity['simple_id'] = simple_id
     
-    # Find relationships between these entities using simple IDs
-    for i, entity1 in enumerate(compiled_state['entities'][:5]):
-        for entity2 in compiled_state['entities'][i+1:]:
-            if graph.has_edge(entity1['id'], entity2['id']):
-                edge_data = graph.get_edge_data(entity1['id'], entity2['id'])
-                compiled_state['relationships'].append({
-                    'from': entity1['simple_id'],
-                    'to': entity2['simple_id'],
-                    'relationship': edge_data.get('description', 'connected to')
-                })
+    # Extract relationships from GASL results
+    # Look for variables that might contain relationships or connections
+    for var_name, var_data in variables.items():
+        if isinstance(var_data, dict):
+            # Check if this variable contains relationship information
+            relationships = extract_relationships_from_gasl_variable(var_data, node_id_mapping)
+            compiled_state['relationships'].extend(relationships)
+    
+    # If no relationships found, try to infer from entities
+    if not compiled_state['relationships'] and len(compiled_state['entities']) > 1:
+        compiled_state['relationships'] = infer_relationships_from_entities(compiled_state['entities'])
     
     return compiled_state
+
+def create_entity_from_gasl_item(item: dict, source_var: str):
+    """Create an entity from a GASL result item."""
+    
+    # Extract ID
+    entity_id = item.get('id', f"gasl_{source_var}_{hash(str(item))}")
+    
+    # Create clean label
+    label = create_clean_entity_label(item, 'name', 'description')
+    
+    entity = {
+        'id': entity_id,
+        'label': label,
+        'source': 'gasl',
+        'source_variable': source_var
+    }
+    
+    # Add type if available
+    if 'entity_type' in item:
+        entity['type'] = item['entity_type']
+    elif 'type' in item:
+        entity['type'] = item['type']
+    
+    # Add description if available
+    if 'description' in item:
+        entity['description'] = item['description']
+    elif 'text' in item:
+        entity['description'] = item['text']
+    
+    return entity
+
+def extract_relationships_from_gasl_variable(var_data: dict, node_id_mapping: dict):
+    """Extract relationships from a GASL variable."""
+    
+    relationships = []
+    
+    # Look for relationship patterns in the variable data
+    if 'items' in var_data:
+        items = var_data['items']
+        for item in items:
+            if isinstance(item, dict):
+                # Check if item represents a relationship
+                if 'from' in item and 'to' in item:
+                    from_id = item['from']
+                    to_id = item['to']
+                    relationship_desc = item.get('relationship', item.get('description', 'connected to'))
+                    
+                    # Map to simple IDs if available
+                    from_simple = node_id_mapping.get(from_id, from_id)
+                    to_simple = node_id_mapping.get(to_id, to_id)
+                    
+                    relationships.append({
+                        'from': from_simple,
+                        'to': to_simple,
+                        'relationship': relationship_desc
+                    })
+    
+    return relationships
+
+def infer_relationships_from_entities(entities: list):
+    """Infer relationships between entities based on their content."""
+    
+    relationships = []
+    
+    # Simple heuristic: if entities share keywords, they might be related
+    for i, entity1 in enumerate(entities[:5]):  # Limit to avoid too many relationships
+        for entity2 in entities[i+1:]:
+            # Check if entities share biological keywords
+            if share_biological_keywords(entity1, entity2):
+                relationships.append({
+                    'from': entity1.get('simple_id', f'node_{i+1}'),
+                    'to': entity2.get('simple_id', f'node_{i+2}'),
+                    'relationship': 'biologically related'
+                })
+    
+    return relationships
+
+def share_biological_keywords(entity1: dict, entity2: dict):
+    """Check if two entities share biological keywords."""
+    
+    text1 = f"{entity1.get('label', '')} {entity1.get('description', '')}".lower()
+    text2 = f"{entity2.get('label', '')} {entity2.get('description', '')}".lower()
+    
+    # Common biological keywords
+    bio_keywords = [
+        'bacteria', 'antibiotic', 'resistance', 'infection', 'therapy', 'treatment',
+        'strain', 'pathogen', 'microbial', 'phage', 'drug', 'mechanism'
+    ]
+    
+    for keyword in bio_keywords:
+        if keyword in text1 and keyword in text2:
+            return True
+    
+    return False
 
 async def generate_reasoning_question(llm: ArgoBridgeLLM, idea: dict, compiled_state: dict):
     """Generate a high-quality reasoning question based on compiled state."""
@@ -634,6 +806,7 @@ FINAL_ANSWER:"""
 
 async def main(args):
     """Main function to generate reasoning question-answer pairs."""
+    import sys
     print("Loading graph directly from GraphML file...")
     
     # Load graph directly from GraphML file
@@ -642,11 +815,67 @@ async def main(args):
     
     if not os.path.exists(graph_file):
         print(f"Graph file not found: {graph_file}")
-        return
+        print("Creating knowledge graph from source files...")
+        
+        # Use create_graph_only.py to create the graph
+        import subprocess
+        import sys
+        
+        try:
+            # Run create_graph_only.py with the working directory
+            result = subprocess.run([
+                sys.executable, 
+                "create_graph_only.py", 
+                "--source-dir", args.working_dir,
+                "--entity-prompt", "Study molecular biology, microbiology, and biochemistry concepts. Analyze scientific research on bacterial mechanisms, viral processes, and microbial ecology."
+            ], capture_output=True, text=True, cwd=os.path.dirname(os.path.abspath(__file__)))
+            
+            if result.returncode == 0:
+                print("Knowledge graph created successfully!")
+            else:
+                print(f"Failed to create knowledge graph: {result.stderr}")
+                return
+        except Exception as e:
+            print(f"Failed to create knowledge graph: {e}")
+            return
+        
+        # Check if graph was created
+        if not os.path.exists(graph_file):
+            print(f"Graph file still not found after creation: {graph_file}")
+            return
     
     # Load the graph directly
     graph = nx.read_graphml(graph_file)
     print(f"Graph loaded with {graph.number_of_nodes()} nodes and {graph.number_of_edges()} edges.")
+    
+    # If graph is empty, try to create one
+    if graph.number_of_nodes() == 0:
+        print("Graph is empty, attempting to create knowledge graph from source files...")
+        
+        # Use create_graph_only.py to create the graph
+        import subprocess
+        import sys
+        
+        try:
+            # Run create_graph_only.py with the working directory
+            result = subprocess.run([
+                sys.executable, 
+                "create_graph_only.py", 
+                "--source-dir", args.working_dir,
+                "--entity-prompt", "Study molecular biology, microbiology, and biochemistry concepts. Analyze scientific research on bacterial mechanisms, viral processes, and microbial ecology."
+            ], capture_output=True, text=True, cwd=os.path.dirname(os.path.abspath(__file__)))
+            
+            if result.returncode == 0:
+                print("Knowledge graph created successfully!")
+                # Reload the graph
+                graph = nx.read_graphml(graph_file)
+                print(f"Graph reloaded with {graph.number_of_nodes()} nodes and {graph.number_of_edges()} edges.")
+            else:
+                print(f"Failed to create knowledge graph: {result.stderr}")
+                return
+        except Exception as e:
+            print(f"Failed to create knowledge graph: {e}")
+            return
     
     llm = ArgoBridgeLLM()
     
@@ -710,7 +939,7 @@ async def main(args):
         try:
             # Compile state from graph
             print("    - Compiling state from graph...")
-            compiled_state = await compile_state_for_idea(graph, llm, idea)
+            compiled_state = await compile_state_for_idea(graph, llm, idea, graph_samples)
             
             if len(compiled_state['entities']) < 3:
                 print("    - Not enough relevant entities found, skipping...")
@@ -801,7 +1030,7 @@ async def main(args):
     
     # Validate output path - ensure it's within expected directory structure
     output_dir = os.path.dirname(args.output_file)
-    if not os.path.exists(output_dir):
+    if output_dir and not os.path.exists(output_dir):
         print(f"ERROR: Output directory does not exist: {output_dir}")
         print(f"ERROR: This suggests a path construction bug. Output file: {args.output_file}")
         sys.exit(1)
