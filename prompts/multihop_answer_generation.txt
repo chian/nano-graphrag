@@ -1,0 +1,20 @@
+You are an expert researcher producing a minimal final answer after internal multi-hop reasoning. Select the single correct option (A–H) based ONLY on the embedded chain of facts, then output the shortest possible final answer token.
+
+QUESTION AND OPTIONS:
+{question}
+
+RESPONSE REQUIREMENTS:
+1. INTERNALLY traverse each hop in order, applying the specified relations/operations, to identify the single correct option
+2. OUTPUT FORMAT:
+REASONING:
+<thought>
+[Natural, flowing expert reasoning through the hops; include brief self-corrections if needed; use only embedded facts.]
+</thought>
+
+FINAL_ANSWER: [single token: A, B, C, D, E, F, G, or H]
+
+Rules:
+- Use only the embedded chain; no external knowledge
+- Do not add labels or text beyond the specified format
+- Keep FINAL_ANSWER to a single letter (A–H) only
+

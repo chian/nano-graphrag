@@ -1,0 +1,166 @@
+# GASL Workflow Examples
+
+This file contains common workflow patterns and examples for the GASL (Graph Analysis and Scripting Language) system.
+
+## Basic Data Discovery and Analysis
+
+### Example 1: Count Authors by First Name Vowel
+```
+1. FIND nodes with entity_type="PERSON" AS person_nodes
+2. PROCESS person_nodes with instruction: "Extract first name and determine if it starts with a vowel" AS processed_authors
+3. COUNT processed_authors where starts_with_vowel = true AS vowel_count
+4. COUNT processed_authors where starts_with_vowel = false AS non_vowel_count
+```
+
+### Example 2: Analyze Document Sources
+```
+1. FIND nodes with entity_type="DOCUMENT" AS documents
+2. PROCESS documents with instruction: "Extract source organization from description" AS source_analysis
+3. AGGREGATE source_analysis by source_org with count AS source_counts
+4. RANK source_counts by count order desc AS top_sources
+```
+
+## Complex Multi-Hop Queries
+
+### Example 3: Find Countries with High Disease Reports
+```
+1. FIND nodes with entity_type="GEOGRAPHICAL" AS geo_nodes
+2. GRAPHWALK from geo_nodes follow "reports" depth 2 AS related_reports
+3. PROCESS related_reports with instruction: "Extract disease type and sample count" AS disease_data
+4. COUNT disease_data where disease_type = "cVDPV1" AS cvdpv1_reports
+5. COUNT disease_data where environmental_samples >= 2 AS high_sample_reports
+6. JOIN cvdpv1_reports with high_sample_reports on geo_id AS combined_data
+7. COUNT combined_data where cvdpv1_count > 10 AS high_risk_countries
+```
+
+### Example 4: Author Collaboration Analysis
+```
+1. FIND nodes with entity_type="PERSON" AS authors
+2. GRAPHWALK from authors follow "coauthored" AS collaborations
+3. PROCESS collaborations with instruction: "Count number of co-authors per person" AS collab_counts
+4. AGGREGATE collab_counts by author_id with count AS author_collab_totals
+5. RANK author_collab_totals by count order desc AS most_collaborative
+```
+
+## Data Processing and Transformation
+
+### Example 5: Document Classification
+```
+1. FIND nodes with entity_type="DOCUMENT" AS documents
+2. PROCESS documents with instruction: "Classify document type based on content and metadata" AS doc_classification
+3. AGGREGATE doc_classification by doc_type with count AS type_counts
+4. SELECT type_counts FIELDS doc_type, count AS summary_stats
+```
+
+### Example 6: Temporal Analysis
+```
+1. FIND nodes with entity_type="EVENT" AS events
+2. PROCESS events with instruction: "Extract year and month from timestamp" AS temporal_data
+3. AGGREGATE temporal_data by year with count AS yearly_counts
+4. AGGREGATE temporal_data by month with count AS monthly_counts
+5. MERGE yearly_counts, monthly_counts AS temporal_summary
+```
+
+## Graph Navigation and Pattern Discovery
+
+### Example 7: Find Connected Components
+```
+1. FIND nodes with entity_type="ORGANIZATION" AS orgs
+2. GRAPHWALK from orgs follow "collaborates_with" depth 3 AS org_network
+3. CLUSTER org_network with criteria: "connected_organizations" AS org_clusters
+4. COUNT org_clusters AS cluster_count
+```
+
+### Example 8: Disease Outbreak Pattern Detection
+```
+1. FIND nodes with entity_type="DISEASE" AS diseases
+2. GRAPHWALK from diseases follow "reported_in" AS disease_locations
+3. PROCESS disease_locations with instruction: "Extract location and case count" AS outbreak_data
+4. DETECT patterns in outbreak_data with type: "geographical_clustering" AS outbreak_patterns
+5. RANK outbreak_patterns by severity AS critical_outbreaks
+```
+
+## Multi-Variable Operations
+
+### Example 9: Cross-Reference Analysis
+```
+1. FIND nodes with entity_type="PERSON" AS people
+2. FIND nodes with entity_type="ORGANIZATION" AS organizations
+3. GRAPHWALK from people follow "affiliated_with" AS affiliations
+4. JOIN people with affiliations on person_id AS person_org_data
+5. AGGREGATE person_org_data by org_id with count AS org_membership
+6. COMPARE org_membership with organizations on org_id AS org_analysis
+```
+
+### Example 10: Data Validation and Quality Check
+```
+1. FIND nodes with entity_type="DOCUMENT" AS documents
+2. PROCESS documents with instruction: "Check for missing or invalid fields" AS quality_check
+3. COUNT quality_check where has_errors = true AS error_count
+4. COUNT quality_check where has_errors = false AS valid_count
+5. REQUIRE error_count < 10 "Too many data quality issues"
+```
+
+## Advanced Analytics
+
+### Example 11: Network Analysis
+```
+1. FIND nodes with entity_type="PERSON" AS people
+2. GRAPHWALK from people follow "coauthored" AS coauthor_network
+3. PROCESS coauthor_network with instruction: "Calculate network centrality metrics" AS network_metrics
+4. RANK network_metrics by centrality_score order desc AS key_connectors
+5. CLUSTER network_metrics with criteria: "similar_centrality" AS network_clusters
+```
+
+### Example 12: Trend Analysis
+```
+1. FIND nodes with entity_type="PUBLICATION" AS publications
+2. PROCESS publications with instruction: "Extract publication year and citation count" AS pub_data
+3. AGGREGATE pub_data by year with avg AS yearly_avg_citations
+4. AGGREGATE pub_data by year with count AS yearly_pub_counts
+5. JOIN yearly_avg_citations with yearly_pub_counts on year AS trend_data
+6. ANALYZE trend_data for "publication_trends" AS trend_analysis
+```
+
+## Error Handling and Debugging
+
+### Example 13: Robust Query with Error Handling
+```
+1. TRY
+   FIND nodes with entity_type="PERSON" AS person_nodes
+   PROCESS person_nodes with instruction: "Extract first name" AS name_data
+   COUNT name_data AS total_people
+2. CATCH
+   SHOW person_nodes limit 5
+   INSPECT person_nodes
+3. FINALLY
+   SET query_status = "completed"
+```
+
+### Example 14: Data Exploration Workflow
+```
+1. FIND nodes with entity_type="DOCUMENT" AS documents
+2. SHOW documents limit 3
+3. INSPECT documents
+4. PROCESS documents with instruction: "Extract key metadata fields" AS doc_metadata
+5. SELECT doc_metadata FIELDS title, author, date AS doc_summary
+6. SHOW doc_summary limit 10
+```
+
+## Best Practices
+
+### Workflow Guidelines:
+1. **Start with FIND** to get relevant data from the graph
+2. **Use PROCESS** to create new fields when needed
+3. **Use COUNT/AGGREGATE** for quantitative analysis
+4. **Use GRAPHWALK** for multi-hop relationships
+5. **Use SHOW/INSPECT** for debugging and exploration
+6. **Use TRY/CATCH** for robust error handling
+7. **Store intermediate results** in variables for complex workflows
+
+### Common Patterns:
+- **Discovery**: FIND → SHOW/INSPECT → PROCESS
+- **Analysis**: FIND → PROCESS → COUNT/AGGREGATE → RANK
+- **Navigation**: FIND → GRAPHWALK → PROCESS → AGGREGATE
+- **Validation**: FIND → PROCESS → COUNT → REQUIRE/ASSERT
+- **Debugging**: TRY → CATCH → SHOW/INSPECT → FINALLY

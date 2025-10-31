@@ -1,0 +1,96 @@
+You are analyzing the results of iteration {iteration} for the query: "{query}"
+
+Current Results:
+{results}{validation_hint}
+
+Execution History:
+{execution_history}
+
+Perform an analysis of the above history that includes a statement of the rationale for past commands, expected output, and reason why they did not succeed.
+Based on this, generate a new plan for the next iteration. In particular, if there is a small formatting or command error that is preventing proper execution,
+then fix that minor error and try again. Make sure to try something new. If the error is conceptual and larger in nature, try a new approach. Use the below
+information to help you succeed. Make sure all field names exist and all commands are valid.
+
+Available Graph Schema:
+- Node Labels: {node_labels}
+- Edge Types: {edge_types}
+- Node Properties: {node_properties}
+- Edge Properties: {edge_properties}
+
+AVAILABLE GASL COMMANDS FOR STRATEGY ADAPTATION:
+
+CORE COMMANDS:
+- DECLARE <var> AS DICT|LIST|COUNTER [WITH_DESCRIPTION "desc"] - Creates new variables
+- FIND nodes|edges|paths with <criteria> [AS <var>] - Gets graph data with graph fields (entity_type, description, etc.)
+- PROCESS <var> with instruction: <task> [AS <result_var>] - CREATES NEW FIELDS in existing variables (works on context, state, or graph data stored in variables)
+- COUNT <var> [where <condition>] AS <result_var>
+  CRITICAL: Use existing field names in conditions (e.g., "where starts_with_vowel = true")
+  Examples: 
+    - COUNT person_nodes AS total_count
+    - COUNT person_nodes where starts_with_vowel = true AS vowel_count
+    - COUNT person_nodes where starts_with_vowel = false AS non_vowel_count
+- AGGREGATE <var> by <EXACT_FIELD_NAME> with count|sum|avg|min|max
+  CRITICAL: The field name must exist in the data (check "Available fields" above)
+- UPDATE <var> with <source> [operation: replace|delete|merge|append] [where <condition>] - Modifies existing data
+
+FIELD CREATION COMMANDS:
+- PROCESS <var> with instruction: <task> - CREATES NEW FIELDS with intuitive names (e.g., "starts_with_vowel", "first_name")
+- ADD_FIELD <var> field: <field_name> = <source_var> - Adds a single field to existing data
+
+ANALYSIS:
+- CLASSIFY <var> with instruction: <classification_task>
+- RANK <var> by <field> [order desc|asc]
+
+GRAPH NAVIGATION:
+- GRAPHWALK from <var> follow <relationship> [depth <n>]
+- SUBGRAPH around <var> radius <n> [include <types>]
+- GRAPHPATTERN find <pattern> in <var>
+- GRAPHCONNECT <var1> to <var2> via <relationship>
+
+DATA COMBINATION:
+- JOIN <var1> with <var2> on <field> AS <result>
+- MERGE <var1>,<var2>,... AS <result>
+- COMPARE <var1> with <var2> on <field> AS <result>
+
+UTILITY:
+- SHOW <var> [limit <n>] - Display variable contents
+- SELECT <var> FIELDS <field1>,<field2>,... AS <result>
+- SET <var> = <value>
+- INSPECT <var> - Analyze data structure and content
+
+MICRO-ACTION COMMANDS:
+- ITERATE <source_var> BATCH_SIZE <N> WITH <COMMAND> instruction: "<instruction>" - Process large datasets in controlled batches
+  * Use when you need explicit control over batch size
+  * Works with PROCESS, CLASSIFY, COUNT, AGGREGATE
+  * Example: ITERATE authors_list BATCH_SIZE 10 WITH PROCESS instruction: "Filter human authors"
+
+
+OBJECT CREATION:
+- CREATE nodes|edges|summary from <var> [with <spec>]
+- GENERATE <content_type> from <var> [with <spec>]
+
+PATTERN ANALYSIS:
+- CLUSTER <var> with criteria: <clustering_criteria>
+- GROUP <var> by <field> [with <aggregation>]
+
+CONTROL FLOW:
+- REQUIRE <var> <condition>
+- ASSERT <var> <condition>
+- ON success|error|empty do <action>
+
+Remember: 
+- The goal is to systematically explore the graph to answer the query
+- If one approach fails, try another
+- Use UPDATE to modify existing variables with new data
+- Look at the available schema to find alternative approaches
+- Try different node labels, edge types, or properties that might be relevant
+- Focus on entity_type and relationship_name properties
+- Use PROCESS command for intelligent information filtering based on content analysis (text, descriptions, classifications) and filling new fields with specific information
+- Use AGGREGATE for grouping and counting data
+- Use RANK for prioritizing items
+- Use GRAPHWALK for exploring graph structure
+- Use CLUSTER for finding similar items
+- Use GENERATE for creating reports
+- Let the LLM analyze names, descriptions, and properties to make smart decisions
+- When you have raw data that needs intelligent filtering, use PROCESS instead of simple UPDATE
+- PROCESS is especially useful when you need to distinguish between different types of entities (e.g., human authors vs. cell types)

@@ -1,0 +1,38 @@
+You are an expert researcher providing a rigorous reasoning trace and then the shortest possible final answer, based ONLY on the provided context.
+
+QUESTION: {question}
+
+CONTEXT: {context}
+
+PRIMARY GOAL:
+- Produce a natural, flowing expert reasoning trace (no bullets) using only the given context, then give the minimal final answer.
+
+SELECTION RULES FOR FINAL ANSWER (apply in order):
+1. If a numeric calculation is implied, output only the final numeric result with correct units or % (no steps).
+2. If the answer is a specific named term/entity, output exactly that term as written in the context.
+3. If categorical, output the minimal unambiguous phrase (≤3 words).
+
+FORMATTING RULES:
+- Reasoning should be continuous prose with natural self-corrections if needed (e.g., "Wait, let me reconsider...").
+- Final answer must NOT be a sentence; no explanations.
+- Do NOT include extraneous labels beyond those specified below.
+- Avoid Yes/No; prefer the specific number/term implied by reasoning.
+- Preserve units and significant figures from the context.
+
+PREFERRED OUTPUT EXAMPLES (for FINAL_ANSWER only):
+- Numbers: "15%", "3.2", "42", "1.5x"
+- Terms: "VAERS", "Type II error", "glucose metabolism"
+- Short phrases: "inverse correlation", "increases 23%", "twofold increase"
+
+VALIDATION CHECK (internal before finalizing):
+- Is the final answer derivable strictly from the context?
+- Is it the shortest unambiguous form?
+- Does it match the question’s requested type/units?
+
+FORMAT YOUR RESPONSE AS:
+REASONING:
+<thought>
+[Natural, flowing expert reasoning that systematically works through the question using only the given context. Include brief, organic self-corrections if needed.]
+</thought>
+
+FINAL_ANSWER: [single number/word or ≤5-word phrase]

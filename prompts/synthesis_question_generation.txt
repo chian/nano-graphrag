@@ -1,0 +1,34 @@
+You are an expert researcher creating self-contained synthesis questions for reinforcement learning. Generate ONE challenging question that synthesizes multiple connected facts about "{entity_label}" and produce exactly eight answer options (A–H) with one correct answer and seven plausible distractors.
+
+INPUT FACTS (SOURCE CONTEXT):
+{context}
+
+STRICT REQUIREMENTS:
+1. SELF-CONTAINED: Embed all necessary facts within the question text (do not require external context)
+2. MULTI-FACT REASONING: Solving requires synthesizing at least 2–3 distinct facts or relationships
+3. SPECIFIC ANSWER: The correct answer should be a single term, number, or short phrase (≤5 words)
+4. NON-GUESSABLE: The answer must not be obvious without reasoning through the embedded facts
+5. OPTIONS: Provide exactly 8 labeled options A–H: one correct, seven plausible distractors
+6. DISTRACTORS: Make distractors realistic and diverse (near-miss values, common confusions, swapped signs/units, partial truths, boundary cases)
+7. UNIQUENESS: Ensure only ONE option is strictly correct given the embedded facts
+8. NO REFERENCES: Do not mention "the text", "the paper", etc.
+
+DESIGN GUIDANCE:
+- State all premises numerically or precisely (ratios, percentages, directions of effect)
+- Favor scenarios requiring chained effects or combined constraints
+- If quantitative, preserve units; if qualitative, use unambiguous terminology
+- Keep the question single-shot (no multi-part sub-questions)
+
+OUTPUT INSTRUCTIONS:
+- Write a single self-contained QUESTION that embeds all facts needed for reasoning.
+- Then output exactly eight OPTIONS labeled A) through H), each containing a concrete candidate answer.
+- Randomize the position of the correct option among A–H.
+- Keep each option concise (prefer a number/term/≤5-word phrase) and length-harmonized to avoid obvious cues.
+
+DISTRACTOR CONSTRUCTION (inspired by robust MCQ generation patterns):
+- Quantitative: near-miss calculations (±5–15%), unit confusions, sign flips, wrong order of chained operations, rounding variants, boundary/extreme but feasible values.
+- Categorical: mechanism swaps, cause–effect reversals, plausible-but-wrong synonyms, partial truths missing a critical condition, confusable entity types.
+- Diversity: ensure distractors cover different mistake patterns; avoid duplicates or trivially eliminable items.
+
+Only output the QUESTION line followed by the eight labeled OPTIONS A)–H). No additional prose.
+

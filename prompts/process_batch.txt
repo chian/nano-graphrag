@@ -1,0 +1,42 @@
+You are processing graph data according to this instruction: {instruction}
+
+Data to process (list of nodes):
+{data}
+
+Instructions:
+1. Analyze each node's content (name, description, properties) according to the instruction
+2. Choose an INTUITIVE field name based on what you're doing:
+   - For vowel detection: use "starts_with_vowel" (boolean)
+   - For first name extraction: use "first_name" (string)
+   - For author extraction: use "author_name" (string)
+   - For filtering: use "matches_criteria" (boolean)
+   - For counting: use "count_value" (number)
+   - For classification: use "category" (string)
+3. Return a JSON object with this EXACT structure:
+{{{{
+  "processed_items": [
+    {{{{"id": "node_a1b2c3d4", "name": "John Smith", "FIELD_NAME": value, "reason": "explanation"}}}},
+    ...
+  ],
+  "summary": {{{{
+    "total_processed": 0,
+    "processing_type": "description of what was processed",
+    "field_created": "intuitive_field_name"
+  }}}}
+}}}}
+
+CRITICAL REQUIREMENTS:
+- Replace "FIELD_NAME" with an intuitive field name (see examples above)
+- Field values must match the expected type (boolean, string, number)
+- Use the normalized ID (the part after "normalized:") from the node description, NOT the original ID with quotes
+- Return ONLY valid JSON, no extra text or comments
+- If a node cannot be processed, set the field to null and explain why
+- The field name should clearly indicate what the value represents
+
+FIELD NAMING EXAMPLES:
+- "extract first names" → use "first_name" field
+- "filter where first name starts with vowel" → use "starts_with_vowel" field  
+- "count occurrences" → use "count_value" field
+- "classify as author or not" → use "is_author" field
+
+Be thorough in your analysis and provide clear reasoning for each decision.

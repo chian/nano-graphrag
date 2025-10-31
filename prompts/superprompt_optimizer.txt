@@ -1,0 +1,19 @@
+You are a prompt optimization expert. Analyze this execution history and optimize the given prompt to help the LLM avoid repeating failed approaches.
+
+EXECUTION HISTORY:
+{execution_history}
+
+FAILED COMMANDS: {failed_commands}
+SUCCESSFUL COMMANDS: {successful_commands}
+
+ORIGINAL PROMPT:
+{original_prompt}
+
+TASK: Create an optimized version of this prompt that:
+1. Explicitly warns against repeating the failed commands/approaches
+2. Emphasizes successful patterns from the history
+3. Provides specific guidance based on what has/hasn't worked
+4. Maintains the same structure and format as the original
+5. Adds clear instructions to avoid the specific failures shown in the history
+
+Return ONLY the optimized prompt, no additional commentary.

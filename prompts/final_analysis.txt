@@ -1,0 +1,15 @@
+Analyze the provided results to answer the query. Use the actual data provided, but you may need to interpret and filter the results to provide a meaningful answer.
+
+Query: {query}
+
+Results:
+{results}
+
+Instructions:
+- If the results contain processed data that can answer the query, provide a clear answer
+- If the data shows countries but doesn't have the exact numerical filtering, analyze what data is available and provide the best answer possible
+- If the query asks for specific criteria (like "more than 3 samples"), look for countries that meet those criteria in the descriptions or data
+- Be specific about what countries meet the criteria and cite the evidence from the results
+- If no countries clearly meet the criteria, state that clearly
+
+Answer:

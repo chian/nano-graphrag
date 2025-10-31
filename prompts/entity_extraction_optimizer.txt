@@ -1,0 +1,17 @@
+You are optimizing a prompt for this specific query: "{user_query}"
+
+Given this base prompt:
+{entity_extraction}
+
+Modify it to:
+1. Add new entity types if needed to capture concepts relevant to: {user_query}
+   - Only add entity types for meaningful concepts that could be connected to other entities
+   - Avoid generic types like "data" or "statistics" - focus on specific domains
+2. Modify entity descriptions to extract specific numeric values and data points that are relevant to answering: {user_query}
+   - Include counts, measurements, statistics, and other quantitative data as part of entity descriptions
+   - Extract tabular data as attributes of the most relevant entity (geo, event, organization, etc.)
+   - Make descriptions detailed enough to support graph reasoning and pattern discovery
+3. Focus on relationship patterns that help answer: {user_query}
+4. Keep the same structure and requirements
+
+Return the optimized prompt.

@@ -1,0 +1,53 @@
+You are an expert researcher specializing in creating challenging questions that test deep understanding and reasoning abilities. Your task is to generate ONE exceptional, self-contained question that embeds the necessary facts for reasoning.
+
+CONTENT (SOURCE FACTS):
+{chunk_text}
+
+TASK: Transform the relevant facts from the content into ONE question that emphasizes logic, reasoning, and critical thinking.
+
+QUESTION REQUIREMENTS (must satisfy ALL):
+1. DIFFICULTY: Challenging for intermediate to advanced researchers
+2. LOGIC-ORIENTED: Requires systematic reasoning, not recall
+3. SELF-CONTAINED: Restate all necessary facts within the question text (do not reference external text)
+4. REASONING-DEMANDING: Not answerable by simple factual lookup; requires chaining facts or performing calculations
+5. SPECIFIC ANSWER: The correct answer should be a precise number, specific term, or short phrase (ideally 1 word/number)
+6. NON-GUESSABLE: Avoid yes/no or true/false; design so the answer demands working through the embedded facts
+
+PREFERRED QUESTION TYPES (choose the most challenging option):
+- CRITICAL ANALYSIS: Challenge methodology, assumptions, or conclusions with concrete technical constraints
+- MECHANISTIC REASONING: How/why questions requiring step-by-step logical derivation
+- LIMITATION ANALYSIS: Identify constraints, boundaries, or failure modes given the stated conditions
+- COMPARATIVE REASONING: Contrast approaches or quantify trade-offs using provided quantities/relations
+- APPLICATION CHALLENGES: Apply given relationships in multi-step scenarios to compute a specific outcome
+
+QUESTION DESIGN PRINCIPLES:
+- Start with sophisticated framing: "How would you reconcile...", "What explains the apparent contradiction between...", "Given the constraints, what is..."
+- Explicitly embed all relevant facts as premises inside the question
+- Prefer counterfactuals or parametric variations: "If X increases by 10% while Y halves, what is Z?"
+- Make multi-step logic unavoidable (at least 2–3 steps)
+- Demand evaluation of evidence quality or causal strength when qualitative; otherwise favor quantitative derivations
+- Avoid any references to the source text (e.g., "this paper", "the authors", "the model")
+
+NUMERICAL/QUANTITATIVE GUIDANCE (when applicable):
+- Provide concrete numbers/ratios/percentages inside the question
+- If chaining effects, clearly specify each step (e.g., A increases B by 30%, B reduces C by 40%)
+- Ask for the final numeric value or exact relationship (e.g., "net change in C (%)")
+- If units appear in the facts, preserve them in the question
+
+STRUCTURE TEMPLATE (adapt as needed; include the facts inside the question):
+- "Given that [fact 1], [fact 2], and [fact 3], what is the [specific numeric/term] for [target] under [counterfactual/constraint]?"
+- "If [entity] with [property X] influences [A] by [p%], and [A] influences [B] by [q%], then when [X changes by r%], what is the resulting [exact numeric/term] for [B]?"
+- "Considering [constraints and relationships stated explicitly], which single [method/term/value] satisfies all conditions?"
+
+QUALITY CHECKLIST (ensure before finalizing):
+- The question fully restates the necessary premises (no missing context)
+- The answer space is narrow (ideally one number/term)
+- Solving requires at least two reasoning steps or a calculation
+- No yes/no, no vague phrasing, no references to the source text
+
+FORMAT YOUR RESPONSE AS:
+QUESTION_TYPE: [type from the preferred types above]
+DIFFICULTY: advanced
+QUESTION: [Write only the final, self-contained question text]
+
+Focus on creating a question that would require an expert to engage in systematic, rigorous reasoning to answer properly.

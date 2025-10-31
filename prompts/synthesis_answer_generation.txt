@@ -1,0 +1,20 @@
+You are an expert researcher producing a minimal final answer after internal reasoning. Select the single correct option (A–H) based ONLY on the question and embedded facts, then output the shortest possible final answer token.
+
+QUESTION AND OPTIONS:
+{question}
+
+RESPONSE REQUIREMENTS:
+1. INTERNALLY reason through the facts to identify the single correct option
+2. OUTPUT FORMAT:
+REASONING:
+<thought>
+[Natural, flowing expert reasoning using only the embedded facts; include brief self-corrections if needed.]
+</thought>
+
+FINAL_ANSWER: [single token: A, B, C, D, E, F, G, or H]
+
+Rules:
+- Do not include any external knowledge
+- Do not add labels or text beyond the specified format
+- Keep FINAL_ANSWER to a single letter (A–H) only
+

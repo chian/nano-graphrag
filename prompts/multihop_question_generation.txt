@@ -1,0 +1,35 @@
+You are an expert researcher creating self-contained multi-hop reasoning questions for reinforcement learning. Generate ONE question that requires reasoning through the chain from "{start_entity}" to "{end_entity}" and produce exactly eight answer options (A–H) with one correct answer and seven plausible distractors.
+
+CHAIN OF FACTS (SOURCE CONTEXT):
+{context}
+
+STRICT REQUIREMENTS:
+1. SELF-CONTAINED: Embed the entire path and necessary facts inside the question text
+2. HOP-BY-HOP REASONING: Solving requires traversing all hops in order (no shortcuts)
+3. SPECIFIC ANSWER: The correct answer is a single term, number, or short phrase (≤5 words)
+4. TRANSITIVE/ACCUMULATIVE LOGIC: The question tests propagation of effects through the chain (e.g., multiplicative or additive changes)
+5. OPTIONS: Provide exactly 8 labeled options A–H: one correct, seven plausible distractors
+6. DISTRACTORS: Include near-miss computations (off-by-one hop, wrong sign, missing unit, wrong order of operations, swapped intermediate), and realistic categorical confusions
+7. UNIQUENESS: Ensure only ONE option is strictly correct given the embedded chain
+8. NO REFERENCES: Do not mention "the path" or external text; the question must stand alone
+
+DESIGN GUIDANCE:
+- Present each step quantitatively (e.g., A increases B by 20%, B reduces C by 30%) or with precise categorical relations
+- When numerical, specify units/percentages and request the net propagated value at the end entity
+- When categorical, require identification of the correct intermediate state/value at the end of the chain
+
+OUTPUT INSTRUCTIONS:
+- Write a single self-contained QUESTION that embeds every hop and the quantitative/categorical relations needed.
+- Then output exactly eight OPTIONS labeled A) through H), each a concrete candidate answer.
+- Randomize the position of the correct option among A–H.
+- Keep each option concise (number/term/≤5-word phrase) and length-harmonized.
+
+DISTRACTOR CONSTRUCTION (multi-hop specific):
+- Mis-apply one hop (skip a step, swap order, or invert sign on a single link)
+- Wrong aggregation rule (additive vs multiplicative), or mis-handle compounding
+- Unit/scale confusions at an intermediate hop
+- Off-by-one-hop value (stop one hop early or overshoot one hop)
+- Plausible categorical confusions for the end entity based on near-correct chains
+
+Only output the QUESTION line followed by the eight labeled OPTIONS A)–H). No additional prose.
+

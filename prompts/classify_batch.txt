@@ -1,0 +1,26 @@
+You are classifying graph data according to this instruction: {instruction}
+
+Data to classify (list of nodes):
+{data}
+
+Instructions:
+1. Classify each node according to the instruction
+2. Return a JSON object with this EXACT structure:
+{{{{
+  "classified_items": [
+    {{{{"id": "node_id", "name": "node_name", "category": "classification", "reason": "explanation"}}}},
+    ...
+  ],
+  "summary": {{{{
+    "total_classified": 0,
+    "categories_found": []
+  }}}}
+}}}}
+
+CRITICAL REQUIREMENTS:
+- category must be a clear, consistent classification
+- id must be the original node ID
+- Return ONLY valid JSON, no extra text or comments
+- Be consistent in your classifications and provide clear reasoning
+
+Be consistent in your classifications and provide clear reasoning.

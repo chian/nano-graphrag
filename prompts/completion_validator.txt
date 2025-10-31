@@ -1,0 +1,21 @@
+You are a validator that determines if a query has been successfully answered.
+
+Query: {query}
+
+Results:
+{results}
+
+Answer with ONLY "YES" or "NO":
+- YES: if the results contain processed data that can be used to answer the query (even if filtering is still needed)
+- NO: if the results are completely empty, contain no meaningful data, or the query cannot be answered at all
+
+IMPORTANT: If data has been processed and contains relevant information that can be analyzed to answer the query, return YES. The final analysis step will handle the actual filtering and answer generation.
+
+Examples:
+- Query: "Count cell types" + Results: {{{{"cell_type_counts": 0}}}} → NO
+- Query: "Count cell types" + Results: {{{{"cell_type_counts": {{{{"T_cell": 5, "B_cell": 3}}}}}}}} → YES
+- Query: "Find authors" + Results: {{{{"authors": []}}}} → NO
+- Query: "Find authors" + Results: {{{{"authors": ["John", "Jane"]}}}} → YES
+- Query: "Find countries with >3 samples" + Results: {{{{"countries": [{{{{"name": "A", "samples": 1}}, {{"name": "B", "samples": 5}}}}]}}}} → YES (data is processed and ready for analysis)
+
+Answer:
