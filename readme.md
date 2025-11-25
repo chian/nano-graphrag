@@ -11,9 +11,9 @@
     <a href="https://pypi.org/project/nano-graphrag/">
       <img src="https://img.shields.io/pypi/v/nano-graphrag.svg">
     </a>
-    <a href="https://codecov.io/github/gusye1234/nano-graphrag" > 
-     <img src="https://codecov.io/github/gusye1234/nano-graphrag/graph/badge.svg?token=YFPMj9uQo7"/> 
- 		</a>
+    <a href="https://codecov.io/github/gusye1234/nano-graphrag" >
+     <img src="https://codecov.io/github/gusye1234/nano-graphrag/graph/badge.svg?token=YFPMj9uQo7"/>
+		</a>
     <a href="https://pepy.tech/project/nano-graphrag">
       <img src="https://static.pepy.tech/badge/nano-graphrag/month">
     </a>
@@ -28,647 +28,492 @@
   </p>
 </div>
 
+---
 
-
-
-
-
-
-
+## Why nano-graphrag?
 
 😭 [GraphRAG](https://arxiv.org/pdf/2404.16130) is good and powerful, but the official [implementation](https://github.com/microsoft/graphrag/tree/main) is difficult/painful to **read or hack**.
 
-😊 This project provides a **smaller, faster, cleaner GraphRAG**, while remaining the core functionality(see [benchmark](#benchmark) and [issues](#Issues) ).
+😊 This project provides a **smaller, faster, cleaner GraphRAG**, while maintaining the core functionality ([benchmark](#benchmark)).
 
-🎁 Excluding `tests` and prompts,  `nano-graphrag` is about **1100 lines of code**.
+🎁 **~1100 lines of code** (excluding tests and prompts)
 
-👌 Small yet [**portable**](#Components)(faiss, neo4j, ollama...), [**asynchronous**](#Async) and fully typed.
+👌 Small yet **[portable](#components)** (faiss, neo4j, ollama...), **[asynchronous](#async)**, and fully typed
 
+🚀 **Advanced features**: [GASL](#gasl) for graph queries, [QA generation](#qa-generation) for training data, query-aware prompts
 
+---
 
-> If you're looking for a multi-user RAG solution for long-term user memory, have a look at this project: [memobase](https://github.com/memodb-io/memobase) :)
+## Table of Contents
 
-## Install
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Core Features](#core-features)
+- [Components & Extensions](#components--extensions)
+- [Advanced Features](#advanced-features)
+  - [GASL (Graph Analysis & Scripting Language)](#gasl-graph-analysis--scripting-language)
+  - [QA Generation](#qa-generation)
+  - [Query-Aware Processing](#query-aware-processing)
+- [Documentation](#documentation)
+- [Projects Using nano-graphrag](#projects-using-nano-graphrag)
+- [Contributing](#contributing)
 
-**Install from source** (recommend)
+---
 
-```shell
-# clone this repo first
+## Installation
+
+### From PyPI (Stable)
+
+```bash
+pip install nano-graphrag
+```
+
+### From Source (Latest)
+
+```bash
+git clone https://github.com/gusye1234/nano-graphrag
 cd nano-graphrag
 pip install -e .
 ```
 
-**Install from PyPi**
+### Requirements
 
-```shell
-pip install nano-graphrag
-```
+- Python >= 3.9.11
+- OpenAI API key (or use [alternative LLMs](#llm-providers))
 
-### Python Environment Setup
-
-**IMPORTANT**: Before running any Python scripts in this project, you must activate the Python environment:
-
-```shell
-# Activate the py310 conda environment
-conda activate py310
-
-# Then run your Python scripts
-python your_script.py
-```
-
-This project requires specific dependencies that are installed in the `py310` conda environment. Always activate this environment before running any Python commands to avoid import errors.
-
-### ASM Papers Dataset
-
-This project includes processing capabilities for ASM (American Society for Microbiology) journal papers. The ASM papers are located at:
-
-```
-/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/
-```
-
-**Available Journals:**
-- AAC (Antimicrobial Agents and Chemotherapy)
-- AEM (Applied and Environmental Microbiology) 
-- CMR (Clinical Microbiology Reviews)
-- IAI (Infection and Immunity)
-- JB (Journal of Bacteriology)
-- ASM (American Society for Microbiology)
-- EcoSalPlus
-
-**Processed Papers Structure:**
-Processed papers contain the following structure:
-```
-{paper_id}/
-├── source_files/
-│   ├── graphrag_cache/
-│   │   └── graph_chunk_entity_relation.graphml  # Knowledge graph
-│   └── [extracted text files]
-├── graph_versions/
-└── [QA generation output files]
-```
-
-**Batch Processing:**
-Use the provided batch processing scripts to process ASM papers:
-- `batch_process_asm_papers.sh` - Process ASM papers with QA generation
-- `batch_process_aac_papers.sh` - Process AAC papers specifically
-
-
+---
 
 ## Quick Start
 
-> [!TIP]
->
-> **Please set OpenAI API key in environment: `export OPENAI_API_KEY="sk-..."`.** 
+### Basic Usage
 
-> [!TIP]
-> If you're using Azure OpenAI API, refer to the [.env.example](./.env.example.azure) to set your azure openai. Then pass `GraphRAG(...,using_azure_openai=True,...)` to enable.
+**Set up your API key:**
+```bash
+export OPENAI_API_KEY="sk-..."
+```
 
-> [!TIP]
-> If you're using Amazon Bedrock API, please ensure your credentials are properly set through commands like `aws configure`. Then enable it by configuring like this: `GraphRAG(...,using_amazon_bedrock=True, best_model_id="us.anthropic.claude-3-sonnet-20240229-v1:0", cheap_model_id="us.anthropic.claude-3-haiku-20240307-v1:0",...)`. Refer to an [example script](./examples/using_amazon_bedrock.py).
-
-> [!TIP]
->
-> If you don't have any key, check out this [example](./examples/no_openai_key_at_all.py) that using `transformers` and `ollama` . If you like to use another LLM or Embedding Model, check [Advances](#Advances).
-
-download a copy of A Christmas Carol by Charles Dickens:
-
-```shell
+**Download sample data:**
+```bash
 curl https://raw.githubusercontent.com/gusye1234/nano-graphrag/main/tests/mock_data.txt > ./book.txt
 ```
 
-Use the below python snippet:
-
+**Build and query a knowledge graph:**
 ```python
 from nano_graphrag import GraphRAG, QueryParam
 
+# Initialize GraphRAG
 graph_func = GraphRAG(working_dir="./dickens")
 
+# Insert documents (builds knowledge graph)
 with open("./book.txt") as f:
     graph_func.insert(f.read())
 
-# Perform global graphrag search
-print(graph_func.query("What are the top themes in this story?"))
+# Query using local mode (entity-focused, fast)
+answer = graph_func.query(
+    "What are the top themes in this story?",
+    param=QueryParam(mode="local")
+)
+print(answer)
 
-# Perform local graphrag search (I think is better and more scalable one)
-print(graph_func.query("What are the top themes in this story?", param=QueryParam(mode="local")))
+# Query using global mode (comprehensive, slower)
+answer = graph_func.query(
+    "What are the top themes in this story?",
+    param=QueryParam(mode="global")
+)
+print(answer)
 ```
 
-Next time you initialize a `GraphRAG` from the same `working_dir`, it will reload all the contexts automatically.
+**Next run:** GraphRAG automatically reloads from `working_dir`—no need to rebuild!
 
-#### Batch Insert
+### Async Support
 
 ```python
-graph_func.insert(["TEXT1", "TEXT2",...])
+# All methods have async versions
+await graph_func.ainsert(documents)
+await graph_func.aquery(query)
 ```
 
-<details>
-<summary> Incremental Insert</summary>
-
-`nano-graphrag` supports incremental insert, no duplicated computation or data will be added:
+### Batch Operations
 
 ```python
+# Insert multiple documents at once
+graph_func.insert(["TEXT1", "TEXT2", "TEXT3"])
+
+# Incremental insert (no duplicates, uses MD5 hash)
 with open("./book.txt") as f:
     book = f.read()
-    half_len = len(book) // 2
-    graph_func.insert(book[:half_len])
-    graph_func.insert(book[half_len:])
+    half = len(book) // 2
+    graph_func.insert(book[:half])
+    graph_func.insert(book[half:])  # No duplication!
 ```
 
-> `nano-graphrag` use md5-hash of the content as the key, so there is no duplicated chunk.
->
-> However, each time you insert, the communities of graph will be re-computed and the community reports will be re-generated
+---
 
-</details>
+## Core Features
 
-<details>
-<summary> Naive RAG</summary>
+### 1. Knowledge Graph Construction
 
-`nano-graphrag` supports naive RAG insert and query as well:
+- **Entity Extraction**: LLM-powered entity and relationship extraction
+- **Dynamic Entity Types**: Query-aware entity type generation
+- **Community Detection**: Leiden/Louvain algorithms for graph clustering
+- **Incremental Updates**: MD5-based deduplication for efficient updates
 
-```python
-graph_func = GraphRAG(working_dir="./dickens", enable_naive_rag=True)
-...
-# Query
-print(rag.query(
-      "What are the top themes in this story?",
-      param=QueryParam(mode="naive")
-)
+### 2. Three Query Modes
+
+| Mode | Speed | Accuracy | Best For |
+|------|-------|----------|----------|
+| **Local** | Fast | High | Specific entities, relationships |
+| **Global** | Slow | Highest | Broad themes, comprehensive analysis |
+| **Naive** | Fastest | Medium | Simple facts, baseline comparison |
+
+**Local Mode**: Vector search → graph traversal → context assembly → LLM generation
+**Global Mode**: Community detection → community reports → map-reduce synthesis
+**Naive Mode**: Simple vector similarity search (no graph)
+
+### 3. Query-Aware Processing
+
+- **Dynamic Prompts**: Automatically optimize prompts for specific queries
+- **Content-Adaptive**: Entity types adapt to document content
+- **Smart Chunking**: Token-based or semantic splitting
+
+### 4. Pluggable Architecture
+
+Replace any component with your own implementation:
+- **LLM**: OpenAI, Azure, Bedrock, Ollama, DeepSeek, or custom
+- **Embeddings**: OpenAI, Bedrock, sentence-transformers, or custom
+- **Vector DB**: NanoVectorDB, HNSW, Milvus, FAISS
+- **Graph DB**: NetworkX, Neo4j
+
+---
+
+## Components & Extensions
+
+### LLM Providers
+
+| Provider | Status | Documentation |
+|----------|--------|---------------|
+| OpenAI | ✅ Built-in | Default (`gpt-4o`, `gpt-4o-mini`) |
+| Azure OpenAI | ✅ Built-in | [.env.example.azure](./.env.example.azure) |
+| Amazon Bedrock | ✅ Built-in | [Example](./examples/using_amazon_bedrock.py) |
+| DeepSeek | 📘 Example | [Example](./examples/using_deepseek_as_llm.py) |
+| Ollama | 📘 Example | [Example](./examples/using_ollama_as_llm.py) |
+| Custom | ✅ Supported | [Guide](./docs/ARCHITECTURE.md#extension-points) |
+
+### Embedding Models
+
+| Model | Status | Documentation |
+|-------|--------|---------------|
+| OpenAI | ✅ Built-in | Default (`text-embedding-3-small`) |
+| Amazon Bedrock | ✅ Built-in | [Example](./examples/using_amazon_bedrock.py) |
+| Sentence-transformers | 📘 Example | [Example](./examples/using_local_embedding_model.py) |
+| Custom | ✅ Supported | [Guide](./docs/ARCHITECTURE.md#2-custom-embedding-function) |
+
+### Vector Databases
+
+| Database | Status | Documentation |
+|----------|--------|---------------|
+| NanoVectorDB | ✅ Built-in | Default (lightweight) |
+| HNSW | ✅ Built-in | [Example](./examples/using_hnsw_as_vectorDB.py) |
+| Milvus Lite | 📘 Example | [Example](./examples/using_milvus_as_vectorDB.py) |
+| FAISS | 📘 Example | [Example](./examples/using_faiss_as_vectorDB.py) |
+| Qdrant | 📘 Example | [Example](./examples/using_qdrant_as_vectorDB.py) |
+
+### Graph Storage
+
+| Storage | Status | Documentation |
+|---------|--------|---------------|
+| NetworkX | ✅ Built-in | Default (in-memory + GraphML) |
+| Neo4j | ✅ Built-in | [Guide](./docs/use_neo4j_for_graphrag.md) |
+
+---
+
+## Advanced Features
+
+### GASL (Graph Analysis & Scripting Language)
+
+**GASL** is a domain-specific language for LLM-driven graph analysis with **hypothesis-driven traversal (HDT)**.
+
+#### Why GASL?
+
+Traditional RAG: `Query → Vector Search → Context → Answer` (limited coverage, no exploration)
+
+GASL: `Query → Hypothesis → Plan → Execute → Evaluate → Refine → Answer` (complete coverage, systematic)
+
+#### Key Features
+
+- 🧠 **LLM-Driven Planning**: Natural language queries → executable graph operations
+- 🔄 **Hypothesis-Driven Traversal**: Iterative exploration with refinement
+- 📊 **Rich Command Set**: 30+ commands for graph analysis
+- 💾 **State Management**: Persistent state across commands
+- 🔍 **Provenance Tracking**: Trace results to source documents
+
+#### Quick Example
+
+```bash
+python gasl_main.py \
+  --working-dir /path/to/graph \
+  --query "Create a histogram of how often author names appear" \
+  --max-iterations 5
 ```
-</details>
 
-
-### Async
-
-For each method `NAME(...)` , there is a corresponding async method `aNAME(...)`
-
-```python
-await graph_func.ainsert(...)
-await graph_func.aquery(...)
-...
+**Generated Plan (by LLM)**:
+```json
+{
+  "hypothesis": "Author names are in PERSON entity descriptions",
+  "commands": [
+    "FIND nodes with entity_type=PERSON AS authors",
+    "PROCESS authors with instruction: Extract author name from description AS names",
+    "ADD_FIELD authors field: author_name = names",
+    "COUNT authors field author_name AS histogram"
+  ]
+}
 ```
 
-### Available Parameters
+#### Core GASL Commands
 
-`GraphRAG` and `QueryParam` are `dataclass` in Python. Use `help(GraphRAG)` and `help(QueryParam)` to see all available parameters!  Or check out the [Advances](#Advances) section to see some options.
+**Discovery**: `DECLARE`, `FIND`, `SELECT`, `SET`
+**Processing**: `PROCESS`, `CLASSIFY`, `UPDATE`, `COUNT`
+**Graph Navigation**: `GRAPHWALK`, `GRAPHCONNECT`, `SUBGRAPH`, `GRAPHPATTERN`
+**Data Combination**: `JOIN`, `MERGE`, `COMPARE`
+**Object Creation**: `CREATE_NODES`, `CREATE_EDGES`, `GENERATE`
 
+👉 **[Full GASL Guide](./docs/GASL_GUIDE.md)**
 
+---
 
-## Components
+### QA Generation
 
-Below are the components you can use:
+Generate high-quality reasoning questions from knowledge graphs for training data (e.g., models with `<think>` tokens).
 
-| Type            |                             What                             |                       Where                       |
-| :-------------- | :----------------------------------------------------------: | :-----------------------------------------------: |
-| LLM             |                            OpenAI                            |                     Built-in                      |
-|                 |                        Amazon Bedrock                        |                     Built-in                      |
-|                 |                           DeepSeek                           |              [examples](./examples)               |
-|                 |                           `ollama`                           |              [examples](./examples)               |
-| Embedding       |                            OpenAI                            |                     Built-in                      |
-|                 |                        Amazon Bedrock                        |                     Built-in                      |
-|                 |                    Sentence-transformers                     |              [examples](./examples)               |
-| Vector DataBase | [`nano-vectordb`](https://github.com/gusye1234/nano-vectordb) |                     Built-in                      |
-|                 |        [`hnswlib`](https://github.com/nmslib/hnswlib)        |         Built-in, [examples](./examples)          |
-|                 |  [`milvus-lite`](https://github.com/milvus-io/milvus-lite)   |              [examples](./examples)               |
-|                 | [faiss](https://github.com/facebookresearch/faiss?tab=readme-ov-file) |              [examples](./examples)               |
-| Graph Storage   | [`networkx`](https://networkx.org/documentation/stable/index.html) |                     Built-in                      |
-|                 |                [`neo4j`](https://neo4j.com/)                 | Built-in([doc](./docs/use_neo4j_for_graphrag.md)) |
-| Visualization   |                           graphml                            |              [examples](./examples)               |
-| Chunking        |                        by token size                         |                     Built-in                      |
-|                 |                       by text splitter                       |                     Built-in                      |
+#### Reasoning QA (Recommended)
 
-- `Built-in` means we have that implementation inside `nano-graphrag`. `examples` means we have that implementation inside an tutorial under [examples](./examples) folder.
+Most sophisticated generator with diversity tracking and quality filtering:
 
-- Check [examples/benchmarks](./examples/benchmarks) to see few comparisons between components.
-- **Always welcome to contribute more components.**
-
-### Additional Features
-
-- **QA Generation**: Built-in scripts for generating complex reasoning question-answer pairs from knowledge graphs (see [Question-Answer Generation](#question-answer-generation) section)
-- **Dynamic Entity Type Generation**: Automatically generates relevant entity types based on user queries and document content
-- **Query-Aware Processing**: All prompts and processing are optimized based on the specific user query
-- **Analytical Retriever**: Advanced query decomposition and systematic graph analysis (see [Analytical Retriever](./ANALYTICAL_RETRIEVER_README.md))
-
-## Advances
-
-
-
-<details>
-<summary>Some setup options</summary>
-
-- `GraphRAG(...,always_create_working_dir=False,...)` will skip the dir-creating step. Use it if you switch all your components to non-file storages.
-
-</details>
-
-
-
-<details>
-<summary>Only query the related context</summary>
-
-`graph_func.query` return the final answer without streaming. 
-
-If you like to interagte `nano-graphrag` in your project, you can use `param=QueryParam(..., only_need_context=True,...)`, which will only return the retrieved context from graph, something like:
-
-````
-# Local mode
------Reports-----
-```csv
-id,	content
-0,	# FOX News and Key Figures in Media and Politics...
-1, ...
+```bash
+python generate_reasoning_qa.py \
+  --working-dir /path/to/graph/graphrag_cache \
+  --num-questions 100 \
+  --min-quality-score 7
 ```
-...
 
-# Global mode
-----Analyst 3----
-Importance Score: 100
-Donald J. Trump: Frequently discussed in relation to his political activities...
-...
-````
+**Features**:
+- 🎯 **Topic Diversity**: Tracks last 20 topics, avoids repetition
+- ⭐ **Quality Filtering**: Only questions scoring ≥7/10 pass
+- 🧬 **Multiple Reasoning Types**: Mechanistic, comparative, causal, predictive
+- 🔬 **Scientific Rigor**: Self-contained, no "the text" references
 
-You can integrate that context into your customized prompt.
+**Example Output**:
+```json
+{
+  "question": "Which mechanism best explains how antibiotic resistance emerges?",
+  "choices": {"A": "...", "B": "...", "C": "...", "D": "...", "E": "...", "F": "...", "G": "...", "H": "..."},
+  "answer": "B",
+  "reasoning_type": "mechanistic",
+  "quality_score": 9
+}
+```
 
-</details>
+#### Other QA Types
 
-<details>
-<summary>Prompt System</summary>
+**Multi-Hop QA**: Chain facts across graph paths
+```bash
+python generate_multihop_qa.py --working-dir /path/to/graph --num-questions 50 --path-length 2
+```
 
-`nano-graphrag` uses a query-aware prompt system that dynamically optimizes prompts based on user queries. The system loads prompts from the `prompts/` directory and can optimize them using LLM intelligence.
+**Synthesis QA**: Integrate information from multiple sources
+```bash
+python generate_synthesis_qa.py --working-dir /path/to/graph --num-questions 30
+```
 
-**Key Features:**
-- **Query-Aware Optimization**: Prompts are automatically optimized for specific user queries
-- **File-Based Prompts**: Prompts are stored as individual files in the `prompts/` directory
-- **Backward Compatibility**: The old `PROMPTS` dictionary interface is still supported
-- **Caching**: Optimized prompts are cached for performance
+**Logic Puzzle QA**: Constraint satisfaction problems
+```bash
+python generate_logic_puzzle_qa.py --working-dir /path/to/graph --num-questions 20
+```
 
-**Important Prompts:**
+👉 **[Full QA Generation Guide](./docs/QA_GENERATION.md)**
 
-- `entity_extraction` - Extract entities and relations from text chunks
-- `entity_type_generation` - Generate entity types dynamically based on user queries
-- `community_report` - Organize and summarize graph cluster descriptions
-- `local_rag_response` - System prompt for local search generation
-- `global_reduce_rag_response` - System prompt for global search generation
-- `plan_generation` - Generate execution plans for complex queries
-- `process_batch` - Process batches of data with LLM
-- `classify_batch` - Classify batches of data with LLM
+---
 
-**Usage:**
+### Query-Aware Processing
+
+All prompts and processing are optimized based on your specific query:
+
 ```python
 from nano_graphrag.prompt_system import QueryAwarePromptSystem, set_prompt_system
 
-# Create a query-aware prompt system
-prompt_system = QueryAwarePromptSystem(llm_func=your_llm_func)
+# Set up query-aware prompts
+prompt_system = QueryAwarePromptSystem(llm_func=your_llm)
 set_prompt_system(prompt_system)
 
-# Get optimized prompts
-prompt = prompt_system.get_prompt("entity_extraction", user_query="your query", optimize=True)
+# Now entity types and extraction adapt to your queries!
 ```
 
-</details>
+**Features**:
+- **Dynamic Entity Types**: Generated based on query + content
+- **Optimized Prompts**: LLM optimizes prompts for specific queries
+- **Content-Adaptive**: Processing tailored to document domain
 
-<details>
-<summary>Customize Chunking</summary>
+---
 
+## Documentation
 
-`nano-graphrag` allow you to customize your own chunking method, check out the [example](./examples/using_custom_chunking_method.py).
+### Core Documentation
 
-Switch to the built-in text splitter chunking method:
+- 📖 **[Architecture Guide](./docs/ARCHITECTURE.md)** - System design, components, data flow
+- 🔧 **[GASL Guide](./docs/GASL_GUIDE.md)** - Complete GASL reference with examples
+- 📝 **[QA Generation Guide](./docs/QA_GENERATION.md)** - Generate training data from graphs
+- 🔌 **[Storage Backends](./docs/ARCHITECTURE.md#storage-system)** - Configure KV, vector, and graph storage
+- 🌐 **[Neo4j Integration](./docs/use_neo4j_for_graphrag.md)** - Use Neo4j as graph backend
+
+### Additional Resources
+
+- ❓ **[FAQ](./docs/FAQ.md)** - Frequently asked questions
+- 🗺️ **[Roadmap](./docs/ROADMAP.md)** - Future development plans
+- 🤝 **[Contributing](./docs/CONTRIBUTING.md)** - Contribution guidelines
+- 📊 **[Benchmarks](./docs/benchmark-en.md)** - Performance comparisons
+
+---
+
+## Configuration Examples
+
+### Custom LLM
 
 ```python
-from nano_graphrag._op import chunking_by_seperators
+async def my_llm_complete(prompt, system_prompt=None, history_messages=[], **kwargs) -> str:
+    hashing_kv = kwargs.pop("hashing_kv", None)  # Optional cache
+    response = await your_llm_api(prompt, **kwargs)
+    return response
 
-GraphRAG(...,chunk_func=chunking_by_seperators,...)
-```
-
-</details>
-
-<details>
-<summary>Dynamic Entity Type Generation</summary>
-
-`nano-graphrag` includes a dynamic entity type generation system that automatically determines relevant entity types based on your specific query and document content, rather than using a fixed set of entity types.
-
-**Key Features:**
-- **Query-Aware**: Entity types are generated based on the user's specific query
-- **Content-Adaptive**: Types are tailored to the actual content being processed
-- **Frequency-Based Filtering**: Only entity types that appear frequently across chunks are selected
-- **Fallback Support**: Falls back to top-N most frequent types if no types meet the frequency threshold
-
-**How It Works:**
-1. The system analyzes your query to understand what types of entities are relevant
-2. For each text chunk, it generates potential entity types using LLM
-3. It aggregates entity types across all chunks and filters by frequency
-4. Only entity types that appear in 2+ chunks (or top 12 if none meet threshold) are used
-
-**Usage:**
-```python
-from nano_graphrag.entity_type_generator import generate_entity_types_for_chunks
-
-# Generate entity types for your specific task
-entity_types = await generate_entity_types_for_chunks(
-    task="Find all authors and their collaborations",
-    chunks=your_chunks,
-    llm_func=your_llm_func,
-    per_chunk=True
+graph_func = GraphRAG(
+    best_model_func=my_llm_complete,
+    best_model_max_token_size=8192,
+    best_model_max_async=16
 )
 ```
 
-This ensures that entity extraction is always relevant to your specific use case and document content.
-
-</details>
-
-<details>
-<summary>LLM Function</summary>
-
-In `nano-graphrag`, we requires two types of LLM, a great one and a cheap one. The former is used to plan and respond, the latter is used to summary. By default, the great one is `gpt-4o` and the cheap one is `gpt-4o-mini`
-
-You can implement your own LLM function (refer to `_llm.gpt_4o_complete`):
+### Custom Embedding
 
 ```python
-async def my_llm_complete(
-    prompt, system_prompt=None, history_messages=[], **kwargs
-) -> str:
-  # pop cache KV database if any
-  hashing_kv: BaseKVStorage = kwargs.pop("hashing_kv", None)
-  # the rest kwargs are for calling LLM, for example, `max_tokens=xxx`
-	...
-  # YOUR LLM calling
-  response = await call_your_LLM(messages, **kwargs)
-  return response
+from nano_graphrag._utils import wrap_embedding_func_with_attrs
+
+@wrap_embedding_func_with_attrs(embedding_dim=384, max_token_size=512)
+async def my_embedding(texts: list[str]) -> np.ndarray:
+    return your_model.encode(texts)
+
+graph_func = GraphRAG(
+    embedding_func=my_embedding,
+    embedding_batch_num=32
+)
 ```
 
-Replace the default one with:
+### Custom Storage
 
 ```python
-# Adjust the max token size or the max async requests if needed
-GraphRAG(best_model_func=my_llm_complete, best_model_max_token_size=..., best_model_max_async=...)
-GraphRAG(cheap_model_func=my_llm_complete, cheap_model_max_token_size=..., cheap_model_max_async=...)
+from nano_graphrag.base import BaseVectorStorage
+
+class MyVectorDB(BaseVectorStorage):
+    async def upsert(self, data): ...
+    async def query(self, query, top_k): ...
+
+graph_func = GraphRAG(vector_db_storage_cls=MyVectorDB)
 ```
 
-You can refer to this [example](./examples/using_deepseek_as_llm.py) that use [`deepseek-chat`](https://platform.deepseek.com/api-docs/) as the LLM model
-
-You can refer to this [example](./examples/using_ollama_as_llm.py) that use [`ollama`](https://github.com/ollama/ollama) as the LLM model
-
-#### Json Output
-
-`nano-graphrag` will use `best_model_func` to output JSON with params `"response_format": {"type": "json_object"}`. However there are some open-source model maybe produce unstable JSON. 
-
-`nano-graphrag` introduces a post-process interface for you to convert the response to JSON. This func's signature is below:
+### Azure OpenAI
 
 ```python
-def YOUR_STRING_TO_JSON_FUNC(response: str) -> dict:
-  "Convert the string response to JSON"
-  ...
+# Set environment variables (see .env.example.azure)
+graph_func = GraphRAG(
+    working_dir="./cache",
+    using_azure_openai=True
+)
 ```
 
-And pass your own func by `GraphRAG(...convert_response_to_json_func=YOUR_STRING_TO_JSON_FUNC,...)`.
-
-For example, you can refer to [json_repair](https://github.com/mangiucugna/json_repair) to repair the JSON string returned by LLM. 
-</details>
-
-
-
-<details>
-<summary>Embedding Function</summary>
-
-You can replace the default embedding functions with any `_utils.EmbedddingFunc` instance.
-
-For example, the default one is using OpenAI embedding API:
+### Ollama (Local LLM)
 
 ```python
-@wrap_embedding_func_with_attrs(embedding_dim=1536, max_token_size=8192)
-async def openai_embedding(texts: list[str]) -> np.ndarray:
-    openai_async_client = AsyncOpenAI()
-    response = await openai_async_client.embeddings.create(
-        model="text-embedding-3-small", input=texts, encoding_format="float"
-    )
-    return np.array([dp.embedding for dp in response.data])
+# See examples/using_ollama_as_llm.py
+from examples.using_ollama_as_llm import ollama_model_complete, ollama_embedding
+
+graph_func = GraphRAG(
+    best_model_func=ollama_model_complete,
+    cheap_model_func=ollama_model_complete,
+    embedding_func=ollama_embedding
+)
 ```
 
-Replace default embedding function with:
-
-```python
-GraphRAG(embedding_func=your_embed_func, embedding_batch_num=..., embedding_func_max_async=...)
-```
-
-You can refer to an [example](./examples/using_local_embedding_model.py) that use `sentence-transformer` to locally compute embeddings.
-</details>
-
-
-<details>
-<summary>Storage Component</summary>
-
-You can replace all storage-related components to your own implementation, `nano-graphrag` mainly uses three kinds of storage:
-
-**`base.BaseKVStorage` for storing key-json pairs of data** 
-
-- By default we use disk file storage as the backend. 
-- `GraphRAG(.., key_string_value_json_storage_cls=YOURS,...)`
-
-**`base.BaseVectorStorage` for indexing embeddings**
-
-- By default we use [`nano-vectordb`](https://github.com/gusye1234/nano-vectordb) as the backend.
-- We have a built-in [`hnswlib`](https://github.com/nmslib/hnswlib) storage also, check out this [example](./examples/using_hnsw_as_vectorDB.py).
-- Check out this [example](./examples/using_milvus_as_vectorDB.py) that implements [`milvus-lite`](https://github.com/milvus-io/milvus-lite) as the backend (not available in Windows).
-- `GraphRAG(.., vector_db_storage_cls=YOURS,...)`
-
-**`base.BaseGraphStorage` for storing knowledge graph**
-
-- By default we use [`networkx`](https://github.com/networkx/networkx) as the backend.
-- We have a built-in `Neo4jStorage` for graph, check out this [tutorial](./docs/use_neo4j_for_graphrag.md).
-- `GraphRAG(.., graph_storage_cls=YOURS,...)`
-
-You can refer to `nano_graphrag.base` to see detailed interfaces for each components.
-</details>
-
-
-
-## FQA
-
-Check [FQA](./docs/FAQ.md).
-
-
-
-## Roadmap
-
-See [ROADMAP.md](./docs/ROADMAP.md)
-
-
-
-## Contribute
-
-`nano-graphrag` is open to any kind of contribution. Read [this](./docs/CONTRIBUTING.md) before you contribute.
-
-
-
+---
 
 ## Benchmark
 
-- [benchmark for English](./docs/benchmark-en.md)
-- [benchmark for Chinese](./docs/benchmark-zh.md)
-- [An evaluation](./examples/benchmarks/eval_naive_graphrag_on_multi_hop.ipynb) notebook on a [multi-hop RAG task](https://github.com/yixuantt/MultiHop-RAG)
+- 📊 [English Benchmark](./docs/benchmark-en.md)
+- 📊 [Chinese Benchmark](./docs/benchmark-zh.md)
+- 📓 [Multi-Hop RAG Evaluation](./examples/benchmarks/eval_naive_graphrag_on_multi_hop.ipynb)
 
+---
 
+## Projects Using nano-graphrag
 
-## Projects that used `nano-graphrag`
+- [Medical Graph RAG](https://github.com/MedicineToken/Medical-Graph-RAG) - Graph RAG for Medical Data
+- [LightRAG](https://github.com/HKUDS/LightRAG) - Simple and Fast Retrieval-Augmented Generation
+- [fast-graphrag](https://github.com/circlemind-ai/fast-graphrag) - Adaptive RAG system
+- [HiRAG](https://github.com/hhy-huang/HiRAG) - Hierarchical Knowledge RAG
 
-- [Medical Graph RAG](https://github.com/MedicineToken/Medical-Graph-RAG): Graph RAG for the Medical Data
-- [LightRAG](https://github.com/HKUDS/LightRAG): Simple and Fast Retrieval-Augmented Generation
-- [fast-graphrag](https://github.com/circlemind-ai/fast-graphrag): RAG that intelligently adapts to your use case, data, and queries
-- [HiRAG](https://github.com/hhy-huang/HiRAG): Retrieval-Augmented Generation with Hierarchical Knowledge
+> ❤️ Welcome PRs if your project uses `nano-graphrag`!
 
-> Welcome to pull requests if your project uses `nano-graphrag`, it will help others to trust this repo❤️
+---
 
+## Known Limitations
 
+- `nano-graphrag` does not implement the `covariates` feature from the original GraphRAG
+- Global search differs from original: uses top-K communities (default: 512) instead of map-reduce over all communities
+  - Control with `QueryParam(global_max_consider_community=512)`
 
-## Question-Answer Generation
+---
 
-`nano-graphrag` includes powerful scripts for generating complex reasoning question-answer pairs from knowledge graphs, perfect for creating training data that requires `<think>` tokens.
+## Contributing
 
-### QA Generation Scripts
+Contributions are welcome! Read the [Contributing Guide](./docs/CONTRIBUTING.md) before submitting PRs.
 
-#### **Multi-Hop Reasoning Questions** (`generate_multihop_qa.py`)
-Generates questions that require chaining facts across multiple hops in the knowledge graph:
+**Areas for contribution**:
+- Additional storage backends (Pinecone, Weaviate, etc.)
+- More LLM providers
+- Performance optimizations
+- Documentation improvements
+- Bug fixes and tests
 
-```bash
-python generate_multihop_qa.py --working-dir /path/to/your/graph --num-questions 10 --path-length 2
+---
+
+## Citation
+
+If you use nano-graphrag in your research, please cite:
+
+```bibtex
+@software{nano-graphrag,
+  title = {nano-graphrag: A Simple, Easy-to-Hack GraphRAG Implementation},
+  author = {Gusye},
+  year = {2024},
+  url = {https://github.com/gusye1234/nano-graphrag}
+}
 ```
 
-**Features:**
-- Finds random paths of specified length in the graph
-- Generates questions requiring multi-step reasoning
-- Creates detailed answers with step-by-step explanations
-- Perfect for training models on complex reasoning tasks
+---
 
-#### **Synthesis Questions** (`generate_synthesis_qa.py`)
-Generates "why" and "how" questions that require synthesizing information from entity contexts:
+## License
 
-```bash
-python generate_synthesis_qa.py --working-dir /path/to/your/graph --num-questions 10
-```
+MIT License - see [LICENSE](./LICENSE) for details
 
-**Features:**
-- Identifies central nodes with high connectivity
-- Aggregates rich context from entities and their relationships
-- Generates synthesis questions requiring deep understanding
-- Creates comprehensive answers showing information synthesis
+---
 
-### Example Output
+## Community
 
-**Multi-Hop Question:**
-- **Q:** "How might the use of prescription opioids among older adults be indirectly connected to the risk of heroin overdose in this population?"
-- **A:** Detailed step-by-step reasoning connecting prescription opioids → dependence → heroin use → overdose risk
+- 💬 [Discord](https://discord.gg/sqCVzAhUY6)
+- 💬 [WeChat](https://github.com/gusye1234/nano-graphrag/issues/8)
+- 🐛 [Issues](https://github.com/gusye1234/nano-graphrag/issues)
+- 📢 [Discussions](https://github.com/gusye1234/nano-graphrag/discussions)
 
-**Synthesis Question:**
-- **Q:** "How does the CDC integrate data from diverse surveillance systems to identify emerging public health threats?"
-- **A:** Comprehensive analysis synthesizing surveillance systems, reporting mechanisms, collaborations, and response strategies
+---
 
-### Use Cases
-
-- **Training Data Generation**: Create high-quality QA pairs for fine-tuning language models
-- **Reasoning Evaluation**: Test model capabilities on complex multi-hop and synthesis tasks
-- **Educational Content**: Generate challenging questions for learning and assessment
-- **Research Applications**: Create datasets for reasoning research and evaluation
-
-## GASL (Graph Analysis and Scripting Language)
-
-`nano-graphrag` includes GASL, a domain-specific language for querying and manipulating knowledge graphs. GASL provides a comprehensive set of commands for graph analysis, data transformation, and field creation.
-
-### Core Commands
-
-#### **Discovery & Data Retrieval**
-- `DECLARE` - Create variables (DICT, LIST, COUNTER) with descriptions
-- `FIND` - Discover nodes/edges/paths with filtering criteria
-- `SET` - Set variable values
-- `SELECT` - Select specific fields from data
-
-#### **Data Processing**
-- `PROCESS` - Transform individual items using LLM intelligence
-- `CLASSIFY` - Categorize items using LLM
-- `UPDATE` - Update state variables with data transformations
-
-#### **Graph Navigation**
-- `GRAPHWALK` - Walk through graph following relationships
-- `GRAPHCONNECT` - Find connections between node sets
-- `SUBGRAPH` - Extract subgraph around specific nodes
-- `GRAPHPATTERN` - Find specific patterns in the graph
-
-#### **Data Analysis**
-- `COUNT` - Count frequencies and unique values with grouping
-- `AGGREGATE` - Mathematical aggregations (sum, avg, min, max, count)
-- `CLUSTER` - Cluster similar items using LLM
-
-#### **Data Combination**
-- `JOIN` - Combine variables on matching fields
-- `MERGE` - Combine multiple variables
-- `COMPARE` - Compare variables on specific fields
-
-#### **Field Operations**
-- `RANK` - Rank items by a field
-
-#### **Object Creation**
-- `CREATE` - Create new graph objects (nodes, edges, summaries)
-- `GENERATE` - Generate new content using LLM
-
-#### **Control Flow**
-- `REQUIRE` - Require conditions to be met
-- `ASSERT` - Assert conditions (stops execution if false)
-- `ON` - Conditional execution based on status
-- `TRY/CATCH/FINALLY` - Error handling
-- `CANCEL` - Cancel execution
-
-### Field Management
-
-GASL automatically manages field metadata with descriptions:
-- Fields are auto-generated when conflicts occur (`field_name_1`, `field_name_2`)
-- Each field includes a description of its purpose and source
-- The LLM can always see available fields and their descriptions
-
-### Example Workflows
-
-
-#### **Author Frequency Analysis**
-```
-FIND nodes with entity_type=PERSON AS person_nodes
-PROCESS person_nodes with instruction: "Extract author names from description" AS author_names
-ADD_FIELD person_nodes field: author_name = author_names
-COUNT person_nodes field author_name unique AS author_frequency
-```
-
-#### **Multi-Dataset Analysis**
-```
-FIND nodes with entity_type=PERSON AS person_nodes
-FIND nodes with entity_type=EVENT AS event_nodes
-PROCESS person_nodes with instruction: "Extract author names" AS person_authors
-PROCESS event_nodes with instruction: "Extract author names" AS event_authors
-ADD_FIELD person_nodes field: author_name = person_authors
-ADD_FIELD event_nodes field: author_name = event_authors
-JOIN person_nodes with event_nodes on author_name AS combined_authors
-```
-
-### Usage
-
-#### Run GASL Analysis
-
-```bash
-# Run a GASL query on your papers directory
-python gasl_main.py --working-dir /path/to/your/papers --query "create a histogram of how often author names appear" --max-iterations 3
-
-# Test individual commands
-python test_commands.py "FIND nodes with entity_type=PERSON" --working-dir /path/to/your/papers
-```
-
-#### Working Directory Structure
-
-Your papers directory will contain:
-- Your original paper files (PDFs, text files, etc.)
-- `graph_chunk_entity_relation.graphml` - Generated knowledge graph (auto-created by nano-graphrag)
-- `gasl_state.json` - GASL state file (auto-created)
-- `test_state.json` - Test command state file (auto-created)
-- Other nano-graphrag cache files (auto-created)
-
-All files are stored in your papers directory to keep everything organized and avoid conflicts between different projects.
-
-## Issues
-
-- `nano-graphrag` didn't implement the `covariates` feature of `GraphRAG`
-- `nano-graphrag` implements the global search different from the original. The original use a map-reduce-like style to fill all the communities into context, while `nano-graphrag` only use the top-K important and central communites (use `QueryParam.global_max_consider_community` to control, default to 512 communities).
-
+<div align="center">
+  <p><strong>⭐ Star this repo if you find it useful!</strong></p>
+  <p>Looking for a multi-user RAG solution? Check out <a href="https://github.com/memodb-io/memobase">memobase</a></p>
+</div>
