@@ -36,11 +36,11 @@
 
 😊 This project provides a **smaller, faster, cleaner GraphRAG**, while maintaining the core functionality ([benchmark](#benchmark)).
 
-🎁 **~1100 lines of code** (excluding tests and prompts)
+🎁 **Clean, readable codebase** with well-documented components
 
-👌 Small yet **[portable](#components)** (faiss, neo4j, ollama...), **[asynchronous](#async)**, and fully typed
+👌 Small yet **[portable](#components--extensions)** (faiss, neo4j, ollama...), **[asynchronous](#async-support)**, and fully typed
 
-🚀 **Advanced features**: [GASL](#gasl) for graph queries, [QA generation](#qa-generation) for training data, query-aware prompts
+🚀 **Advanced features**: [GASL](#gasl-graph-analysis--scripting-language) for graph queries, [QA generation](#qa-generation) for training data, query-aware prompts
 
 ---
 
@@ -48,7 +48,8 @@
 
 - [Installation](#installation)
 - [Quick Start](#quick-start)
-- [Core Features](#core-features)
+- [How It Works](#how-it-works)
+- [Query Modes](#query-modes)
 - [Components & Extensions](#components--extensions)
 - [Advanced Features](#advanced-features)
   - [GASL (Graph Analysis & Scripting Language)](#gasl-graph-analysis--scripting-language)
@@ -104,23 +105,29 @@ from nano_graphrag import GraphRAG, QueryParam
 # Initialize GraphRAG
 graph_func = GraphRAG(working_dir="./dickens")
 
-# Insert documents (builds knowledge graph)
+# Insert documents (builds knowledge graph ONCE)
 with open("./book.txt") as f:
     graph_func.insert(f.read())
 
-# Query using local mode (entity-focused, fast)
+# Query using different modes (uses the SAME graph)
+# Local mode: Fast, entity-focused retrieval
 answer = graph_func.query(
     "What are the top themes in this story?",
     param=QueryParam(mode="local")
 )
-print(answer)
 
-# Query using global mode (comprehensive, slower)
+# Global mode: Comprehensive, community-based analysis (DEFAULT)
 answer = graph_func.query(
     "What are the top themes in this story?",
     param=QueryParam(mode="global")
 )
-print(answer)
+
+# Naive mode: Simple vector search, no graph traversal
+rag_naive = GraphRAG(working_dir="./dickens", enable_naive_rag=True)
+answer = rag_naive.query(
+    "What are the top themes in this story?",
+    param=QueryParam(mode="naive")
+)
 ```
 
 **Next run:** GraphRAG automatically reloads from `working_dir`—no need to rebuild!
@@ -149,40 +156,104 @@ with open("./book.txt") as f:
 
 ---
 
-## Core Features
+## How It Works
 
-### 1. Knowledge Graph Construction
+### Graph Construction (One Way)
 
+There is **one unified pipeline** for building knowledge graphs:
+
+```
+Documents
+    ↓
+[1. Chunking] Split into manageable pieces
+    ↓
+[2. Entity Extraction] LLM extracts entities & relationships
+    ↓
+[3. Graph Construction] Build knowledge graph
+    ↓
+[4. Community Detection] Find clusters (Leiden/Louvain)
+    ↓
+[5. Community Reports] Generate summaries of each cluster
+    ↓
+Knowledge Graph (ready for querying)
+```
+
+**Key Features**:
 - **Entity Extraction**: LLM-powered entity and relationship extraction
 - **Dynamic Entity Types**: Query-aware entity type generation
 - **Community Detection**: Leiden/Louvain algorithms for graph clustering
 - **Incremental Updates**: MD5-based deduplication for efficient updates
 
-### 2. Three Query Modes
+---
 
-| Mode | Speed | Accuracy | Best For |
-|------|-------|----------|----------|
-| **Local** | Fast | High | Specific entities, relationships |
-| **Global** | Slow | Highest | Broad themes, comprehensive analysis |
-| **Naive** | Fastest | Medium | Simple facts, baseline comparison |
+## Query Modes
 
-**Local Mode**: Vector search → graph traversal → context assembly → LLM generation
-**Global Mode**: Community detection → community reports → map-reduce synthesis
-**Naive Mode**: Simple vector similarity search (no graph)
+Once you have a knowledge graph, you can query it in **three different ways**:
 
-### 3. Query-Aware Processing
+### Comparison Table
 
-- **Dynamic Prompts**: Automatically optimize prompts for specific queries
-- **Content-Adaptive**: Entity types adapt to document content
-- **Smart Chunking**: Token-based or semantic splitting
+| Mode | Speed | Accuracy | Uses Graph? | Best For |
+|------|-------|----------|-------------|----------|
+| **Local** | Fast ⚡ | High | ✅ Yes (traversal) | Specific entities, direct relationships |
+| **Global** | Slower 🐢 | Highest | ✅ Yes (communities) | Broad themes, comprehensive analysis |
+| **Naive** | Fastest ⚡⚡ | Medium | ❌ No | Simple facts, baseline comparison |
 
-### 4. Pluggable Architecture
+### How Each Mode Works
 
-Replace any component with your own implementation:
-- **LLM**: OpenAI, Azure, Bedrock, Ollama, DeepSeek, or custom
-- **Embeddings**: OpenAI, Bedrock, sentence-transformers, or custom
-- **Vector DB**: NanoVectorDB, HNSW, Milvus, FAISS
-- **Graph DB**: NetworkX, Neo4j
+#### 1. Local Mode (Fast, Entity-Focused)
+```python
+answer = graph_func.query("Who collaborated with Einstein?", param=QueryParam(mode="local"))
+```
+
+**Process**:
+1. Vector search to find relevant entities
+2. Graph traversal to get entity neighborhoods (1-2 hops)
+3. Retrieve source text chunks
+4. LLM generates answer from local context
+
+**Use when**: Asking about specific entities or direct relationships
+
+#### 2. Global Mode (Comprehensive, Community-Based)
+```python
+answer = graph_func.query("What are the main research themes?", param=QueryParam(mode="global"))
+```
+
+**Process**:
+1. Uses pre-computed community structure
+2. Retrieves community reports (summaries of each cluster)
+3. Map-reduce: Analyze each community, then synthesize
+4. LLM generates comprehensive answer
+
+**Use when**: Asking about overall themes, patterns, or broad topics
+
+**Note**: This is the **DEFAULT** mode
+
+#### 3. Naive Mode (Simple Vector Search)
+```python
+# Must enable during initialization
+rag = GraphRAG(working_dir="./cache", enable_naive_rag=True)
+answer = rag.query("What is X?", param=QueryParam(mode="naive"))
+```
+
+**Process**:
+1. Simple vector similarity search on text chunks
+2. No graph traversal or community analysis
+3. LLM generates answer from top-K chunks
+
+**Use when**: Simple lookups, baseline comparisons, or when graph isn't needed
+
+### Switching Between Modes
+
+```python
+# Build graph ONCE
+rag = GraphRAG(working_dir="./cache", enable_naive_rag=True)
+rag.insert(documents)
+
+# Query the SAME graph in different ways
+local_answer = rag.query("question", param=QueryParam(mode="local"))
+global_answer = rag.query("question", param=QueryParam(mode="global"))
+naive_answer = rag.query("question", param=QueryParam(mode="naive"))
+```
 
 ---
 
