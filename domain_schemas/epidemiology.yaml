@@ -1,0 +1,137 @@
+# Epidemiology Domain Schema
+# Focus: Disease spread, risk factors, interventions, public health
+
+domain_name: "Epidemiology"
+domain_description: "Study of disease distribution and determinants in populations, including outbreak investigation, risk factor analysis, and intervention effectiveness"
+
+entity_types:
+  DISEASE:
+    description: "Diseases, syndromes, health outcomes"
+    examples: ["COVID-19", "malaria", "diabetes", "influenza"]
+
+  POPULATION:
+    description: "Study populations, demographic groups, cohorts"
+    examples: ["healthcare workers", "elderly population", "pregnant women", "children under 5"]
+
+  RISK_FACTOR:
+    description: "Exposures, risk factors, determinants of health"
+    examples: ["smoking", "age", "contact with infected individuals", "malnutrition"]
+
+  INTERVENTION:
+    description: "Public health interventions, treatments, preventive measures"
+    examples: ["vaccination", "quarantine", "screening program", "health education"]
+
+  LOCATION:
+    description: "Geographic areas, settings, healthcare facilities"
+    examples: ["sub-Saharan Africa", "hospital", "community", "urban area"]
+
+  PATHOGEN:
+    description: "Causative agents of disease"
+    examples: ["SARS-CoV-2", "Plasmodium", "influenza virus"]
+
+  OUTCOME:
+    description: "Health outcomes, endpoints, metrics"
+    examples: ["mortality", "disease incidence", "transmission rate", "hospitalization"]
+
+  SURVEILLANCE_SYSTEM:
+    description: "Monitoring systems, data collection methods"
+    examples: ["disease surveillance", "reporting system", "serological survey"]
+
+  POLICY:
+    description: "Public health policies, guidelines, regulations"
+    examples: ["mask mandate", "travel restrictions", "vaccination policy"]
+
+relationship_types:
+  CAUSES:
+    description: "Risk factor/pathogen A causes disease/outcome B"
+    inverse: "CAUSED_BY"
+    examples: ["Smoking CAUSES Lung cancer", "SARS-CoV-2 CAUSES COVID-19"]
+
+  INCREASES_RISK:
+    description: "Factor A increases risk of disease/outcome B"
+    inverse: "RISK_INCREASED_BY"
+    examples: ["Age INCREASES_RISK Severe disease"]
+
+  DECREASES_RISK:
+    description: "Factor/intervention A reduces risk of disease/outcome B"
+    inverse: "RISK_DECREASED_BY"
+    examples: ["Vaccination DECREASES_RISK Infection"]
+
+  PREVENTS:
+    description: "Intervention A prevents disease/outcome B"
+    inverse: "PREVENTED_BY"
+    examples: ["Vaccine PREVENTS Disease"]
+
+  TRANSMITS:
+    description: "A transmits pathogen/disease to B"
+    inverse: "TRANSMITTED_BY"
+    examples: ["Infected person TRANSMITS Virus to Susceptible person"]
+
+  AFFECTS:
+    description: "Disease/intervention A affects population B"
+    inverse: "AFFECTED_BY"
+    examples: ["Outbreak AFFECTS Healthcare workers"]
+
+  IMPLEMENTS:
+    description: "Location/organization A implements intervention B"
+    inverse: "IMPLEMENTED_BY"
+    examples: ["Country IMPLEMENTS Vaccination program"]
+
+  MONITORS:
+    description: "System A monitors disease/population B"
+    inverse: "MONITORED_BY"
+    examples: ["Surveillance system MONITORS Disease incidence"]
+
+  SPREADS_IN:
+    description: "Disease A spreads in population/location B"
+    inverse: "HAS_SPREAD_OF"
+    examples: ["COVID-19 SPREADS_IN Urban areas"]
+
+  CONFOUNDS:
+    description: "Variable A confounds relationship between B and C"
+    inverse: "CONFOUNDED_BY"
+    examples: ["Age CONFOUNDS Relationship between exposure and outcome"]
+
+  MEDIATES:
+    description: "Factor A mediates effect of B on C"
+    inverse: "MEDIATED_BY"
+    examples: ["Immune response MEDIATES Effect of vaccine on protection"]
+
+  MODIFIES:
+    description: "Factor A modifies effect of B (effect modification)"
+    inverse: "MODIFIED_BY"
+    examples: ["Age MODIFIES Effect of treatment"]
+
+  ASSOCIATED_WITH:
+    description: "A is statistically associated with B (direction unclear)"
+    inverse: "ASSOCIATED_WITH"
+    symmetric: true
+    examples: ["Exposure ASSOCIATED_WITH Outcome"]
+
+  REDUCES:
+    description: "Intervention A reduces disease/outcome B"
+    inverse: "REDUCED_BY"
+    examples: ["Social distancing REDUCES Transmission rate"]
+
+suitability_criteria:
+  min_entities: 5
+  min_entity_types: 3
+  min_relationships: 4
+  required_entity_types: ["DISEASE", "POPULATION", "INTERVENTION"]
+  keywords:
+    positive: ["incidence", "prevalence", "outbreak", "risk factor", "cohort", "case-control", "transmission", "intervention", "public health", "epidemic"]
+    negative: ["molecular mechanism", "protein structure", "in vitro", "cell culture"]
+
+contrastive_patterns:
+  - "alternative interventions"
+  - "different risk factors for same disease"
+  - "competing prevention strategies"
+  - "multiple transmission routes"
+  - "different population responses"
+  - "alternative screening approaches"
+
+question_generation_focus:
+  - "Intervention effectiveness: Which intervention reduces disease X more in population Y?"
+  - "Risk stratification: Which population is at highest risk given factors A and B?"
+  - "Outbreak dynamics: How does transmission route affect spread pattern?"
+  - "Policy impact: Which policy most effectively controls disease under constraint Z?"

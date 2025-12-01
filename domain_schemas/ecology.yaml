@@ -1,0 +1,134 @@
+# Ecology Domain Schema
+# Focus: Organism interactions, ecosystems, population dynamics, environmental factors
+
+domain_name: "Ecology"
+domain_description: "Study of interactions among organisms and their environment, including population dynamics, community structure, and ecosystem processes"
+
+entity_types:
+  ORGANISM:
+    description: "Species, populations, functional groups"
+    examples: ["wolf", "phytoplankton", "E. coli", "oak tree"]
+
+  POPULATION:
+    description: "Groups of organisms, communities, cohorts"
+    examples: ["prey population", "microbial community", "predator guild"]
+
+  ENVIRONMENT:
+    description: "Habitats, ecosystems, environmental conditions"
+    examples: ["forest", "marine ecosystem", "soil", "temperature gradient"]
+
+  RESOURCE:
+    description: "Nutrients, energy sources, space, limiting resources"
+    examples: ["nitrogen", "sunlight", "territory", "carbon source"]
+
+  INTERACTION:
+    description: "Ecological interactions, relationships between organisms"
+    examples: ["predation", "competition", "mutualism", "parasitism"]
+
+  PROCESS:
+    description: "Ecological processes, biogeochemical cycles"
+    examples: ["succession", "nutrient cycling", "energy flow", "decomposition"]
+
+  TRAIT:
+    description: "Phenotypic traits, life history strategies"
+    examples: ["body size", "growth rate", "dispersal ability", "reproductive strategy"]
+
+  DISTURBANCE:
+    description: "Environmental disturbances, stressors"
+    examples: ["fire", "pollution", "climate change", "habitat fragmentation"]
+
+relationship_types:
+  COMPETES_WITH:
+    description: "A and B compete for resources"
+    inverse: "COMPETES_WITH"
+    symmetric: true
+    examples: ["Species A COMPETES_WITH Species B for nitrogen"]
+
+  PREYS_ON:
+    description: "Predator A consumes prey B"
+    inverse: "PREYED_ON_BY"
+    examples: ["Wolf PREYS_ON Deer"]
+
+  MUTUALISM_WITH:
+    description: "A and B have mutually beneficial relationship"
+    inverse: "MUTUALISM_WITH"
+    symmetric: true
+    examples: ["Plant MUTUALISM_WITH Pollinator"]
+
+  PARASITIZES:
+    description: "Parasite A exploits host B"
+    inverse: "PARASITIZED_BY"
+    examples: ["Tick PARASITIZES Mammal"]
+
+  INHABITS:
+    description: "Organism A lives in habitat B"
+    inverse: "INHABITED_BY"
+    examples: ["Fish INHABITS Coral reef"]
+
+  CONSUMES:
+    description: "Organism A consumes resource B"
+    inverse: "CONSUMED_BY"
+    examples: ["Plant CONSUMES Nitrogen"]
+
+  PRODUCES:
+    description: "Organism A produces/releases substance B"
+    inverse: "PRODUCED_BY"
+    examples: ["Plant PRODUCES Oxygen"]
+
+  AFFECTS:
+    description: "A influences the abundance/behavior of B"
+    inverse: "AFFECTED_BY"
+    examples: ["Predator AFFECTS Prey population"]
+
+  FACILITATES:
+    description: "A improves conditions for B"
+    inverse: "FACILITATED_BY"
+    examples: ["Nurse plant FACILITATES Seedling establishment"]
+
+  DISPERSES:
+    description: "A disperses to/colonizes location B"
+    inverse: "DISPERSED_TO"
+    examples: ["Species DISPERSES New habitat"]
+
+  REGULATES:
+    description: "A regulates population/process B"
+    inverse: "REGULATED_BY"
+    examples: ["Top predator REGULATES Prey population"]
+
+  TOLERATES:
+    description: "Organism A tolerates stress/condition B"
+    inverse: "TOLERATED_BY"
+    examples: ["Extremophile TOLERATES High temperature"]
+
+  RESPONDS_TO:
+    description: "Organism/population A responds to environmental factor B"
+    inverse: "ELICITS_RESPONSE_FROM"
+    examples: ["Population RESPONDS_TO Climate change"]
+
+  EXCLUDES:
+    description: "A competitively excludes B from niche"
+    inverse: "EXCLUDED_BY"
+    examples: ["Dominant species EXCLUDES Weaker competitor"]
+
+suitability_criteria:
+  min_entities: 5
+  min_entity_types: 3
+  min_relationships: 4
+  required_entity_types: ["ORGANISM", "INTERACTION", "ENVIRONMENT"]
+  keywords:
+    positive: ["species", "population", "community", "ecosystem", "competition", "predation", "niche", "habitat", "food web", "diversity"]
+    negative: ["molecular mechanism", "protein structure", "gene sequence", "clinical trial"]
+
+contrastive_patterns:
+  - "alternative ecological strategies"
+  - "competing species in same niche"
+  - "different responses to environmental stress"
+  - "multiple pathways in food web"
+  - "alternative mutualistic partners"
+  - "different dispersal strategies"
+
+question_generation_focus:
+  - "Competition dynamics: Which species dominates under condition X?"
+  - "Trophic cascades: How does removing predator A affect community B?"
+  - "Resource partitioning: How do competing species coexist?"
+  - "Environmental response: Which organism thrives under disturbance Y?"

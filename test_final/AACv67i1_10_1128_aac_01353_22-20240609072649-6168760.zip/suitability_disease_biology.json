@@ -1,0 +1,45 @@
+{
+  "paper_path": "test_final/AACv67i1_10_1128_aac_01353_22-20240609072649-6168760.zip/combined_text.txt",
+  "domain": "disease_biology",
+  "suitable": true,
+  "assessment": {
+    "suitable": true,
+    "confidence": 0.92,
+    "reasoning": "The paper is highly relevant to Disease Biology, focusing on the molecular and cellular mechanisms of COVID-19 and the prophylactic effect of a monoclonal antibody (adintrevimab) in animal models. It discusses the interaction between a therapeutic protein (adintrevimab), the viral spike protein, and the disease (COVID-19), as well as disease pathology and progression in animal models. The required entity types (DISEASE, GENE, PROTEIN) are present, along with others such as TREATMENT, PHENOTYPE, and CELL_TYPE. Multiple relationship types are evident, including TREATS, TARGETS, INHIBITS, EXPRESSED_IN, and CORRELATES_WITH. There are sufficient entities and relationships for meaningful knowledge graph construction.",
+    "entity_types_found": [
+      "DISEASE",
+      "PROTEIN",
+      "GENE",
+      "TREATMENT",
+      "PHENOTYPE",
+      "CELL_TYPE",
+      "TISSUE",
+      "BIOMARKER"
+    ],
+    "relationship_types_found": [
+      "TREATS",
+      "TARGETS",
+      "INHIBITS",
+      "EXPRESSED_IN",
+      "CORRELATES_WITH",
+      "ACCUMULATES_IN"
+    ],
+    "estimated_entity_count": 10,
+    "estimated_relationship_count": 6,
+    "positive_indicators": [
+      "disease mechanism",
+      "pathology",
+      "molecular basis",
+      "protein function",
+      "disease progression",
+      "therapeutic intervention",
+      "animal model of disease"
+    ],
+    "negative_indicators": [
+      "preclinical",
+      "animal model"
+    ],
+    "contrastive_potential": "The paper compares the effects of adintrevimab versus control antibodies and discusses activity against different SARS-CoV-2 variants, which could support contrastive question generation regarding efficacy across viral strains or treatment conditions.",
+    "domain": "Disease Biology"
+  }
+}

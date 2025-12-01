@@ -1,0 +1,127 @@
+# Molecular Biology Domain Schema
+# Focus: Molecular mechanisms, protein interactions, gene regulation, biochemical pathways
+
+domain_name: "Molecular Biology"
+domain_description: "Study of biological activity at the molecular level, including interactions between DNA, RNA, proteins, and their biosynthesis"
+
+entity_types:
+  COMPOUND:
+    description: "Small molecules, drugs, metabolites, cofactors"
+    examples: ["ATP", "glucose", "dolutegravir", "NADH"]
+
+  PROTEIN:
+    description: "Proteins, enzymes, antibodies, protein complexes"
+    examples: ["DNA polymerase", "hemoglobin", "kinase", "transcription factor"]
+
+  GENE:
+    description: "Genes, genetic elements, loci, promoters"
+    examples: ["TP53", "lac operon", "promoter region", "enhancer"]
+
+  RNA:
+    description: "RNA molecules including mRNA, tRNA, rRNA, ncRNA"
+    examples: ["mRNA", "ribosomal RNA", "microRNA", "siRNA"]
+
+  PATHWAY:
+    description: "Biochemical pathways, signal transduction cascades"
+    examples: ["glycolysis", "TCA cycle", "MAPK pathway", "apoptosis pathway"]
+
+  MECHANISM:
+    description: "Molecular mechanisms, processes, regulatory systems"
+    examples: ["phosphorylation", "transcriptional regulation", "protein folding", "allosteric regulation"]
+
+  PHENOTYPE:
+    description: "Observable molecular outcomes, expression levels, activity states"
+    examples: ["increased expression", "enzyme activity", "protein localization", "binding affinity"]
+
+  CELLULAR_COMPONENT:
+    description: "Organelles, cellular structures, subcellular locations"
+    examples: ["mitochondria", "nucleus", "membrane", "ribosome"]
+
+relationship_types:
+  INHIBITS:
+    description: "A reduces, blocks, or prevents the activity/expression of B"
+    inverse: "INHIBITED_BY"
+    examples: ["Drug X INHIBITS Enzyme Y", "Protein A INHIBITS Gene B expression"]
+
+  ACTIVATES:
+    description: "A enhances, promotes, or increases the activity/expression of B"
+    inverse: "ACTIVATED_BY"
+    examples: ["Kinase A ACTIVATES Protein B", "Transcription factor ACTIVATES Gene X"]
+
+  PHOSPHORYLATES:
+    description: "A adds phosphate group to B"
+    inverse: "PHOSPHORYLATED_BY"
+    examples: ["Kinase A PHOSPHORYLATES Protein B at Ser123"]
+
+  BINDS:
+    description: "A physically interacts with or binds to B"
+    inverse: "BINDS"
+    symmetric: true
+    examples: ["Ligand A BINDS Receptor B", "Protein A BINDS DNA sequence"]
+
+  ENCODES:
+    description: "Gene A encodes protein/RNA B"
+    inverse: "ENCODED_BY"
+    examples: ["Gene TP53 ENCODES protein p53"]
+
+  CATALYZES:
+    description: "Enzyme A catalyzes reaction/conversion B"
+    inverse: "CATALYZED_BY"
+    examples: ["Polymerase CATALYZES DNA synthesis"]
+
+  PART_OF:
+    description: "A is a component or member of complex/pathway B"
+    inverse: "HAS_PART"
+    examples: ["Protein A PART_OF Complex B", "Reaction X PART_OF Pathway Y"]
+
+  REGULATES:
+    description: "A regulates B (when direction unclear)"
+    inverse: "REGULATED_BY"
+    examples: ["Protein A REGULATES Gene B"]
+
+  CAUSES:
+    description: "A directly causes molecular outcome B"
+    inverse: "CAUSED_BY"
+    examples: ["Mutation A CAUSES Loss of function B"]
+
+  COMPETES_WITH:
+    description: "A and B compete for the same binding site/substrate/resource"
+    inverse: "COMPETES_WITH"
+    symmetric: true
+    examples: ["Drug A COMPETES_WITH Substrate B for enzyme active site"]
+
+  PRECEDES:
+    description: "A occurs before B in a sequential process"
+    inverse: "FOLLOWS"
+    examples: ["Transcription PRECEDES Translation"]
+
+  LOCALIZES_TO:
+    description: "A is located in or moves to cellular location B"
+    inverse: "CONTAINS"
+    examples: ["Protein A LOCALIZES_TO nucleus"]
+
+# Suitability criteria for this domain
+suitability_criteria:
+  min_entities: 5
+  min_entity_types: 3
+  min_relationships: 4
+  required_entity_types: ["PROTEIN", "COMPOUND", "GENE"]  # At least one of these must be present
+  keywords:
+    positive: ["enzyme", "protein", "gene", "pathway", "mechanism", "regulation", "expression", "binding", "catalysis", "phosphorylation"]
+    negative: ["clinical trial", "patient cohort", "epidemiology", "survey", "meta-analysis"]
+
+# Contrastive patterns to look for
+contrastive_patterns:
+  - "alternative mechanisms"
+  - "competing pathways"
+  - "different enzymes catalyzing the same reaction"
+  - "multiple regulators of the same target"
+  - "substrate competition"
+  - "alternative binding modes"
+
+# Question generation focus
+question_generation_focus:
+  - "Mechanistic reasoning: How does A cause B through intermediate steps?"
+  - "Regulatory logic: What happens when regulator X is removed?"
+  - "Competitive dynamics: Which enzyme/pathway dominates under condition Y?"
+  - "Pathway perturbations: If step N is blocked, which alternative activates?"

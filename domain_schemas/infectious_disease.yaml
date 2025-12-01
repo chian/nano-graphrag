@@ -1,0 +1,136 @@
+# Infectious Disease Domain Schema
+# Focus: Host-pathogen interactions, disease progression, immune response, treatment
+
+domain_name: "Infectious Disease"
+domain_description: "Study of infectious diseases, host-pathogen interactions, immune responses, and clinical interventions"
+
+entity_types:
+  PATHOGEN:
+    description: "Disease-causing organisms (bacteria, viruses, parasites, fungi)"
+    examples: ["Mycobacterium tuberculosis", "HIV", "Plasmodium falciparum", "SARS-CoV-2"]
+
+  HOST:
+    description: "Infected organisms, host cells, patient populations"
+    examples: ["human", "macrophage", "epithelial cell", "immunocompromised patient"]
+
+  DISEASE:
+    description: "Infectious diseases, disease states, clinical conditions"
+    examples: ["tuberculosis", "malaria", "COVID-19", "sepsis"]
+
+  IMMUNE_COMPONENT:
+    description: "Immune cells, antibodies, cytokines, immune responses"
+    examples: ["T cell", "antibody", "interferon", "inflammation", "adaptive immunity"]
+
+  TREATMENT:
+    description: "Drugs, therapies, vaccines, interventions"
+    examples: ["antibiotic", "antiviral", "vaccine", "immunotherapy"]
+
+  VIRULENCE_FACTOR:
+    description: "Pathogen components that cause disease"
+    examples: ["toxin", "adhesin", "capsule", "immune evasion protein"]
+
+  SYMPTOM:
+    description: "Clinical manifestations, symptoms, pathology"
+    examples: ["fever", "cough", "organ damage", "inflammatory response"]
+
+  TRANSMISSION:
+    description: "Modes of disease transmission, vectors"
+    examples: ["airborne transmission", "vector-borne", "fecal-oral", "sexual transmission"]
+
+  TISSUE:
+    description: "Infected tissues, organs, anatomical sites"
+    examples: ["lung", "blood", "gut", "brain", "liver"]
+
+relationship_types:
+  INFECTS:
+    description: "Pathogen A infects host/tissue B"
+    inverse: "INFECTED_BY"
+    examples: ["SARS-CoV-2 INFECTS Lung epithelial cells"]
+
+  CAUSES:
+    description: "A directly causes disease/symptom B"
+    inverse: "CAUSED_BY"
+    examples: ["Pathogen CAUSES Disease", "Toxin CAUSES Tissue damage"]
+
+  TREATS:
+    description: "Treatment A is used to treat disease/infection B"
+    inverse: "TREATED_BY"
+    examples: ["Antibiotic TREATS Bacterial infection"]
+
+  TARGETS:
+    description: "Treatment/immune component A targets pathogen/factor B"
+    inverse: "TARGETED_BY"
+    examples: ["Drug TARGETS Viral enzyme", "Antibody TARGETS Surface protein"]
+
+  EVADES:
+    description: "Pathogen A evades immune component B"
+    inverse: "EVADED_BY"
+    examples: ["Virus EVADES Antibody response"]
+
+  ACTIVATES:
+    description: "A activates immune response/pathway B"
+    inverse: "ACTIVATED_BY"
+    examples: ["Pathogen ACTIVATES Innate immunity", "Cytokine ACTIVATES T cells"]
+
+  SUPPRESSES:
+    description: "A suppresses immune response/activity B"
+    inverse: "SUPPRESSED_BY"
+    examples: ["Virus SUPPRESSES Interferon response", "Immunosuppressant SUPPRESSES T cell activity"]
+
+  TRANSMITS:
+    description: "A transmits pathogen B via route C"
+    inverse: "TRANSMITTED_BY"
+    examples: ["Mosquito TRANSMITS Malaria parasite"]
+
+  COLONIZES:
+    description: "Pathogen A colonizes tissue/site B"
+    inverse: "COLONIZED_BY"
+    examples: ["Bacterium COLONIZES Respiratory tract"]
+
+  PRESENTS:
+    description: "Disease/infection A presents with symptom B"
+    inverse: "PRESENTED_IN"
+    examples: ["COVID-19 PRESENTS Respiratory symptoms"]
+
+  RESISTS:
+    description: "Pathogen A is resistant to treatment B"
+    inverse: "RESISTED_BY"
+    examples: ["Strain RESISTS Antibiotic"]
+
+  PROTECTS_AGAINST:
+    description: "Immune component/vaccine A protects against pathogen/disease B"
+    inverse: "PROTECTED_BY"
+    examples: ["Vaccine PROTECTS_AGAINST Disease", "Antibody PROTECTS_AGAINST Infection"]
+
+  EXACERBATES:
+    description: "Factor A worsens disease/symptom B"
+    inverse: "EXACERBATED_BY"
+    examples: ["Co-infection EXACERBATES Disease severity"]
+
+  MEDIATES:
+    description: "Factor A mediates process/outcome B"
+    inverse: "MEDIATED_BY"
+    examples: ["Cytokine MEDIATES Inflammation"]
+
+suitability_criteria:
+  min_entities: 5
+  min_entity_types: 3
+  min_relationships: 4
+  required_entity_types: ["PATHOGEN", "DISEASE", "TREATMENT"]
+  keywords:
+    positive: ["infection", "disease", "pathogen", "immune", "treatment", "vaccine", "host", "virulence", "transmission", "clinical"]
+    negative: ["in vitro only", "molecular dynamics simulation", "purely computational"]
+
+contrastive_patterns:
+  - "alternative treatments"
+  - "different pathogens causing same disease"
+  - "multiple immune evasion strategies"
+  - "competing therapeutic approaches"
+  - "alternative transmission routes"
+  - "different disease manifestations"
+
+question_generation_focus:
+  - "Host-pathogen dynamics: How does pathogen X evade immune response Y?"
+  - "Treatment selection: Which drug is more effective for strain A vs B?"
+  - "Disease progression: Why do symptoms differ in host type X vs Y?"
+  - "Immune response: Which immune component is most critical for clearing infection Z?"

@@ -1,0 +1,1898 @@
+{
+  "generated": "2025-12-01T12:58:15.134010",
+  "directory": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems",
+  "domain": "molecular_biology",
+  "total_papers": 210,
+  "papers": [
+    {
+      "id": "msystems.00403-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i5_10_1128_msystems_00403_22-20240609053404-4000194/source_files/msystems.00403-22.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00451-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i5_10_1128_msystems_00451_22-20240609053404-4000194/source_files/msystems.00451-22.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00476-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i5_10_1128_msystems_00476_22-20240609053404-4000194/source_files/msystems.00476-22.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00491-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i5_10_1128_msystems_00491_22-20240609053404-4000194/source_files/msystems.00491-22.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00585-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i5_10_1128_msystems_00585_22-20240609053404-4000194/source_files/msystems.00585-22.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00646-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i5_10_1128_msystems_00646_22-20240609053404-4000194/source_files/msystems.00646-22.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00995-21",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i5_10_1128_msystems_00995_21-20240609053404-4000194/source_files/msystems.00995-21.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01522-21",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i5_10_1128_msystems_01522_21-20240609053404-4000194/source_files/msystems.01522-21.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "board-of-editors",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i6_10_1128_mSystems_2022_7_issue_6-20240609053749-7485109/source_files/board-of-editors.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00358-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i6_10_1128_msystems_00358_22-20240609053749-7485109/source_files/msystems.00358-22.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00447-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i6_10_1128_msystems_00447_22-20240609053749-7485109/source_files/msystems.00447-22.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00563-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i6_10_1128_msystems_00563_22-20240609053749-7485109/source_files/msystems.00563-22.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00582-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i6_10_1128_msystems_00582_22-20240609053749-7485109/source_files/msystems.00582-22.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00640-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i6_10_1128_msystems_00640_22-20240609053749-7485109/source_files/msystems.00640-22.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00649-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i6_10_1128_msystems_00649_22-20240609053749-7485109/source_files/msystems.00649-22.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00685-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i6_10_1128_msystems_00685_22-20240609053749-7485109/source_files/msystems.00685-22.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00710-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i6_10_1128_msystems_00710_22-20240609053749-7485109/source_files/msystems.00710-22.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00775-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i6_10_1128_msystems_00775_22-20240609053749-7485109/source_files/msystems.00775-22.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00827-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i6_10_1128_msystems_00827_22-20240609053749-7485109/source_files/msystems.00827-22.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00893-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i6_10_1128_msystems_00893_22-20240609053749-7485109/source_files/msystems.00893-22.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00907-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i6_10_1128_msystems_00907_22-20240609053749-7485109/source_files/msystems.00907-22.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00925-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i6_10_1128_msystems_00925_22-20240609053749-7485109/source_files/msystems.00925-22.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00951-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i6_10_1128_msystems_00951_22-20240609053749-7485109/source_files/msystems.00951-22.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00953-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i6_10_1128_msystems_00953_22-20240609053749-7485109/source_files/msystems.00953-22.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01052-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i6_10_1128_msystems_01052_22-20240609053749-7485109/source_files/msystems.01052-22.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00564-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i1_10_1128_msystems_00564_22-20240609053753-5727089/source_files/msystems.00564-22.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00852-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i1_10_1128_msystems_00852_22-20240609053753-5727089/source_files/msystems.00852-22.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00922-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i1_10_1128_msystems_00922_22-20240609053753-5727089/source_files/msystems.00922-22.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00929-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i1_10_1128_msystems_00929_22-20240609053753-5727089/source_files/msystems.00929-22.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00994-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i1_10_1128_msystems_00994_22-20240609053753-5727089/source_files/msystems.00994-22.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01029-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i1_10_1128_msystems_01029_22-20240609053753-5727089/source_files/msystems.01029-22.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01043-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i1_10_1128_msystems_01043_22-20240609053753-5727089/source_files/msystems.01043-22.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01068-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i1_10_1128_msystems_01068_22-20240609053753-5727089/source_files/msystems.01068-22.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01106-22-s0006",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i1_10_1128_msystems_01106_22-20240609053753-5727089/msystems.2023.8.issue-1/msystems.01106-22/suppl/msystems.01106-22-s0006.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01150-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i1_10_1128_msystems_01150_22-20240609053753-5727089/source_files/msystems.01150-22.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01282-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i1_10_1128_msystems_01282_22-20240609053753-5727089/source_files/msystems.01282-22.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00002-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i2_10_1128_msystems_00002_23-20240609053807-5568251/source_files/msystems.00002-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00024-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i2_10_1128_msystems_00024_23-20240609053807-5568251/source_files/msystems.00024-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00622-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i2_10_1128_msystems_00622_22-20240609053807-5568251/source_files/msystems.00622-22.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00718-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i2_10_1128_msystems_00718_22-20240609053807-5568251/source_files/msystems.00718-22.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00884-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i2_10_1128_msystems_00884_22-20240609053807-5568251/source_files/msystems.00884-22.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00992-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i2_10_1128_msystems_00992_22-20240609053807-5568251/source_files/msystems.00992-22.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01003-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i2_10_1128_msystems_01003_22-20240609053807-5568251/source_files/msystems.01003-22.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01086-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i2_10_1128_msystems_01086_22-20240609053807-5568251/source_files/msystems.01086-22.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01179-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i2_10_1128_msystems_01179_22-20240609053807-5568251/source_files/msystems.01179-22.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01192-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i2_10_1128_msystems_01192_22-20240609053807-5568251/source_files/msystems.01192-22.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01205-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i2_10_1128_msystems_01205_22-20240609053807-5568251/source_files/msystems.01205-22.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01211-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i2_10_1128_msystems_01211_22-20240609053807-5568251/source_files/msystems.01211-22.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01270-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i2_10_1128_msystems_01270_22-20240609053807-5568251/source_files/msystems.01270-22.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01274-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i2_10_1128_msystems_01274_22-20240609053807-5568251/source_files/msystems.01274-22.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00028-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i3_10_1128_msystems_00028_23-20240609053743-4969529/source_files/msystems.00028-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00201-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i3_10_1128_msystems_00201_23-20240609053743-4969529/source_files/msystems.00201-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00247-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i3_10_1128_msystems_00247_23-20240609053743-4969529/source_files/msystems.00247-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00252-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i3_10_1128_msystems_00252_23-20240609053743-4969529/source_files/msystems.00252-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00734-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i3_10_1128_msystems_00734_22-20240609053743-4969529/source_files/msystems.00734-22.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01002-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i3_10_1128_msystems_01002_22-20240609053743-4969529/source_files/msystems.01002-22.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01049-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i3_10_1128_msystems_01049_22-20240609053743-4969529/source_files/msystems.01049-22.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01073-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i3_10_1128_msystems_01073_22-20240609053743-4969529/source_files/msystems.01073-22.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01083-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i3_10_1128_msystems_01083_22-20240609053743-4969529/source_files/msystems.01083-22.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01238-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i3_10_1128_msystems_01238_22-20240609053743-4969529/source_files/msystems.01238-22.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00040-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i4_10_1128_msystems_00040_23-20240609053732-7637471/source_files/msystems.00040-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00083-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i4_10_1128_msystems_00083_23-20240609053732-7637471/source_files/msystems.00083-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00135-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i4_10_1128_msystems_00135_23-20240609053732-7637471/source_files/msystems.00135-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00206-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i4_10_1128_msystems_00206_23-20240609053732-7637471/source_files/msystems.00206-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00259-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i4_10_1128_msystems_00259_23-20240609053732-7637471/source_files/msystems.00259-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00292-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i4_10_1128_msystems_00292_23-20240609053732-7637471/source_files/msystems.00292-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00305-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i4_10_1128_msystems_00305_23-20240609053732-7637471/source_files/msystems.00305-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00345-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i4_10_1128_msystems_00345_23-20240609053732-7637471/source_files/msystems.00345-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00357-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i4_10_1128_msystems_00357_23-20240609053732-7637471/source_files/msystems.00357-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00477-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i4_10_1128_msystems_00477_23-20240609053732-7637471/source_files/msystems.00477-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01280-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i4_10_1128_msystems_01280_22-20240609053732-7637471/source_files/msystems.01280-22.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00245-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i5_10_1128_msystems_00245_23-20240609053728-1525426/source_files/msystems.00245-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00379-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i5_10_1128_msystems_00379_23-20240609053728-1525426/source_files/msystems.00379-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00391-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i5_10_1128_msystems_00391_23-20240609053728-1525426/source_files/msystems.00391-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00425-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i5_10_1128_msystems_00425_23-20240609053728-1525426/source_files/msystems.00425-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00467-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i5_10_1128_msystems_00467_23-20240609053728-1525426/source_files/msystems.00467-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00492-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i5_10_1128_msystems_00492_23-20240609053728-1525426/source_files/msystems.00492-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00564-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i5_10_1128_msystems_00564_23-20240609053728-1525426/source_files/msystems.00564-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00629-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i5_10_1128_msystems_00629_23-20240609053728-1525426/source_files/msystems.00629-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00646-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i5_10_1128_msystems_00646_23-20240609053728-1525426/source_files/msystems.00646-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00683-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i5_10_1128_msystems_00683_23-20240609053728-1525426/source_files/msystems.00683-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00718-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i5_10_1128_msystems_00718_23-20240609053728-1525426/source_files/msystems.00718-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00730-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i5_10_1128_msystems_00730_23-20240609053728-1525426/source_files/msystems.00730-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00915-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i5_10_1128_msystems_00915_23-20240609053728-1525426/source_files/msystems.00915-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00917-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i5_10_1128_msystems_00917_23-20240609053728-1525426/source_files/msystems.00917-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01236-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i5_10_1128_msystems_01236_22-20240609053728-1525426/source_files/msystems.01236-22.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00331-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i6_10_1128_msystems_00331_23-20240609053808-1776285/source_files/msystems.00331-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00593-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i6_10_1128_msystems_00593_23-20240609053808-1776285/source_files/msystems.00593-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00643-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i6_10_1128_msystems_00643_23-20240609053808-1776285/source_files/msystems.00643-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00717-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i6_10_1128_msystems_00717_23-20240609053808-1776285/source_files/msystems.00717-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00724-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i6_10_1128_msystems_00724_23-20240609053808-1776285/source_files/msystems.00724-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00742-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i6_10_1128_msystems_00742_23-20240609053808-1776285/source_files/msystems.00742-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00755-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i6_10_1128_msystems_00755_23-20240609053808-1776285/source_files/msystems.00755-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00998-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i6_10_1128_msystems_00998_23-20240609053808-1776285/source_files/msystems.00998-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01025-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i6_10_1128_msystems_01025_23-20240609053808-1776285/source_files/msystems.01025-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01026-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i6_10_1128_msystems_01026_23-20240609053808-1776285/source_files/msystems.01026-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01045-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i6_10_1128_msystems_01045_23-20240609053808-1776285/source_files/msystems.01045-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01189-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i6_10_1128_msystems_01189_23-20240609053808-1776285/source_files/msystems.01189-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00484-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i1_10_1128_msystems_00484_23-20240609053924-9239504/source_files/msystems.00484-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00803-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i1_10_1128_msystems_00803_23-20240609053924-9239504/source_files/msystems.00803-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00810-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i1_10_1128_msystems_00810_23-20240609053924-9239504/source_files/msystems.00810-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01013-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i1_10_1128_msystems_01013_23-20240609053924-9239504/source_files/msystems.01013-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01018-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i1_10_1128_msystems_01018_23-20240609053924-9239504/source_files/msystems.01018-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01049-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i1_10_1128_msystems_01049_23-20240609053924-9239504/source_files/msystems.01049-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01058-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i1_10_1128_msystems_01058_23-20240609053924-9239504/source_files/msystems.01058-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01169-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i1_10_1128_msystems_01169_23-20240609053924-9239504/source_files/msystems.01169-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01190-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i1_10_1128_msystems_01190_23-20240609053924-9239504/source_files/msystems.01190-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00924-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i2_10_1128_msystems_00924_23-20240609053824-7896232/source_files/msystems.00924-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00950-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i2_10_1128_msystems_00950_23-20240609053824-7896232/source_files/msystems.00950-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01043-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i2_10_1128_msystems_01043_23-20240609053824-7896232/source_files/msystems.01043-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01233-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i2_10_1128_msystems_01233_23-20240609053824-7896232/source_files/msystems.01233-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00707-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i3_10_1128_msystems_00707_23-20240609053926-4145590/source_files/msystems.00707-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00942-23-s0003",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i3_10_1128_msystems_00942_23-20240609053926-4145590/msystems.2024.9.issue-3/msystems.00942-23/suppl/msystems.00942-23-s0003.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00967-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i3_10_1128_msystems_00967_23-20240609053926-4145590/source_files/msystems.00967-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01050-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i3_10_1128_msystems_01050_23-20240609053926-4145590/source_files/msystems.01050-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01188-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i3_10_1128_msystems_01188_23-20240609053926-4145590/source_files/msystems.01188-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01219-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i3_10_1128_msystems_01219_23-20240609053926-4145590/source_files/msystems.01219-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01257-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i3_10_1128_msystems_01257_23-20240609053926-4145590/source_files/msystems.01257-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01299-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i3_10_1128_msystems_01299_23-20240609053926-4145590/source_files/msystems.01299-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01322-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i3_10_1128_msystems_01322_23-20240609053926-4145590/source_files/msystems.01322-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "editorial-board",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i3_10_1128_msystems_2024_9_issue_3-20240609053926-4145590/source_files/editorial-board.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00023-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i4_10_1128_msystems_00023_24-20240609053956-7162683/source_files/msystems.00023-24.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00064-24-s0006",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i4_10_1128_msystems_00064_24-20240609053956-7162683/msystems.2024.9.issue-4/msystems.00064-24/suppl/msystems.00064-24-s0006.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00064-24-s0007",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i4_10_1128_msystems_00064_24-20240609053956-7162683/msystems.2024.9.issue-4/msystems.00064-24/suppl/msystems.00064-24-s0007.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00130-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i4_10_1128_msystems_00130_24-20240609053956-7162683/source_files/msystems.00130-24.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00221-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i4_10_1128_msystems_00221_24-20240609053956-7162683/source_files/msystems.00221-24.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00971-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i4_10_1128_msystems_00971_23-20240609053956-7162683/source_files/msystems.00971-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01126-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i4_10_1128_msystems_01126_23-20240609053956-7162683/source_files/msystems.01126-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01154-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i4_10_1128_msystems_01154_23-20240609053956-7162683/source_files/msystems.01154-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01165-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i4_10_1128_msystems_01165_23-20240609053956-7162683/source_files/msystems.01165-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01218-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i4_10_1128_msystems_01218_23-20240609053956-7162683/source_files/msystems.01218-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01225-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i4_10_1128_msystems_01225_23-20240609053956-7162683/source_files/msystems.01225-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01263-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i4_10_1128_msystems_01263_23-20240609053956-7162683/source_files/msystems.01263-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01290-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i4_10_1128_msystems_01290_23-20240609053956-7162683/source_files/msystems.01290-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01294-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i4_10_1128_msystems_01294_23-20240609053956-7162683/source_files/msystems.01294-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01323-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i4_10_1128_msystems_01323_23-20240609053956-7162683/source_files/msystems.01323-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01328-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i4_10_1128_msystems_01328_23-20240609053956-7162683/source_files/msystems.01328-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01368-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i4_10_1128_msystems_01368_23-20240609053956-7162683/source_files/msystems.01368-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01369-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i4_10_1128_msystems_01369_23-20240609053956-7162683/source_files/msystems.01369-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01397-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i4_10_1128_msystems_01397_23-20240609053956-7162683/source_files/msystems.01397-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01401-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i4_10_1128_msystems_01401_23-20240609053956-7162683/source_files/msystems.01401-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "editorial-board",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i4_10_1128_msystems_2024_9_issue_4-20240609053956-7162683/source_files/editorial-board.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00004-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i5_10_1128_msystems_00004_24-20240603094438-4768041/source_files/msystems.00004-24.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00004-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i5_10_1128_msystems_00004_24-20240609054000-9942339/source_files/msystems.00004-24.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00083-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i5_10_1128_msystems_00083_24-20240603094438-4768041/source_files/msystems.00083-24.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00083-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i5_10_1128_msystems_00083_24-20240609054000-9942339/source_files/msystems.00083-24.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00093-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i5_10_1128_msystems_00093_24-20240603094438-4768041/source_files/msystems.00093-24.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00093-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i5_10_1128_msystems_00093_24-20240609054000-9942339/source_files/msystems.00093-24.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00124-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i5_10_1128_msystems_00124_24-20240603094438-4768041/source_files/msystems.00124-24.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00124-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i5_10_1128_msystems_00124_24-20240609054000-9942339/source_files/msystems.00124-24.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00179-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i5_10_1128_msystems_00179_24-20240603094438-4768041/source_files/msystems.00179-24.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00179-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i5_10_1128_msystems_00179_24-20240609054000-9942339/source_files/msystems.00179-24.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00246-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i5_10_1128_msystems_00246_24-20240603094438-4768041/source_files/msystems.00246-24.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00246-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i5_10_1128_msystems_00246_24-20240609054000-9942339/source_files/msystems.00246-24.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00250-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i5_10_1128_msystems_00250_24-20240603094438-4768041/source_files/msystems.00250-24.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00250-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i5_10_1128_msystems_00250_24-20240609054000-9942339/source_files/msystems.00250-24.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00261-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i5_10_1128_msystems_00261_24-20240603094438-4768041/source_files/msystems.00261-24.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00261-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i5_10_1128_msystems_00261_24-20240609054000-9942339/source_files/msystems.00261-24.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00289-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i5_10_1128_msystems_00289_24-20240603094438-4768041/source_files/msystems.00289-24.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00289-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i5_10_1128_msystems_00289_24-20240609054000-9942339/source_files/msystems.00289-24.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00339-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i5_10_1128_msystems_00339_24-20240603094438-4768041/source_files/msystems.00339-24.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00339-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i5_10_1128_msystems_00339_24-20240609054000-9942339/source_files/msystems.00339-24.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00503-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i5_10_1128_msystems_00503_24-20240603094438-4768041/source_files/msystems.00503-24.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00503-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i5_10_1128_msystems_00503_24-20240609054000-9942339/source_files/msystems.00503-24.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01222-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i5_10_1128_msystems_01222_23-20240603094438-4768041/source_files/msystems.01222-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01222-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i5_10_1128_msystems_01222_23-20240609054000-9942339/source_files/msystems.01222-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01305-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i5_10_1128_msystems_01305_23-20240603094438-4768041/source_files/msystems.01305-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01305-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i5_10_1128_msystems_01305_23-20240609054000-9942339/source_files/msystems.01305-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01338-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i5_10_1128_msystems_01338_23-20240603094438-4768041/source_files/msystems.01338-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01338-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i5_10_1128_msystems_01338_23-20240609054000-9942339/source_files/msystems.01338-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01405-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i5_10_1128_msystems_01405_23-20240603094438-4768041/source_files/msystems.01405-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01405-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i5_10_1128_msystems_01405_23-20240609054000-9942339/source_files/msystems.01405-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "editorial-board",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i5_10_1128_msystems_2024_9_issue_5-20240603094438-4768041/source_files/editorial-board.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "editorial-board",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i5_10_1128_msystems_2024_9_issue_5-20240609054000-9942339/source_files/editorial-board.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00012-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i6_10_1128_msystems_00012_24-20240618060114-2944725/source_files/msystems.00012-24.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00048-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i6_10_1128_msystems_00048_24-20240618060114-2944725/source_files/msystems.00048-24.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00050-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i6_10_1128_msystems_00050_24-20240618060114-2944725/source_files/msystems.00050-24.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00065-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i6_10_1128_msystems_00065_24-20240618060114-2944725/source_files/msystems.00065-24.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00095-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i6_10_1128_msystems_00095_24-20240618060114-2944725/source_files/msystems.00095-24.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00109-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i6_10_1128_msystems_00109_24-20240618060114-2944725/source_files/msystems.00109-24.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00133-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i6_10_1128_msystems_00133_24-20240618060114-2944725/source_files/msystems.00133-24.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00185-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i6_10_1128_msystems_00185_24-20240618060114-2944725/source_files/msystems.00185-24.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00214-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i6_10_1128_msystems_00214_24-20240618060114-2944725/source_files/msystems.00214-24.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00226-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i6_10_1128_msystems_00226_24-20240618060114-2944725/source_files/msystems.00226-24.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00248-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i6_10_1128_msystems_00248_24-20240618060114-2944725/source_files/msystems.00248-24.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00257-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i6_10_1128_msystems_00257_24-20240618060114-2944725/source_files/msystems.00257-24.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00321-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i6_10_1128_msystems_00321_24-20240618060114-2944725/source_files/msystems.00321-24.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00325-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i6_10_1128_msystems_00325_24-20240618060114-2944725/source_files/msystems.00325-24.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00369-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i6_10_1128_msystems_00369_24-20240618060114-2944725/source_files/msystems.00369-24.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00429-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i6_10_1128_msystems_00429_24-20240618060114-2944725/source_files/msystems.00429-24.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00469-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i6_10_1128_msystems_00469_24-20240618060114-2944725/source_files/msystems.00469-24.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00847-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i6_10_1128_msystems_00847_23-20240618060114-2944725/source_files/msystems.00847-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.00948-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i6_10_1128_msystems_00948_23-20240618060114-2944725/source_files/msystems.00948-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01036-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i6_10_1128_msystems_01036_23-20240618060114-2944725/source_files/msystems.01036-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01112-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i6_10_1128_msystems_01112_23-20240618060114-2944725/source_files/msystems.01112-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01124-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i6_10_1128_msystems_01124_23-20240618060114-2944725/source_files/msystems.01124-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01135-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i6_10_1128_msystems_01135_23-20240618060114-2944725/source_files/msystems.01135-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01158-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i6_10_1128_msystems_01158_23-20240618060114-2944725/source_files/msystems.01158-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01164-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i6_10_1128_msystems_01164_23-20240618060114-2944725/source_files/msystems.01164-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01210-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i6_10_1128_msystems_01210_23-20240618060114-2944725/source_files/msystems.01210-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01226-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i6_10_1128_msystems_01226_23-20240618060114-2944725/source_files/msystems.01226-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01312-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i6_10_1128_msystems_01312_23-20240618060114-2944725/source_files/msystems.01312-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01339-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i6_10_1128_msystems_01339_23-20240618060114-2944725/source_files/msystems.01339-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01342-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i6_10_1128_msystems_01342_23-20240618060114-2944725/source_files/msystems.01342-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01348-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i6_10_1128_msystems_01348_23-20240618060114-2944725/source_files/msystems.01348-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01363-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i6_10_1128_msystems_01363_23-20240618060114-2944725/source_files/msystems.01363-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01379-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i6_10_1128_msystems_01379_23-20240618060114-2944725/source_files/msystems.01379-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01385-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i6_10_1128_msystems_01385_23-20240618060114-2944725/source_files/msystems.01385-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "msystems.01415-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i6_10_1128_msystems_01415_23-20240618060114-2944725/source_files/msystems.01415-23.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "editorial-board",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv9i6_10_1128_msystems_2024_9_issue_6-20240618060114-2944725/source_files/editorial-board.txt",
+      "domain": "molecular_biology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    }
+  ]
+}

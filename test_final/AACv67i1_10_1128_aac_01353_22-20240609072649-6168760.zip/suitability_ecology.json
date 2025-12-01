@@ -1,0 +1,34 @@
+{
+  "paper_path": "test_final/AACv67i1_10_1128_aac_01353_22-20240609072649-6168760.zip/combined_text.txt",
+  "domain": "ecology",
+  "suitable": false,
+  "assessment": {
+    "suitable": false,
+    "confidence": 0.2,
+    "reasoning": "The paper focuses on the prophylactic administration of a monoclonal antibody (adintrevimab) against SARS-CoV-2 in animal models (hamsters and non-human primates). While it involves organisms and their response to a pathogen, the context is biomedical and preclinical, not ecological. The study does not address ecological interactions, population dynamics, community structure, or ecosystem processes. Key entity types such as INTERACTION (in the ecological sense), ENVIRONMENT (as habitat/ecosystem), and ecological relationships (e.g., competition, predation, mutualism) are absent. The main relationships are biomedical (antibody-virus, host-pathogen), not ecological.",
+    "entity_types_found": [
+      "ORGANISM",
+      "PROCESS"
+    ],
+    "relationship_types_found": [
+      "AFFECTS",
+      "RESPONDS_TO"
+    ],
+    "estimated_entity_count": 3,
+    "estimated_relationship_count": 2,
+    "positive_indicators": [
+      "species (hamster, primate)",
+      "population (animal models)",
+      "virus (SARS-CoV-2)"
+    ],
+    "negative_indicators": [
+      "monoclonal antibody",
+      "protein structure",
+      "clinical trial",
+      "preclinical",
+      "molecular mechanism"
+    ],
+    "contrastive_potential": "No ecological contrastive mechanisms present; the study contrasts antibody treatment vs. control in biomedical models, not ecological processes or interactions.",
+    "domain": "Ecology"
+  }
+}

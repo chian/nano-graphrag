@@ -1,0 +1,132 @@
+# Microbial Biology Domain Schema
+# Focus: Bacterial/viral/fungal physiology, metabolism, growth, adaptation
+
+domain_name: "Microbial Biology"
+domain_description: "Study of microorganisms including bacteria, viruses, fungi, and their cellular processes, metabolism, and interactions"
+
+entity_types:
+  ORGANISM:
+    description: "Microbial species, strains, isolates"
+    examples: ["Escherichia coli", "Staphylococcus aureus", "SARS-CoV-2", "Candida albicans"]
+
+  COMPOUND:
+    description: "Nutrients, metabolites, antimicrobials, signaling molecules"
+    examples: ["glucose", "antibiotic", "quorum sensing molecule", "toxin"]
+
+  GENE:
+    description: "Microbial genes, operons, mobile genetic elements"
+    examples: ["resistance gene", "virulence factor", "plasmid", "operon"]
+
+  PROTEIN:
+    description: "Microbial proteins, enzymes, surface proteins"
+    examples: ["enzyme", "pilus", "capsid protein", "toxin"]
+
+  PATHWAY:
+    description: "Metabolic pathways, biosynthetic pathways"
+    examples: ["glycolysis", "amino acid biosynthesis", "fermentation", "nitrogen fixation"]
+
+  MECHANISM:
+    description: "Microbial processes, resistance mechanisms, virulence strategies"
+    examples: ["biofilm formation", "antibiotic resistance", "sporulation", "horizontal gene transfer"]
+
+  PHENOTYPE:
+    description: "Observable microbial traits, growth characteristics"
+    examples: ["drug resistance", "motility", "growth rate", "colony morphology"]
+
+  ENVIRONMENT:
+    description: "Growth conditions, environmental niches, host environments"
+    examples: ["aerobic conditions", "gut microbiome", "soil", "biofilm"]
+
+  STRUCTURE:
+    description: "Microbial structures, organelles, cellular components"
+    examples: ["cell wall", "flagellum", "pilus", "capsule", "membrane"]
+
+relationship_types:
+  INHIBITS:
+    description: "A inhibits growth/activity of B"
+    inverse: "INHIBITED_BY"
+    examples: ["Antibiotic INHIBITS Bacterial growth"]
+
+  ACTIVATES:
+    description: "A promotes or enhances B"
+    inverse: "ACTIVATED_BY"
+    examples: ["Inducer ACTIVATES Operon expression"]
+
+  PRODUCES:
+    description: "Organism/gene A produces metabolite/protein B"
+    inverse: "PRODUCED_BY"
+    examples: ["Bacterium PRODUCES Toxin"]
+
+  METABOLIZES:
+    description: "Organism A can use/metabolize substrate B"
+    inverse: "METABOLIZED_BY"
+    examples: ["E. coli METABOLIZES Lactose"]
+
+  CONFERS:
+    description: "Gene/mechanism A provides trait/resistance B"
+    inverse: "CONFERRED_BY"
+    examples: ["Gene CONFERS Antibiotic resistance"]
+
+  INFECTS:
+    description: "Pathogen A infects host/tissue B"
+    inverse: "INFECTED_BY"
+    examples: ["Virus INFECTS Host cell"]
+
+  RESISTS:
+    description: "Organism A is resistant to drug/stress B"
+    inverse: "RESISTED_BY"
+    examples: ["Strain RESISTS Antibiotic"]
+
+  TRANSFERS:
+    description: "Genetic element A is transferred via mechanism B"
+    inverse: "TRANSFERRED_BY"
+    examples: ["Plasmid TRANSFERS via Conjugation"]
+
+  REQUIRES:
+    description: "Process A requires factor B"
+    inverse: "REQUIRED_BY"
+    examples: ["Growth REQUIRES Iron"]
+
+  COMPETES_WITH:
+    description: "Organism/pathway A competes with B"
+    inverse: "COMPETES_WITH"
+    symmetric: true
+    examples: ["Strain A COMPETES_WITH Strain B for nutrients"]
+
+  PART_OF:
+    description: "A is component of B"
+    inverse: "HAS_PART"
+    examples: ["Protein PART_OF Cell wall"]
+
+  COLONIZES:
+    description: "Organism A colonizes environment B"
+    inverse: "COLONIZED_BY"
+    examples: ["Bacterium COLONIZES Gut"]
+
+  REGULATES:
+    description: "A regulates expression/activity of B"
+    inverse: "REGULATED_BY"
+    examples: ["Quorum sensing REGULATES Virulence genes"]
+
+suitability_criteria:
+  min_entities: 5
+  min_entity_types: 3
+  min_relationships: 4
+  required_entity_types: ["ORGANISM", "MECHANISM", "PHENOTYPE"]
+  keywords:
+    positive: ["bacteria", "microbial", "strain", "resistance", "metabolism", "growth", "antibiotic", "pathogen", "fermentation", "biofilm"]
+    negative: ["human clinical trial", "patient population", "epidemiological study"]
+
+contrastive_patterns:
+  - "alternative resistance mechanisms"
+  - "different metabolic pathways"
+  - "competing strains"
+  - "multiple virulence strategies"
+  - "alternative nutrient sources"
+  - "different antibiotics targeting same pathway"
+
+question_generation_focus:
+  - "Resistance mechanisms: Why does strain A resist drug X but not Y?"
+  - "Metabolic alternatives: Which pathway is used when nutrient X is absent?"
+  - "Competitive dynamics: Which strain outcompetes under condition Z?"
+  - "Adaptation: How does organism respond to stress/environment change?"

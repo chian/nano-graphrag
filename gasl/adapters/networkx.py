@@ -205,30 +205,40 @@ class NetworkXAdapter(GraphAdapter):
     
     def _edge_matches_filters(self, source: Any, target: Any, data: Dict[str, Any], filters: Dict[str, Any]) -> bool:
         """Check if edge matches filters."""
-        # Check relationship_name filter
+        # Check relationship_name filter (check both relationship_name and relation_type)
         if "relationship_name" in filters:
             relationship_name = filters["relationship_name"]
-            edge_relationship_name = data.get("relationship_name")
+            edge_relationship_name = data.get("relationship_name") or data.get("relation_type")
             if edge_relationship_name == f'"{relationship_name}"':
                 pass  # Match found with quotes
             elif edge_relationship_name == relationship_name:
                 pass  # Match found without quotes
             else:
                 return False  # No match found
-        
+
+        # Check source filter
+        if "source" in filters:
+            if source != filters["source"]:
+                return False
+
+        # Check target filter
+        if "target" in filters:
+            if target != filters["target"]:
+                return False
+
         # Check description contains filter
         if "description_contains" in filters:
             description = data.get("description", "")
             if filters["description_contains"].lower() not in description.lower():
                 return False
-        
+
         # Check raw criteria
         if "raw_criteria" in filters:
             criteria = filters["raw_criteria"].lower()
             edge_text = f"{source} {target} {str(data)}".lower()
             if criteria not in edge_text:
                 return False
-        
+
         return True
     
     def _get_nodes_by_filter(self, filters: Dict[str, Any]) -> List[Any]:

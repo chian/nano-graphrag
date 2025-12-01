@@ -1,0 +1,43 @@
+{
+  "paper_path": "test_final/AACv67i1_10_1128_aac_01353_22-20240609072649-6168760.zip/combined_text.txt",
+  "domain": "molecular_biology",
+  "suitable": true,
+  "assessment": {
+    "suitable": true,
+    "confidence": 0.95,
+    "reasoning": "The paper is highly relevant to the Molecular Biology domain, focusing on the molecular mechanism of a monoclonal antibody (adintrevimab) against SARS-CoV-2. It discusses protein-protein and protein-compound interactions, gene/protein expression, and mechanisms of viral neutralization. The text contains multiple entity types (PROTEIN, COMPOUND, GENE, PATHWAY, MECHANISM, PHENOTYPE, CELLULAR_COMPONENT) and relationship types (BINDS, INHIBITS, ACTIVATES, PART_OF, REGULATES, LOCALIZES_TO). There are sufficient entities (antibodies, viral proteins, genes, compounds) and relationships (binding, inhibition, activation, regulation) to construct a meaningful knowledge graph. The paper avoids clinical/epidemiological focus and centers on molecular interactions and mechanisms.",
+    "entity_types_found": [
+      "PROTEIN",
+      "COMPOUND",
+      "GENE",
+      "PATHWAY",
+      "MECHANISM",
+      "PHENOTYPE",
+      "CELLULAR_COMPONENT"
+    ],
+    "relationship_types_found": [
+      "BINDS",
+      "INHIBITS",
+      "ACTIVATES",
+      "PART_OF",
+      "REGULATES",
+      "LOCALIZES_TO"
+    ],
+    "estimated_entity_count": 10,
+    "estimated_relationship_count": 7,
+    "positive_indicators": [
+      "monoclonal antibody",
+      "protein binding",
+      "neutralization mechanism",
+      "gene/protein expression",
+      "viral pathway",
+      "mechanism of action"
+    ],
+    "negative_indicators": [
+      "animal model",
+      "preclinical"
+    ],
+    "contrastive_potential": "The paper compares the activity of adintrevimab against different SARS-CoV-2 variants and discusses its mechanism relative to other antibodies (e.g., motavizumab as a control), providing potential for contrastive question generation regarding mechanisms of neutralization and variant susceptibility.",
+    "domain": "Molecular Biology"
+  }
+}

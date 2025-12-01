@@ -1,0 +1,146 @@
+# Disease Biology Domain Schema
+# Focus: Disease mechanisms, pathophysiology, cellular/molecular basis of disease
+
+domain_name: "Disease Biology"
+domain_description: "Study of the biological basis of diseases, including molecular and cellular mechanisms, pathophysiology, and disease progression"
+
+entity_types:
+  DISEASE:
+    description: "Diseases, disorders, pathological conditions"
+    examples: ["cancer", "Alzheimer's disease", "diabetes", "heart failure"]
+
+  GENE:
+    description: "Disease-associated genes, mutations, genetic variants"
+    examples: ["BRCA1", "TP53 mutation", "APOE4 allele", "genetic variant"]
+
+  PROTEIN:
+    description: "Disease-related proteins, enzymes, receptors"
+    examples: ["amyloid-beta", "insulin receptor", "tumor suppressor", "kinase"]
+
+  PATHWAY:
+    description: "Disease-relevant signaling pathways, metabolic pathways"
+    examples: ["apoptosis pathway", "inflammatory cascade", "DNA repair pathway"]
+
+  CELL_TYPE:
+    description: "Cells involved in disease pathogenesis"
+    examples: ["tumor cell", "neuron", "immune cell", "hepatocyte"]
+
+  TISSUE:
+    description: "Affected tissues, organs"
+    examples: ["brain", "pancreas", "liver", "heart"]
+
+  PHENOTYPE:
+    description: "Disease manifestations, symptoms, pathological features"
+    examples: ["cell death", "inflammation", "fibrosis", "cognitive decline"]
+
+  TREATMENT:
+    description: "Therapeutic approaches, drugs, interventions"
+    examples: ["chemotherapy", "immunotherapy", "insulin", "targeted therapy"]
+
+  RISK_FACTOR:
+    description: "Genetic, environmental, lifestyle factors"
+    examples: ["age", "obesity", "genetic predisposition", "smoking"]
+
+  BIOMARKER:
+    description: "Diagnostic or prognostic markers"
+    examples: ["blood glucose", "tumor marker", "inflammatory marker"]
+
+relationship_types:
+  CAUSES:
+    description: "A directly causes disease/phenotype B"
+    inverse: "CAUSED_BY"
+    examples: ["Mutation CAUSES Loss of function", "Protein aggregation CAUSES Neurodegeneration"]
+
+  CONTRIBUTES_TO:
+    description: "A contributes to development/progression of B"
+    inverse: "CONTRIBUTED_TO_BY"
+    examples: ["Inflammation CONTRIBUTES_TO Cancer progression"]
+
+  DISRUPTS:
+    description: "Disease/mutation A disrupts pathway/function B"
+    inverse: "DISRUPTED_BY"
+    examples: ["Disease DISRUPTS Normal signaling"]
+
+  ACTIVATES:
+    description: "A activates pathway/cell type B in disease context"
+    inverse: "ACTIVATED_BY"
+    examples: ["Growth factor ACTIVATES Oncogenic pathway"]
+
+  INHIBITS:
+    description: "A inhibits pathway/function B"
+    inverse: "INHIBITED_BY"
+    examples: ["Drug INHIBITS Disease progression"]
+
+  MUTATED_IN:
+    description: "Gene A is mutated in disease B"
+    inverse: "HAS_MUTATION_IN"
+    examples: ["TP53 MUTATED_IN Cancer"]
+
+  EXPRESSED_IN:
+    description: "Gene/protein A is expressed in cell/tissue B"
+    inverse: "EXPRESSES"
+    examples: ["Biomarker EXPRESSED_IN Tumor cells"]
+
+  ACCUMULATES_IN:
+    description: "Protein/metabolite A accumulates in tissue/cell B"
+    inverse: "HAS_ACCUMULATION_OF"
+    examples: ["Amyloid ACCUMULATES_IN Brain"]
+
+  TARGETS:
+    description: "Treatment A targets protein/pathway B"
+    inverse: "TARGETED_BY"
+    examples: ["Drug TARGETS Mutant protein"]
+
+  TREATS:
+    description: "Treatment A is used to treat disease B"
+    inverse: "TREATED_BY"
+    examples: ["Insulin TREATS Diabetes"]
+
+  PREDISPOSES_TO:
+    description: "Risk factor A predisposes to disease B"
+    inverse: "PREDISPOSED_BY"
+    examples: ["Genetic variant PREDISPOSES_TO Disease"]
+
+  PROGRESSES_TO:
+    description: "Disease stage A progresses to stage B"
+    inverse: "PROGRESSION_FROM"
+    examples: ["Early stage PROGRESSES_TO Advanced disease"]
+
+  CORRELATES_WITH:
+    description: "Biomarker/feature A correlates with disease/outcome B"
+    inverse: "CORRELATES_WITH"
+    symmetric: true
+    examples: ["Biomarker level CORRELATES_WITH Disease severity"]
+
+  REGULATES:
+    description: "A regulates expression/activity of B in disease"
+    inverse: "REGULATED_BY"
+    examples: ["Transcription factor REGULATES Oncogene"]
+
+  IMPAIRS:
+    description: "Disease/mutation A impairs function B"
+    inverse: "IMPAIRED_BY"
+    examples: ["Mutation IMPAIRS Enzyme activity"]
+
+suitability_criteria:
+  min_entities: 5
+  min_entity_types: 3
+  min_relationships: 4
+  required_entity_types: ["DISEASE", "GENE", "PROTEIN"]
+  keywords:
+    positive: ["pathogenesis", "disease mechanism", "mutation", "dysfunction", "pathology", "cellular basis", "molecular basis", "disease progression"]
+    negative: ["epidemiological study", "population-level", "clinical trial outcome only"]
+
+contrastive_patterns:
+  - "alternative disease mechanisms"
+  - "different mutations causing same disease"
+  - "multiple therapeutic targets"
+  - "competing pathways in disease"
+  - "different cellular responses"
+  - "alternative pathogenic routes"
+
+question_generation_focus:
+  - "Mechanistic understanding: How does mutation X lead to disease phenotype Y?"
+  - "Therapeutic targeting: Which target is more effective for disease subtype A vs B?"
+  - "Pathway disruption: If pathway X is blocked, which compensatory mechanism activates?"
+  - "Disease progression: What drives transition from stage N to stage N+1?"
