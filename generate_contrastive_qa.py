@@ -28,6 +28,7 @@ from gasl.commands.contrastive import (
     FindCompetingHandler
 )
 from nano_graphrag._utils import convert_response_to_json
+from question_enrichment import QuestionEnricher
 
 
 def sanitize_analysis_for_prompt(analysis_data: dict, graph: nx.DiGraph) -> dict:
@@ -709,7 +710,9 @@ async def generate_questions_from_analyses(
     graph: nx.DiGraph,
     domain_name: str,
     llm: ArgoBridgeLLM,
-    max_questions: int = 20
+    max_questions: int = 20,
+    enrich_info_pieces: int = 0,
+    enrich_graph_depth: int = 1
 ) -> List[Dict]:
     """
     Generate contrastive questions from GASL analysis results with quality filtering.
@@ -721,6 +724,21 @@ async def generate_questions_from_analyses(
     print(f"\n{'='*60}")
     print(f"Generating Contrastive Questions with Quality Filtering")
     print(f"{'='*60}\n")
+
+    # Initialize enricher (can be disabled by setting enrich_info_pieces=0)
+    enricher = QuestionEnricher(
+        graph=graph,
+        llm=llm,
+        num_info_pieces=enrich_info_pieces,
+        graph_depth=enrich_graph_depth
+    )
+
+    if enricher.is_enabled():
+        print(f"Question Enrichment: ENABLED")
+        print(f"  - Info pieces per question: {enrich_info_pieces}")
+        print(f"  - Graph search depth: {enrich_graph_depth}\n")
+    else:
+        print(f"Question Enrichment: DISABLED\n")
 
     generator = ContrastiveQuestionGenerator(llm)
     questions = []
@@ -836,8 +854,27 @@ async def generate_questions_from_analyses(
         print(f"  Critique: {quality['critique']}")
 
         if quality['passed']:
+            # ENRICHMENT STEP: Add distracting information if enabled
+            if enricher.is_enabled():
+                print(f"  Enriching question...")
+                enrichment_result = await enricher.enrich_question(
+                    question=question_text,
+                    correct_answer=correct_answer,
+                    core_entities=source_entities,
+                    domain=domain_name
+                )
+
+                final_question = enrichment_result['enriched_question']
+                enrichment_pieces = enrichment_result['enrichment_pieces']
+                enrichment_entities = enrichment_result['enrichment_entities']
+            else:
+                final_question = question_text
+                enrichment_pieces = []
+                enrichment_entities = []
+
             qa_pair = {
-                'question': question_text,
+                'question': final_question,
+                'original_question': question_text,  # Keep original for reference
                 'reasoning_steps': reasoning_steps,
                 'correct_answer': correct_answer,
                 'analysis_type': analysis_type,
@@ -846,7 +883,9 @@ async def generate_questions_from_analyses(
                 'answer_word_count': gradability['word_count'],
                 'answer_format': gradability['format_type'],
                 'is_self_contained': True,
-                'is_gradable': True
+                'is_gradable': True,
+                'enrichment_pieces': enrichment_pieces,
+                'enrichment_entities': enrichment_entities
             }
 
             questions.append(qa_pair)
@@ -892,13 +931,15 @@ async def main(args):
     # Run GASL contrastive analysis
     analyses = await analyze_graph_with_gasl(graph, args.domain, llm)
 
-    # Generate questions
+    # Generate questions (with optional enrichment)
     questions = await generate_questions_from_analyses(
         analyses=analyses,
         graph=graph,
         domain_name=args.domain,
         llm=llm,
-        max_questions=args.max_questions
+        max_questions=args.max_questions,
+        enrich_info_pieces=args.enrich_info_pieces,
+        enrich_graph_depth=args.enrich_graph_depth
     )
 
     # Save output
@@ -909,6 +950,11 @@ async def main(args):
         'domain': args.domain,
         'graph_file': str(graph_path),
         'num_questions': len(questions),
+        'enrichment_settings': {
+            'enabled': args.enrich_info_pieces > 0,
+            'info_pieces': args.enrich_info_pieces,
+            'graph_depth': args.enrich_graph_depth
+        },
         'questions': questions
     }
 
@@ -945,6 +991,18 @@ if __name__ == "__main__":
         type=int,
         default=20,
         help="Maximum number of questions to generate (default: 20)"
+    )
+    parser.add_argument(
+        "--enrich-info-pieces",
+        type=int,
+        default=3,
+        help="Number of distracting facts to add per question (0=disabled, default: 3)"
+    )
+    parser.add_argument(
+        "--enrich-graph-depth",
+        type=int,
+        default=1,
+        help="Graph traversal depth for finding enrichment candidates (1-3, default: 1)"
     )
 
     args = parser.parse_args()

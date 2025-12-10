@@ -26,32 +26,36 @@ def run_command(cmd: list[str], description: str, check: bool = True) -> subproc
     Returns:
         CompletedProcess result
     """
-    print(f"\n{'='*60}")
-    print(f"{description}")
-    print(f"{'='*60}")
-    print(f"Running: {' '.join(cmd)}\n")
+    print(f"\n{'='*60}", flush=True)
+    print(f"{description}", flush=True)
+    print(f"{'='*60}", flush=True)
+    print(f"Running: {' '.join(cmd)}\n", flush=True)
 
     # Don't capture output - let it stream to console so user sees errors in real-time
-    result = subprocess.run(cmd, check=False)
+    # Use unbuffered mode for python subprocesses
+    env = os.environ.copy()
+    env['PYTHONUNBUFFERED'] = '1'
+    result = subprocess.run(cmd, check=False, env=env)
 
     if check and result.returncode != 0:
-        print(f"\n{'='*60}")
-        print(f"✗ ERROR: {description} failed with exit code {result.returncode}")
-        print(f"{'='*60}")
-        print(f"Command: {' '.join(cmd)}")
-        print(f"\nSee error output above for details.")
-        print(f"{'='*60}\n")
+        print(f"\n{'='*60}", flush=True)
+        print(f"✗ ERROR: {description} failed with exit code {result.returncode}", flush=True)
+        print(f"{'='*60}", flush=True)
+        print(f"Command: {' '.join(cmd)}", flush=True)
+        print(f"\nSee error output above for details.", flush=True)
+        print(f"{'='*60}\n", flush=True)
         sys.exit(result.returncode)
 
+    print(f"✓ {description} completed\n", flush=True)
     return result
 
 
 async def main(args):
     """Run the complete pipeline"""
 
-    print(f"\n{'#'*60}")
-    print(f"# CONTRASTIVE QA GENERATION PIPELINE")
-    print(f"{'#'*60}\n")
+    print(f"\n{'#'*60}", flush=True)
+    print(f"# CONTRASTIVE QA GENERATION PIPELINE", flush=True)
+    print(f"{'#'*60}\n", flush=True)
 
     paper_path = Path(args.paper).resolve()
     if not paper_path.exists():
@@ -250,7 +254,9 @@ async def main(args):
         str(graph_file),
         domain,
         "--output", str(qa_output),
-        "--max-questions", str(args.num_questions)
+        "--max-questions", str(args.num_questions),
+        "--enrich-info-pieces", str(args.enrich_info_pieces),
+        "--enrich-graph-depth", str(args.enrich_graph_depth)
     ]
 
     run_command(cmd, "STAGE 6: Generate Contrastive Questions")
@@ -322,8 +328,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--max-papers",
         type=int,
-        default=30,
-        help="Maximum papers to fetch from Firecrawl (default: 30)"
+        default=10,
+        help="Maximum papers to fetch from Firecrawl (default: 10)"
     )
     parser.add_argument(
         "--max-papers-for-enrichment",
@@ -365,6 +371,18 @@ if __name__ == "__main__":
         "--skip-graph-enrichment",
         action="store_true",
         help="Skip graph enrichment (use initial graph only)"
+    )
+    parser.add_argument(
+        "--enrich-info-pieces",
+        type=int,
+        default=3,
+        help="Number of distracting facts to add per question (0=disabled, default: 3)"
+    )
+    parser.add_argument(
+        "--enrich-graph-depth",
+        type=int,
+        default=1,
+        help="Graph traversal depth for finding enrichment candidates (1-3, default: 1)"
     )
 
     args = parser.parse_args()

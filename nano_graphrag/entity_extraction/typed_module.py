@@ -126,12 +126,22 @@ class DomainTypedEntityRelationshipExtractor:
                 print(f"    Parsed from refinement: {len(refined_entities_data)} entities, {len(refined_relationships_data)} relationships")
                 print(f"    Keys in refined dict: {list(refined.keys())}")
 
+                # Clamp importance_score to valid range [0, 1] (LLM sometimes returns values > 1)
+                for e in refined_entities_data:
+                    if 'importance_score' in e:
+                        e['importance_score'] = max(0.0, min(1.0, e['importance_score']))
+
                 entities = [Entity(**e) for e in refined_entities_data]
 
-                # Clamp order values to valid range (1-3) before creating relationships
+                # Clamp order values to valid range (1-3) and ensure IDs are strings
                 for r in refined_relationships_data:
                     if 'order' in r:
                         r['order'] = max(1, min(3, r['order']))  # Clamp to [1, 3]
+                    # Ensure src_id and tgt_id are strings (LLM sometimes returns integers)
+                    if 'src_id' in r:
+                        r['src_id'] = str(r['src_id'])
+                    if 'tgt_id' in r:
+                        r['tgt_id'] = str(r['tgt_id'])
                 relationships = [TypedRelationship(**r) for r in refined_relationships_data]
 
         # Validate and filter entities and relationships

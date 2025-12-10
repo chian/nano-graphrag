@@ -17,20 +17,24 @@ class ArgoBridgeLLM:
         self.model = model or os.getenv("LLM_MODEL", "gpt41")
         self.temperature = temperature
         self.max_tokens = max_tokens
-        
-        # Initialize OpenAI client
+
+        # Initialize OpenAI client (Argo is now OpenAI-native)
         self.client = AsyncOpenAI(
             api_key=os.getenv("LLM_API_KEY", "api+key"),
-            base_url=os.getenv("LLM_ENDPOINT", "https://argo-bridge.cels.anl.gov/v1")
+            base_url=os.getenv("LLM_ENDPOINT", "https://apps-dev.inside.anl.gov/argoapi/v1")
         )
-        
+
         # Initialize prompt system
         self.prompt_system = QueryAwarePromptSystem()
+
+        # Control debug output
+        self.debug = os.getenv("LLM_DEBUG", "false").lower() == "true"
     
     async def call_async(self, prompt: str) -> str:
         """Make async LLM call."""
-        print(f"DEBUG: LLM PROMPT SENT:\n{prompt}\n")
-        print("="*80)
+        if self.debug:
+            print(f"DEBUG: LLM PROMPT SENT:\n{prompt}\n")
+            print("="*80)
         try:
             response = await self.client.chat.completions.create(
                 model=self.model,
@@ -39,8 +43,9 @@ class ArgoBridgeLLM:
                 max_tokens=self.max_tokens
             )
             result = response.choices[0].message.content
-            print(f"DEBUG: LLM RESPONSE RECEIVED:\n{result}\n")
-            print("="*80)
+            if self.debug:
+                print(f"DEBUG: LLM RESPONSE RECEIVED:\n{result}\n")
+                print("="*80)
             return result
         except Exception as e:
             raise LLMError(f"LLM call failed: {e}", "argo_bridge", self.model)

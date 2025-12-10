@@ -7,11 +7,17 @@ import argparse
 import asyncio
 import json
 import sys
+import os
+import logging
 import networkx as nx
 from pathlib import Path
 from typing import Dict, List, Optional
 
 sys.path.insert(0, str(Path(__file__).parent.absolute()))
+
+# Suppress nano-graphrag DEBUG logging unless --verbose is set
+if '--verbose' not in sys.argv:
+    logging.getLogger('nano-graphrag').setLevel(logging.WARNING)
 
 from domain_schemas.schema_loader import load_domain_schema
 from nano_graphrag.entity_extraction.typed_module import create_domain_extractor_from_schema
@@ -109,6 +115,7 @@ async def extract_from_paper(
 
     for i, chunk in enumerate(chunks):
         chunk_id = f"{paper_uuid}_chunk_{i}"
+        print(f"    Chunk {i+1}/{len(chunks)}", end='\r', flush=True)
 
         num_entities, num_rels = await extract_from_chunk(
             chunk,
@@ -276,22 +283,42 @@ async def main(args):
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Convert list attributes to strings for GraphML compatibility
+    # Convert non-serializable attributes to strings for GraphML compatibility
+    print("\nConverting attributes for GraphML...")
+    def make_graphml_compatible(value):
+        """Convert value to GraphML-compatible type (string, int, float, bool)"""
+        if isinstance(value, (str, int, float, bool)):
+            return value
+        elif isinstance(value, list):
+            return ','.join(str(v) for v in value)
+        elif value is None:
+            return ''
+        else:
+            return str(value)
+
+    print(f"  Converting {enriched_graph.number_of_nodes()} node attributes...")
     for node in enriched_graph.nodes():
         node_data = enriched_graph.nodes[node]
-        if 'source_papers' in node_data and isinstance(node_data['source_papers'], list):
-            node_data['source_papers'] = ','.join(node_data['source_papers'])
-        if 'source_chunks' in node_data and isinstance(node_data['source_chunks'], list):
-            node_data['source_chunks'] = ','.join(node_data['source_chunks'])
+        for key, value in list(node_data.items()):
+            node_data[key] = make_graphml_compatible(value)
 
+    print(f"  Converting {enriched_graph.number_of_edges()} edge attributes...")
     for src, tgt in enriched_graph.edges():
         edge_data = enriched_graph[src][tgt]
-        if 'source_papers' in edge_data and isinstance(edge_data['source_papers'], list):
-            edge_data['source_papers'] = ','.join(edge_data['source_papers'])
+        for key, value in list(edge_data.items()):
+            edge_data[key] = make_graphml_compatible(value)
 
     graph_file = output_dir / f"{args.domain}_enriched_graph.graphml"
+    print(f"\nWriting GraphML to: {graph_file}")
     nx.write_graphml(enriched_graph, graph_file)
-    print(f"\n✓ Enriched graph saved to: {graph_file}")
+    print(f"  nx.write_graphml() returned")
+
+    file_size = graph_file.stat().st_size
+    print(f"  File size: {file_size:,} bytes")
+
+    if file_size == 0:
+        print(f"✗ ERROR: GraphML file is empty (0 bytes)!", file=sys.stderr)
+        sys.exit(1)
 
     # Save enrichment metadata
     enrichment_metadata = {
@@ -385,6 +412,11 @@ if __name__ == "__main__":
         "--no-auto-merge",
         action="store_true",
         help="Disable automatic entity merging"
+    )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Enable verbose DEBUG logging"
     )
 
     args = parser.parse_args()
