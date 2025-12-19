@@ -1,0 +1,1199 @@
+{
+  "scraped_at": "2025-12-19T14:57:40.118981",
+  "base_directory": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC",
+  "domain_filter": "clinical_microbiology",
+  "total_papers": 3,
+  "total_questions": 26,
+  "questions": [
+    {
+      "paper_id": "aac.01192-23",
+      "domain": "clinical_microbiology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv68i1_10_1128_aac_01192_23-20240609113002-5820521/source_files/.qa_output/aac.01192-23/clinical_microbiology/contrastive_qa.json",
+      "question": "A hospitalized patient develops a bloodstream infection with a Gram-negative rod identified as Klebsiella pneumoniae. Laboratory testing reveals resistance to all \u03b2-lactam antibiotics, including carbapenems (imipenem MIC >16 \u03bcg/mL), but susceptibility to cefiderocol (MIC 1 \u03bcg/mL). KPC-producing Klebsiella pneumoniae isolates have been reported to exhibit imipenem MICs exceeding 32 \u03bcg/mL in some clinical studies. In addition, KPC enzymes hydrolyze penicillins and cephalosporins with high efficiency, but their activity against cefiderocol is variable. PCR detects the blaNDM-1 gene, which encodes a metallo-\u03b2-lactamase. NDM-producing Klebsiella pneumoniae isolates often show a 2- to 4-fold increase in minimum inhibitory concentrations for meropenem compared to non-NDM strains. In some studies, blaNDM-1 has been detected in up to 15% of carbapenem-resistant Enterobacterales isolates in certain hospital settings. Plasmid analysis confirms the presence of a large conjugative plasmid carrying blaNDM-1. NDM-producing Klebsiella pneumoniae isolates have been shown to maintain stable growth rates in nutrient-rich media, with doubling times averaging 40 minutes. In some studies, the presence of NDM does not significantly alter the organism\u2019s ability to form biofilms on plastic surfaces. The infection control team is concerned about horizontal gene transfer to other Enterobacterales. Based on the mechanisms described, which factor most directly facilitates the rapid spread of carbapenem resistance in this scenario?",
+      "original_question": "A hospitalized patient develops a bloodstream infection with a Gram-negative rod identified as Klebsiella pneumoniae. Laboratory testing reveals resistance to all \u03b2-lactam antibiotics, including carbapenems (imipenem MIC >16 \u03bcg/mL), but susceptibility to cefiderocol (MIC 1 \u03bcg/mL). PCR detects the blaNDM-1 gene, which encodes a metallo-\u03b2-lactamase. Plasmid analysis confirms the presence of a large conjugative plasmid carrying blaNDM-1. The infection control team is concerned about horizontal gene transfer to other Enterobacterales. Based on the mechanisms described, which factor most directly facilitates the rapid spread of carbapenem resistance in this scenario?",
+      "reasoning_steps": [
+        "Klebsiella pneumoniae is the infecting organism.",
+        "Resistance to carbapenems is due to carbapenemase (NDM-1) production.",
+        "The blaNDM-1 gene is detected, confirming the resistance mechanism.",
+        "The gene is located on a large conjugative plasmid.",
+        "Plasmids can transfer between bacteria via horizontal gene transfer.",
+        "This transfer can spread resistance genes rapidly among Enterobacterales.",
+        "The most direct facilitator of spread is the plasmid carrying blaNDM-1."
+      ],
+      "correct_answer": "Plasmid",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "CARBAPENEMASE",
+        "CEFIDEROCOL",
+        "KLEBSIELLA PNEUMONIAE",
+        "PLASMID"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 1,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "KPC-producing Klebsiella pneumoniae isolates have been reported to exhibit imipenem MICs exceeding 32 \u03bcg/mL in some clinical studies. In addition, KPC enzymes hydrolyze penicillins and cephalosporins with high efficiency, but their activity against cefiderocol is variable.",
+        "NDM-producing Klebsiella pneumoniae isolates often show a 2- to 4-fold increase in minimum inhibitory concentrations for meropenem compared to non-NDM strains. In some studies, blaNDM-1 has been detected in up to 15% of carbapenem-resistant Enterobacterales isolates in certain hospital settings.",
+        "NDM-producing Klebsiella pneumoniae isolates have been shown to maintain stable growth rates in nutrient-rich media, with doubling times averaging 40 minutes. In some studies, the presence of NDM does not significantly alter the organism\u2019s ability to form biofilms on plastic surfaces."
+      ],
+      "enrichment_entities": [
+        "KPC",
+        "NDM",
+        "NEW DELHI METALLO-\u0392-LACTAMASE (NDM)"
+      ]
+    },
+    {
+      "paper_id": "aac.01192-23",
+      "domain": "clinical_microbiology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv68i1_10_1128_aac_01192_23-20240609113002-5820521/source_files/.qa_output/aac.01192-23/clinical_microbiology/contrastive_qa.json",
+      "question": "A 62-year-old patient with end-stage renal disease on continuous renal replacement therapy (CRRT) develops sepsis due to a bloodstream infection with multidrug-resistant Acinetobacter baumannii. The isolate shows resistance to carbapenems and ceftazidime (MIC >32 \u03bcg/mL), but cefiderocol MIC is 8 \u03bcg/mL. Ceftazidime/avibactam demonstrates a 4-fold reduction in MIC against certain KPC-producing Enterobacterales isolates in vitro. However, its activity against Acinetobacter baumannii is generally limited due to intrinsic resistance mechanisms. Addition of avibactam in vitro reduces cefiderocol MIC to 0. Colistin-based regimens have been associated with nephrotoxicity rates exceeding 40% in patients with pre-existing renal impairment, although combination therapy may reduce the emergence of resistance during treatment. 25 \u03bcg/mL (32-fold reduction). Ceftolozane/tazobactam demonstrates in vitro activity against many multidrug-resistant Pseudomonas aeruginosa isolates, with MIC90 values typically ranging from 2 to 8 \u03bcg/mL. However, its efficacy against carbapenem-resistant Acinetobacter baumannii is limited due to intrinsic resistance mechanisms. The patient has no alternative treatment options and is considered for compassionate use therapy. Which combination therapy should be selected to maximize efficacy and minimize toxicity in this patient?",
+      "original_question": "A 62-year-old patient with end-stage renal disease on continuous renal replacement therapy (CRRT) develops sepsis due to a bloodstream infection with multidrug-resistant Acinetobacter baumannii. The isolate shows resistance to carbapenems and ceftazidime (MIC >32 \u03bcg/mL), but cefiderocol MIC is 8 \u03bcg/mL. Addition of avibactam in vitro reduces cefiderocol MIC to 0.25 \u03bcg/mL (32-fold reduction). The patient has no alternative treatment options and is considered for compassionate use therapy. Which combination therapy should be selected to maximize efficacy and minimize toxicity in this patient?",
+      "reasoning_steps": [
+        "Patient has MDR A. baumannii bloodstream infection (cefiderocol indicated)",
+        "Isolate is resistant to carbapenems and ceftazidime (limited options)",
+        "Cefiderocol MIC is elevated (8 \u03bcg/mL), borderline for efficacy",
+        "Avibactam addition reduces MIC to 0.25 \u03bcg/mL (enhanced activity)",
+        "Patient is on CRRT (requires dose adjustment for cefiderocol)",
+        "Compassionate use is justified due to lack of alternatives",
+        "Combination therapy with dose-adjusted cefiderocol plus avibactam maximizes efficacy and safety"
+      ],
+      "correct_answer": "Dose-adjusted cefiderocol plus avibactam",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "CEFIDEROCOL",
+        "BLOODSTREAM INFECTION",
+        "\u0392-LACTAMASE INHIBITORS",
+        "SEPSIS",
+        "A. BAUMANNII",
+        "AVIBACTAM",
+        "RENAL FUNCTION",
+        "HEMODIALYSIS",
+        "CONTINUOUS RENAL REPLACEMENT THERAPY",
+        "COMPASSIONATE USE",
+        "RESISTANT ISOLATES",
+        "SIDEROPHORE CEPHALOSPORIN"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 4,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Ceftazidime/avibactam demonstrates a 4-fold reduction in MIC against certain KPC-producing Enterobacterales isolates in vitro. However, its activity against Acinetobacter baumannii is generally limited due to intrinsic resistance mechanisms.",
+        "Colistin-based regimens have been associated with nephrotoxicity rates exceeding 40% in patients with pre-existing renal impairment, although combination therapy may reduce the emergence of resistance during treatment.",
+        "Ceftolozane/tazobactam demonstrates in vitro activity against many multidrug-resistant Pseudomonas aeruginosa isolates, with MIC90 values typically ranging from 2 to 8 \u03bcg/mL. However, its efficacy against carbapenem-resistant Acinetobacter baumannii is limited due to intrinsic resistance mechanisms."
+      ],
+      "enrichment_entities": [
+        "CEFTAZIDIME/AVIBACTAM",
+        "COLISTIN-BASED REGIMENS",
+        "CEFTOLOZANE/TAZOBACTAM"
+      ]
+    },
+    {
+      "paper_id": "aac.01192-23",
+      "domain": "clinical_microbiology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv68i1_10_1128_aac_01192_23-20240609113002-5820521/source_files/.qa_output/aac.01192-23/clinical_microbiology/contrastive_qa.json",
+      "question": "A 62-year-old ICU patient develops ventilator-associated pneumonia on day 28. Tracheal aspirate cultures yield PAHCV-190D5, an XDR Pseudomonas aeruginosa strain. S-6492660, the research code for cefiderocol, demonstrates a 4-fold increase in cellular uptake in iron-depleted media compared to standard conditions. However, its activity can be influenced by the presence of certain metallo-\u03b2-lactamases in clinical isolates. Susceptibility testing shows: cefiderocol (resistant in iron-depleted media), ceftazidime/avibactam (resistant after prior therapy), imipenem/relebactam (resistant), ceftolozane/tazobactam (borderline susceptible), piperacillin/tazobactam (resistant), and meropenem (intermediate resistance). VIM metallo-\u03b2-lactamase has been detected in up to 20% of multidrug-resistant Pseudomonas aeruginosa isolates in some ICU settings, with enzyme activity remaining stable across a range of ambient temperatures. This enzyme requires zinc ions for optimal catalytic function. The patient has normal renal function and no history of \u03b2-lactam allergy. The blaNDM gene encoding New Delhi metallo-\u03b2-lactamase (NDM) has been detected in approximately 15% of carbapenem-resistant Pseudomonas aeruginosa isolates in recent ICU surveillance studies. NDM hydrolyzes most \u03b2-lactam antibiotics, including carbapenems, but its activity can vary depending on the presence of zinc ions in the environment. Which antimicrobial agent from the tested options is most likely to provide at least partial inhibition of PAHCV-190D5?",
+      "original_question": "A 62-year-old ICU patient develops ventilator-associated pneumonia on day 28. Tracheal aspirate cultures yield PAHCV-190D5, an XDR Pseudomonas aeruginosa strain. Susceptibility testing shows: cefiderocol (resistant in iron-depleted media), ceftazidime/avibactam (resistant after prior therapy), imipenem/relebactam (resistant), ceftolozane/tazobactam (borderline susceptible), piperacillin/tazobactam (resistant), and meropenem (intermediate resistance). The patient has normal renal function and no history of \u03b2-lactam allergy. Which antimicrobial agent from the tested options is most likely to provide at least partial inhibition of PAHCV-190D5?",
+      "reasoning_steps": [
+        "Cefiderocol is ineffective due to resistance in iron-depleted media.",
+        "Ceftazidime/avibactam is ineffective due to resistance after prior therapy.",
+        "Imipenem/relebactam is ineffective due to resistance.",
+        "Piperacillin/tazobactam is ineffective due to resistance.",
+        "Meropenem shows only intermediate resistance, not full susceptibility.",
+        "Ceftolozane/tazobactam shows borderline susceptibility, indicating partial inhibition is possible.",
+        "Among all options, ceftolozane/tazobactam is most likely to provide at least partial inhibition."
+      ],
+      "correct_answer": "Ceftolozane/tazobactam",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "PAHCV-190D5",
+        "CEFIDEROCOL",
+        "CEFTAZIDIME/AVIBACTAM",
+        "IMIPENEM/RELEBACTAM",
+        "CEFTOLOZANE/TAZOBACTAM",
+        "PIPERACILLIN/TAZOBACTAM",
+        "MEROPENEM"
+      ],
+      "quality_score": 4.0,
+      "answer_word_count": 1,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "S-6492660, the research code for cefiderocol, demonstrates a 4-fold increase in cellular uptake in iron-depleted media compared to standard conditions. However, its activity can be influenced by the presence of certain metallo-\u03b2-lactamases in clinical isolates.",
+        "VIM metallo-\u03b2-lactamase has been detected in up to 20% of multidrug-resistant Pseudomonas aeruginosa isolates in some ICU settings, with enzyme activity remaining stable across a range of ambient temperatures. This enzyme requires zinc ions for optimal catalytic function.",
+        "The blaNDM gene encoding New Delhi metallo-\u03b2-lactamase (NDM) has been detected in approximately 15% of carbapenem-resistant Pseudomonas aeruginosa isolates in recent ICU surveillance studies. NDM hydrolyzes most \u03b2-lactam antibiotics, including carbapenems, but its activity can vary depending on the presence of zinc ions in the environment."
+      ],
+      "enrichment_entities": [
+        "S-6492660",
+        "VIM METALLO-\u0392-LACTAMASE",
+        "NDM"
+      ]
+    },
+    {
+      "paper_id": "aac.01192-23",
+      "domain": "clinical_microbiology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv68i1_10_1128_aac_01192_23-20240609113002-5820521/source_files/.qa_output/aac.01192-23/clinical_microbiology/contrastive_qa.json",
+      "question": "A 62-year-old patient with a history of recurrent urinary tract infections caused by multidrug-resistant Pseudomonas aeruginosa is started on ceftolozane/tazobactam. After 7 days of therapy, the patient's fever returns and urine culture again grows P. The MexCD-OprJ efflux pump in Pseudomonas aeruginosa can be upregulated up to 5-fold in response to antibiotic exposure, resulting in decreased intracellular concentrations of cephalosporin-\u03b2-lactamase inhibitor combinations. However, in this isolate, expression levels of MexCD-OprJ remained within the normal range. aeruginosa. In this patient, ampC mRNA levels were found to be within the normal reference range, and no ampD mutations were detected. Previous isolates from similar cases have shown ampC overexpression correlating with cephalosporin resistance. The new isolate has a minimum inhibitory concentration (MIC) for ceftolozane/tazobactam of 32 \u03bcg/mL (resistant; susceptible \u22644 \u03bcg/mL). Pseudomonas-derived cephalosporinase (PDC) variants have been shown to increase MICs for ceftazidime by up to 16-fold in some clinical isolates. However, the patient's isolate did not demonstrate elevated MICs for ceftazidime in this case. Genetic analysis reveals the presence of the GES-6 \u03b2-lactamase gene, which hydrolyzes ceftolozane/tazobactam. The isolate is negative for other carbapenemase genes and remains susceptible to colistin. Based on these findings, which mechanism most likely explains the observed resistance to ceftolozane/tazobactam in this patient?",
+      "original_question": "A 62-year-old patient with a history of recurrent urinary tract infections caused by multidrug-resistant Pseudomonas aeruginosa is started on ceftolozane/tazobactam. After 7 days of therapy, the patient's fever returns and urine culture again grows P. aeruginosa. The new isolate has a minimum inhibitory concentration (MIC) for ceftolozane/tazobactam of 32 \u03bcg/mL (resistant; susceptible \u22644 \u03bcg/mL). Genetic analysis reveals the presence of the GES-6 \u03b2-lactamase gene, which hydrolyzes ceftolozane/tazobactam. The isolate is negative for other carbapenemase genes and remains susceptible to colistin. Based on these findings, which mechanism most likely explains the observed resistance to ceftolozane/tazobactam in this patient?",
+      "reasoning_steps": [
+        "The patient was initially treated with ceftolozane/tazobactam for MDR P. aeruginosa.",
+        "After therapy, the infection recurred with the same organism.",
+        "The new isolate is resistant to ceftolozane/tazobactam (MIC 32 \u03bcg/mL).",
+        "Genetic testing identifies the GES-6 \u03b2-lactamase gene.",
+        "GES-6 is known to hydrolyze ceftolozane/tazobactam, conferring resistance.",
+        "No other carbapenemase genes are present, ruling out alternative resistance mechanisms.",
+        "The organism remains susceptible to colistin, indicating resistance is specific to \u03b2-lactams.",
+        "Therefore, GES-6-mediated hydrolysis is the most likely mechanism."
+      ],
+      "correct_answer": "GES-6-mediated hydrolysis",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "CEFTOLOZANE/TAZOBACTAM",
+        "RESISTANCE DEVELOPMENT",
+        "GES-6"
+      ],
+      "quality_score": 4.0,
+      "answer_word_count": 2,
+      "answer_format": "mechanism",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "The MexCD-OprJ efflux pump in Pseudomonas aeruginosa can be upregulated up to 5-fold in response to antibiotic exposure, resulting in decreased intracellular concentrations of cephalosporin-\u03b2-lactamase inhibitor combinations. However, in this isolate, expression levels of MexCD-OprJ remained within the normal range.",
+        "In this patient, ampC mRNA levels were found to be within the normal reference range, and no ampD mutations were detected. Previous isolates from similar cases have shown ampC overexpression correlating with cephalosporin resistance.",
+        "Pseudomonas-derived cephalosporinase (PDC) variants have been shown to increase MICs for ceftazidime by up to 16-fold in some clinical isolates. However, the patient's isolate did not demonstrate elevated MICs for ceftazidime in this case."
+      ],
+      "enrichment_entities": [
+        "MEXCD-OPRJ EFFLUX PUMP",
+        "AMPC",
+        "PSEUDOMONAS DERIVED CEPHALOSPORINASE (PDC)"
+      ]
+    },
+    {
+      "paper_id": "aac.01192-23",
+      "domain": "clinical_microbiology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv68i1_10_1128_aac_01192_23-20240609113002-5820521/source_files/.qa_output/aac.01192-23/clinical_microbiology/contrastive_qa.json",
+      "question": "A hospitalized patient with a urinary tract infection caused by Enterobacter cloacae is initially treated with ceftriaxone. After 7 days, the infection persists. AMPD deletion in Enterobacter cloacae has been associated with a 4-fold increase in ampC transcription, but does not alter susceptibility to aminoglycosides. In clinical isolates, this mutation is detected in approximately 15% of cases with persistent \u03b2-lactam resistance. Repeat cultures show the same organism, now with a ceftriaxone MIC >64 \u03bcg/mL (resistant) and a cefoxitin MIC >32 \u03bcg/mL (resistant). Biofilm formation by Enterobacter species has been observed on urinary catheters, with studies showing up to a 100-fold increase in antimicrobial tolerance compared to planktonic cells. However, biofilm-associated resistance is more commonly implicated in chronic or device-related infections. The isolate is negative for ESBL and carbapenemase genes but shows a mutation in the ampD gene. \u03b2-lactamase activity in Enterobacter cloacae isolates can increase up to 10-fold following exposure to certain \u03b2-lactam antibiotics, although this does not always correlate with changes in outer membrane permeability. In some cases, \u03b2-lactamase production remains stable despite prolonged antibiotic treatment. The patient is switched to cefepime, but after 5 days, the infection still does not resolve. Which resistance mechanism is most likely responsible for the persistent \u03b2-lactam resistance in this case?",
+      "original_question": "A hospitalized patient with a urinary tract infection caused by Enterobacter cloacae is initially treated with ceftriaxone. After 7 days, the infection persists. Repeat cultures show the same organism, now with a ceftriaxone MIC >64 \u03bcg/mL (resistant) and a cefoxitin MIC >32 \u03bcg/mL (resistant). The isolate is negative for ESBL and carbapenemase genes but shows a mutation in the ampD gene. The patient is switched to cefepime, but after 5 days, the infection still does not resolve. Which resistance mechanism is most likely responsible for the persistent \u03b2-lactam resistance in this case?",
+      "reasoning_steps": [
+        "Enterobacter cloacae can produce AmpC \u03b2-lactamase, which hydrolyzes cephalosporins.",
+        "Ceftriaxone resistance and cefoxitin resistance suggest \u03b2-lactamase-mediated resistance.",
+        "Negative ESBL and carbapenemase genes rule out those mechanisms.",
+        "Mutation in ampD gene is known to cause derepression (overexpression) of AmpC.",
+        "AmpC overexpression confers resistance to most \u03b2-lactams, including ceftriaxone and cefoxitin, and can reduce cefepime efficacy.",
+        "Persistent infection despite cefepime suggests high-level \u03b2-lactam resistance.",
+        "Therefore, AmpC overexpression due to ampD mutation is the most likely mechanism."
+      ],
+      "correct_answer": "AmpC overexpression",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "AMPC OVEREXPRESSION",
+        "\u0392-LACTAMS"
+      ],
+      "quality_score": 4.0,
+      "answer_word_count": 2,
+      "answer_format": "mechanism",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "AMPD deletion in Enterobacter cloacae has been associated with a 4-fold increase in ampC transcription, but does not alter susceptibility to aminoglycosides. In clinical isolates, this mutation is detected in approximately 15% of cases with persistent \u03b2-lactam resistance.",
+        "Biofilm formation by Enterobacter species has been observed on urinary catheters, with studies showing up to a 100-fold increase in antimicrobial tolerance compared to planktonic cells. However, biofilm-associated resistance is more commonly implicated in chronic or device-related infections.",
+        "\u03b2-lactamase activity in Enterobacter cloacae isolates can increase up to 10-fold following exposure to certain \u03b2-lactam antibiotics, although this does not always correlate with changes in outer membrane permeability. In some cases, \u03b2-lactamase production remains stable despite prolonged antibiotic treatment."
+      ],
+      "enrichment_entities": [
+        "AMPD DELETION",
+        "BIOFILM",
+        "\u0392-LACTAMASE"
+      ]
+    },
+    {
+      "paper_id": "aac.01192-23",
+      "domain": "clinical_microbiology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv68i1_10_1128_aac_01192_23-20240609113002-5820521/source_files/.qa_output/aac.01192-23/clinical_microbiology/contrastive_qa.json",
+      "question": "A clinical isolate of Pseudomonas aeruginosa is found to be resistant to both ceftazidime and imipenem. Whole-genome sequencing reveals a large genomic deletion spanning the ampD and piuDC genes. The patient\u2019s infection developed after prolonged ceftazidime therapy. In a separate experiment, integration of phage DNA into the same chromosomal region in a laboratory strain results in loss of ampD and piuDC, with subsequent resistance to ceftazidime and imipenem. Given that ampD loss leads to derepression of AmpC \u03b2-lactamase and piuDC loss impairs iron uptake, which mechanism is most likely responsible for the observed genomic deletion in the clinical isolate?",
+      "original_question": "A clinical isolate of Pseudomonas aeruginosa is found to be resistant to both ceftazidime and imipenem. Whole-genome sequencing reveals a large genomic deletion spanning the ampD and piuDC genes. The patient\u2019s infection developed after prolonged ceftazidime therapy. In a separate experiment, integration of phage DNA into the same chromosomal region in a laboratory strain results in loss of ampD and piuDC, with subsequent resistance to ceftazidime and imipenem. Given that ampD loss leads to derepression of AmpC \u03b2-lactamase and piuDC loss impairs iron uptake, which mechanism is most likely responsible for the observed genomic deletion in the clinical isolate?",
+      "reasoning_steps": [
+        "The clinical isolate has a large deletion including ampD and piuDC.",
+        "Resistance to ceftazidime and imipenem is observed, consistent with ampD loss (AmpC derepression).",
+        "piuDC loss affects iron uptake but is not directly linked to \u03b2-lactam resistance.",
+        "The patient received prolonged ceftazidime, selecting for resistance.",
+        "In the lab, phage DNA integration at the same locus causes similar deletions and resistance.",
+        "Phage integration is known to mediate large genomic deletions.",
+        "The parallel between clinical and lab findings suggests a shared mechanism."
+      ],
+      "correct_answer": "Phage DNA integration",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "GENOMIC DELETION",
+        "PHAGE DNA INTEGRATION"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 3,
+      "answer_format": "mechanism",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [],
+      "enrichment_entities": []
+    },
+    {
+      "paper_id": "aac.01192-23",
+      "domain": "clinical_microbiology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv68i1_10_1128_aac_01192_23-20240609113002-5820521/source_files/.qa_output/aac.01192-23/clinical_microbiology/contrastive_qa.json",
+      "question": "A 65-year-old patient with a chronic diabetic foot ulcer develops a persistent wound infection. Cultures repeatedly isolate Staphylococcus aureus forming small colony variants (SCVs) within a thick biofilm. The patient has a history of multiple antibiotic courses, including vancomycin and aminoglycosides, with limited improvement. Mucoid P. aeruginosa isolates from the wound produced alginate at concentrations exceeding 200 \u00b5g/mL, resulting in a visibly slimy biofilm and altered volatile organic compound profiles compared to non-mucoid strains. This phenotype was stable across multiple culture passages. Recent wound swabs also detect Pseudomonas aeruginosa. Laboratory analysis reveals that P. Recent isolates from the wound also show a 2-fold increase in drug efflux pump gene expression compared to reference S. aureus strains, although overall MIC values for vancomycin remain unchanged. aeruginosa in this wound secretes extracellular factors and expresses a functional Type VI Secretion System (T6SS). The patient\u2019s wound exudate contains elevated levels of TLR2 and distinct volatile metabolites characteristic of S. Biofilm-mediated resistance in Pseudomonas aeruginosa can reduce antibiotic penetration by up to 80%, resulting in persistent bacterial populations even after prolonged treatment. In chronic wound environments, biofilm thickness may exceed 100 micrometers, further limiting drug efficacy. aureus. Which interaction most likely explains the persistence of S. aureus as SCVs in this biofilm environment?",
+      "original_question": "A 65-year-old patient with a chronic diabetic foot ulcer develops a persistent wound infection. Cultures repeatedly isolate Staphylococcus aureus forming small colony variants (SCVs) within a thick biofilm. The patient has a history of multiple antibiotic courses, including vancomycin and aminoglycosides, with limited improvement. Recent wound swabs also detect Pseudomonas aeruginosa. Laboratory analysis reveals that P. aeruginosa in this wound secretes extracellular factors and expresses a functional Type VI Secretion System (T6SS). The patient\u2019s wound exudate contains elevated levels of TLR2 and distinct volatile metabolites characteristic of S. aureus. Which interaction most likely explains the persistence of S. aureus as SCVs in this biofilm environment?",
+      "reasoning_steps": [
+        "S. aureus is present as SCVs, indicating adaptation to stress or inhibition.",
+        "Biofilm formation supports persistence and antibiotic tolerance.",
+        "Multiple antibiotics (vancomycin, aminoglycosides) have failed, suggesting resistance or protection within biofilm.",
+        "P. aeruginosa is present and secretes extracellular factors.",
+        "P. aeruginosa expresses T6SS, known to inhibit competing bacteria.",
+        "Extracellular factors and T6SS from P. aeruginosa inhibit S. aureus, forcing it into SCV phenotype.",
+        "Elevated TLR2 and S. aureus metabolites confirm ongoing S. aureus activity despite inhibition."
+      ],
+      "correct_answer": "Extracellular factors and T6SS-mediated inhibition by Pseudomonas aeruginosa",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "STAPHYLOCOCCUS AUREUS",
+        "PSEUDOMONAS AERUGINOSA",
+        "ANTIBIOTICS",
+        "AMINOGLYCOSIDES",
+        "BIOFILM",
+        "ZINGIBER GENUS PLANTS",
+        "GLIPTINS",
+        "BRONCHO-ALVEOLAR LAVAGE",
+        "T6SS",
+        "TLR2",
+        "VOLATILE ORGANIC COMPOUNDS",
+        "VOLATILE METABOLITES",
+        "EXTRACELLULAR FACTORS",
+        "AUTOINDUCER PEPTIDE IV",
+        "CATH-2",
+        "DAPTOMYCIN",
+        "CLINICALLY APPROVED DRUGS",
+        "METHICILLIN RESISTANCE",
+        "VANCOMYCIN",
+        "CEFTAROLINE"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 9,
+      "answer_format": "mechanism",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Mucoid P. aeruginosa isolates from the wound produced alginate at concentrations exceeding 200 \u00b5g/mL, resulting in a visibly slimy biofilm and altered volatile organic compound profiles compared to non-mucoid strains. This phenotype was stable across multiple culture passages.",
+        "Recent isolates from the wound also show a 2-fold increase in drug efflux pump gene expression compared to reference S. aureus strains, although overall MIC values for vancomycin remain unchanged.",
+        "Biofilm-mediated resistance in Pseudomonas aeruginosa can reduce antibiotic penetration by up to 80%, resulting in persistent bacterial populations even after prolonged treatment. In chronic wound environments, biofilm thickness may exceed 100 micrometers, further limiting drug efficacy."
+      ],
+      "enrichment_entities": [
+        "MUCOID",
+        "DRUG EFFLUX",
+        "BIOFILM-MEDIATED RESISTANCE"
+      ]
+    },
+    {
+      "paper_id": "aac.00057-24",
+      "domain": "clinical_microbiology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv68i5_10_1128_aac_00057_24-20240609072947-6661864/source_files/.qa_output/aac.00057-24/clinical_microbiology/contrastive_qa.json",
+      "question": "A hospitalized patient develops diarrhea after a 7-day course of broad-spectrum antibiotics. Stool analysis shows a marked decrease in obligate anaerobes and a 10-fold increase in Enterobacteriaceae abundance compared to baseline. Salmochelin, a siderophore produced by certain Salmonella strains, enables iron acquisition even in the presence of host lipocalin-2, with studies showing a 4-fold increase in iron uptake compared to enterobactin under inflammatory conditions. However, salmochelin production is not uniform across all Enterobacteriaceae. Fecal calprotectin and lipocalin-2 levels are both elevated, indicating intestinal inflammation and host response to bacterial iron acquisition. Escherichia coli abundance in the gut can increase transiently following dietary changes, with some studies reporting a 2-fold rise after gluten-free diet initiation. However, E. coli typically remains below 1% of total gut microbiota in healthy adults. The patient\u2019s diet was recently switched to gluten-free, and colonoscopy reveals mild colitis. Dysbiosis has been associated with a 40% reduction in short-chain fatty acid production, which can alter epithelial barrier function but does not directly impact Enterobacteriaceae metabolic pathways. In similar clinical settings, dysbiosis is often accompanied by transient increases in facultative anaerobes. Which single factor most directly explains the observed overgrowth of Enterobacteriaceae in this patient?",
+      "original_question": "A hospitalized patient develops diarrhea after a 7-day course of broad-spectrum antibiotics. Stool analysis shows a marked decrease in obligate anaerobes and a 10-fold increase in Enterobacteriaceae abundance compared to baseline. Fecal calprotectin and lipocalin-2 levels are both elevated, indicating intestinal inflammation and host response to bacterial iron acquisition. The patient\u2019s diet was recently switched to gluten-free, and colonoscopy reveals mild colitis. Which single factor most directly explains the observed overgrowth of Enterobacteriaceae in this patient?",
+      "reasoning_steps": [
+        "Broad-spectrum antibiotics disrupt native microbiota, reducing colonization resistance.",
+        "Decreased obligate anaerobes further weakens competition against Enterobacteriaceae.",
+        "Gluten-free diet is associated with increased Enterobacteriaceae, but is not the most direct cause.",
+        "Colitis and inflammation create a niche favoring Enterobacteriaceae expansion.",
+        "Elevated lipocalin-2 indicates host response to Enterobacteriaceae iron acquisition, but is a consequence, not a cause.",
+        "The most direct and primary trigger is antibiotic usage, which initiates the cascade leading to overgrowth."
+      ],
+      "correct_answer": "Antibiotic usage",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "ENTEROBACTERIACEAE",
+        "COLONIZATION RESISTANCE",
+        "ANTIBIOTICS",
+        "COLITIS",
+        "MICROBIOTA COMPOSITION",
+        "C. RODENTIUM",
+        "INFLAMMATION",
+        "PPAR-\u0393 SIGNALING",
+        "INTESTINAL INFLAMMATION",
+        "ANTIBIOTIC USAGE",
+        "LIPOCALIN-2",
+        "ENTEROBACTIN",
+        "HOST-MEDIATED INFLAMMATION",
+        "GLUTEN-FREE DIET"
+      ],
+      "quality_score": 4.0,
+      "answer_word_count": 2,
+      "answer_format": "term",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Salmochelin, a siderophore produced by certain Salmonella strains, enables iron acquisition even in the presence of host lipocalin-2, with studies showing a 4-fold increase in iron uptake compared to enterobactin under inflammatory conditions. However, salmochelin production is not uniform across all Enterobacteriaceae.",
+        "Escherichia coli abundance in the gut can increase transiently following dietary changes, with some studies reporting a 2-fold rise after gluten-free diet initiation. However, E. coli typically remains below 1% of total gut microbiota in healthy adults.",
+        "Dysbiosis has been associated with a 40% reduction in short-chain fatty acid production, which can alter epithelial barrier function but does not directly impact Enterobacteriaceae metabolic pathways. In similar clinical settings, dysbiosis is often accompanied by transient increases in facultative anaerobes."
+      ],
+      "enrichment_entities": [
+        "SALMOCHELIN",
+        "ESCHERICHIA COLI",
+        "DYSBIOSIS"
+      ]
+    },
+    {
+      "paper_id": "aac.00057-24",
+      "domain": "clinical_microbiology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv68i5_10_1128_aac_00057_24-20240609072947-6661864/source_files/.qa_output/aac.00057-24/clinical_microbiology/contrastive_qa.json",
+      "question": "A hospitalized patient develops severe diarrhea after completing a 7-day course of clindamycin for a skin infection. Stool testing reveals high levels of Clostridium difficile toxin. Lactobacillus abundance in the patient's stool sample was reduced by 60% compared to healthy controls, consistent with antibiotic-associated shifts in gut microbiota composition. Despite this decrease, lactic acid levels remained within the normal range. Microbiome analysis shows a 70% reduction in gut microbial diversity compared to baseline, with marked depletion of Dorea and Coprococcus species. Lachnospiraceae abundance in the patient's baseline microbiome was measured at 12%, consistent with levels observed in healthy controls. In murine models, certain Lachnospiraceae strains have been shown to modulate short-chain fatty acid production without directly impacting C. difficile toxin levels. The patient is started on vancomycin, but symptoms persist. Probiotics containing Lactobacillaceae strains have demonstrated a 40% increase in short-chain fatty acid production in vitro, though their primary clinical use has been in managing autoimmune-related gut inflammation. Fecal microbiota transplantation (FMT) is considered. Based on the mechanisms of colonization resistance and the clinical scenario, which intervention is most likely to restore colonization resistance and resolve the infection?",
+      "original_question": "A hospitalized patient develops severe diarrhea after completing a 7-day course of clindamycin for a skin infection. Stool testing reveals high levels of Clostridium difficile toxin. Microbiome analysis shows a 70% reduction in gut microbial diversity compared to baseline, with marked depletion of Dorea and Coprococcus species. The patient is started on vancomycin, but symptoms persist. Fecal microbiota transplantation (FMT) is considered. Based on the mechanisms of colonization resistance and the clinical scenario, which intervention is most likely to restore colonization resistance and resolve the infection?",
+      "reasoning_steps": [
+        "Clindamycin disrupts gut microbiota, reducing colonization resistance.",
+        "Loss of Dorea and Coprococcus further weakens colonization resistance.",
+        "C. difficile overgrows due to disrupted microbiota.",
+        "Vancomycin targets C. difficile but does not restore microbiota diversity.",
+        "Persistent symptoms indicate ongoing dysbiosis and lack of colonization resistance.",
+        "FMT restores microbial diversity and beneficial species.",
+        "Restoration of microbiota re-establishes colonization resistance, resolving infection."
+      ],
+      "correct_answer": "Fecal microbiota transplantation",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "COLONIZATION RESISTANCE",
+        "DYSBIOSIS",
+        "ENTEROHEMORRHAGIC ESCHERICHIA COLI (EHEC)",
+        "ANTIBIOTICS",
+        "CLINDAMYCIN",
+        "VANCOMYCIN",
+        "ANTIBIOTIC",
+        "CLOSTRIDIUM DIFFICILE",
+        "ESCHERICHIA COLI",
+        "IMMUNITY",
+        "IL-22",
+        "REGIII\u0393",
+        "VAGINAL MICROBIOME",
+        "GUT MICROBIOME",
+        "SPATIAL ORGANIZATION",
+        "MICROBIOME DIVERSITY",
+        "FAECAL MICROBIOTA TRANSPLANTATION",
+        "COOPERATIVE CARBOHYDRATE COMPETITION",
+        "GERM-FREE MICE",
+        "INDOLE-3-LACTIC ACID",
+        "GALACTITOL",
+        "PROBIOTIC ADMINISTRATION",
+        "INTERLEUKIN-22",
+        "BENEFICIAL MICROBES",
+        "ENTERIC PATHOGENS",
+        "BACTERIAL ENTEROPATHOGENS",
+        "ANTIBIOTIC-TREATED MICE",
+        "CONVENTIONALLY RAISED MICE",
+        "UNTREATED CONTROL MICE",
+        "ANTIBIOTIC USAGE",
+        "PATHOGENIC MICROBES",
+        "S. TYPHIMURIUM",
+        "C. DIFFICILE",
+        "SHIGELLA FLEXNERI",
+        "DOREA",
+        "COPROCOCCUS",
+        "PATHOGEN EXPANSION MECHANISMS",
+        "FUCOSYLATION",
+        "VIRULENCE GENE",
+        "GUT COMMENSAL-PRODUCED METABOLITE",
+        "ESCHERICHIA COLI HS",
+        "ESCHERICHIA COLI NISSLE 1917",
+        "COMMENSAL MICROFLORA",
+        "COLICINOGENIC ESCHERICHIA COLI",
+        "MICROBIAL FLORA",
+        "COLICIN",
+        "SKIN MICROBIOTA",
+        "SALIVA"
+      ],
+      "quality_score": 4.0,
+      "answer_word_count": 3,
+      "answer_format": "term",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Lactobacillus abundance in the patient's stool sample was reduced by 60% compared to healthy controls, consistent with antibiotic-associated shifts in gut microbiota composition. Despite this decrease, lactic acid levels remained within the normal range.",
+        "Lachnospiraceae abundance in the patient's baseline microbiome was measured at 12%, consistent with levels observed in healthy controls. In murine models, certain Lachnospiraceae strains have been shown to modulate short-chain fatty acid production without directly impacting C. difficile toxin levels.",
+        "Probiotics containing Lactobacillaceae strains have demonstrated a 40% increase in short-chain fatty acid production in vitro, though their primary clinical use has been in managing autoimmune-related gut inflammation."
+      ],
+      "enrichment_entities": [
+        "LACTOBACILLUS",
+        "LACHNOSPIRACEAE",
+        "PROBIOTICS (LACTOBACILLACEAE-BASED)"
+      ]
+    },
+    {
+      "paper_id": "aac.00057-24",
+      "domain": "clinical_microbiology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv68i5_10_1128_aac_00057_24-20240609072947-6661864/source_files/.qa_output/aac.00057-24/clinical_microbiology/contrastive_qa.json",
+      "question": "A clinical trial investigates interventions that modulate fecal microbiota in adults. Group A receives oral kanamycin (500 mg twice daily for 7 days), Group B is challenged with EHEC (10^7 CFU orally, single dose), Group C consumes resistant starch type 2 (30 g/day for 14 days), and Group D receives no intervention. Tetracycline, administered at 250 mg twice daily for 5 days in a parallel cohort, led to a 60% reduction in Eubacterium lentum abundance and increased serum digoxin levels by 25%, without altering Enterobacteriaceae counts. Fecal samples are analyzed for microbial diversity and Enterobacteriaceae abundance at baseline, day 7, and day 14. Clostridium difficile colonization rates increase by up to 40% in adults following broad-spectrum antibiotic exposure, although toxin production and symptomatic infection remain variable. In clinical trials, C. difficile is detected in stool samples using PCR or toxin immunoassays, independent of changes in overall microbial diversity. Results show: - Group A: 70% reduction in microbial diversity by day 7, with loss of Bifidobacterium and Lactobacillus, and persistent low diversity at day 14. Rifampicin administration in mice leads to a 40% reduction in gut microbial diversity within 5 days, primarily affecting Firmicutes populations. In studies of C. rodentium \u03d5stx2dact infection, rifampicin-treated animals show altered short-chain fatty acid profiles but unchanged Enterobacteriaceae abundance. - Group B: 30% increase in Enterobacteriaceae at day 7, returning to baseline by day 14; microbial diversity decreases 20% at day 7, recovers by day 14. - Group C: 15% increase in Bifidobacterium and 10% increase in microbial diversity by day 14; Enterobacteriaceae unchanged. - Group D: No significant changes. Which intervention causes the most profound and sustained disruption of fecal microbiota composition?",
+      "original_question": "A clinical trial investigates interventions that modulate fecal microbiota in adults. Group A receives oral kanamycin (500 mg twice daily for 7 days), Group B is challenged with EHEC (10^7 CFU orally, single dose), Group C consumes resistant starch type 2 (30 g/day for 14 days), and Group D receives no intervention. Fecal samples are analyzed for microbial diversity and Enterobacteriaceae abundance at baseline, day 7, and day 14. Results show: - Group A: 70% reduction in microbial diversity by day 7, with loss of Bifidobacterium and Lactobacillus, and persistent low diversity at day 14. - Group B: 30% increase in Enterobacteriaceae at day 7, returning to baseline by day 14; microbial diversity decreases 20% at day 7, recovers by day 14. - Group C: 15% increase in Bifidobacterium and 10% increase in microbial diversity by day 14; Enterobacteriaceae unchanged. - Group D: No significant changes. Which intervention causes the most profound and sustained disruption of fecal microbiota composition?",
+      "reasoning_steps": [
+        "Kanamycin (Group A) causes a 70% reduction in diversity, loss of beneficial genera, and persistent low diversity.",
+        "EHEC (Group B) causes a transient increase in Enterobacteriaceae and a 20% diversity decrease, both recovering by day 14.",
+        "Resistant starch type 2 (Group C) increases beneficial bacteria and diversity, with no negative impact.",
+        "Control (Group D) shows no changes.",
+        "\"Most profound and sustained disruption\" means greatest and longest-lasting negative effect.",
+        "Only Group A (kanamycin) shows both a large and persistent reduction in diversity and beneficial bacteria.",
+        "Groups B and C either recover or improve diversity.",
+        "Therefore, kanamycin is the correct answer."
+      ],
+      "correct_answer": "Kanamycin",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "FECAL MICROBIOTA",
+        "KANAMYCIN",
+        "EHEC",
+        "C. RODENTIUM \u03a6STX2DACT",
+        "ANTIBIOTIC",
+        "RESISTANT STARCH TYPE 2"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 1,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Tetracycline, administered at 250 mg twice daily for 5 days in a parallel cohort, led to a 60% reduction in Eubacterium lentum abundance and increased serum digoxin levels by 25%, without altering Enterobacteriaceae counts.",
+        "Clostridium difficile colonization rates increase by up to 40% in adults following broad-spectrum antibiotic exposure, although toxin production and symptomatic infection remain variable. In clinical trials, C. difficile is detected in stool samples using PCR or toxin immunoassays, independent of changes in overall microbial diversity.",
+        "Rifampicin administration in mice leads to a 40% reduction in gut microbial diversity within 5 days, primarily affecting Firmicutes populations. In studies of C. rodentium \u03d5stx2dact infection, rifampicin-treated animals show altered short-chain fatty acid profiles but unchanged Enterobacteriaceae abundance."
+      ],
+      "enrichment_entities": [
+        "TETRACYCLINE",
+        "CLOSTRIDIUM DIFFICILE",
+        "RIFAMPICIN"
+      ]
+    },
+    {
+      "paper_id": "aac.00057-24",
+      "domain": "clinical_microbiology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv68i5_10_1128_aac_00057_24-20240609072947-6661864/source_files/.qa_output/aac.00057-24/clinical_microbiology/contrastive_qa.json",
+      "question": "A patient with hemorrhagic colitis is found to be colonized with Enterohaemorrhagic Escherichia coli O157:H7. In vitro, E. coli O157:H7 grows rapidly in aerobic conditions at pH 7. 0, reaching 10^8 CFU/mL in 24 hours. When cultured anaerobically with a diverse community of intestinal anaerobes, E. coli O157:H7 growth is suppressed to 10^4 CFU/mL, and the medium pH drops to 5. 5. Addition of a mixture of organic acids (acetate, propionate, butyrate) to E. E. coli O157:H7 is capable of utilizing ethanolamine as a nitrogen source during anaerobic growth, with expression of ethanolamine utilization genes increasing 2-fold in the presence of intestinal microbiota. However, this pathway does not significantly alter the acidification of the culture medium. coli O157:H7 monoculture at pH 5. 5 also suppresses its growth to 10^4 CFU/mL. However, when E. coli O157:H7 is cultured anaerobically with intestinal anaerobes but the medium is buffered to maintain pH 7. 0, its growth reaches 10^7 CFU/mL. Considering these findings, which factor is primarily responsible for the suppression of E. coli O157:H7 by intestinal anaerobes under anaerobic conditions?",
+      "original_question": "A patient with hemorrhagic colitis is found to be colonized with Enterohaemorrhagic Escherichia coli O157:H7. In vitro, E. coli O157:H7 grows rapidly in aerobic conditions at pH 7.0, reaching 10^8 CFU/mL in 24 hours. When cultured anaerobically with a diverse community of intestinal anaerobes, E. coli O157:H7 growth is suppressed to 10^4 CFU/mL, and the medium pH drops to 5.5. Addition of a mixture of organic acids (acetate, propionate, butyrate) to E. coli O157:H7 monoculture at pH 5.5 also suppresses its growth to 10^4 CFU/mL. However, when E. coli O157:H7 is cultured anaerobically with intestinal anaerobes but the medium is buffered to maintain pH 7.0, its growth reaches 10^7 CFU/mL. Considering these findings, which factor is primarily responsible for the suppression of E. coli O157:H7 by intestinal anaerobes under anaerobic conditions?",
+      "reasoning_steps": [
+        "E. coli O157:H7 grows well at neutral pH (7.0), poorly at acidic pH (5.5).",
+        "Intestinal anaerobes suppress E. coli O157:H7 growth and lower pH to 5.5.",
+        "Organic acids at pH 5.5 alone suppress E. coli O157:H7 growth.",
+        "Buffering the medium to pH 7.0 during coculture with anaerobes restores E. coli O157:H7 growth.",
+        "Therefore, the suppression is not due to resource competition alone, since buffering reverses the effect.",
+        "The key variable is the acidic pH, which is a result of organic acid production by anaerobes.",
+        "Thus, the primary suppressive factor is the acidification of the environment by organic acids."
+      ],
+      "correct_answer": "Acidification by organic acids",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "ENTEROHEMORRHAGIC ESCHERICHIA COLI",
+        "ORGANIC ACIDS",
+        "INTESTINAL ANAEROBES"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 3,
+      "answer_format": "mechanism",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "E. coli O157:H7 is capable of utilizing ethanolamine as a nitrogen source during anaerobic growth, with expression of ethanolamine utilization genes increasing 2-fold in the presence of intestinal microbiota. However, this pathway does not significantly alter the acidification of the culture medium."
+      ],
+      "enrichment_entities": [
+        "ETHANOLAMINE"
+      ]
+    },
+    {
+      "paper_id": "aac.00057-24",
+      "domain": "clinical_microbiology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv68i5_10_1128_aac_00057_24-20240609072947-6661864/source_files/.qa_output/aac.00057-24/clinical_microbiology/contrastive_qa.json",
+      "question": "A 7-year-old child presents with bloody diarrhea and is diagnosed with EHEC (enterohemorrhagic E. coli) O157:H7 infection. Probiotics, when administered alongside standard therapy, have been shown to increase fecal lactate concentrations by 40% without altering the abundance of EHEC in stool cultures. In murine models, probiotic supplementation induces a mild increase in mucosal IgA levels but does not significantly affect Shiga toxin gene transcription. The clinical team considers antibiotic therapy. Probiotic administration with Lactobacillus rhamnosus GG has been shown to increase mucin production by 40% in pediatric gut epithelial cells, without altering baseline Shiga toxin receptor expression. Laboratory data show that treatment with enrofloxacin at standard doses induces a 10-fold increase in Shiga toxin gene expression and toxin release in vitro, while rifampicin at minimal inhibitory concentration reduces Shiga toxin expression by 80%. Short-chain fatty acids (SCFA) concentrations in stool samples from children with EHEC infection are typically 20% lower than in healthy controls, reflecting altered microbial fermentation. SCFA levels correlate with dietary fiber intake but do not directly influence Shiga toxin gene expression in vitro. A fiber-rich diet is associated with increased butyrate and globotriaosylceramide expression, which enhances susceptibility to Shiga toxin-mediated disease. Bifidobacterium supplementation increases acetate and strengthens intestinal barrier integrity, reducing systemic dissemination of Shiga toxin. Which intervention is most likely to reduce the risk of Shiga toxin-mediated organ damage in this patient?",
+      "original_question": "A 7-year-old child presents with bloody diarrhea and is diagnosed with EHEC (enterohemorrhagic E. coli) O157:H7 infection. The clinical team considers antibiotic therapy. Laboratory data show that treatment with enrofloxacin at standard doses induces a 10-fold increase in Shiga toxin gene expression and toxin release in vitro, while rifampicin at minimal inhibitory concentration reduces Shiga toxin expression by 80%. A fiber-rich diet is associated with increased butyrate and globotriaosylceramide expression, which enhances susceptibility to Shiga toxin-mediated disease. Bifidobacterium supplementation increases acetate and strengthens intestinal barrier integrity, reducing systemic dissemination of Shiga toxin. Which intervention is most likely to reduce the risk of Shiga toxin-mediated organ damage in this patient?",
+      "reasoning_steps": [
+        "Enrofloxacin induces Shiga toxin expression, increasing risk of organ damage.",
+        "Rifampicin reduces Shiga toxin expression, lowering risk.",
+        "Fiber-rich diet increases susceptibility to Shiga toxin effects.",
+        "Bifidobacterium increases acetate and barrier integrity, reducing toxin dissemination.",
+        "Strengthened barrier prevents systemic spread of Shiga toxin.",
+        "Reducing toxin expression and dissemination both lower organ damage risk.",
+        "Among options, Bifidobacterium directly inhibits dissemination and toxicity."
+      ],
+      "correct_answer": "Bifidobacterium",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "SHIGA TOXIN",
+        "ENROFLOXACIN",
+        "ANTIBIOTICS",
+        "STX-INDUCING ANTIBIOTICS",
+        "RIFAMPICIN",
+        "BIFIDOBACTERIUM",
+        "TOXIN GENE EXPRESSION",
+        "FIBER-RICH DIET",
+        "INTESTINAL EPITHELIUM BARRIER INTEGRITY"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 1,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Probiotics, when administered alongside standard therapy, have been shown to increase fecal lactate concentrations by 40% without altering the abundance of EHEC in stool cultures. In murine models, probiotic supplementation induces a mild increase in mucosal IgA levels but does not significantly affect Shiga toxin gene transcription.",
+        "Probiotic administration with Lactobacillus rhamnosus GG has been shown to increase mucin production by 40% in pediatric gut epithelial cells, without altering baseline Shiga toxin receptor expression.",
+        "Short-chain fatty acids (SCFA) concentrations in stool samples from children with EHEC infection are typically 20% lower than in healthy controls, reflecting altered microbial fermentation. SCFA levels correlate with dietary fiber intake but do not directly influence Shiga toxin gene expression in vitro."
+      ],
+      "enrichment_entities": [
+        "PROBIOTICS",
+        "PROBIOTIC ADMINISTRATION",
+        "SHORT-CHAIN FATTY ACIDS"
+      ]
+    },
+    {
+      "paper_id": "aac.00057-24",
+      "domain": "clinical_microbiology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv68i5_10_1128_aac_00057_24-20240609072947-6661864/source_files/.qa_output/aac.00057-24/clinical_microbiology/contrastive_qa.json",
+      "question": "A patient with recurrent Clostridioides difficile infection (CDI) is treated with either vancomycin or tetracycline. Vancomycin reduces gut Clostridia abundance by 90% and butyrate levels by 80%, while tetracycline reduces Clostridia by only 20% and butyrate by 10%. Lachnospiraceae abundance increases by approximately 40% following dietary fiber supplementation, with a corresponding rise in fecal acetate concentrations. In murine models, this family has been shown to modulate immune cell populations independently of butyrate levels. Clostridia are known to inhibit C. Clostridiales abundance has been shown to increase by up to 40% following enrofloxacin exposure in murine models, though this shift does not correlate with changes in bile acid profiles. Members of Clostridiales also express diverse hydrolytic enzymes, with activity levels varying depending on dietary fiber intake. difficile via butyrate production. Microbial diversity, as measured by the Shannon index, decreased by 40% following vancomycin treatment and by 15% with tetracycline, though both regimens maintained similar levels of total bacterial biomass. Tetracycline has less severe inhibitory effects on Clostridia, suggesting partial resistance or tolerance. Which antibiotic is more likely to preserve colonization resistance against C. difficile relapse in this patient?",
+      "original_question": "A patient with recurrent Clostridioides difficile infection (CDI) is treated with either vancomycin or tetracycline. Vancomycin reduces gut Clostridia abundance by 90% and butyrate levels by 80%, while tetracycline reduces Clostridia by only 20% and butyrate by 10%. Clostridia are known to inhibit C. difficile via butyrate production. Tetracycline has less severe inhibitory effects on Clostridia, suggesting partial resistance or tolerance. Which antibiotic is more likely to preserve colonization resistance against C. difficile relapse in this patient?",
+      "reasoning_steps": [
+        "Clostridia produce butyrate, which inhibits C. difficile.",
+        "Vancomycin drastically reduces Clostridia and butyrate, weakening colonization resistance.",
+        "Tetracycline only mildly reduces Clostridia and butyrate.",
+        "Less reduction in Clostridia means more butyrate remains.",
+        "More butyrate means stronger inhibition of C. difficile.",
+        "Tetracycline's partial resistance/tolerance in Clostridia preserves their function.",
+        "Therefore, tetracycline better maintains colonization resistance."
+      ],
+      "correct_answer": "Tetracycline",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "CLOSTRIDIA",
+        "TETRACYCLINE"
+      ],
+      "quality_score": 4.0,
+      "answer_word_count": 1,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Lachnospiraceae abundance increases by approximately 40% following dietary fiber supplementation, with a corresponding rise in fecal acetate concentrations. In murine models, this family has been shown to modulate immune cell populations independently of butyrate levels.",
+        "Clostridiales abundance has been shown to increase by up to 40% following enrofloxacin exposure in murine models, though this shift does not correlate with changes in bile acid profiles. Members of Clostridiales also express diverse hydrolytic enzymes, with activity levels varying depending on dietary fiber intake.",
+        "Microbial diversity, as measured by the Shannon index, decreased by 40% following vancomycin treatment and by 15% with tetracycline, though both regimens maintained similar levels of total bacterial biomass."
+      ],
+      "enrichment_entities": [
+        "LACHNOSPIRACEAE",
+        "CLOSTRIDIALES",
+        "MICROBIAL DIVERSITY"
+      ]
+    },
+    {
+      "paper_id": "aac.00057-24",
+      "domain": "clinical_microbiology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv68i5_10_1128_aac_00057_24-20240609072947-6661864/source_files/.qa_output/aac.00057-24/clinical_microbiology/contrastive_qa.json",
+      "question": "A clinical trial investigates the effects of four antibiotics\u2014enrofloxacin, trimethoprim/sulfamethoxazole, kanamycin, and tetracycline\u2014on the gut microbiota of healthy adults over 7 days. - Enrofloxacin treatment results in a 70% decrease in Bacteroidetes abundance by day 3, with partial recovery by day 7. Proteobacteria abundance decreased by 65% during the first three days of enrofloxacin treatment, but levels of this phylum remained stable with kanamycin and tetracycline exposure. Notably, trimethoprim/sulfamethoxazole led to a transient 40% increase in Proteobacteria by day 7. - Trimethoprim/sulfamethoxazole causes a 60% reduction in Bacteroidetes by day 3, with minimal recovery by day 7. In a parallel study, \u03b2-lactams administered for 7 days resulted in a 40% reduction in total gut bacterial load, with Bacteroidetes showing variable susceptibility depending on \u03b2-lactamase expression. Resistance rates among Bacteroidetes isolates increased from 10% to 25% post-treatment. - Kanamycin leads to a 90% depletion of most gut bacteria except Bacteroidetes, which increase in relative abundance from 20% to 80% by day 7. Firmicutes abundance remained stable in most treatment groups, with only a 10% fluctuation observed by day 7, suggesting limited impact from short-term antibiotic exposure. This phylum's metabolic activity was unchanged across all regimens. - Tetracycline causes oscillating changes, but by day 7, Bacteroidetes abundance increases from 20% to 35%. Assuming the goal is to selectively preserve or increase Bacteroidetes abundance while minimizing overall microbiota depletion, which antibiotic regimen best achieves this outcome?",
+      "original_question": "A clinical trial investigates the effects of four antibiotics\u2014enrofloxacin, trimethoprim/sulfamethoxazole, kanamycin, and tetracycline\u2014on the gut microbiota of healthy adults over 7 days. - Enrofloxacin treatment results in a 70% decrease in Bacteroidetes abundance by day 3, with partial recovery by day 7. - Trimethoprim/sulfamethoxazole causes a 60% reduction in Bacteroidetes by day 3, with minimal recovery by day 7. - Kanamycin leads to a 90% depletion of most gut bacteria except Bacteroidetes, which increase in relative abundance from 20% to 80% by day 7. - Tetracycline causes oscillating changes, but by day 7, Bacteroidetes abundance increases from 20% to 35%. Assuming the goal is to selectively preserve or increase Bacteroidetes abundance while minimizing overall microbiota depletion, which antibiotic regimen best achieves this outcome?",
+      "reasoning_steps": [
+        "Enrofloxacin and trimethoprim/sulfamethoxazole both sharply decrease Bacteroidetes, so they do not preserve or increase this phylum.",
+        "Tetracycline increases Bacteroidetes moderately but may affect other phyla and causes oscillations.",
+        "Kanamycin depletes most gut bacteria but Bacteroidetes increase dramatically in relative abundance.",
+        "The question asks for selective preservation/increase of Bacteroidetes, not overall diversity.",
+        "Kanamycin's effect is a large relative increase in Bacteroidetes, despite overall depletion.",
+        "Comparing final Bacteroidetes abundance: Kanamycin (80%) > Tetracycline (35%) > others (decreased).",
+        "Therefore, kanamycin best achieves the stated goal."
+      ],
+      "correct_answer": "Kanamycin",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "BACTEROIDETES",
+        "ENROFLOXACIN",
+        "TRIMETHOPRIM/SULFAMETHOXAZOLE",
+        "KANAMYCIN",
+        "TETRACYCLINE",
+        "ANTIBIOTICS",
+        "C. RODENTIUM",
+        "GUT MICROBIOME",
+        "HIGH FAT DIET"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 1,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Proteobacteria abundance decreased by 65% during the first three days of enrofloxacin treatment, but levels of this phylum remained stable with kanamycin and tetracycline exposure. Notably, trimethoprim/sulfamethoxazole led to a transient 40% increase in Proteobacteria by day 7.",
+        "In a parallel study, \u03b2-lactams administered for 7 days resulted in a 40% reduction in total gut bacterial load, with Bacteroidetes showing variable susceptibility depending on \u03b2-lactamase expression. Resistance rates among Bacteroidetes isolates increased from 10% to 25% post-treatment.",
+        "Firmicutes abundance remained stable in most treatment groups, with only a 10% fluctuation observed by day 7, suggesting limited impact from short-term antibiotic exposure. This phylum's metabolic activity was unchanged across all regimens."
+      ],
+      "enrichment_entities": [
+        "PROTEOBACTERIA",
+        "\u0392-LACTAMS",
+        "FIRMICUTES"
+      ]
+    },
+    {
+      "paper_id": "aac.00057-24",
+      "domain": "clinical_microbiology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv68i5_10_1128_aac_00057_24-20240609072947-6661864/source_files/.qa_output/aac.00057-24/clinical_microbiology/contrastive_qa.json",
+      "question": "A mouse model is used to study the effects of two interventions on gut microbiota: (1) oral tetracycline at 50 mg/kg/day for 7 days, and (2) oral infection with 10^8 CFU of Citrobacter rodentium. In group A, mice receive only tetracycline; in group B, only C. Enterobacteriaceae abundance increased by 2-fold in groups B and C by day 7, consistent with previous reports of dysbiosis following gut infection. However, this expansion did not correlate with changes in Muribaculaceae recovery dynamics. rodentium; in group C, both interventions simultaneously; and in group D, no intervention. In the DSS-induced mouse model of colitis, administration of 2% dextran sulfate sodium in drinking water for 5 days typically results in a 70% reduction in gut microbial diversity by day 7. This model is frequently used to assess how intestinal inflammation alters colonization dynamics of pathogens and commensals. Fecal 16S rRNA sequencing on day 7 shows: group A\u2014Muribaculaceae abundance decreases by 80%; group B\u2014Muribaculaceae decreases by 60%; group C\u2014Muribaculaceae decreases by 90%; group D\u2014Muribaculaceae unchanged. Bacteroidetes abundance remained stable across all groups by day 7, with only a 5% fluctuation observed in group C. Notably, Bacteroidetes are known to possess multidrug efflux pumps that can confer resilience to certain antibiotics. By day 21, group A shows partial recovery (to 50% of baseline), group B remains at 40% of baseline, group C remains at 10% of baseline, group D remains at 100%. Which intervention most severely and persistently reduces Muribaculaceae abundance?",
+      "original_question": "A mouse model is used to study the effects of two interventions on gut microbiota: (1) oral tetracycline at 50 mg/kg/day for 7 days, and (2) oral infection with 10^8 CFU of Citrobacter rodentium. In group A, mice receive only tetracycline; in group B, only C. rodentium; in group C, both interventions simultaneously; and in group D, no intervention. Fecal 16S rRNA sequencing on day 7 shows: group A\u2014Muribaculaceae abundance decreases by 80%; group B\u2014Muribaculaceae decreases by 60%; group C\u2014Muribaculaceae decreases by 90%; group D\u2014Muribaculaceae unchanged. By day 21, group A shows partial recovery (to 50% of baseline), group B remains at 40% of baseline, group C remains at 10% of baseline, group D remains at 100%. Which intervention most severely and persistently reduces Muribaculaceae abundance?",
+      "reasoning_steps": [
+        "Tetracycline alone (group A) causes 80% reduction, partial recovery to 50% by day 21.",
+        "C. rodentium alone (group B) causes 60% reduction, remains at 40% by day 21.",
+        "Both together (group C) cause 90% reduction, remains at 10% by day 21.",
+        "Control (group D) shows no change.",
+        "Compare both severity (initial reduction) and persistence (lack of recovery).",
+        "Group C has the greatest initial reduction and least recovery.",
+        "Therefore, simultaneous tetracycline and C. rodentium cause the most severe and persistent reduction."
+      ],
+      "correct_answer": "Simultaneous tetracycline and C. rodentium",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "MURIBACULACEAE",
+        "TETRACYCLINE",
+        "C. RODENTIUM"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 4,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Enterobacteriaceae abundance increased by 2-fold in groups B and C by day 7, consistent with previous reports of dysbiosis following gut infection. However, this expansion did not correlate with changes in Muribaculaceae recovery dynamics.",
+        "In the DSS-induced mouse model of colitis, administration of 2% dextran sulfate sodium in drinking water for 5 days typically results in a 70% reduction in gut microbial diversity by day 7. This model is frequently used to assess how intestinal inflammation alters colonization dynamics of pathogens and commensals.",
+        "Bacteroidetes abundance remained stable across all groups by day 7, with only a 5% fluctuation observed in group C. Notably, Bacteroidetes are known to possess multidrug efflux pumps that can confer resilience to certain antibiotics."
+      ],
+      "enrichment_entities": [
+        "ENTEROBACTERIACEAE",
+        "DSS-INDUCED MOUSE MODEL OF COLITIS",
+        "BACTEROIDETES"
+      ]
+    },
+    {
+      "paper_id": "aac.00057-24",
+      "domain": "clinical_microbiology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv68i5_10_1128_aac_00057_24-20240609072947-6661864/source_files/.qa_output/aac.00057-24/clinical_microbiology/contrastive_qa.json",
+      "question": "A mouse model is infected with Citrobacter rodentium \u03a6stx2dact, a strain that causes Shiga toxin-mediated organ damage similar to enterohemorrhagic E. Bacterial clearance rates in this mouse model were highest with kanamycin and tetracycline, reaching undetectable levels within 48 hours post-treatment. However, overall bacterial clearance did not correlate with preservation of microbiota diversity. coli. Taxon richness, a measure of microbiota diversity, was significantly reduced by kanamycin treatment, dropping from an average of 246 \u00b1 69 taxa to 75 \u00b1 25 taxa. This reduction in taxon richness did not correlate with changes in Shiga toxin levels. Four antibiotics are considered: (1) Enrofloxacin, which treats the infection but does not prevent Shiga toxin-mediated organ damage; (2) Trimethoprim/sulfamethoxazole, which treats the infection but does not prevent Shiga toxin-mediated organ damage; (3) Kanamycin, which rapidly clears the infection without causing organ damage but severely reduces microbiota diversity; (4) Tetracycline, which also rapidly clears the infection without causing organ damage but causes severe reduction in microbiota diversity. Following antibiotic treatment, diversity and richness scores of the gut microbiota can decrease by up to 80%, with kanamycin and tetracycline showing the most pronounced effects in murine models. These metrics are commonly assessed using 16S rRNA gene sequencing before and after intervention. If the primary clinical goal is to prevent Shiga toxin-mediated organ damage, regardless of microbiota effects, which antibiotic should be selected?",
+      "original_question": "A mouse model is infected with Citrobacter rodentium \u03a6stx2dact, a strain that causes Shiga toxin-mediated organ damage similar to enterohemorrhagic E. coli. Four antibiotics are considered: (1) Enrofloxacin, which treats the infection but does not prevent Shiga toxin-mediated organ damage; (2) Trimethoprim/sulfamethoxazole, which treats the infection but does not prevent Shiga toxin-mediated organ damage; (3) Kanamycin, which rapidly clears the infection without causing organ damage but severely reduces microbiota diversity; (4) Tetracycline, which also rapidly clears the infection without causing organ damage but causes severe reduction in microbiota diversity. If the primary clinical goal is to prevent Shiga toxin-mediated organ damage, regardless of microbiota effects, which antibiotic should be selected?",
+      "reasoning_steps": [
+        "Shiga toxin-mediated organ damage is the main concern.",
+        "Enrofloxacin and trimethoprim/sulfamethoxazole do not prevent organ damage.",
+        "Kanamycin and tetracycline both prevent organ damage.",
+        "Both kanamycin and tetracycline severely reduce microbiota diversity, but microbiota effects are not a concern for this scenario.",
+        "The question asks for any antibiotic that prevents organ damage, regardless of microbiota effects.",
+        "Therefore, either kanamycin or tetracycline is acceptable.",
+        "Select one as the answer."
+      ],
+      "correct_answer": "Kanamycin",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "CITROBACTER RODENTIUM \u03a6STX2DACT",
+        "ENROFLOXACIN",
+        "TRIMETHOPRIM/SULFAMETHOXAZOLE",
+        "KANAMYCIN",
+        "TETRACYCLINE"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 1,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Bacterial clearance rates in this mouse model were highest with kanamycin and tetracycline, reaching undetectable levels within 48 hours post-treatment. However, overall bacterial clearance did not correlate with preservation of microbiota diversity.",
+        "Taxon richness, a measure of microbiota diversity, was significantly reduced by kanamycin treatment, dropping from an average of 246 \u00b1 69 taxa to 75 \u00b1 25 taxa. This reduction in taxon richness did not correlate with changes in Shiga toxin levels.",
+        "Following antibiotic treatment, diversity and richness scores of the gut microbiota can decrease by up to 80%, with kanamycin and tetracycline showing the most pronounced effects in murine models. These metrics are commonly assessed using 16S rRNA gene sequencing before and after intervention."
+      ],
+      "enrichment_entities": [
+        "BACTERIAL CLEARANCE",
+        "TAXON RICHNESS",
+        "DIVERSITY AND RICHNESS"
+      ]
+    },
+    {
+      "paper_id": "aac.01619-23",
+      "domain": "clinical_microbiology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv68i6_10_1128_aac_01619_23-20240609072956-6041705/source_files/.qa_output/aac.01619-23/clinical_microbiology/contrastive_qa.json",
+      "question": "A clinical isolate of Candida parapsilosis from a patient with persistent candidemia shows a fluconazole MIC of 64 \u03bcg/mL (resistant; susceptible \u22642 \u03bcg/mL). Whole-genome sequencing reveals a gain-of-function mutation in the MRR1 gene, no mutations in TAC1, and no evidence of CDR1B copy number variation or chimeric gene formation. In some Candida parapsilosis isolates, MDR1 expression can increase up to 8-fold following exposure to fluconazole, although this does not always correlate with changes in CDR1B levels. MDR1-mediated efflux is typically assessed using rhodamine 6G accumulation assays. MRR1 is a transcriptional regulator known to upregulate efflux pump genes, including CDR1B, when mutated. Aneuploidy, such as duplication of chromosome 5, has been observed in Candida species and can lead to a 2- to 4-fold increase in azole MICs by amplifying resistance-associated genes. However, no chromosomal copy number changes were detected in this isolate. TAC1 mutations can also increase CDR1B expression, but are absent here. CDR1 expression in Candida parapsilosis can increase up to 2-fold following exposure to sub-inhibitory concentrations of fluconazole, independent of MRR1 mutation status. In some isolates, CDR1-mediated efflux activity correlates with reduced intracellular accumulation of azole drugs. Which genetic mechanism most likely explains the observed fluconazole resistance in this isolate?",
+      "original_question": "A clinical isolate of Candida parapsilosis from a patient with persistent candidemia shows a fluconazole MIC of 64 \u03bcg/mL (resistant; susceptible \u22642 \u03bcg/mL). Whole-genome sequencing reveals a gain-of-function mutation in the MRR1 gene, no mutations in TAC1, and no evidence of CDR1B copy number variation or chimeric gene formation. MRR1 is a transcriptional regulator known to upregulate efflux pump genes, including CDR1B, when mutated. TAC1 mutations can also increase CDR1B expression, but are absent here. Which genetic mechanism most likely explains the observed fluconazole resistance in this isolate?",
+      "reasoning_steps": [
+        "The isolate is highly resistant to fluconazole (MIC 64 \u03bcg/mL).",
+        "CDR1B is implicated in fluconazole resistance via efflux.",
+        "MRR1 gain-of-function mutations upregulate CDR1B expression.",
+        "No TAC1 mutations are present, so TAC1-mediated upregulation is excluded.",
+        "No CDR1B copy number variation or chimeric gene formation is detected, excluding those mechanisms.",
+        "MRR1 is the only mutated regulator present.",
+        "Therefore, MRR1 gain-of-function mutation is the most likely cause of increased CDR1B expression and resistance."
+      ],
+      "correct_answer": "MRR1 gain-of-function mutation",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "CDR1B",
+        "TAC1",
+        "MRR1",
+        "MRR1 GAIN-OF-FUNCTION MUTATION"
+      ],
+      "quality_score": 4.0,
+      "answer_word_count": 4,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "In some Candida parapsilosis isolates, MDR1 expression can increase up to 8-fold following exposure to fluconazole, although this does not always correlate with changes in CDR1B levels. MDR1-mediated efflux is typically assessed using rhodamine 6G accumulation assays.",
+        "Aneuploidy, such as duplication of chromosome 5, has been observed in Candida species and can lead to a 2- to 4-fold increase in azole MICs by amplifying resistance-associated genes. However, no chromosomal copy number changes were detected in this isolate.",
+        "CDR1 expression in Candida parapsilosis can increase up to 2-fold following exposure to sub-inhibitory concentrations of fluconazole, independent of MRR1 mutation status. In some isolates, CDR1-mediated efflux activity correlates with reduced intracellular accumulation of azole drugs."
+      ],
+      "enrichment_entities": [
+        "MDR1",
+        "ANEUPLOIDY",
+        "CDR1"
+      ]
+    },
+    {
+      "paper_id": "aac.01619-23",
+      "domain": "clinical_microbiology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv68i6_10_1128_aac_01619_23-20240609072956-6041705/source_files/.qa_output/aac.01619-23/clinical_microbiology/contrastive_qa.json",
+      "question": "A hospital reports an outbreak of candidemia caused by Candida parapsilosis. Laboratory analysis of 20 isolates shows that 80% harbor the ERG11 Y132F mutation, while 20% have wild-type ERG11. All isolates are tested for antifungal susceptibility: fluconazole MICs are \u226564 \u03bcg/mL for Y132F mutants and \u22642 \u03bcg/mL for wild-type. Expression analysis revealed that members of the CDR gene family were upregulated 2- to 5-fold in all isolates, with CDR1 showing the highest increase. Notably, gene duplication events within the CDR family were detected in 40% of the samples. Echinocandin MICs are uniformly high (\u22658 \u03bcg/mL) across all isolates, and triazole antifungals other than fluconazole (e. g. In some isolates, the ERG11 K143R mutation has been detected alongside Y132F, and this combination is associated with a two-fold increase in fluconazole MICs compared to Y132F alone. However, the prevalence of K143R in this outbreak remains below 10%. , voriconazole) show MICs of \u22658 \u03bcg/mL for Y132F mutants and \u22640. 5 \u03bcg/mL for wild-type. Candida albicans isolates from the same hospital exhibited fluconazole MICs ranging from 1 to 4 \u03bcg/mL, with 15% showing ERG11 mutations distinct from Y132F. In these samples, biofilm formation was observed to increase resistance to amphotericin B by approximately 2-fold. All isolates express high levels of efflux pump genes. Which antifungal class is least likely to be effective for empiric therapy in this outbreak?",
+      "original_question": "A hospital reports an outbreak of candidemia caused by Candida parapsilosis. Laboratory analysis of 20 isolates shows that 80% harbor the ERG11 Y132F mutation, while 20% have wild-type ERG11. All isolates are tested for antifungal susceptibility: fluconazole MICs are \u226564 \u03bcg/mL for Y132F mutants and \u22642 \u03bcg/mL for wild-type. Echinocandin MICs are uniformly high (\u22658 \u03bcg/mL) across all isolates, and triazole antifungals other than fluconazole (e.g., voriconazole) show MICs of \u22658 \u03bcg/mL for Y132F mutants and \u22640.5 \u03bcg/mL for wild-type. All isolates express high levels of efflux pump genes. Which antifungal class is least likely to be effective for empiric therapy in this outbreak?",
+      "reasoning_steps": [
+        "ERG11 Y132F mutation confers resistance to fluconazole and other triazoles.",
+        "80% of isolates have this mutation, so most are resistant to azoles.",
+        "Fluconazole and other triazoles have high MICs in Y132F mutants.",
+        "Echinocandins also have high MICs in all isolates, indicating resistance.",
+        "Efflux pump overexpression further reduces azole efficacy.",
+        "Wild-type isolates are susceptible to azoles, but they are the minority (20%).",
+        "Empiric therapy should target the majority phenotype (Y132F mutants)."
+      ],
+      "correct_answer": "Azole antifungals",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "CANDIDA PARAPSILOSIS",
+        "FLUCONAZOLE",
+        "CLINICAL LINEAGE",
+        "AZOLE",
+        "FLUCONAZOLE RESISTANCE",
+        "TRIAZOLE",
+        "AZOLE ANTIFUNGALS",
+        "AZOLES",
+        "ECHINOCANDIN",
+        "EFFLUX PUMP",
+        "RESISTANCE TO AZOLES",
+        "FUNGAL PROTEINS"
+      ],
+      "quality_score": 4.0,
+      "answer_word_count": 2,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Expression analysis revealed that members of the CDR gene family were upregulated 2- to 5-fold in all isolates, with CDR1 showing the highest increase. Notably, gene duplication events within the CDR family were detected in 40% of the samples.",
+        "In some isolates, the ERG11 K143R mutation has been detected alongside Y132F, and this combination is associated with a two-fold increase in fluconazole MICs compared to Y132F alone. However, the prevalence of K143R in this outbreak remains below 10%.",
+        "Candida albicans isolates from the same hospital exhibited fluconazole MICs ranging from 1 to 4 \u03bcg/mL, with 15% showing ERG11 mutations distinct from Y132F. In these samples, biofilm formation was observed to increase resistance to amphotericin B by approximately 2-fold."
+      ],
+      "enrichment_entities": [
+        "CDR GENE FAMILY",
+        "K143R",
+        "CANDIDA ALBICANS"
+      ]
+    },
+    {
+      "paper_id": "aac.01619-23",
+      "domain": "clinical_microbiology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv68i6_10_1128_aac_01619_23-20240609072956-6041705/source_files/.qa_output/aac.01619-23/clinical_microbiology/contrastive_qa.json",
+      "question": "A hospital ICU reports a sudden increase in bloodstream infections over a 3-month period. Blood cultures from 40 patients yield Candida species: 18 isolates are identified as Candida parapsilosis, 10 as Candida albicans, 6 as Candida tropicalis, and 6 as Candida auris. Of the C. Candida albicans isolates from the ICU showed a median growth rate of 1.2 doublings per hour in standard blood culture media, with no significant difference between immunocompromised and non-immunocompromised patients. parapsilosis isolates, 15 are resistant to fluconazole, while all C. albicans and C. Candida auris isolates from the ICU demonstrated a 2-fold increase in biofilm formation compared to C. albicans under identical laboratory conditions. Additionally, ERG11 gene amplification was detected in 80% of the C. auris samples. tropicalis isolates are fluconazole-susceptible. The majority of C. Candida glabrata, another clinically significant species, was not isolated in this outbreak but is known for its high rates of fluconazole resistance, with some hospital studies reporting resistance in up to 20% of bloodstream isolates. In previous ICU clusters, C. glabrata has demonstrated the ability to persist on surfaces for extended periods. auris isolates are resistant to both fluconazole and amphotericin B. Most affected patients are immunocompromised and have central venous catheters. Infection control review finds lapses in hand hygiene and catheter care. Which Candida species is most likely responsible for the outbreak, and why?",
+      "original_question": "A hospital ICU reports a sudden increase in bloodstream infections over a 3-month period. Blood cultures from 40 patients yield Candida species: 18 isolates are identified as Candida parapsilosis, 10 as Candida albicans, 6 as Candida tropicalis, and 6 as Candida auris. Of the C. parapsilosis isolates, 15 are resistant to fluconazole, while all C. albicans and C. tropicalis isolates are fluconazole-susceptible. The majority of C. auris isolates are resistant to both fluconazole and amphotericin B. Most affected patients are immunocompromised and have central venous catheters. Infection control review finds lapses in hand hygiene and catheter care. Which Candida species is most likely responsible for the outbreak, and why?",
+      "reasoning_steps": [
+        "Outbreaks are suggested by a sudden increase in cases and clustering of a specific species.",
+        "C. parapsilosis is known for causing hospital outbreaks, especially in ICUs.",
+        "High proportion (18/40) of isolates are C. parapsilosis, indicating predominance.",
+        "Fluconazole resistance in 15/18 C. parapsilosis isolates suggests clonal spread.",
+        "C. parapsilosis is associated with catheter-related infections and transmission via healthcare workers\u2019 hands.",
+        "Infection control lapses (hand hygiene, catheter care) facilitate C. parapsilosis outbreaks.",
+        "Other species are less numerous or have different resistance profiles."
+      ],
+      "correct_answer": "Candida parapsilosis",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "CANDIDEMIA",
+        "CANDIDA PARAPSILOSIS",
+        "C. PARAPSILOSIS",
+        "CANDIDA ALBICANS",
+        "CANDIDA TROPICALIS",
+        "CANDIDA AURIS",
+        "CANDIDA PARAPSILOSIS COMPLEX",
+        "OUTBREAK",
+        "COVID-19 PATIENTS",
+        "RESISTANCE",
+        "ANTIFUNGAL TOLERANCE",
+        "CANDIDA GLABRATA",
+        "CANDIDA",
+        "NON-ALBICANS CANDIDA SPECIES",
+        "IMMUNOCOMPROMISED PATIENT",
+        "BLOOD"
+      ],
+      "quality_score": 4.0,
+      "answer_word_count": 2,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Candida albicans isolates from the ICU showed a median growth rate of 1.2 doublings per hour in standard blood culture media, with no significant difference between immunocompromised and non-immunocompromised patients.",
+        "Candida auris isolates from the ICU demonstrated a 2-fold increase in biofilm formation compared to C. albicans under identical laboratory conditions. Additionally, ERG11 gene amplification was detected in 80% of the C. auris samples.",
+        "Candida glabrata, another clinically significant species, was not isolated in this outbreak but is known for its high rates of fluconazole resistance, with some hospital studies reporting resistance in up to 20% of bloodstream isolates. In previous ICU clusters, C. glabrata has demonstrated the ability to persist on surfaces for extended periods."
+      ],
+      "enrichment_entities": [
+        "C. ALBICANS",
+        "C. AURIS",
+        "C. GLABRATA"
+      ]
+    },
+    {
+      "paper_id": "aac.01619-23",
+      "domain": "clinical_microbiology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv68i6_10_1128_aac_01619_23-20240609072956-6041705/source_files/.qa_output/aac.01619-23/clinical_microbiology/contrastive_qa.json",
+      "question": "A 58-year-old immunocompromised patient develops bloodstream infection with Candida tropicalis. Blood cultures yield a yeast identified as C. tropicalis. Candida albicans isolates from bloodstream infections typically show fluconazole MICs ranging from 0.25 to 2 \u03bcg/mL, with ERG11 mutations such as Y132F occasionally detected in resistant strains. In recent surveillance, C. albicans accounted for over 40% of candidemia cases in immunocompromised patients. Antifungal susceptibility testing shows fluconazole minimum inhibitory concentration (MIC) of 64 \u03bcg/mL (EUCAST resistance breakpoint \u22654 \u03bcg/mL). Sequencing of the ERG11 gene reveals a Y132F substitution. Candida glabrata, another clinically significant yeast, often exhibits fluconazole MICs exceeding 32 \u03bcg/mL and can harbor mutations in the PDR1 gene that contribute to multidrug resistance. In some centers, C. glabrata accounts for up to 20% of candidemia cases. The patient has normal renal and hepatic function. Echinocandin therapy is unavailable. Expression of the CDR gene family, which encodes efflux pumps, can increase up to 8-fold in Candida tropicalis exposed to azole antifungals, contributing to multidrug resistance. However, the specific impact of CDR gene amplification on fluconazole MICs varies among clinical isolates. The infectious disease team considers high-dose fluconazole, amphotericin B, or observation. Given that fluconazole inhibits ergosterol synthesis but resistance is associated with ERG11 Y132F, and that C. tropicalis is a WHO priority pathogen due to rising antifungal resistance, which treatment option is most appropriate for this patient?",
+      "original_question": "A 58-year-old immunocompromised patient develops bloodstream infection with Candida tropicalis. Blood cultures yield a yeast identified as C. tropicalis. Antifungal susceptibility testing shows fluconazole minimum inhibitory concentration (MIC) of 64 \u03bcg/mL (EUCAST resistance breakpoint \u22654 \u03bcg/mL). Sequencing of the ERG11 gene reveals a Y132F substitution. The patient has normal renal and hepatic function. Echinocandin therapy is unavailable. The infectious disease team considers high-dose fluconazole, amphotericin B, or observation. Given that fluconazole inhibits ergosterol synthesis but resistance is associated with ERG11 Y132F, and that C. tropicalis is a WHO priority pathogen due to rising antifungal resistance, which treatment option is most appropriate for this patient?",
+      "reasoning_steps": [
+        "C. tropicalis is confirmed as the pathogen.",
+        "Fluconazole MIC is 64 \u03bcg/mL, well above the resistance breakpoint (\u22654 \u03bcg/mL).",
+        "ERG11 Y132F substitution is present, known to confer fluconazole resistance.",
+        "Fluconazole acts by inhibiting ergosterol synthesis, but resistance mechanisms (ERG11 Y132F) render it ineffective.",
+        "Echinocandins are not available.",
+        "Amphotericin B is an alternative for fluconazole-resistant Candida infections.",
+        "Observation is inappropriate for an immunocompromised patient with candidemia.",
+        "C. tropicalis is a WHO priority pathogen, emphasizing the need for effective therapy."
+      ],
+      "correct_answer": "Amphotericin B",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "CANDIDA TROPICALIS",
+        "FLUCONAZOLE",
+        "Y132F SUBSTITUTION",
+        "FLC",
+        "WHO FUNGAL PRIORITY PATHOGENS LIST"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 2,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Candida albicans isolates from bloodstream infections typically show fluconazole MICs ranging from 0.25 to 2 \u03bcg/mL, with ERG11 mutations such as Y132F occasionally detected in resistant strains. In recent surveillance, C. albicans accounted for over 40% of candidemia cases in immunocompromised patients.",
+        "Candida glabrata, another clinically significant yeast, often exhibits fluconazole MICs exceeding 32 \u03bcg/mL and can harbor mutations in the PDR1 gene that contribute to multidrug resistance. In some centers, C. glabrata accounts for up to 20% of candidemia cases.",
+        "Expression of the CDR gene family, which encodes efflux pumps, can increase up to 8-fold in Candida tropicalis exposed to azole antifungals, contributing to multidrug resistance. However, the specific impact of CDR gene amplification on fluconazole MICs varies among clinical isolates."
+      ],
+      "enrichment_entities": [
+        "CANDIDA ALBICANS",
+        "C. GLABRATA",
+        "CDR GENE FAMILY"
+      ]
+    },
+    {
+      "paper_id": "aac.01619-23",
+      "domain": "clinical_microbiology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv68i6_10_1128_aac_01619_23-20240609072956-6041705/source_files/.qa_output/aac.01619-23/clinical_microbiology/contrastive_qa.json",
+      "question": "A hospital laboratory isolates a yeast from a bloodstream infection. The isolate is identified as Candida auris. In addition, efflux pump activity can be measured by the extrusion of fluorescent dyes such as rhodamine 6G, with some Candida auris isolates showing a 2- to 4-fold increase compared to susceptible strains. However, the presence of efflux pump activity does not always correlate with specific ERG11 mutations. Antifungal susceptibility testing shows fluconazole MIC >64 \u03bcg/mL (resistant), voriconazole MIC 4 \u03bcg/mL (resistant), and amphotericin B MIC 1 \u03bcg/mL (susceptible). Aneuploidy has been observed in some Candida species, where duplication of chromosome 5 can lead to a two-fold increase in ERG11 gene copy number, although this phenomenon is more commonly reported in Candida albicans than in Candida auris. Molecular analysis detects a Y132F substitution in the ERG11 gene and a gain-of-function mutation in the UPC2 gene. In some Candida auris isolates, efflux pump genes such as CDR1 can be upregulated up to 5-fold following exposure to azole antifungals, although this does not always correlate with changes in MIC values for amphotericin B. The patient has a history of prior azole therapy. Based on these findings, which molecular mechanism most likely explains the observed high-level azole resistance in this Candida auris isolate?",
+      "original_question": "A hospital laboratory isolates a yeast from a bloodstream infection. The isolate is identified as Candida auris. Antifungal susceptibility testing shows fluconazole MIC >64 \u03bcg/mL (resistant), voriconazole MIC 4 \u03bcg/mL (resistant), and amphotericin B MIC 1 \u03bcg/mL (susceptible). Molecular analysis detects a Y132F substitution in the ERG11 gene and a gain-of-function mutation in the UPC2 gene. The patient has a history of prior azole therapy. Based on these findings, which molecular mechanism most likely explains the observed high-level azole resistance in this Candida auris isolate?",
+      "reasoning_steps": [
+        "Candida auris is known for multidrug resistance, especially to azoles.",
+        "High fluconazole and voriconazole MICs indicate strong azole resistance.",
+        "ERG11 encodes lanosterol 14\u03b1-demethylase, the azole target.",
+        "Y132F substitution in ERG11 is a known resistance mutation.",
+        "UPC2 gain-of-function mutation leads to ERG11 overexpression.",
+        "Both ERG11 mutation and UPC2 mutation can independently confer azole resistance.",
+        "The combination of ERG11 Y132F substitution and UPC2 gain-of-function mutation most strongly supports high-level azole resistance."
+      ],
+      "correct_answer": "ERG11 Y132F substitution and UPC2 gain-of-function mutation",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "ERG11",
+        "CANDIDA AURIS",
+        "LANOSTEROL 14ALPHA-DEMETHYLASE",
+        "Y132F SUBSTITUTION",
+        "ERGOSTEROL BIOSYNTHESIS PATHWAY",
+        "UPC2",
+        "AZOLE",
+        "ERG11 MUTATION",
+        "UPC2 GAIN-OF-FUNCTION MUTATION",
+        "FLC",
+        "ERG11 AMINO ACID SUBSTITUTIONS",
+        "F444L",
+        "G484S",
+        "SINGLE-NUCLEOTIDE VARIATIONS"
+      ],
+      "quality_score": 4.0,
+      "answer_word_count": 7,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "In addition, efflux pump activity can be measured by the extrusion of fluorescent dyes such as rhodamine 6G, with some Candida auris isolates showing a 2- to 4-fold increase compared to susceptible strains. However, the presence of efflux pump activity does not always correlate with specific ERG11 mutations.",
+        "Aneuploidy has been observed in some Candida species, where duplication of chromosome 5 can lead to a two-fold increase in ERG11 gene copy number, although this phenomenon is more commonly reported in Candida albicans than in Candida auris.",
+        "In some Candida auris isolates, efflux pump genes such as CDR1 can be upregulated up to 5-fold following exposure to azole antifungals, although this does not always correlate with changes in MIC values for amphotericin B."
+      ],
+      "enrichment_entities": [
+        "EFFLUX PUMP ACTIVITY",
+        "ANEUPLOIDY",
+        "EFFLUX PUMP"
+      ]
+    },
+    {
+      "paper_id": "aac.01619-23",
+      "domain": "clinical_microbiology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv68i6_10_1128_aac_01619_23-20240609072956-6041705/source_files/.qa_output/aac.01619-23/clinical_microbiology/contrastive_qa.json",
+      "question": "A hospital reports an outbreak of Candida auris in its ICU. Laboratory testing shows that all isolates have high minimum inhibitory concentrations (MICs) to fluconazole (>64 \u03bcg/mL), and sequencing reveals a Y132F substitution in the ERG11 gene. Triazoles are routinely included in hospital antifungal susceptibility panels, with MIC breakpoints for Candida species typically set at \u22642 \u03bcg/mL for fluconazole and \u22641 \u03bcg/mL for voriconazole. In some surveillance studies, triazole resistance rates among non-auris Candida isolates remain below 10%. The isolates are also resistant to voriconazole (MIC >4 \u03bcg/mL) and show increased expression of efflux pump genes. MDR1 expression was detected at baseline levels in all isolates, with no significant upregulation compared to control strains. Previous studies have shown that MDR1 overexpression can increase fluconazole MICs by up to 8-fold in Candida albicans. However, MICs for echinocandins are low (\u22640. Recent analysis showed that MRR1 expression levels in these isolates were elevated by approximately 2-fold compared to baseline, consistent with increased efflux pump activity. However, no nonsynonymous mutations were detected in the MRR1 coding region. 25 \u03bcg/mL), and no mutations are detected in the FKS1 gene. Amphotericin B MICs are intermediate (1 \u03bcg/mL). Which antifungal class should be selected as first-line therapy for these Candida auris infections?",
+      "original_question": "A hospital reports an outbreak of Candida auris in its ICU. Laboratory testing shows that all isolates have high minimum inhibitory concentrations (MICs) to fluconazole (>64 \u03bcg/mL), and sequencing reveals a Y132F substitution in the ERG11 gene. The isolates are also resistant to voriconazole (MIC >4 \u03bcg/mL) and show increased expression of efflux pump genes. However, MICs for echinocandins are low (\u22640.25 \u03bcg/mL), and no mutations are detected in the FKS1 gene. Amphotericin B MICs are intermediate (1 \u03bcg/mL). Which antifungal class should be selected as first-line therapy for these Candida auris infections?",
+      "reasoning_steps": [
+        "High fluconazole MIC and ERG11 Y132F indicate azole resistance.",
+        "Voriconazole resistance and efflux pump overexpression further confirm azole class is ineffective.",
+        "Amphotericin B MIC is intermediate, suggesting possible reduced efficacy.",
+        "Echinocandin MICs are low, indicating susceptibility.",
+        "No FKS1 mutations mean echinocandin resistance is unlikely.",
+        "Echinocandins target a different pathway (cell wall synthesis) than azoles.",
+        "Therefore, echinocandins are the most effective first-line option."
+      ],
+      "correct_answer": "Echinocandins",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "CANDIDA AURIS",
+        "FLUCONAZOLE",
+        "Y132F SUBSTITUTION",
+        "AZOLE",
+        "AZOLES",
+        "ANTIFUNGAL DRUGS",
+        "ECHINOCANDIN",
+        "ECHINOCANDINS",
+        "VORICONAZOLE",
+        "AMPHOTERICIN B",
+        "EFFLUX INHIBITOR",
+        "1,2,4-TRIAZOLE"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 1,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Triazoles are routinely included in hospital antifungal susceptibility panels, with MIC breakpoints for Candida species typically set at \u22642 \u03bcg/mL for fluconazole and \u22641 \u03bcg/mL for voriconazole. In some surveillance studies, triazole resistance rates among non-auris Candida isolates remain below 10%.",
+        "MDR1 expression was detected at baseline levels in all isolates, with no significant upregulation compared to control strains. Previous studies have shown that MDR1 overexpression can increase fluconazole MICs by up to 8-fold in Candida albicans.",
+        "Recent analysis showed that MRR1 expression levels in these isolates were elevated by approximately 2-fold compared to baseline, consistent with increased efflux pump activity. However, no nonsynonymous mutations were detected in the MRR1 coding region."
+      ],
+      "enrichment_entities": [
+        "TRIAZOLES",
+        "MDR1",
+        "MRR1"
+      ]
+    },
+    {
+      "paper_id": "aac.01619-23",
+      "domain": "clinical_microbiology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv68i6_10_1128_aac_01619_23-20240609072956-6041705/source_files/.qa_output/aac.01619-23/clinical_microbiology/contrastive_qa.json",
+      "question": "A clinical laboratory receives four Candida parapsilosis isolates from bloodstream infections: Cp6, Cp14, Cp27, and Cp3. A tandem array of the CDR1B gene can be identified in some Candida isolates by increased sequencing coverage, with up to 8 copies observed in certain clinical strains. This structural arrangement does not always correlate with changes in colony morphology. - Cp6: Increased CDR1B copy number, no ERG11 mutations, MIC to fluconazole = 32 \u03bcg/mL - Cp14: High CDR1B copy number, no Y132F mutation, MIC to fluconazole = 64 \u03bcg/mL - Cp27: ERG11 amplification, no CDR1B amplification, MIC to fluconazole = 16 \u03bcg/mL - Cp3: Extra copies of ERG11 and TAC1, no CDR1B amplification, MIC to fluconazole = 2 \u03bcg/mL Fluconazole resistance is defined as MIC \u22658 \u03bcg/mL. Chimeric CDR1B genes, resulting from recombination between CDR1B.1 and CDR1B.2, were identified in Cp14 and have been associated with altered transporter activity in some clinical isolates. However, their presence does not consistently correlate with changes in fluconazole MIC values across different strains. CDR1B amplification confers higher resistance than ERG11 amplification alone. Mutations in ERG3 have been shown to alter membrane sterol composition in Candida parapsilosis, with some isolates exhibiting up to a 40% reduction in ergosterol content compared to wild-type strains. However, ERG3 status was not assessed in these bloodstream isolates. Which isolate is expected to show the highest level of fluconazole resistance, and what is the primary genetic mechanism responsible?",
+      "original_question": "A clinical laboratory receives four Candida parapsilosis isolates from bloodstream infections: Cp6, Cp14, Cp27, and Cp3. - Cp6: Increased CDR1B copy number, no ERG11 mutations, MIC to fluconazole = 32 \u03bcg/mL - Cp14: High CDR1B copy number, no Y132F mutation, MIC to fluconazole = 64 \u03bcg/mL - Cp27: ERG11 amplification, no CDR1B amplification, MIC to fluconazole = 16 \u03bcg/mL - Cp3: Extra copies of ERG11 and TAC1, no CDR1B amplification, MIC to fluconazole = 2 \u03bcg/mL Fluconazole resistance is defined as MIC \u22658 \u03bcg/mL. CDR1B amplification confers higher resistance than ERG11 amplification alone. Which isolate is expected to show the highest level of fluconazole resistance, and what is the primary genetic mechanism responsible?",
+      "reasoning_steps": [
+        "Identify which isolates have MICs above the resistance threshold (\u22658 \u03bcg/mL).",
+        "Note that Cp14 has the highest MIC (64 \u03bcg/mL), followed by Cp6 (32 \u03bcg/mL), Cp27 (16 \u03bcg/mL), Cp3 (2 \u03bcg/mL).",
+        "Recognize that CDR1B amplification confers higher resistance than ERG11 amplification.",
+        "Cp14 has high CDR1B copy number and highest MIC.",
+        "Cp6 also has increased CDR1B but lower MIC than Cp14.",
+        "Cp27 has ERG11 amplification but lower MIC than Cp6 and Cp14.",
+        "Cp3, despite extra ERG11 and TAC1, is susceptible (MIC 2 \u03bcg/mL).",
+        "Conclude Cp14 is most resistant, primarily due to high CDR1B copy number."
+      ],
+      "correct_answer": "Cp14, CDR1B amplification",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "FLUCONAZOLE",
+        "COPY NUMBER VARIATION",
+        "CANDIDA ALBICANS",
+        "ERGOSTEROL",
+        "AZOLE RESISTANCE",
+        "CDC317",
+        "FM16",
+        "CNV",
+        "CP15",
+        "CP27",
+        "CP3",
+        "CANDIDA SPECIES",
+        "CP14",
+        "CP6",
+        "CP38",
+        "CP35",
+        "CP37",
+        "CP13 (FLUCONAZOLE-SUSCEPTIBLE ISOLATE)",
+        "TOLERANCE",
+        "EFFLUX PUMP OVEREXPRESSION",
+        "CRYPTOCOCCUS NEOFORMANS",
+        "MINIMAL INHIBITORY CONCENTRATION (MIC)",
+        "ANTIFUNGAL RESISTANCE",
+        "FOG20",
+        "RAD20",
+        "ZONE OF INHIBITION (ZOI)",
+        "CANDIDA GLABRATA",
+        "RPH1",
+        "SET1",
+        "SWI/SNF COMPLEX",
+        "FEN1",
+        "FEN12",
+        "CAS5"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 3,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "A tandem array of the CDR1B gene can be identified in some Candida isolates by increased sequencing coverage, with up to 8 copies observed in certain clinical strains. This structural arrangement does not always correlate with changes in colony morphology.",
+        "Chimeric CDR1B genes, resulting from recombination between CDR1B.1 and CDR1B.2, were identified in Cp14 and have been associated with altered transporter activity in some clinical isolates. However, their presence does not consistently correlate with changes in fluconazole MIC values across different strains.",
+        "Mutations in ERG3 have been shown to alter membrane sterol composition in Candida parapsilosis, with some isolates exhibiting up to a 40% reduction in ergosterol content compared to wild-type strains. However, ERG3 status was not assessed in these bloodstream isolates."
+      ],
+      "enrichment_entities": [
+        "TANDEM ARRAY",
+        "CHIMERIC CDR1B GENES",
+        "ERG3"
+      ]
+    },
+    {
+      "paper_id": "aac.01619-23",
+      "domain": "clinical_microbiology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv68i6_10_1128_aac_01619_23-20240609072956-6041705/source_files/.qa_output/aac.01619-23/clinical_microbiology/contrastive_qa.json",
+      "question": "A clinical laboratory receives three Candida albicans isolates from patients with invasive candidiasis. Isolate A shows high-level growth on Sabouraud agar containing 32 \u03bcg/mL fluconazole, while Isolates B and C show no growth at this concentration. Cdr1p expression levels can increase up to 10-fold in response to azole exposure, facilitating the export of structurally diverse antifungal agents. However, Cdr1p activity does not significantly alter susceptibility to amphotericin B. Sequencing reveals Isolate A carries a Y132F substitution in ERG11, Isolate B has wild-type ERG11 but overexpresses CDR1 and CDR2 efflux pumps, and Isolate C has neither ERG11 mutations nor efflux pump overexpression. DRUG EFFLUX CHANNELS such as those from the ABC and MFS superfamilies can increase the minimum inhibitory concentration (MIC) of azole antifungals by up to 16-fold in some Candida albicans strains. However, their activity does not typically alter susceptibility to polyene drugs like amphotericin B. All isolates are tested for susceptibility to amphotericin B (MIC \u22641 \u03bcg/mL for all) and posaconazole (MIC: A = 8 \u03bcg/mL, B = 2 \u03bcg/mL, C = 0. Voriconazole susceptibility testing revealed MICs of 1 \u03bcg/mL for Isolate A, 0.5 \u03bcg/mL for Isolate B, and 0.12 \u03bcg/mL for Isolate C, with all values falling below the established clinical resistance breakpoint. 25 \u03bcg/mL). Which isolate is most likely to fail standard fluconazole therapy, and what is the primary molecular mechanism?",
+      "original_question": "A clinical laboratory receives three Candida albicans isolates from patients with invasive candidiasis. Isolate A shows high-level growth on Sabouraud agar containing 32 \u03bcg/mL fluconazole, while Isolates B and C show no growth at this concentration. Sequencing reveals Isolate A carries a Y132F substitution in ERG11, Isolate B has wild-type ERG11 but overexpresses CDR1 and CDR2 efflux pumps, and Isolate C has neither ERG11 mutations nor efflux pump overexpression. All isolates are tested for susceptibility to amphotericin B (MIC \u22641 \u03bcg/mL for all) and posaconazole (MIC: A = 8 \u03bcg/mL, B = 2 \u03bcg/mL, C = 0.25 \u03bcg/mL). Which isolate is most likely to fail standard fluconazole therapy, and what is the primary molecular mechanism?",
+      "reasoning_steps": [
+        "High-level growth on fluconazole indicates resistance in Isolate A.",
+        "Y132F substitution in ERG11 is a known mechanism of fluconazole resistance.",
+        "Isolate B overexpresses efflux pumps, which can confer some azole resistance, but does not grow at high fluconazole concentration.",
+        "Isolate C has no resistance markers and is susceptible.",
+        "Amphotericin B MICs are low for all, so not relevant for fluconazole failure.",
+        "Posaconazole MIC is highest in Isolate A, supporting broad azole resistance.",
+        "Therefore, Isolate A is most likely to fail fluconazole therapy due to ERG11 Y132F mutation."
+      ],
+      "correct_answer": "Isolate A \u2013 ERG11 Y132F substitution",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "CANDIDA ALBICANS",
+        "FLUCONAZOLE",
+        "Y132F SUBSTITUTION",
+        "AZOLE",
+        "ANTIFUNGAL AGENTS",
+        "INVASIVE CANDIDIASIS",
+        "AZOLE ANTIFUNGALS",
+        "AZOLES",
+        "ANTIFUNGAL DRUGS",
+        "ECHINOCANDIN",
+        "TOLERANCE",
+        "FLC",
+        "HSP90",
+        "GLYCEROL",
+        "POSACONAZOLE",
+        "KETOCONAZOLE",
+        "MICONAZOLE",
+        "AMPHOTERICIN B",
+        "WHO FUNGAL PRIORITY PATHOGENS LIST",
+        "TUNICAMYCIN",
+        "AZOLE DRUGS",
+        "EFFLUX PUMP",
+        "DRUG RESISTANCE CIRCUITRY",
+        "CELL WALL INTEGRITY SIGNALLING",
+        "AIDS PATIENT",
+        "ANTIFUNGAL SMALL MOLECULE",
+        "FEN1",
+        "SUR4",
+        "ESSENTIAL OILS",
+        "TREHALOSE",
+        "D-ARABITOL",
+        "AZOLE RESISTANCE MECHANISM",
+        "LYSOPHOSPHATIDYLCHOLINE",
+        "DOXYCYCLINE",
+        "PERSISTENCE",
+        "BENZIMIDAZOLE DERIVATIVE",
+        "METABOLIC INHIBITORS",
+        "FUNGAL PROTEINS"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 5,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Cdr1p expression levels can increase up to 10-fold in response to azole exposure, facilitating the export of structurally diverse antifungal agents. However, Cdr1p activity does not significantly alter susceptibility to amphotericin B.",
+        "DRUG EFFLUX CHANNELS such as those from the ABC and MFS superfamilies can increase the minimum inhibitory concentration (MIC) of azole antifungals by up to 16-fold in some Candida albicans strains. However, their activity does not typically alter susceptibility to polyene drugs like amphotericin B.",
+        "Voriconazole susceptibility testing revealed MICs of 1 \u03bcg/mL for Isolate A, 0.5 \u03bcg/mL for Isolate B, and 0.12 \u03bcg/mL for Isolate C, with all values falling below the established clinical resistance breakpoint."
+      ],
+      "enrichment_entities": [
+        "CDR1P",
+        "DRUG EFFLUX CHANNELS",
+        "VORICONAZOLE"
+      ]
+    },
+    {
+      "paper_id": "aac.01619-23",
+      "domain": "clinical_microbiology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv68i6_10_1128_aac_01619_23-20240609072956-6041705/source_files/.qa_output/aac.01619-23/clinical_microbiology/contrastive_qa.json",
+      "question": "A 52-year-old immunocompromised patient develops a bloodstream infection. Blood cultures yield a yeast identified as Candida metapsilosis. The isolate is resistant to fluconazole (MIC 128 \u03bcg/mL), susceptible to echinocandins (MICs \u22640. 06 \u03bcg/mL), and shows intermediate susceptibility to amphotericin B (MIC 1. CDR genes, which encode multidrug efflux pumps, were found to be expressed at baseline levels in this Candida metapsilosis isolate, with no evidence of gene amplification. Previous studies have shown that overexpression of CDR genes can increase azole MICs by up to 8-fold in related Candida species. 5 \u03bcg/mL; susceptible \u22641 \u03bcg/mL). Whole-genome sequencing reveals a unique ERG11 gene mutation (Y132F) and a novel FKS1 hotspot mutation (S645P). The patient has mild renal impairment (creatinine clearance 45 mL/min) and is receiving total parenteral nutrition via a central venous catheter. Which antifungal class should be selected for initial therapy to maximize efficacy and minimize toxicity?",
+      "original_question": "A 52-year-old immunocompromised patient develops a bloodstream infection. Blood cultures yield a yeast identified as Candida metapsilosis. The isolate is resistant to fluconazole (MIC 128 \u03bcg/mL), susceptible to echinocandins (MICs \u22640.06 \u03bcg/mL), and shows intermediate susceptibility to amphotericin B (MIC 1.5 \u03bcg/mL; susceptible \u22641 \u03bcg/mL). Whole-genome sequencing reveals a unique ERG11 gene mutation (Y132F) and a novel FKS1 hotspot mutation (S645P). The patient has mild renal impairment (creatinine clearance 45 mL/min) and is receiving total parenteral nutrition via a central venous catheter. Which antifungal class should be selected for initial therapy to maximize efficacy and minimize toxicity?",
+      "reasoning_steps": [
+        "Candida metapsilosis is the causative pathogen.",
+        "The isolate is fluconazole-resistant (high MIC, ERG11 Y132F mutation).",
+        "Amphotericin B shows intermediate susceptibility and is nephrotoxic, problematic in renal impairment.",
+        "Echinocandins are susceptible by MIC, but FKS1 S645P mutation may confer reduced susceptibility.",
+        "However, S645P is not a well-established resistance mutation in C. metapsilosis, and MICs remain low.",
+        "Echinocandins have minimal renal toxicity, suitable for renal impairment.",
+        "Central venous catheter increases risk of persistent candidemia, requiring fungicidal therapy.",
+        "Echinocandins are fungicidal and preferred for non-neutropenic candidemia with central lines."
+      ],
+      "correct_answer": "Echinocandins",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "CANDIDA METAPSILOSIS",
+        "NOVEL CANDIDA METAPSILOSIS ISOLATE"
+      ],
+      "quality_score": 6.0,
+      "answer_word_count": 1,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "CDR genes, which encode multidrug efflux pumps, were found to be expressed at baseline levels in this Candida metapsilosis isolate, with no evidence of gene amplification. Previous studies have shown that overexpression of CDR genes can increase azole MICs by up to 8-fold in related Candida species."
+      ],
+      "enrichment_entities": [
+        "CDR GENES"
+      ]
+    },
+    {
+      "paper_id": "aac.01619-23",
+      "domain": "clinical_microbiology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv68i6_10_1128_aac_01619_23-20240609072956-6041705/source_files/.qa_output/aac.01619-23/clinical_microbiology/contrastive_qa.json",
+      "question": "A 54-year-old immunocompromised patient with invasive candidiasis is started on an antifungal agent that inhibits ergosterol biosynthesis by targeting lanosterol 14alpha-demethylase, an enzyme encoded by the ERG11 gene. After 7 days, the Candida isolate develops resistance due to a point mutation in ERG11, resulting in decreased drug binding. Overexpression of the CDR gene family has been observed in up to 60% of azole-resistant Candida isolates, with certain strains displaying increased efflux activity independent of ERG11 mutations. These genes can be rapidly amplified during antifungal exposure, contributing to multidrug resistance phenotypes. The clinical team considers switching to another agent. Azole cross-resistance has been observed in C. albicans SC5314, where exposure to fluconazole can lead to a 4-fold increase in minimum inhibitory concentrations (MICs) for other azoles such as miconazole and ketoconazole. This phenomenon is often associated with specific mutations in the ERG11 gene or upregulation of efflux pumps. Available options include: (A) a polyene that binds directly to ergosterol, (B) a triazole that also targets lanosterol 14alpha-demethylase, (C) an echinocandin that inhibits 1,3-beta-D-glucan synthase, and (D) a sterol biosynthesis inhibitor that acts via the same mechanism as azoles. Voriconazole achieves peak plasma concentrations within 1\u20132 hours after oral administration, with bioavailability exceeding 90%. In clinical isolates, minimum inhibitory concentrations (MICs) for voriconazole against Candida albicans typically range from 0.015 to 1 \u00b5g/mL. Which class of antifungal should be selected to maximize efficacy against this resistant Candida isolate?",
+      "original_question": "A 54-year-old immunocompromised patient with invasive candidiasis is started on an antifungal agent that inhibits ergosterol biosynthesis by targeting lanosterol 14alpha-demethylase, an enzyme encoded by the ERG11 gene. After 7 days, the Candida isolate develops resistance due to a point mutation in ERG11, resulting in decreased drug binding. The clinical team considers switching to another agent. Available options include: (A) a polyene that binds directly to ergosterol, (B) a triazole that also targets lanosterol 14alpha-demethylase, (C) an echinocandin that inhibits 1,3-beta-D-glucan synthase, and (D) a sterol biosynthesis inhibitor that acts via the same mechanism as azoles. Which class of antifungal should be selected to maximize efficacy against this resistant Candida isolate?",
+      "reasoning_steps": [
+        "The initial drug targets lanosterol 14alpha-demethylase (ERG11 product), so is an azole or triazole.",
+        "Resistance is due to ERG11 mutation, decreasing binding of drugs targeting this enzyme.",
+        "Switching to another triazole or sterol biosynthesis inhibitor (same mechanism) would likely be ineffective due to cross-resistance.",
+        "Polyenes bind directly to ergosterol, not the mutated enzyme, so mechanism is different.",
+        "Echinocandins inhibit cell wall synthesis (1,3-beta-D-glucan synthase), a different pathway.",
+        "Both polyenes and echinocandins bypass the mutated ERG11 enzyme.",
+        "Echinocandins are first-line for azole-resistant Candida in immunocompromised patients due to efficacy and safety."
+      ],
+      "correct_answer": "Echinocandins",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "LANOSTEROL 14ALPHA-DEMETHYLASE",
+        "FLUCONAZOLE",
+        "AZOLE",
+        "AZOLES",
+        "STEROL BIOSYNTHESIS INHIBITORS",
+        "TRIAZOLES"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 1,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Overexpression of the CDR gene family has been observed in up to 60% of azole-resistant Candida isolates, with certain strains displaying increased efflux activity independent of ERG11 mutations. These genes can be rapidly amplified during antifungal exposure, contributing to multidrug resistance phenotypes.",
+        "Azole cross-resistance has been observed in C. albicans SC5314, where exposure to fluconazole can lead to a 4-fold increase in minimum inhibitory concentrations (MICs) for other azoles such as miconazole and ketoconazole. This phenomenon is often associated with specific mutations in the ERG11 gene or upregulation of efflux pumps.",
+        "Voriconazole achieves peak plasma concentrations within 1\u20132 hours after oral administration, with bioavailability exceeding 90%. In clinical isolates, minimum inhibitory concentrations (MICs) for voriconazole against Candida albicans typically range from 0.015 to 1 \u00b5g/mL."
+      ],
+      "enrichment_entities": [
+        "CDR GENE FAMILY",
+        "AZOLE CROSS-RESISTANCE",
+        "VORICONAZOLE"
+      ]
+    }
+  ],
+  "errors": []
+}

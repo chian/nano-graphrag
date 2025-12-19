@@ -1,0 +1,5 @@
+python run_batch_pipeline.py manifest_mSystems_full_cleaned.json
+python run_batch_pipeline.py manifest_mSystems_ecology.json
+python run_batch_pipeline.py manifest_AEM_ecology.json
+python run_batch_pipeline.py manifest_AEM_molecular_biology.json
+python run_batch_pipeline.py manifest_mBio_molecular_biology.json

@@ -1,0 +1,315 @@
+# BV-BRC Genomics Domain Schema
+# Focus: Bacterial and viral genomic data, annotations, functional analysis from BV-BRC database
+# Based on BV-BRC (Bacterial and Viral Bioinformatics Resource Center) data fields
+
+domain_name: "BV-BRC Genomics"
+domain_description: "Bacterial and viral genomics including genome annotations, features, subsystems, metabolic pathways, protein functions, and antimicrobial resistance from the BV-BRC database"
+
+entity_types:
+  GENOME:
+    description: "Complete or draft bacterial/viral genome assemblies"
+    examples: ["Escherichia coli K-12 genome", "Staphylococcus aureus MRSA252 genome", "SARS-CoV-2 genome"]
+    aliases: ["genome sequence", "genome identifier", "genomic sequence"]
+
+  ORGANISM:
+    description: "Taxonomic organisms including species, strains, and genera"
+    examples: ["Escherichia coli", "Staphylococcus aureus", "Pseudomonas aeruginosa", "Bacillus subtilis str. 168"]
+    aliases: ["specy", "bacterial specy", "organism specy", "organism strain", "strain", "genu", "taxonomic class", "taxonomic order"]
+
+  GENE:
+    description: "Protein-coding genes and genetic elements"
+    examples: ["dnaA", "rpoB", "gyrA", "recA", "16S rRNA gene"]
+    aliases: ["gene feature", "gene_feature", "genetic element", "protein-coding region", "gene cluster", "gene location", "gene sequence"]
+
+  GENOMIC_FEATURE:
+    description: "Annotated features on genomes including CDS, RNA, repeats, mobile elements"
+    examples: ["CDS", "tRNA", "rRNA", "CRISPR repeat", "insertion sequence", "transposon"]
+    aliases: ["genome feature", "genome_feature", "feature", "genetic_feature", "genomic feature", "feature type", "feature identifier", "feature_id", "nucleic acid feature"]
+
+  PROTEIN:
+    description: "Protein products encoded by genes"
+    examples: ["DNA gyrase subunit A", "RNA polymerase beta subunit", "RecA recombinase", "hypothetical protein"]
+    aliases: ["protein product", "protein_product", "gene product", "gene_product", "molecular product", "product", "hypothetical protein", "hypothetical_protein", "functional protein", "uncharacterized protein"]
+
+  PROTEIN_FAMILY:
+    description: "Protein families, domains, and superfamilies"
+    examples: ["PGFam", "PLFam", "ABC transporter family", "two-component response regulator"]
+    aliases: ["protein_family", "protein superfamily", "protein domain", "protein_domain", "domain", "protein subtype", "protein complex", "protein subunit"]
+
+  RNA_FEATURE:
+    description: "RNA genes and transcripts including tRNA, rRNA, and ncRNA"
+    examples: ["tRNA-Ala", "16S rRNA", "23S rRNA", "5S rRNA", "tmRNA"]
+    aliases: ["rna feature", "transfer rna feature", "transfer rna", "trna", "ribosomal rna", "rna molecule", "rna", "transfer rna (trna)", "rna type"]
+
+  CONTIG:
+    description: "Contiguous sequences and scaffolds from genome assemblies"
+    examples: ["contig_001", "scaffold_1", "chromosome", "plasmid"]
+    aliases: ["contig sequence", "contig_sequence", "genomic_contig", "contig sequence identifier"]
+
+  SEQUENCE:
+    description: "Nucleotide and amino acid sequences with their properties"
+    examples: ["ATGCGATCG...", "MKTLLILAG...", "1500 bp", "450 aa"]
+    aliases: ["nucleotide sequence", "nucleotide_sequence", "amino acid sequence", "amino_acid_sequence", "dna sequence", "base pair sequence", "base_pair_sequence", "base sequence", "base pairs sequence", "genomic region", "nucleotide sequence segment", "amino acid sequence segment", "genetic sequence", "nucleic acid sequence", "biological sequence length"]
+
+  SEQUENCE_PROPERTY:
+    description: "Properties of sequences including length, strand, and coordinates"
+    examples: ["500 bp", "positive strand", "start: 1000, end: 2500", "GC content: 52%"]
+    aliases: ["feature length", "base pair count", "nucleotide length", "nucleotide_length", "amino acid length", "amino_acid_length", "amino acid count", "sequence length", "protein length", "base pair length", "gene length", "molecule length", "amino_acid_sequence_length", "base_pair_sequence_length", "nucleotide_sequence_length", "nucleotide sequence length", "amino acid sequence length", "base pair sequence length", "molecular sequence length", "nucleotide base pair length", "nucleic acid sequence length", "genetic sequence length", "nucleotide sequence length (base pairs)", "base pairs length"]
+
+  STRAND:
+    description: "DNA strand orientation and direction"
+    examples: ["+", "-", "forward", "reverse", "sense", "antisense"]
+    aliases: ["strand orientation", "strand_orientation", "dna strand orientation", "dna strand", "genetic strand", "nucleotide strand", "gene strand", "nucleotide sequence strand", "sequence strand", "strand direction", "genetic strand orientation", "genomic strand", "biological strand", "nucleic acid strand", "gene strand orientation"]
+
+  SUBSYSTEM:
+    description: "Functional subsystems grouping related genes/proteins"
+    examples: ["Glycolysis", "Amino acid biosynthesis", "DNA repair", "Virulence factors"]
+    aliases: ["biological subsystem", "biological_subsystem", "biochemical subsystem", "metabolic subsystem", "metabolic_subsystem", "genetic subsystem", "genomic subsystem", "biosynthesis subsystem", "biochemical_role"]
+
+  FUNCTIONAL_ROLE:
+    description: "Annotated functional roles of genes and proteins"
+    examples: ["DNA-directed RNA polymerase beta subunit", "ATP synthase F1 alpha subunit", "Chromosome partitioning protein ParA"]
+    aliases: ["role", "protein role", "gene role", "biological role", "biological_role", "molecular role", "enzymatic role", "enzymatic_role", "functional_role", "biochemical role", "protein function role", "genomic feature role", "genome feature role", "subsystem role", "genomic role", "genetic role", "gene product role", "protein functional role", "molecular function role"]
+
+  ENZYME:
+    description: "Enzymes with their EC classifications"
+    examples: ["DNA gyrase (EC 5.99.1.3)", "lactate dehydrogenase (EC 1.1.1.27)", "beta-lactamase"]
+    aliases: ["enzyme (ec number)", "enzyme (with ec number)", "biochemical enzyme", "enzyme class (ec number)"]
+
+  EC_NUMBER:
+    description: "Enzyme Commission classification numbers"
+    examples: ["EC 1.1.1.1", "EC 2.7.1.1", "EC 3.4.21.4", "EC 6.1.1.1"]
+    aliases: ["enzyme commission number (ec number)", "ec number", "enzyme commission number", "enzyme classification number (ec number)", "enzyme classification (ec number)", "enzyme classification number", "enzyme classification code", "enzyme classification (ec) number", "enzyme commission (ec) number", "enzymatic classification code (ec number)", "enzyme code (ec number)", "enzyme_commission_number", "ec number (enzyme classification)", "enzymatic classification (ec number)", "enzymatic role (ec number)", "enzymatic activity (ec number)", "enzymatic function (ec number)", "enzymatic classification number (ec number)", "biochemical reaction (ec number)", "enzyme classification code (ec number)"]
+
+  MOLECULAR_FUNCTION:
+    description: "Molecular functions and activities of gene products"
+    examples: ["ATP binding", "DNA binding", "catalytic activity", "transporter activity"]
+    aliases: ["molecular function", "molecular_function", "protein function", "protein_function", "enzymatic activity", "enzymatic_activity", "biochemical activity", "enzyme activity", "enzymatic function", "biochemical function", "biological function", "molecular function (role)"]
+
+  PATHWAY:
+    description: "Metabolic and biosynthetic pathways"
+    examples: ["TCA cycle", "glycolysis", "purine biosynthesis", "fatty acid biosynthesis"]
+    aliases: ["metabolic pathway", "biochemical pathway", "biological pathway", "biosynthetic pathway", "biosynthesis pathway"]
+
+  BIOLOGICAL_PROCESS:
+    description: "Biological processes and cellular functions"
+    examples: ["DNA replication", "transcription", "translation", "cell division", "stress response"]
+    aliases: ["biological process", "metabolic process", "biochemical process", "metabolism"]
+
+  TRANSPORTER:
+    description: "Transport proteins and systems"
+    examples: ["ABC transporter", "MFS transporter", "ion channel", "porin"]
+    aliases: ["transporter protein", "transport system", "transporter system", "transport protein"]
+
+  REGULATORY_ELEMENT:
+    description: "Transcriptional regulators, promoters, and regulatory proteins"
+    examples: ["LacI repressor", "sigma factor", "two-component regulator", "promoter"]
+    aliases: ["regulatory element", "transcription factor", "transcriptional regulator", "transcriptional_regulator", "regulator", "operon repressor", "transcriptional activator", "transcription regulator", "regulatory protein", "regulatory system"]
+
+  OPERON:
+    description: "Operons and gene regulatory units"
+    examples: ["lac operon", "trp operon", "his operon"]
+    aliases: ["regulon"]
+
+  CRISPR_ELEMENT:
+    description: "CRISPR arrays, repeats, and spacers"
+    examples: ["CRISPR array", "CRISPR repeat", "CRISPR spacer", "Cas protein"]
+    aliases: ["crispr repeat", "crispr_repeat", "crispr spacer", "crispr array", "crispr element"]
+
+  REPEAT_REGION:
+    description: "Repetitive DNA elements and repeat regions"
+    examples: ["tandem repeat", "inverted repeat", "insertion sequence"]
+    aliases: ["repeat_region", "repeat region", "base pair region"]
+
+  MOBILE_ELEMENT:
+    description: "Mobile genetic elements including transposons and insertion sequences"
+    examples: ["IS element", "transposon Tn10", "integron", "prophage"]
+    aliases: ["mobile genetic element", "mobile element protein"]
+
+  ANTIMICROBIAL:
+    description: "Antimicrobial drugs and compounds"
+    examples: ["ampicillin", "tetracycline", "ciprofloxacin", "vancomycin"]
+    aliases: ["antimicrobial drug", "drug"]
+
+  AMR_GENE:
+    description: "Antimicrobial resistance genes and mechanisms"
+    examples: ["blaTEM-1", "mecA", "vanA", "tetM", "qnrA"]
+    aliases: ["antimicrobial resistance", "drug resistance"]
+
+  VIRULENCE_FACTOR:
+    description: "Virulence factors and pathogenicity determinants"
+    examples: ["toxin", "adhesin", "capsule", "type III secretion system"]
+    aliases: ["toxin", "pathogenicity island protein"]
+
+  COFACTOR:
+    description: "Cofactors and coenzymes required for enzyme function"
+    examples: ["NAD+", "FAD", "coenzyme A", "pyridoxal phosphate"]
+    aliases: ["cofactor"]
+
+  COMPOUND:
+    description: "Chemical and biochemical compounds"
+    examples: ["glucose", "pyruvate", "ATP", "acetyl-CoA"]
+    aliases: ["compound", "biochemical compound", "chemical compound", "biomolecule", "biological molecule", "molecule"]
+
+relationship_types:
+  ENCODES:
+    description: "Gene A encodes protein/RNA B"
+    inverse: "ENCODED_BY"
+    examples: ["rpoB gene ENCODES RNA polymerase beta subunit", "tRNA-Ala gene ENCODES tRNA-Ala"]
+
+  LOCATED_ON:
+    description: "Feature A is located on contig/genome B"
+    inverse: "CONTAINS"
+    examples: ["CDS LOCATED_ON chromosome", "gene LOCATED_ON plasmid"]
+
+  PART_OF:
+    description: "Entity A is part of larger entity B"
+    inverse: "HAS_PART"
+    examples: ["gene PART_OF operon", "protein PART_OF complex", "subsystem PART_OF pathway"]
+
+  BELONGS_TO:
+    description: "Entity A belongs to classification/family B"
+    inverse: "INCLUDES"
+    examples: ["protein BELONGS_TO PGFam_001", "enzyme BELONGS_TO EC 2.7.1"]
+
+  HAS_FUNCTION:
+    description: "Gene/protein A has molecular function B"
+    inverse: "FUNCTION_OF"
+    examples: ["DnaA HAS_FUNCTION DNA binding", "GyrA HAS_FUNCTION DNA gyrase activity"]
+
+  HAS_ROLE:
+    description: "Gene/protein A has functional role B in subsystem"
+    inverse: "ROLE_OF"
+    examples: ["LdhA HAS_ROLE lactate dehydrogenase in glycolysis"]
+
+  CATALYZES:
+    description: "Enzyme A catalyzes reaction B"
+    inverse: "CATALYZED_BY"
+    examples: ["lactate dehydrogenase CATALYZES pyruvate to lactate conversion"]
+
+  CLASSIFIED_AS:
+    description: "Enzyme A is classified as EC number B"
+    inverse: "CLASSIFIES"
+    examples: ["DNA gyrase CLASSIFIED_AS EC 5.99.1.3"]
+
+  PARTICIPATES_IN:
+    description: "Gene/protein A participates in pathway/process B"
+    inverse: "INVOLVES"
+    examples: ["PfkA PARTICIPATES_IN glycolysis", "RecA PARTICIPATES_IN DNA repair"]
+
+  MEMBER_OF:
+    description: "Gene/protein A is a member of subsystem B"
+    inverse: "HAS_MEMBER"
+    examples: ["gyrA MEMBER_OF DNA replication subsystem"]
+
+  REGULATES:
+    description: "Regulator A regulates expression of gene/operon B"
+    inverse: "REGULATED_BY"
+    examples: ["LacI REGULATES lac operon", "Sigma70 REGULATES housekeeping genes"]
+
+  ACTIVATES:
+    description: "Regulator A activates expression of B"
+    inverse: "ACTIVATED_BY"
+    examples: ["CRP ACTIVATES lac operon in presence of cAMP"]
+
+  REPRESSES:
+    description: "Regulator A represses expression of B"
+    inverse: "REPRESSED_BY"
+    examples: ["LacI REPRESSES lac operon", "TrpR REPRESSES trp operon"]
+
+  TRANSPORTS:
+    description: "Transporter A transports substrate B"
+    inverse: "TRANSPORTED_BY"
+    examples: ["LacY TRANSPORTS lactose", "ABC transporter TRANSPORTS amino acids"]
+
+  CONFERS_RESISTANCE:
+    description: "Gene A confers resistance to antimicrobial B"
+    inverse: "RESISTED_BY"
+    examples: ["blaTEM-1 CONFERS_RESISTANCE ampicillin", "mecA CONFERS_RESISTANCE methicillin"]
+
+  TARGETS:
+    description: "Antimicrobial A targets protein/process B"
+    inverse: "TARGETED_BY"
+    examples: ["ciprofloxacin TARGETS DNA gyrase", "rifampicin TARGETS RNA polymerase"]
+
+  INTERACTS_WITH:
+    description: "Protein A interacts with protein B"
+    inverse: "INTERACTS_WITH"
+    symmetric: true
+    examples: ["DnaA INTERACTS_WITH DnaB", "RecA INTERACTS_WITH LexA"]
+
+  REQUIRES:
+    description: "Enzyme A requires cofactor B for activity"
+    inverse: "REQUIRED_BY"
+    examples: ["lactate dehydrogenase REQUIRES NAD+"]
+
+  PRODUCES:
+    description: "Reaction/pathway A produces compound B"
+    inverse: "PRODUCED_BY"
+    examples: ["glycolysis PRODUCES pyruvate", "TCA cycle PRODUCES NADH"]
+
+  CONSUMES:
+    description: "Reaction/pathway A consumes compound B"
+    inverse: "CONSUMED_BY"
+    examples: ["glycolysis CONSUMES glucose", "fatty acid synthesis CONSUMES acetyl-CoA"]
+
+  PRECEDES:
+    description: "Step A precedes step B in pathway"
+    inverse: "FOLLOWS"
+    examples: ["glucose phosphorylation PRECEDES fructose-6-P formation"]
+
+  HOMOLOGOUS_TO:
+    description: "Sequence/protein A is homologous to B"
+    inverse: "HOMOLOGOUS_TO"
+    symmetric: true
+    examples: ["E. coli DnaA HOMOLOGOUS_TO B. subtilis DnaA"]
+
+  LOCATED_IN:
+    description: "Feature A located in genomic region B"
+    inverse: "REGION_OF"
+    examples: ["virulence gene LOCATED_IN pathogenicity island"]
+
+  HAS_SEQUENCE:
+    description: "Feature A has sequence property B"
+    inverse: "SEQUENCE_OF"
+    examples: ["gene HAS_SEQUENCE 1500 bp length", "protein HAS_SEQUENCE 500 aa"]
+
+  ON_STRAND:
+    description: "Feature A is on strand B"
+    inverse: "STRAND_OF"
+    examples: ["gene ON_STRAND positive", "CDS ON_STRAND reverse"]
+
+  DERIVED_FROM:
+    description: "Entity A is derived from organism B"
+    inverse: "SOURCE_OF"
+    examples: ["genome DERIVED_FROM Escherichia coli K-12"]
+
+  ANNOTATED_AS:
+    description: "Feature A is annotated as function/product B"
+    inverse: "ANNOTATION_OF"
+    examples: ["CDS ANNOTATED_AS hypothetical protein", "gene ANNOTATED_AS DNA gyrase subunit A"]
+
+suitability_criteria:
+  min_entities: 5
+  min_entity_types: 3
+  min_relationships: 4
+  required_entity_types: ["GENOME", "GENE"]
+  keywords:
+    positive: ["genome", "gene", "protein", "subsystem", "pathway", "annotation", "CDS", "feature", "contig", "scaffold", "EC number", "functional role", "protein family", "AMR", "virulence"]
+    negative: ["clinical trial", "patient outcome", "epidemiology", "surveillance"]
+
+contrastive_patterns:
+  - "genes with similar functions but different pathways"
+  - "proteins in same family with different substrates"
+  - "alternative enzymes for same reaction"
+  - "different regulatory mechanisms for same gene"
+  - "homologous genes across different organisms"
+  - "resistance genes conferring resistance to different drug classes"
+
+question_generation_focus:
+  - "Function prediction: What is the predicted function of gene X based on its subsystem membership?"
+  - "Pathway membership: Which genes participate in pathway Y?"
+  - "Protein family: Which proteins belong to the same family as protein Z?"
+  - "Regulation: What regulates expression of operon W?"
+  - "AMR: Which genes confer resistance to antimicrobial V?"
+  - "Metabolic context: What reactions does enzyme U catalyze and in which pathways?"

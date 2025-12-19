@@ -40,7 +40,8 @@ class ArgoBridgeLLM:
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=self.temperature,
-                max_tokens=self.max_tokens
+                max_tokens=self.max_tokens,
+                user="chia"
             )
             result = response.choices[0].message.content
             if self.debug:

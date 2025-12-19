@@ -11,11 +11,11 @@ logging.getLogger("nano-graphrag").setLevel(logging.INFO)
 
 # Configuration from environment variables
 LLM_MODEL = os.getenv("LLM_MODEL", "gpt41")
-LLM_ENDPOINT = os.getenv("LLM_ENDPOINT", "https://argo-bridge.cels.anl.gov/v1")
+LLM_ENDPOINT = os.getenv("LLM_ENDPOINT", "https://apps-dev.inside.anl.gov/argoapi/v1")
 LLM_API_KEY = os.getenv("LLM_API_KEY", "")
 
 EMBEDDING_API_KEY = os.getenv("EMBEDDING_API_KEY", "")
-EMBEDDING_ENDPOINT = os.getenv("EMBEDDING_ENDPOINT", "https://argo-bridge.cels.anl.gov/v1")
+EMBEDDING_ENDPOINT = os.getenv("EMBEDDING_ENDPOINT", "https://apps-dev.inside.anl.gov/argoapi/v1")
 
 # Embedding model configuration
 EMBEDDING_MODEL = "text-embedding-3-small"
@@ -52,8 +52,9 @@ async def argo_bridge_llm(
     
     # Make API call - NO retry logic, NO timeouts
     response = await openai_async_client.chat.completions.create(
-        model=LLM_MODEL, 
-        messages=messages, 
+        model=LLM_MODEL,
+        messages=messages,
+        user="chia",
         **kwargs
     )
     
@@ -82,9 +83,10 @@ async def argo_bridge_embedding(texts: list[str]) -> np.ndarray:
     
     # Make API call - NO retry logic, NO timeouts
     response = await openai_async_client.embeddings.create(
-        model=EMBEDDING_MODEL, 
-        input=texts, 
-        encoding_format="float"
+        model=EMBEDDING_MODEL,
+        input=texts,
+        encoding_format="float",
+        user="chia"
     )
     
     return np.array([dp.embedding for dp in response.data])

@@ -9,441 +9,403 @@
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i5_10_1128_msystems_00403_22-20240609053404-4000194/source_files/msystems.00403-22.txt",
       "domain": "molecular_biology",
       "status": "completed",
-      "attempts": 2,
-      "last_error": "Pipeline failed with exit code 1",
-      "completed_at": "2025-12-03T01:00:08.540336"
+      "attempts": 16,
+      "last_error": "Connection error - not attempted",
+      "completed_at": "2025-12-15T21:14:34.342928"
     },
     {
       "id": "msystems.00451-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i5_10_1128_msystems_00451_22-20240609053404-4000194/source_files/msystems.00451-22.txt",
       "domain": "molecular_biology",
       "status": "completed",
-      "attempts": 2,
-      "last_error": null,
-      "completed_at": "2025-12-03T01:58:31.965510"
+      "attempts": 12,
+      "last_error": "Connection error - not attempted",
+      "completed_at": "2025-12-16T02:34:11.897499"
     },
     {
       "id": "msystems.00476-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i5_10_1128_msystems_00476_22-20240609053404-4000194/source_files/msystems.00476-22.txt",
       "domain": "molecular_biology",
       "status": "completed",
-      "attempts": 2,
-      "last_error": "Pipeline failed with exit code 1",
-      "completed_at": "2025-12-03T02:52:06.908478"
+      "attempts": 9,
+      "last_error": "Pipeline failed with exit code -2 - Last error: Traceback (most recent call last):",
+      "completed_at": "2025-12-16T11:03:12.957587"
     },
     {
       "id": "msystems.00491-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i5_10_1128_msystems_00491_22-20240609053404-4000194/source_files/msystems.00491-22.txt",
       "domain": "molecular_biology",
       "status": "completed",
-      "attempts": 2,
-      "last_error": null,
-      "completed_at": "2025-12-03T03:32:06.727230"
+      "attempts": 6,
+      "last_error": "Pipeline failed with exit code 1",
+      "completed_at": "2025-12-16T19:47:50.131649"
     },
     {
       "id": "msystems.00585-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i5_10_1128_msystems_00585_22-20240609053404-4000194/source_files/msystems.00585-22.txt",
       "domain": "molecular_biology",
       "status": "completed",
-      "attempts": 2,
-      "last_error": null,
-      "completed_at": "2025-12-03T04:09:52.125561"
+      "attempts": 7,
+      "last_error": "Pipeline failed with exit code 1 - Last error: See error output above for details.",
+      "completed_at": "2025-12-18T00:55:05.779271"
     },
     {
       "id": "msystems.00646-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i5_10_1128_msystems_00646_22-20240609053404-4000194/source_files/msystems.00646-22.txt",
       "domain": "molecular_biology",
       "status": "completed",
-      "attempts": 2,
-      "last_error": null,
-      "completed_at": "2025-12-03T05:09:15.304329"
+      "attempts": 5,
+      "last_error": "Pipeline failed with exit code 1",
+      "completed_at": "2025-12-17T04:16:10.319095"
     },
     {
       "id": "msystems.00995-21",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i5_10_1128_msystems_00995_21-20240609053404-4000194/source_files/msystems.00995-21.txt",
       "domain": "molecular_biology",
       "status": "failed",
-      "attempts": 2,
-      "last_error": "Pipeline failed with exit code 1",
-      "completed_at": null
+      "attempts": 6,
+      "last_error": "Pipeline failed with exit code 1"
     },
     {
       "id": "msystems.01522-21",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i5_10_1128_msystems_01522_21-20240609053404-4000194/source_files/msystems.01522-21.txt",
       "domain": "molecular_biology",
       "status": "completed",
-      "attempts": 2,
+      "attempts": 4,
       "last_error": null,
-      "completed_at": "2025-12-03T05:49:26.887974"
+      "completed_at": "2025-12-17T09:36:35.574063"
     },
     {
       "id": "msystems.00358-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i6_10_1128_msystems_00358_22-20240609053749-7485109/source_files/msystems.00358-22.txt",
       "domain": "molecular_biology",
       "status": "completed",
-      "attempts": 2,
-      "last_error": null,
-      "completed_at": "2025-12-03T06:19:10.838497"
+      "attempts": 5,
+      "last_error": "Pipeline failed with exit code -2 - Last error: Traceback (most recent call last):",
+      "completed_at": "2025-12-18T11:47:38.138606"
     },
     {
       "id": "msystems.00447-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i6_10_1128_msystems_00447_22-20240609053749-7485109/source_files/msystems.00447-22.txt",
       "domain": "molecular_biology",
       "status": "completed",
-      "attempts": 2,
+      "attempts": 3,
       "last_error": "Pipeline failed with exit code 1",
-      "completed_at": "2025-12-03T06:45:17.111198"
+      "completed_at": "2025-12-08T11:25:13.528866"
     },
     {
       "id": "msystems.00563-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i6_10_1128_msystems_00563_22-20240609053749-7485109/source_files/msystems.00563-22.txt",
       "domain": "molecular_biology",
       "status": "completed",
-      "attempts": 2,
-      "last_error": null,
-      "completed_at": "2025-12-03T07:26:20.840507"
+      "attempts": 4,
+      "last_error": "Pipeline failed with exit code -2 - Last error: Traceback (most recent call last):",
+      "completed_at": "2025-12-18T21:45:02.480767"
     },
     {
       "id": "msystems.00582-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i6_10_1128_msystems_00582_22-20240609053749-7485109/source_files/msystems.00582-22.txt",
       "domain": "molecular_biology",
       "status": "completed",
-      "attempts": 2,
+      "attempts": 3,
       "last_error": null,
-      "completed_at": "2025-12-03T07:49:44.768126"
+      "completed_at": "2025-12-19T10:30:07.531361"
     },
     {
       "id": "msystems.00640-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i6_10_1128_msystems_00640_22-20240609053749-7485109/source_files/msystems.00640-22.txt",
       "domain": "molecular_biology",
-      "status": "completed",
+      "status": "pending",
       "attempts": 2,
-      "last_error": null,
-      "completed_at": "2025-12-03T08:22:53.930359"
+      "last_error": null
     },
     {
       "id": "msystems.00649-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i6_10_1128_msystems_00649_22-20240609053749-7485109/source_files/msystems.00649-22.txt",
       "domain": "molecular_biology",
-      "status": "completed",
+      "status": "pending",
       "attempts": 2,
-      "last_error": "Pipeline failed with exit code 1",
-      "completed_at": "2025-12-03T09:02:41.724290"
+      "last_error": "Pipeline failed with exit code 1"
     },
     {
       "id": "msystems.00685-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i6_10_1128_msystems_00685_22-20240609053749-7485109/source_files/msystems.00685-22.txt",
       "domain": "molecular_biology",
-      "status": "completed",
+      "status": "pending",
       "attempts": 2,
-      "last_error": null,
-      "completed_at": "2025-12-03T09:42:07.747754"
+      "last_error": null
     },
     {
       "id": "msystems.00710-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i6_10_1128_msystems_00710_22-20240609053749-7485109/source_files/msystems.00710-22.txt",
       "domain": "molecular_biology",
-      "status": "failed",
+      "status": "pending",
       "attempts": 2,
-      "last_error": "Pipeline failed with exit code 1",
-      "completed_at": null
+      "last_error": "Pipeline failed with exit code 1"
     },
     {
       "id": "msystems.00775-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i6_10_1128_msystems_00775_22-20240609053749-7485109/source_files/msystems.00775-22.txt",
       "domain": "molecular_biology",
-      "status": "completed",
+      "status": "pending",
       "attempts": 2,
-      "last_error": null,
-      "completed_at": "2025-12-03T10:09:25.467270"
+      "last_error": null
     },
     {
       "id": "msystems.00827-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i6_10_1128_msystems_00827_22-20240609053749-7485109/source_files/msystems.00827-22.txt",
       "domain": "molecular_biology",
-      "status": "completed",
+      "status": "pending",
       "attempts": 2,
-      "last_error": null,
-      "completed_at": "2025-12-03T10:44:56.837819"
+      "last_error": null
     },
     {
       "id": "msystems.00893-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i6_10_1128_msystems_00893_22-20240609053749-7485109/source_files/msystems.00893-22.txt",
       "domain": "molecular_biology",
-      "status": "failed",
+      "status": "pending",
       "attempts": 2,
-      "last_error": "Pipeline failed with exit code 1",
-      "completed_at": null
+      "last_error": "Pipeline failed with exit code 1"
     },
     {
       "id": "msystems.00907-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i6_10_1128_msystems_00907_22-20240609053749-7485109/source_files/msystems.00907-22.txt",
       "domain": "molecular_biology",
-      "status": "failed",
+      "status": "pending",
       "attempts": 2,
-      "last_error": "Pipeline failed with exit code 1",
-      "completed_at": "2025-12-02T06:05:43.086426"
+      "last_error": "Pipeline failed with exit code 1"
     },
     {
       "id": "msystems.00925-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i6_10_1128_msystems_00925_22-20240609053749-7485109/source_files/msystems.00925-22.txt",
       "domain": "molecular_biology",
-      "status": "failed",
+      "status": "pending",
       "attempts": 2,
-      "last_error": "Pipeline failed with exit code 1",
-      "completed_at": "2025-12-02T06:32:36.925429"
+      "last_error": "Pipeline failed with exit code 1"
     },
     {
       "id": "msystems.00951-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i6_10_1128_msystems_00951_22-20240609053749-7485109/source_files/msystems.00951-22.txt",
       "domain": "molecular_biology",
-      "status": "failed",
+      "status": "pending",
       "attempts": 2,
-      "last_error": "Pipeline failed with exit code 1",
-      "completed_at": null
+      "last_error": "Pipeline failed with exit code 1"
     },
     {
       "id": "msystems.01052-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i6_10_1128_msystems_01052_22-20240609053749-7485109/source_files/msystems.01052-22.txt",
       "domain": "molecular_biology",
-      "status": "completed",
+      "status": "pending",
       "attempts": 2,
-      "last_error": null,
-      "completed_at": "2025-12-03T11:25:55.091165"
+      "last_error": null
     },
     {
       "id": "msystems.00564-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i1_10_1128_msystems_00564_22-20240609053753-5727089/source_files/msystems.00564-22.txt",
       "domain": "molecular_biology",
-      "status": "completed",
+      "status": "pending",
       "attempts": 2,
-      "last_error": null,
-      "completed_at": "2025-12-03T11:54:33.694910"
+      "last_error": null
     },
     {
       "id": "msystems.00852-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i1_10_1128_msystems_00852_22-20240609053753-5727089/source_files/msystems.00852-22.txt",
       "domain": "molecular_biology",
-      "status": "completed",
+      "status": "pending",
       "attempts": 2,
-      "last_error": null,
-      "completed_at": "2025-12-03T12:35:43.487235"
+      "last_error": null
     },
     {
       "id": "msystems.00922-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i1_10_1128_msystems_00922_22-20240609053753-5727089/source_files/msystems.00922-22.txt",
       "domain": "molecular_biology",
-      "status": "failed",
+      "status": "pending",
       "attempts": 2,
-      "last_error": "Pipeline failed with exit code 1",
-      "completed_at": "2025-12-02T08:48:12.326309"
+      "last_error": "Pipeline failed with exit code 1"
     },
     {
       "id": "msystems.00929-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i1_10_1128_msystems_00929_22-20240609053753-5727089/source_files/msystems.00929-22.txt",
       "domain": "molecular_biology",
-      "status": "failed",
+      "status": "pending",
       "attempts": 2,
-      "last_error": "Pipeline failed with exit code 1",
-      "completed_at": null
+      "last_error": "Pipeline failed with exit code 1"
     },
     {
       "id": "msystems.00994-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i1_10_1128_msystems_00994_22-20240609053753-5727089/source_files/msystems.00994-22.txt",
       "domain": "molecular_biology",
-      "status": "failed",
+      "status": "pending",
       "attempts": 2,
-      "last_error": "Pipeline failed with exit code 1",
-      "completed_at": "2025-12-02T09:11:49.829615"
+      "last_error": "Pipeline failed with exit code 1"
     },
     {
       "id": "msystems.01029-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i1_10_1128_msystems_01029_22-20240609053753-5727089/source_files/msystems.01029-22.txt",
       "domain": "molecular_biology",
-      "status": "failed",
+      "status": "pending",
       "attempts": 2,
-      "last_error": "Pipeline failed with exit code 1",
-      "completed_at": null
+      "last_error": "Pipeline failed with exit code 1"
     },
     {
       "id": "msystems.01043-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i1_10_1128_msystems_01043_22-20240609053753-5727089/source_files/msystems.01043-22.txt",
       "domain": "molecular_biology",
-      "status": "completed",
+      "status": "pending",
       "attempts": 2,
-      "last_error": null,
-      "completed_at": "2025-12-03T12:55:39.273934"
+      "last_error": null
     },
     {
       "id": "msystems.01068-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i1_10_1128_msystems_01068_22-20240609053753-5727089/source_files/msystems.01068-22.txt",
       "domain": "molecular_biology",
-      "status": "failed",
+      "status": "pending",
       "attempts": 2,
-      "last_error": "Pipeline failed with exit code 1",
-      "completed_at": "2025-12-02T10:04:18.731701"
+      "last_error": "Pipeline failed with exit code 1"
     },
     {
       "id": "msystems.01106-22-s0006",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i1_10_1128_msystems_01106_22-20240609053753-5727089/msystems.2023.8.issue-1/msystems.01106-22/suppl/msystems.01106-22-s0006.txt",
       "domain": "molecular_biology",
-      "status": "failed",
+      "status": "pending",
       "attempts": 2,
-      "last_error": "Pipeline failed with exit code 1",
-      "completed_at": null
+      "last_error": "Pipeline failed with exit code 1"
     },
     {
       "id": "msystems.01282-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i1_10_1128_msystems_01282_22-20240609053753-5727089/source_files/msystems.01282-22.txt",
       "domain": "molecular_biology",
-      "status": "failed",
+      "status": "pending",
       "attempts": 2,
-      "last_error": "Pipeline failed with exit code 1",
-      "completed_at": null
+      "last_error": "Pipeline failed with exit code 1"
     },
     {
       "id": "msystems.00002-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i2_10_1128_msystems_00002_23-20240609053807-5568251/source_files/msystems.00002-23.txt",
       "domain": "molecular_biology",
-      "status": "failed",
+      "status": "pending",
       "attempts": 2,
-      "last_error": "Pipeline failed with exit code 1",
-      "completed_at": null
+      "last_error": "Pipeline failed with exit code 1"
     },
     {
       "id": "msystems.00024-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i2_10_1128_msystems_00024_23-20240609053807-5568251/source_files/msystems.00024-23.txt",
       "domain": "molecular_biology",
-      "status": "failed",
+      "status": "pending",
       "attempts": 2,
-      "last_error": "Pipeline failed with exit code 1",
-      "completed_at": null
+      "last_error": "Pipeline failed with exit code 1"
     },
     {
       "id": "msystems.00622-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i2_10_1128_msystems_00622_22-20240609053807-5568251/source_files/msystems.00622-22.txt",
       "domain": "molecular_biology",
-      "status": "completed",
+      "status": "pending",
       "attempts": 2,
-      "last_error": null,
-      "completed_at": "2025-12-03T13:35:52.617037"
+      "last_error": null
     },
     {
       "id": "msystems.00718-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i2_10_1128_msystems_00718_22-20240609053807-5568251/source_files/msystems.00718-22.txt",
       "domain": "molecular_biology",
-      "status": "completed",
+      "status": "pending",
       "attempts": 2,
-      "last_error": null,
-      "completed_at": "2025-12-03T14:17:45.825067"
+      "last_error": null
     },
     {
       "id": "msystems.00884-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i2_10_1128_msystems_00884_22-20240609053807-5568251/source_files/msystems.00884-22.txt",
       "domain": "molecular_biology",
-      "status": "failed",
+      "status": "pending",
       "attempts": 2,
-      "last_error": "Pipeline failed with exit code 1",
-      "completed_at": null
+      "last_error": "Pipeline failed with exit code 1"
     },
     {
       "id": "msystems.00992-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i2_10_1128_msystems_00992_22-20240609053807-5568251/source_files/msystems.00992-22.txt",
       "domain": "molecular_biology",
-      "status": "failed",
+      "status": "pending",
       "attempts": 2,
-      "last_error": "Pipeline failed with exit code 1",
-      "completed_at": null
+      "last_error": "Pipeline failed with exit code 1"
     },
     {
       "id": "msystems.01003-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i2_10_1128_msystems_01003_22-20240609053807-5568251/source_files/msystems.01003-22.txt",
       "domain": "molecular_biology",
-      "status": "failed",
+      "status": "pending",
       "attempts": 2,
-      "last_error": "Pipeline failed with exit code 1",
-      "completed_at": null
+      "last_error": "Pipeline failed with exit code 1"
     },
     {
       "id": "msystems.01179-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i2_10_1128_msystems_01179_22-20240609053807-5568251/source_files/msystems.01179-22.txt",
       "domain": "molecular_biology",
-      "status": "failed",
+      "status": "pending",
       "attempts": 2,
-      "last_error": "Pipeline failed with exit code 1",
-      "completed_at": null
+      "last_error": "Pipeline failed with exit code 1"
     },
     {
       "id": "msystems.01192-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i2_10_1128_msystems_01192_22-20240609053807-5568251/source_files/msystems.01192-22.txt",
       "domain": "molecular_biology",
-      "status": "failed",
+      "status": "pending",
       "attempts": 2,
-      "last_error": "Pipeline failed with exit code 1",
-      "completed_at": null
+      "last_error": "Pipeline failed with exit code 1"
     },
     {
       "id": "msystems.01211-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i2_10_1128_msystems_01211_22-20240609053807-5568251/source_files/msystems.01211-22.txt",
       "domain": "molecular_biology",
-      "status": "failed",
+      "status": "pending",
       "attempts": 2,
-      "last_error": "Pipeline failed with exit code 1",
-      "completed_at": null
+      "last_error": "Pipeline failed with exit code 1"
     },
     {
       "id": "msystems.01270-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i2_10_1128_msystems_01270_22-20240609053807-5568251/source_files/msystems.01270-22.txt",
       "domain": "molecular_biology",
-      "status": "failed",
+      "status": "pending",
       "attempts": 2,
-      "last_error": "Pipeline failed with exit code 1",
-      "completed_at": null
+      "last_error": "Pipeline failed with exit code 1"
     },
     {
       "id": "msystems.01274-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i2_10_1128_msystems_01274_22-20240609053807-5568251/source_files/msystems.01274-22.txt",
       "domain": "molecular_biology",
-      "status": "failed",
+      "status": "pending",
       "attempts": 2,
-      "last_error": "Pipeline failed with exit code 1",
-      "completed_at": "2025-12-02T12:34:35.652162"
+      "last_error": "Pipeline failed with exit code 1"
     },
     {
       "id": "msystems.00028-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i3_10_1128_msystems_00028_23-20240609053743-4969529/source_files/msystems.00028-23.txt",
       "domain": "molecular_biology",
-      "status": "failed",
+      "status": "pending",
       "attempts": 2,
-      "last_error": "Pipeline failed with exit code 1",
-      "completed_at": null
+      "last_error": "Pipeline failed with exit code 1"
     },
     {
       "id": "msystems.00201-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i3_10_1128_msystems_00201_23-20240609053743-4969529/source_files/msystems.00201-23.txt",
       "domain": "molecular_biology",
-      "status": "failed",
+      "status": "pending",
       "attempts": 2,
-      "last_error": "Pipeline failed with exit code 1",
-      "completed_at": "2025-12-02T13:01:38.989312"
+      "last_error": "Pipeline failed with exit code 1"
     },
     {
       "id": "msystems.00247-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i3_10_1128_msystems_00247_23-20240609053743-4969529/source_files/msystems.00247-23.txt",
       "domain": "molecular_biology",
-      "status": "failed",
+      "status": "pending",
       "attempts": 2,
-      "last_error": "Pipeline failed with exit code 1",
-      "completed_at": "2025-12-02T13:36:31.992494"
+      "last_error": "Pipeline failed with exit code 1"
     },
     {
       "id": "msystems.00252-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i3_10_1128_msystems_00252_23-20240609053743-4969529/source_files/msystems.00252-23.txt",
       "domain": "molecular_biology",
-      "status": "failed",
+      "status": "pending",
       "attempts": 2,
-      "last_error": "Pipeline failed with exit code -2",
-      "completed_at": null
+      "last_error": "Pipeline failed with exit code -2"
     },
     {
       "id": "msystems.00734-22",
@@ -451,8 +413,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01002-22",
@@ -460,8 +421,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01049-22",
@@ -469,8 +429,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01073-22",
@@ -478,8 +437,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01238-22",
@@ -487,8 +445,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00040-23",
@@ -496,8 +453,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00083-23",
@@ -505,8 +461,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00135-23",
@@ -514,8 +469,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00206-23",
@@ -523,8 +477,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00259-23",
@@ -532,8 +485,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00292-23",
@@ -541,8 +493,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00305-23",
@@ -550,8 +501,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00345-23",
@@ -559,8 +509,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00357-23",
@@ -568,8 +517,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01280-22",
@@ -577,8 +525,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00245-23",
@@ -586,8 +533,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00379-23",
@@ -595,8 +541,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00391-23",
@@ -604,8 +549,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00425-23",
@@ -613,8 +557,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00467-23",
@@ -622,8 +565,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00492-23",
@@ -631,8 +573,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00564-23",
@@ -640,8 +581,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00629-23",
@@ -649,8 +589,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00646-23",
@@ -658,8 +597,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00683-23",
@@ -667,8 +605,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00718-23",
@@ -676,8 +613,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00730-23",
@@ -685,8 +621,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01236-22",
@@ -694,8 +629,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00331-23",
@@ -703,8 +637,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00593-23",
@@ -712,8 +645,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00643-23",
@@ -721,8 +653,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00717-23",
@@ -730,8 +661,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00724-23",
@@ -739,8 +669,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00742-23",
@@ -748,8 +677,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00755-23",
@@ -757,8 +685,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00998-23",
@@ -766,8 +693,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01025-23",
@@ -775,8 +701,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01026-23",
@@ -784,8 +709,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01045-23",
@@ -793,8 +717,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01189-23",
@@ -802,8 +725,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00484-23",
@@ -811,8 +733,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00803-23",
@@ -820,8 +741,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00810-23",
@@ -829,8 +749,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01013-23",
@@ -838,8 +757,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01018-23",
@@ -847,8 +765,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01049-23",
@@ -856,8 +773,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01058-23",
@@ -865,8 +781,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01169-23",
@@ -874,8 +789,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01190-23",
@@ -883,8 +797,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00924-23",
@@ -892,8 +805,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00950-23",
@@ -901,8 +813,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01043-23",
@@ -910,8 +821,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01233-23",
@@ -919,8 +829,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00707-23",
@@ -928,8 +837,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00942-23-s0003",
@@ -937,8 +845,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00967-23",
@@ -946,8 +853,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01050-23",
@@ -955,8 +861,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01188-23",
@@ -964,8 +869,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01219-23",
@@ -973,8 +877,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01257-23",
@@ -982,8 +885,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01299-23",
@@ -991,8 +893,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01322-23",
@@ -1000,8 +901,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00023-24",
@@ -1009,8 +909,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00130-24",
@@ -1018,8 +917,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00221-24",
@@ -1027,8 +925,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00971-23",
@@ -1036,8 +933,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01126-23",
@@ -1045,8 +941,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01154-23",
@@ -1054,8 +949,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01165-23",
@@ -1063,8 +957,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01218-23",
@@ -1072,8 +965,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01225-23",
@@ -1081,8 +973,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01263-23",
@@ -1090,8 +981,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01290-23",
@@ -1099,8 +989,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01294-23",
@@ -1108,8 +997,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01323-23",
@@ -1117,8 +1005,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01328-23",
@@ -1126,8 +1013,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01368-23",
@@ -1135,8 +1021,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01369-23",
@@ -1144,8 +1029,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01397-23",
@@ -1153,8 +1037,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01401-23",
@@ -1162,8 +1045,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00004-24",
@@ -1171,8 +1053,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00004-24",
@@ -1180,8 +1061,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00083-24",
@@ -1189,8 +1069,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00083-24",
@@ -1198,8 +1077,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00093-24",
@@ -1207,8 +1085,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00093-24",
@@ -1216,8 +1093,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00124-24",
@@ -1225,8 +1101,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00124-24",
@@ -1234,8 +1109,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00179-24",
@@ -1243,8 +1117,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00179-24",
@@ -1252,8 +1125,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00246-24",
@@ -1261,8 +1133,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00246-24",
@@ -1270,8 +1141,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00250-24",
@@ -1279,8 +1149,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00250-24",
@@ -1288,8 +1157,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00261-24",
@@ -1297,8 +1165,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00261-24",
@@ -1306,8 +1173,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00289-24",
@@ -1315,8 +1181,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00289-24",
@@ -1324,8 +1189,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00339-24",
@@ -1333,8 +1197,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00339-24",
@@ -1342,8 +1205,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00503-24",
@@ -1351,8 +1213,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00503-24",
@@ -1360,8 +1221,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01222-23",
@@ -1369,8 +1229,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01222-23",
@@ -1378,8 +1237,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01305-23",
@@ -1387,8 +1245,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01305-23",
@@ -1396,8 +1253,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01338-23",
@@ -1405,8 +1261,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01338-23",
@@ -1414,8 +1269,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01405-23",
@@ -1423,8 +1277,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01405-23",
@@ -1432,8 +1285,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00012-24",
@@ -1441,8 +1293,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00048-24",
@@ -1450,8 +1301,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00050-24",
@@ -1459,8 +1309,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00065-24",
@@ -1468,8 +1317,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00095-24",
@@ -1477,8 +1325,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00109-24",
@@ -1486,8 +1333,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00133-24",
@@ -1495,8 +1341,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00185-24",
@@ -1504,8 +1349,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00214-24",
@@ -1513,8 +1357,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00226-24",
@@ -1522,8 +1365,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00248-24",
@@ -1531,8 +1373,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00257-24",
@@ -1540,8 +1381,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00321-24",
@@ -1549,8 +1389,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00325-24",
@@ -1558,8 +1397,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00369-24",
@@ -1567,8 +1405,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00429-24",
@@ -1576,8 +1413,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00469-24",
@@ -1585,8 +1421,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00847-23",
@@ -1594,8 +1429,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.00948-23",
@@ -1603,8 +1437,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01036-23",
@@ -1612,8 +1445,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01112-23",
@@ -1621,8 +1453,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01124-23",
@@ -1630,8 +1461,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01135-23",
@@ -1639,8 +1469,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01158-23",
@@ -1648,8 +1477,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01164-23",
@@ -1657,8 +1485,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01210-23",
@@ -1666,8 +1493,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01226-23",
@@ -1675,8 +1501,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01312-23",
@@ -1684,8 +1509,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01339-23",
@@ -1693,8 +1517,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01342-23",
@@ -1702,8 +1525,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01348-23",
@@ -1711,8 +1533,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01363-23",
@@ -1720,8 +1541,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01379-23",
@@ -1729,8 +1549,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01385-23",
@@ -1738,8 +1557,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     },
     {
       "id": "msystems.01415-23",
@@ -1747,8 +1565,7 @@
       "domain": "molecular_biology",
       "status": "pending",
       "attempts": 0,
-      "last_error": null,
-      "completed_at": null
+      "last_error": null
     }
   ]
 }

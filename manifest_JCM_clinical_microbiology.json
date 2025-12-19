@@ -1,0 +1,1853 @@
+{
+  "generated": "2025-12-17T01:17:50.167217",
+  "directory": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM",
+  "domain": "clinical_microbiology",
+  "total_papers": 205,
+  "papers": [
+    {
+      "id": "jcm.01417-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i1_10_1128_jcm_01417_23-20240609101307-1751976/source_files/jcm.01417-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "failed",
+      "attempts": 4,
+      "last_error": "Pipeline failed with exit code 1",
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01002-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i12_10_1128_jcm_01002_23-20240609101203-8298430/source_files/jcm.01002-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "failed",
+      "attempts": 4,
+      "last_error": "Pipeline failed with exit code 1",
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01152-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i1_10_1128_jcm_01152_23-20240610123049-7622477/source_files/jcm.01152-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "completed",
+      "attempts": 3,
+      "last_error": "Pipeline failed with exit code -2 - Last error: Traceback (most recent call last):",
+      "completed_at": "2025-12-17T18:37:06.929048"
+    },
+    {
+      "id": "jcm.01509-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i2_10_1128_jcm_01509_23-20240609100735-3046271/source_files/jcm.01509-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "failed",
+      "attempts": 3,
+      "last_error": "Pipeline failed with exit code 1",
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01173-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i1_10_1128_jcm_01173_23-20240609100721-2910844/source_files/jcm.01173-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "failed",
+      "attempts": 3,
+      "last_error": "Pipeline failed with exit code 1",
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00357-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i11_10_1128_jcm_00357_23-20240609100540-5850143/source_files/jcm.00357-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "failed",
+      "attempts": 5,
+      "last_error": "Manually marked as always failing",
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01275-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i2_10_1128_jcm_01275_23-20240609100735-3046271/source_files/jcm.01275-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "completed",
+      "attempts": 1,
+      "last_error": null,
+      "completed_at": "2025-12-18T03:41:49.565164"
+    },
+    {
+      "id": "jcm.00873-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i11_10_1128_jcm_00873_23-20240610123009-2625334/source_files/jcm.00873-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "failed",
+      "attempts": 1,
+      "last_error": "Pipeline failed with exit code 1",
+      "completed_at": null
+    },
+    {
+      "id": "editorial-board",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i10_10_1128_jcm_2023_61_issue_10-20240610122948-9875241/source_files/editorial-board.txt",
+      "domain": "clinical_microbiology",
+      "status": "failed",
+      "attempts": 1,
+      "last_error": "Pipeline failed with exit code 1",
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00855-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i11_10_1128_jcm_00855_23-20240610123009-2625334/source_files/jcm.00855-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "failed",
+      "attempts": 1,
+      "last_error": "Pipeline failed with exit code 1",
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01011-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i3_10_1128_jcm_01011_23-20240610123116-0748190/source_files/jcm.01011-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "completed",
+      "attempts": 1,
+      "last_error": null,
+      "completed_at": "2025-12-18T06:47:56.147082"
+    },
+    {
+      "id": "jcm.00642-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i11_10_1128_jcm_00642_23-20240609100540-5850143/source_files/jcm.00642-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "completed",
+      "attempts": 1,
+      "last_error": null,
+      "completed_at": "2025-12-18T09:03:36.965520"
+    },
+    {
+      "id": "jcm.01111-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i3_10_1128_jcm_01111_23-20240609101319-4101344/source_files/jcm.01111-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "completed",
+      "attempts": 1,
+      "last_error": null,
+      "completed_at": "2025-12-18T14:17:36.054300"
+    },
+    {
+      "id": "jcm.00402-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i1_10_1128_jcm_00402_23-20240610123049-7622477/source_files/jcm.00402-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "completed",
+      "attempts": 1,
+      "last_error": null,
+      "completed_at": "2025-12-18T19:05:19.248852"
+    },
+    {
+      "id": "jcm.00946-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i12_10_1128_jcm_00946_23-20240610123010-5974579/source_files/jcm.00946-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "completed",
+      "attempts": 1,
+      "last_error": null,
+      "completed_at": "2025-12-19T03:35:13.562907"
+    },
+    {
+      "id": "jcm.01048-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i3_10_1128_jcm_01048_23-20240610123116-0748190/source_files/jcm.01048-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 1,
+      "last_error": "Connection error - not attempted",
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00822-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i2_10_1128_jcm_00822_23-20240609100735-3046271/source_files/jcm.00822-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00913-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i11_10_1128_jcm_00913_23-20240610123009-2625334/source_files/jcm.00913-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00242-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i5_10_1128_jcm_00242_24-20240609100807-7473231/source_files/jcm.00242-24.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01537-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i3_10_1128_jcm_01537_23-20240610123116-0748190/source_files/jcm.01537-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00628-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i10_10_1128_jcm_00628_23-20240609101155-7839640/source_files/jcm.00628-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01302-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i12_10_1128_jcm_01302_23-20240609100531-9256669/source_files/jcm.01302-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00842-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i12_10_1128_jcm_00842_23-20240609100531-9256669/source_files/jcm.00842-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01856-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i11_10_1128_jcm_01856_22-20240609100540-5850143/source_files/jcm.01856-22.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01258-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i4_10_1128_jcm_01258_23-20240609100802-6150204/source_files/jcm.01258-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00856-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i11_10_1128_jcm_00856_23-20240609101202-3926572/source_files/jcm.00856-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00415-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i5_10_1128_jcm_00415_24-20240610123141-9557088/source_files/jcm.00415-24.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01511-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i2_10_1128_jcm_01511_23-20240609101308-8771284/source_files/jcm.01511-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00617-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i11_10_1128_jcm_00617_23-20240609101202-3926572/source_files/jcm.00617-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01143-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i12_10_1128_jcm_01143_23-20240610123010-5974579/source_files/jcm.01143-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00838-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i11_10_1128_jcm_00838_23-20240609100540-5850143/source_files/jcm.00838-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01161-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i1_10_1128_jcm_01161_23-20240610123049-7622477/source_files/jcm.01161-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01678-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i3_10_1128_jcm_01678_23-20240609101319-4101344/source_files/jcm.01678-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00906-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i3_10_1128_jcm_00906_23-20240609100831-5361129/source_files/jcm.00906-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00273-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i11_10_1128_jcm_00273_23-20240609100540-5850143/source_files/jcm.00273-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01260-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i3_10_1128_jcm_01260_23-20240609100831-5361129/source_files/jcm.01260-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00829-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i12_10_1128_jcm_00829_23-20240609101203-8298430/source_files/jcm.00829-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01545-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i3_10_1128_jcm_01545_23-20240609100831-5361129/source_files/jcm.01545-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00554-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i5_10_1128_jcm_00554_24-20240609100807-7473231/source_files/jcm.00554-24.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01351-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i1_10_1128_jcm_01351_23-20240610123049-7622477/source_files/jcm.01351-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01558-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i4_10_1128_jcm_01558_23-20240610123120-6286551/source_files/jcm.01558-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01447-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i4_10_1128_jcm_01447_23-20240610123120-6286551/source_files/jcm.01447-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00703-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i10_10_1128_jcm_00703_23-20240610122948-9875241/source_files/jcm.00703-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01445-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i5_10_1128_jcm_01445_23-20240610123141-9557088/source_files/jcm.01445-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00012-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i3_10_1128_jcm_00012_24-20240609101319-4101344/source_files/jcm.00012-24.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00799-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i12_10_1128_jcm_00799_23-20240609101203-8298430/source_files/jcm.00799-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01625-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i4_10_1128_jcm_01625_23-20240609100802-6150204/source_files/jcm.01625-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01308-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i1_10_1128_jcm_01308_23-20240610123049-7622477/source_files/jcm.01308-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00606-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i11_10_1128_jcm_00606_23-20240609100540-5850143/source_files/jcm.00606-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00641-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i11_10_1128_jcm_00641_23-20240609101202-3926572/source_files/jcm.00641-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00497-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i11_10_1128_jcm_00497_23-20240609101202-3926572/source_files/jcm.00497-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01396-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i2_10_1128_jcm_01396_23-20240609100735-3046271/source_files/jcm.01396-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01289-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i2_10_1128_jcm_01289_23-20240609100735-3046271/source_files/jcm.01289-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00859-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i11_10_1128_jcm_00859_23-20240609101202-3926572/source_files/jcm.00859-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01028-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i2_10_1128_jcm_01028_23-20240609100735-3046271/source_files/jcm.01028-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00785-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i2_10_1128_jcm_00785_23-20240610123125-4732735/source_files/jcm.00785-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00019-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i4_10_1128_jcm_00019_24-20240609101341-2054895/source_files/jcm.00019-24.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00952-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i12_10_1128_jcm_00952_23-20240609100531-9256669/source_files/jcm.00952-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00732-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i2_10_1128_jcm_00732_23-20240610123125-4732735/source_files/jcm.00732-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01140-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i2_10_1128_jcm_01140_23-20240609100735-3046271/source_files/jcm.01140-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01528-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i4_10_1128_jcm_01528_23-20240610123120-6286551/source_files/jcm.01528-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01067-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i11_10_1128_jcm_01067_23-20240609101202-3926572/source_files/jcm.01067-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00903-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i12_10_1128_jcm_00903_23-20240609100531-9256669/source_files/jcm.00903-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00885-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i12_10_1128_jcm_00885_23-20240609100531-9256669/source_files/jcm.00885-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01237-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i1_10_1128_jcm_01237_23-20240609101307-1751976/source_files/jcm.01237-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01498-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i3_10_1128_jcm_01498_23-20240610123116-0748190/source_files/jcm.01498-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01096-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i1_10_1128_jcm_01096_23-20240609101307-1751976/source_files/jcm.01096-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00612-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i1_10_1128_jcm_00612_23-20240609101307-1751976/source_files/jcm.00612-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00144-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i6_10_1128_jcm_00144_24-20240612060113-6756154/source_files/jcm.00144-24.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00313-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i4_10_1128_jcm_00313_23-20240610123120-6286551/source_files/jcm.00313-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01665-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i4_10_1128_jcm_01665_23-20240610123120-6286551/source_files/jcm.01665-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00263-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i6_10_1128_jcm_00263_24-20240612060113-6756154/source_files/jcm.00263-24.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01339-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i2_10_1128_jcm_01339_23-20240609101308-8771284/source_files/jcm.01339-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01407-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i4_10_1128_jcm_01407_23-20240609100802-6150204/source_files/jcm.01407-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01476-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i6_10_1128_jcm_01476_23-20240612060113-6756154/source_files/jcm.01476-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01611-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i4_10_1128_jcm_01611_23-20240609100802-6150204/source_files/jcm.01611-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01506-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i2_10_1128_jcm_01506_23-20240609100735-3046271/source_files/jcm.01506-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01200-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i3_10_1128_jcm_01200_23-20240610123116-0748190/source_files/jcm.01200-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01521-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i1_10_1128_jcm_01521_23-20240609101307-1751976/source_files/jcm.01521-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01488-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i2_10_1128_jcm_01488_23-20240609100735-3046271/source_files/jcm.01488-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01069-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i3_10_1128_jcm_01069_23-20240610123116-0748190/source_files/jcm.01069-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00820-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i3_10_1128_jcm_00820_23-20240610123116-0748190/source_files/jcm.00820-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01287-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i4_10_1128_jcm_01287_23-20240609101341-2054895/source_files/jcm.01287-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00760-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i12_10_1128_jcm_00760_23-20240609101203-8298430/source_files/jcm.00760-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01703-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i4_10_1128_jcm_01703_23-20240609101341-2054895/source_files/jcm.01703-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01039-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i1_10_1128_jcm_01039_23-20240609101307-1751976/source_files/jcm.01039-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00139-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i5_10_1128_jcm_00139_24-20240610123141-9557088/source_files/jcm.00139-24.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00608-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i11_10_1128_jcm_00608_23-20240609101202-3926572/source_files/jcm.00608-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00558-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i11_10_1128_jcm_00558_23-20240609101202-3926572/source_files/jcm.00558-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01268-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i10_10_1128_jcm_01268_22-20240609100435-1288133/source_files/jcm.01268-22.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00827-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i11_10_1128_jcm_00827_23-20240609100540-5850143/source_files/jcm.00827-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00806-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i11_10_1128_jcm_00806_23-20240610123009-2625334/source_files/jcm.00806-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00981-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i1_10_1128_jcm_00981_23-20240609101307-1751976/source_files/jcm.00981-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00691-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i11_10_1128_jcm_00691_23-20240609101202-3926572/source_files/jcm.00691-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00893-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i12_10_1128_jcm_00893_23-20240610123010-5974579/source_files/jcm.00893-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01037-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i1_10_1128_jcm_01037_23-20240609100721-2910844/source_files/jcm.01037-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01150-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i11_10_1128_jcm_01150_23-20240610123009-2625334/source_files/jcm.01150-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00598-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i11_10_1128_jcm_00598_23-20240609101202-3926572/source_files/jcm.00598-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00149-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i6_10_1128_jcm_00149_24-20240612060113-6756154/source_files/jcm.00149-24.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00549-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i11_10_1128_jcm_00549_23-20240609100540-5850143/source_files/jcm.00549-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00614-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i12_10_1128_jcm_00614_23-20240609100531-9256669/source_files/jcm.00614-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00546-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i1_10_1128_jcm_00546_23-20240610123049-7622477/source_files/jcm.00546-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00373-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i11_10_1128_jcm_00373_23-20240609100540-5850143/source_files/jcm.00373-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00857-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i11_10_1128_jcm_00857_23-20240610123009-2625334/source_files/jcm.00857-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00152-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i12_10_1128_jcm_00152_23-20240609101203-8298430/source_files/jcm.00152-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00771-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i11_10_1128_jcm_00771_23-20240609100540-5850143/source_files/jcm.00771-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01187-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i5_10_1128_jcm_01187_23-20240609101341-9129015/source_files/jcm.01187-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00858-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i11_10_1128_jcm_00858_23-20240609100540-5850143/source_files/jcm.00858-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00911-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i11_10_1128_jcm_00911_23-20240610123009-2625334/source_files/jcm.00911-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00731-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i12_10_1128_jcm_00731_23-20240609101203-8298430/source_files/jcm.00731-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00570-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i6_10_1128_jcm_00570_23-20240612060113-6756154/source_files/jcm.00570-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00237-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i5_10_1128_jcm_00237_24-20240609100807-7473231/source_files/jcm.00237-24.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00136-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i6_10_1128_jcm_00136_24-20240612060113-6756154/source_files/jcm.00136-24.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01233-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i1_10_1128_jcm_01233_23-20240610123049-7622477/source_files/jcm.01233-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01232-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i1_10_1128_jcm_01232_23-20240609101307-1751976/source_files/jcm.01232-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00854-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i11_10_1128_jcm_00854_23-20240609101202-3926572/source_files/jcm.00854-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00840-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i12_10_1128_jcm_00840_23-20240609100531-9256669/source_files/jcm.00840-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00710-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i12_10_1128_jcm_00710_23-20240610123010-5974579/source_files/jcm.00710-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00342-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i6_10_1128_jcm_00342_24-20240612060113-6756154/source_files/jcm.00342-24.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00839-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i12_10_1128_jcm_00839_23-20240610123010-5974579/source_files/jcm.00839-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00366-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i1_10_1128_jcm_00366_23-20240609100721-2910844/source_files/jcm.00366-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01520-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i6_10_1128_jcm_01520_23-20240612060113-6756154/source_files/jcm.01520-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01259-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i4_10_1128_jcm_01259_23-20240610123120-6286551/source_files/jcm.01259-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01629-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i6_10_1128_jcm_01629_23-20240612060113-6756154/source_files/jcm.01629-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00260-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i11_10_1128_jcm_00260_23-20240609101202-3926572/source_files/jcm.00260-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01653-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i4_10_1128_jcm_01653_23-20240610123120-6286551/source_files/jcm.01653-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01001-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i12_10_1128_jcm_01001_23-20240609100531-9256669/source_files/jcm.01001-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00359-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i12_10_1128_jcm_00359_23-20240609101203-8298430/source_files/jcm.00359-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00741-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i12_10_1128_jcm_00741_23-20240610123010-5974579/source_files/jcm.00741-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01651-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i5_10_1128_jcm_01651_23-20240610123141-9557088/source_files/jcm.01651-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00775-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i11_10_1128_jcm_00775_23-20240609101202-3926572/source_files/jcm.00775-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01133-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i1_10_1128_jcm_01133_23-20240609101307-1751976/source_files/jcm.01133-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00845-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i1_10_1128_jcm_00845_23-20240609100721-2910844/source_files/jcm.00845-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00511-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i12_10_1128_jcm_00511_22-20240609101203-8298430/source_files/jcm.00511-22.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01576-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i5_10_1128_jcm_01576_23-20240610123141-9557088/source_files/jcm.01576-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00045-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i4_10_1128_jcm_00045_24-20240609100802-6150204/source_files/jcm.00045-24.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01486-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i4_10_1128_jcm_01486_23-20240609101341-2054895/source_files/jcm.01486-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00923-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i1_10_1128_jcm_00923_23-20240609101307-1751976/source_files/jcm.00923-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00692-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i11_10_1128_jcm_00692_23-20240610123009-2625334/source_files/jcm.00692-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01296-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i4_10_1128_jcm_01296_23-20240610123120-6286551/source_files/jcm.01296-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01213-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i1_10_1128_jcm_01213_23-20240609101307-1751976/source_files/jcm.01213-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01570-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i4_10_1128_jcm_01570_23-20240609101341-2054895/source_files/jcm.01570-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01183-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i1_10_1128_jcm_01183_23-20240609101307-1751976/source_files/jcm.01183-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00074-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i11_10_1128_jcm_00074_22-20240609101202-3926572/source_files/jcm.00074-22.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00345-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i6_10_1128_jcm_00345_24-20240612060113-6756154/source_files/jcm.00345-24.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00876-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i4_10_1128_jcm_00876_23-20240610123120-6286551/source_files/jcm.00876-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01381-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i4_10_1128_jcm_01381_23-20240610123120-6286551/source_files/jcm.01381-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01354-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i4_10_1128_jcm_01354_23-20240610123120-6286551/source_files/jcm.01354-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01649-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i4_10_1128_jcm_01649_23-20240610123120-6286551/source_files/jcm.01649-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01428-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i4_10_1128_jcm_01428_23-20240610123120-6286551/source_files/jcm.01428-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00788-21",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i4_10_1128_jcm_00788_21-20240610123120-6286551/source_files/jcm.00788-21.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01305-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i4_10_1128_jcm_01305_23-20240610123120-6286551/source_files/jcm.01305-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01228-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i1_10_1128_jcm_01228_23-20240609101307-1751976/source_files/jcm.01228-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01565-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i5_10_1128_jcm_01565_23-20240609101341-9129015/source_files/jcm.01565-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01913-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i10_10_1128_jcm_01913_22-20240610122948-9875241/source_files/jcm.01913-22.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01531-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i3_10_1128_jcm_01531_23-20240609101319-4101344/source_files/jcm.01531-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01508-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i2_10_1128_jcm_01508_23-20240609101308-8771284/source_files/jcm.01508-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01154-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i10_10_1128_jcm_01154_22-20240609101155-7839640/source_files/jcm.01154-22.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00308-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i2_10_1128_jcm_00308_23-20240610123125-4732735/source_files/jcm.00308-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01139-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i6_10_1128_jcm_01139_23-20240612060113-6756154/source_files/jcm.01139-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00312-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i5_10_1128_jcm_00312_23-20240609101341-9129015/source_files/jcm.00312-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01669-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i3_10_1128_jcm_01669_23-20240609101319-4101344/source_files/jcm.01669-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01725-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i6_10_1128_jcm_01725_23-20240612060113-6756154/source_files/jcm.01725-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01405-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i5_10_1128_jcm_01405_23-20240609101341-9129015/source_files/jcm.01405-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00246-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i5_10_1128_jcm_00246_24-20240609100807-7473231/source_files/jcm.00246-24.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01709-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i5_10_1128_jcm_01709_22-20240610123141-9557088/source_files/jcm.01709-22.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01505-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i2_10_1128_jcm_01505_23-20240609100735-3046271/source_files/jcm.01505-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00028-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i5_10_1128_jcm_00028_24-20240610123141-9557088/source_files/jcm.00028-24.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01687-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i3_10_1128_jcm_01687_23-20240609101319-4101344/source_files/jcm.01687-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00836-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i2_10_1128_jcm_00836_23-20240609101308-8771284/source_files/jcm.00836-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00600-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i6_10_1128_jcm_00600_24-20240612060113-6756154/source_files/jcm.00600-24.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01194-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i5_10_1128_jcm_01194_23-20240610123141-9557088/source_files/jcm.01194-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00098-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i2_10_1128_jcm_00098_24-20240610123125-4732735/source_files/jcm.00098-24.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01054-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i3_10_1128_jcm_01054_23-20240609100831-5361129/source_files/jcm.01054-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00430-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i3_10_1128_jcm_00430_23-20240610123116-0748190/source_files/jcm.00430-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00120-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i2_10_1128_jcm_00120_23-20240609100735-3046271/source_files/jcm.00120-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01510-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i2_10_1128_jcm_01510_23-20240609100735-3046271/source_files/jcm.01510-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01261-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i3_10_1128_jcm_01261_23-20240610123116-0748190/source_files/jcm.01261-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00103-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i3_10_1128_jcm_00103_22-20240609100831-5361129/source_files/jcm.00103-22.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00608-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i6_10_1128_jcm_00608_24-20240612060113-6756154/source_files/jcm.00608-24.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01518-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i3_10_1128_jcm_01518_23-20240609100831-5361129/source_files/jcm.01518-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01252-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i6_10_1128_jcm_01252_23-20240612060113-6756154/source_files/jcm.01252-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00941-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i3_10_1128_jcm_00941_23-20240609101319-4101344/source_files/jcm.00941-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00103-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i6_10_1128_jcm_00103_24-20240612060113-6756154/source_files/jcm.00103-24.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01141-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i2_10_1128_jcm_01141_23-20240609101308-8771284/source_files/jcm.01141-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00104-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i6_10_1128_jcm_00104_24-20240612060113-6756154/source_files/jcm.00104-24.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01697-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i6_10_1128_jcm_01697_23-20240612060113-6756154/source_files/jcm.01697-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01211-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i2_10_1128_jcm_01211_23-20240609101308-8771284/source_files/jcm.01211-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01285-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i2_10_1128_jcm_01285_23-20240609100735-3046271/source_files/jcm.01285-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01136-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i3_10_1128_jcm_01136_23-20240610123116-0748190/source_files/jcm.01136-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01507-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i2_10_1128_jcm_01507_23-20240609101308-8771284/source_files/jcm.01507-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01222-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i2_10_1128_jcm_01222_23-20240609101308-8771284/source_files/jcm.01222-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00824-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i2_10_1128_jcm_00824_23-20240609101308-8771284/source_files/jcm.00824-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00243-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i5_10_1128_jcm_00243_24-20240610123141-9557088/source_files/jcm.00243-24.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00095-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i5_10_1128_jcm_00095_24-20240609101341-9129015/source_files/jcm.00095-24.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00921-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i10_10_1128_jcm_00921_23-20240609100435-1288133/source_files/jcm.00921-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01630-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i5_10_1128_jcm_01630_23-20240609100807-7473231/source_files/jcm.01630-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01638-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i6_10_1128_jcm_01638_23-20240612060113-6756154/source_files/jcm.01638-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01776-22",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i10_10_1128_jcm_01776_22-20240610122948-9875241/source_files/jcm.01776-22.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00394-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i5_10_1128_jcm_00394_24-20240610123141-9557088/source_files/jcm.00394-24.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00739-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i10_10_1128_jcm_00739_23-20240609100435-1288133/source_files/jcm.00739-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00179-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i5_10_1128_jcm_00179_24-20240609101341-9129015/source_files/jcm.00179-24.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00158-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i6_10_1128_jcm_00158_24-20240612060113-6756154/source_files/jcm.00158-24.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.00485-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i6_10_1128_jcm_00485_24-20240612060113-6756154/source_files/jcm.00485-24.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jcm.01257-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i6_10_1128_jcm_01257_23-20240612060113-6756154/source_files/jcm.01257-23.txt",
+      "domain": "clinical_microbiology",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    }
+  ]
+}

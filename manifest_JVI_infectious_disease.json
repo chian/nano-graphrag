@@ -1,0 +1,3185 @@
+{
+  "generated": "2025-12-17T01:16:08.261109",
+  "directory": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI",
+  "domain": "infectious_disease",
+  "total_papers": 353,
+  "papers": [
+    {
+      "id": "jvi.01850-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01850_23-20240610011730-6152864/source_files/jvi.01850-23.txt",
+      "domain": "infectious_disease",
+      "status": "completed",
+      "attempts": 3,
+      "last_error": "Pipeline failed with exit code -2 - Last error: Traceback (most recent call last):",
+      "completed_at": "2025-12-18T04:44:42.578694"
+    },
+    {
+      "id": "jvi.01304-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv97i12_10_1128_jvi_01304_23-20240610011357-0195936/source_files/jvi.01304-23.txt",
+      "domain": "infectious_disease",
+      "status": "completed",
+      "attempts": 1,
+      "last_error": null,
+      "completed_at": "2025-12-19T01:32:10.041695"
+    },
+    {
+      "id": "jvi.01693-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_01693_23-20240609110813-7072366/source_files/jvi.01693-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01070-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv97i12_10_1128_jvi_01070_23-20240609110404-7852792/source_files/jvi.01070-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01827-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01827_23-20240610011730-6152864/source_files/jvi.01827-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01683-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01683_23-20240609110750-9018411/source_files/jvi.01683-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01762-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_01762_23-20240609110813-7072366/source_files/jvi.01762-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "editorial-board",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_2024_98_issue_4-20240610011650-6186876/source_files/editorial-board.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01720-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01720_23-20240610011730-6152864/source_files/jvi.01720-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01683-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01683_23-20240610011715-9928200/source_files/jvi.01683-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01536-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01536_23-20240610011730-6152864/source_files/jvi.01536-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00182-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_00182_24-20240610011730-6152864/source_files/jvi.00182-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01695-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01695_23-20240609110808-2738226/source_files/jvi.01695-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01249-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01249_23-20240609110750-9018411/source_files/jvi.01249-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01901-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_01901_23-20240610011730-1435919/source_files/jvi.01901-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01596-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_01596_23-20240610011730-1435919/source_files/jvi.01596-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00411-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_00411_24-20240610011730-1435919/source_files/jvi.00411-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00993-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv97i12_10_1128_jvi_00993_23-20240610011357-0195936/source_files/jvi.00993-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00626-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i6_10_1128_jvi_00626_24-20240613060108-4538139/source_files/jvi.00626-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01249-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01249_23-20240610011715-9928200/source_files/jvi.01249-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01149-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv97i12_10_1128_jvi_01149_23-20240609110404-7852792/source_files/jvi.01149-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01359-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i1_10_1128_jvi_01359_23-20240610011729-2664964/source_files/jvi.01359-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01771-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_01771_23-20240609110751-2676540/source_files/jvi.01771-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00576-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i6_10_1128_jvi_00576_24-20240613060108-4538139/source_files/jvi.00576-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00088-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_00088_24-20240609110808-2738226/source_files/jvi.00088-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01183-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv97i12_10_1128_jvi_01183_23-20240610011357-0195936/source_files/jvi.01183-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01206-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01206_23-20240609110808-2738226/source_files/jvi.01206-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01702-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i1_10_1128_jvi_01702_23-20240610011729-2664964/source_files/jvi.01702-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01096-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv97i12_10_1128_jvi_01096_23-20240609110404-7852792/source_files/jvi.01096-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01129-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01129_23-20240610011730-6152864/source_files/jvi.01129-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00268-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i6_10_1128_jvi_00268_24-20240613060108-4538139/source_files/jvi.00268-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00256-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_00256_24-20240609110751-2676540/source_files/jvi.00256-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01827-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01827_23-20240609110808-2738226/source_files/jvi.01827-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01536-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01536_23-20240609110808-2738226/source_files/jvi.01536-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00171-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_00171_24-20240609110751-2676540/source_files/jvi.00171-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00399-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i6_10_1128_jvi_00399_24-20240613060108-4538139/source_files/jvi.00399-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01900-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01900_23-20240609110750-9018411/source_files/jvi.01900-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01737-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv97i12_10_1128_jvi_01737_23-20240609110404-7852792/source_files/jvi.01737-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01571-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01571_23-20240609110750-9018411/source_files/jvi.01571-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01935-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_01935_23-20240610011650-6186876/source_files/jvi.01935-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01192-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i1_10_1128_jvi_01192_23-20240610011729-2664964/source_files/jvi.01192-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01749-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01749_23-20240610011715-9928200/source_files/jvi.01749-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00451-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_00451_24-20240609110813-7072366/source_files/jvi.00451-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01749-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01749_23-20240609110750-9018411/source_files/jvi.01749-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01516-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_01516_23-20240609110813-7072366/source_files/jvi.01516-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01206-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01206_23-20240610011730-6152864/source_files/jvi.01206-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01258-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_01258_23-20240609110751-2676540/source_files/jvi.01258-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00061-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_00061_24-20240609110751-2676540/source_files/jvi.00061-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01338-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv97i12_10_1128_jvi_01338_23-20240610011357-0195936/source_files/jvi.01338-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01670-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i1_10_1128_jvi_01670_23-20240610011729-2664964/source_files/jvi.01670-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01798-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01798_23-20240609110808-2738226/source_files/jvi.01798-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01986-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_01986_23-20240609110813-7072366/source_files/jvi.01986-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01193-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv97i12_10_1128_jvi_01193_23-20240609110404-7852792/source_files/jvi.01193-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01603-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_01603_23-20240609110751-2676540/source_files/jvi.01603-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "editorial-board",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i1_10_1128_jvi_2024_98_issue_1-20240609110740-9909211/source_files/editorial-board.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00549-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_00549_24-20240609110813-7072366/source_files/jvi.00549-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "editorial-board",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_2024_98_issue_2-20240609110750-9018411/source_files/editorial-board.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01565-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_01565_23-20240610011650-6186876/source_files/jvi.01565-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00513-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i6_10_1128_jvi_00513_24-20240613060108-4538139/source_files/jvi.00513-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01638-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01638_23-20240609110808-2738226/source_files/jvi.01638-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01575-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_01575_23-20240609110751-2676540/source_files/jvi.01575-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01369-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv97i12_10_1128_jvi_01369_23-20240610011357-0195936/source_files/jvi.01369-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01677-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01677_23-20240610011715-9928200/source_files/jvi.01677-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01522-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i1_10_1128_jvi_01522_23-20240609110740-9909211/source_files/jvi.01522-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00074-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_00074_24-20240609110808-2738226/source_files/jvi.00074-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.02035-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_02035_23-20240610011715-9928200/source_files/jvi.02035-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01709-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01709_23-20240609110808-2738226/source_files/jvi.01709-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.02035-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_02035_23-20240609110750-9018411/source_files/jvi.02035-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00239-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_00239_24-20240610011730-1435919/source_files/jvi.00239-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01897-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01897_23-20240609110808-2738226/source_files/jvi.01897-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01392-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01392_23-20240609110808-2738226/source_files/jvi.01392-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01820-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01820_23-20240609110808-2738226/source_files/jvi.01820-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01677-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01677_23-20240609110750-9018411/source_files/jvi.01677-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01701-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_01701_23-20240609110751-2676540/source_files/jvi.01701-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "editorial-board",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i6_10_1128_jvi_2024_98_issue_6-20240613060108-4538139/source_files/editorial-board.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01008-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv97i12_10_1128_jvi_01008_23-20240609110404-7852792/source_files/jvi.01008-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01166-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i1_10_1128_jvi_01166_23-20240610011729-2664964/source_files/jvi.01166-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00416-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_00416_24-20240610011730-1435919/source_files/jvi.00416-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01232-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv97i12_10_1128_jvi_01232_23-20240610011357-0195936/source_files/jvi.01232-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00483-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_00483_24-20240609110813-7072366/source_files/jvi.00483-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01638-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01638_23-20240610011730-6152864/source_files/jvi.01638-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01268-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01268_23-20240610011715-9928200/source_files/jvi.01268-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01404-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i1_10_1128_jvi_01404_23-20240610011729-2664964/source_files/jvi.01404-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01618-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i1_10_1128_jvi_01618_23-20240609110740-9909211/source_files/jvi.01618-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.02010-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_02010_23-20240609110808-2738226/source_files/jvi.02010-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01573-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_01573_23-20240609110813-7072366/source_files/jvi.01573-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00003-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_00003_24-20240610011730-6152864/source_files/jvi.00003-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01392-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01392_23-20240610011730-6152864/source_files/jvi.01392-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01820-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01820_23-20240610011730-6152864/source_files/jvi.01820-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01897-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01897_23-20240610011730-6152864/source_files/jvi.01897-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00032-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_00032_24-20240610011730-1435919/source_files/jvi.00032-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00272-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i6_10_1128_jvi_00272_24-20240613060108-4538139/source_files/jvi.00272-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00253-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_00253_24-20240610011730-1435919/source_files/jvi.00253-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01309-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv97i12_10_1128_jvi_01309_23-20240609110404-7852792/source_files/jvi.01309-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00074-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_00074_24-20240610011730-6152864/source_files/jvi.00074-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00132-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_00132_24-20240609110751-2676540/source_files/jvi.00132-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00520-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i6_10_1128_jvi_00520_24-20240613060108-4538139/source_files/jvi.00520-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01838-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01838_23-20240609110808-2738226/source_files/jvi.01838-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "editorial-board",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv97i12_10_1128_jvi_2023_97_issue_12-20240610011357-0195936/source_files/editorial-board.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00993-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv97i12_10_1128_jvi_00993_23-20240609110404-7852792/source_files/jvi.00993-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01899-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01899_23-20240609110750-9018411/source_files/jvi.01899-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01791-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i1_10_1128_jvi_01791_23-20240610011729-2664964/source_files/jvi.01791-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01096-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv97i12_10_1128_jvi_01096_23-20240610011357-0195936/source_files/jvi.01096-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01372-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01372_23-20240609110750-9018411/source_files/jvi.01372-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01359-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i1_10_1128_jvi_01359_23-20240609110740-9909211/source_files/jvi.01359-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00363-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_00363_24-20240609110813-7072366/source_files/jvi.00363-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01372-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01372_23-20240610011715-9928200/source_files/jvi.01372-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01702-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i1_10_1128_jvi_01702_23-20240609110740-9909211/source_files/jvi.01702-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00020-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_00020_24-20240609110751-2676540/source_files/jvi.00020-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01070-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv97i12_10_1128_jvi_01070_23-20240610011357-0195936/source_files/jvi.01070-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00277-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_00277_24-20240610011650-6186876/source_files/jvi.00277-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01903-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_01903_23-20240610011730-1435919/source_files/jvi.01903-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01512-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01512_23-20240610011730-6152864/source_files/jvi.01512-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00057-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_00057_24-20240609110751-2676540/source_files/jvi.00057-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00503-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i6_10_1128_jvi_00503_24-20240613060108-4538139/source_files/jvi.00503-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01773-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_01773_23-20240609110751-2676540/source_files/jvi.01773-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01721-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01721_23-20240610011715-9928200/source_files/jvi.01721-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00350-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_00350_24-20240609110813-7072366/source_files/jvi.00350-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01176-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i1_10_1128_jvi_01176_23-20240610011729-2664964/source_files/jvi.01176-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00042-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_00042_24-20240610011730-6152864/source_files/jvi.00042-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01192-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i1_10_1128_jvi_01192_23-20240609110740-9909211/source_files/jvi.01192-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01975-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01975_23-20240609110750-9018411/source_files/jvi.01975-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00132-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_00132_24-20240610011650-6186876/source_files/jvi.00132-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01105-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv97i12_10_1128_jvi_01105_23-20240610011357-0195936/source_files/jvi.01105-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01512-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01512_23-20240609110808-2738226/source_files/jvi.01512-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01504-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01504_23-20240609110750-9018411/source_files/jvi.01504-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00064-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_00064_24-20240609110751-2676540/source_files/jvi.00064-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01623-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01623_23-20240610011715-9928200/source_files/jvi.01623-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00424-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_00424_24-20240609110813-7072366/source_files/jvi.00424-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00493-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_00493_24-20240609110813-7072366/source_files/jvi.00493-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01330-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv97i12_10_1128_jvi_01330_23-20240609110404-7852792/source_files/jvi.01330-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01698-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01698_23-20240610011730-6152864/source_files/jvi.01698-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01858-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_01858_23-20240610011650-6186876/source_files/jvi.01858-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01771-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_01771_23-20240610011650-6186876/source_files/jvi.01771-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01982-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01982_23-20240609110808-2738226/source_files/jvi.01982-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01703-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01703_23-20240609110808-2738226/source_files/jvi.01703-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00135-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_00135_24-20240610011650-6186876/source_files/jvi.00135-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01670-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i1_10_1128_jvi_01670_23-20240609110740-9909211/source_files/jvi.01670-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01627-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01627_23-20240610011730-6152864/source_files/jvi.01627-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "editorial-board",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i1_10_1128_jvi_2024_98_issue_1-20240610011729-2664964/source_files/editorial-board.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00283-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i6_10_1128_jvi_00283_24-20240613060108-4538139/source_files/jvi.00283-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01857-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_01857_23-20240610011730-1435919/source_files/jvi.01857-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01386-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01386_23-20240610011715-9928200/source_files/jvi.01386-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00181-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_00181_24-20240609110813-7072366/source_files/jvi.00181-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01654-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i1_10_1128_jvi_01654_23-20240610011729-2664964/source_files/jvi.01654-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00305-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i6_10_1128_jvi_00305_24-20240613060108-4538139/source_files/jvi.00305-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "editorial-board",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_2024_98_issue_4-20240609110751-2676540/source_files/editorial-board.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01726-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01726_23-20240610011715-9928200/source_files/jvi.01726-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01404-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i1_10_1128_jvi_01404_23-20240609110740-9909211/source_files/jvi.01404-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01935-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_01935_23-20240609110751-2676540/source_files/jvi.01935-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01959-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_01959_23-20240609110813-7072366/source_files/jvi.01959-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00386-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_00386_24-20240610011730-1435919/source_files/jvi.00386-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01309-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv97i12_10_1128_jvi_01309_23-20240610011357-0195936/source_files/jvi.01309-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01703-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01703_23-20240610011730-6152864/source_files/jvi.01703-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00256-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_00256_24-20240610011650-6186876/source_files/jvi.00256-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01799-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01799_23-20240609110750-9018411/source_files/jvi.01799-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "editorial-board",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_2024_98_issue_5-20240610011730-1435919/source_files/editorial-board.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01799-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01799_23-20240610011715-9928200/source_files/jvi.01799-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01663-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_01663_23-20240609110751-2676540/source_files/jvi.01663-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00317-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_00317_24-20240610011730-1435919/source_files/jvi.00317-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00047-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_00047_24-20240610011730-1435919/source_files/jvi.00047-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00171-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_00171_24-20240610011650-6186876/source_files/jvi.00171-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01777-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01777_23-20240610011715-9928200/source_files/jvi.01777-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01376-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv97i12_10_1128_jvi_01376_23-20240610011357-0195936/source_files/jvi.01376-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01777-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01777_23-20240609110750-9018411/source_files/jvi.01777-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00179-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i6_10_1128_jvi_00179_24-20240613060108-4538139/source_files/jvi.00179-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00068-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_00068_24-20240610011730-1435919/source_files/jvi.00068-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01399-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv97i12_10_1128_jvi_01399_23-20240610011357-0195936/source_files/jvi.01399-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01912-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_01912_23-20240609110751-2676540/source_files/jvi.01912-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01408-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01408_23-20240609110750-9018411/source_files/jvi.01408-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01809-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i1_10_1128_jvi_01809_23-20240610011729-2664964/source_files/jvi.01809-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01469-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01469_23-20240609110808-2738226/source_files/jvi.01469-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01408-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01408_23-20240610011715-9928200/source_files/jvi.01408-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01921-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01921_23-20240609110808-2738226/source_files/jvi.01921-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01776-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01776_23-20240609110750-9018411/source_files/jvi.01776-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01478-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i1_10_1128_jvi_01478_23-20240610011729-2664964/source_files/jvi.01478-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01546-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01546_23-20240609110750-9018411/source_files/jvi.01546-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00789-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i1_10_1128_jvi_00789_23-20240609110740-9909211/source_files/jvi.00789-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01052-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv97i12_10_1128_jvi_01052_23-20240609110404-7852792/source_files/jvi.01052-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01731-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01731_23-20240609110808-2738226/source_files/jvi.01731-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.02006-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_02006_23-20240610011730-6152864/source_files/jvi.02006-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01510-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i1_10_1128_jvi_01510_23-20240610011729-2664964/source_files/jvi.01510-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01546-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01546_23-20240610011715-9928200/source_files/jvi.01546-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00153-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_00153_24-20240609110808-2738226/source_files/jvi.00153-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01700-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv97i12_10_1128_jvi_01700_23-20240609110404-7852792/source_files/jvi.01700-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01784-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_01784_23-20240610011730-1435919/source_files/jvi.01784-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00411-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_00411_24-20240609110813-7072366/source_files/jvi.00411-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00051-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_00051_24-20240609110751-2676540/source_files/jvi.00051-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01901-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_01901_23-20240609110813-7072366/source_files/jvi.01901-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01948-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01948_23-20240609110750-9018411/source_files/jvi.01948-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01948-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01948_23-20240610011715-9928200/source_files/jvi.01948-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01844-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_01844_23-20240610011650-6186876/source_files/jvi.01844-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00139-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_00139_24-20240609110751-2676540/source_files/jvi.00139-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01785-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01785_23-20240610011715-9928200/source_files/jvi.01785-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01574-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv97i12_10_1128_jvi_01574_23-20240609110404-7852792/source_files/jvi.01574-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01600-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv97i12_10_1128_jvi_01600_23-20240610011357-0195936/source_files/jvi.01600-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01830-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i1_10_1128_jvi_01830_23-20240609110740-9909211/source_files/jvi.01830-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00235-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i6_10_1128_jvi_00235_24-20240613060108-4538139/source_files/jvi.00235-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01649-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_01649_23-20240610011650-6186876/source_files/jvi.01649-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01785-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01785_23-20240609110750-9018411/source_files/jvi.01785-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00102-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_00102_24-20240609110751-2676540/source_files/jvi.00102-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01823-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01823_23-20240609110808-2738226/source_files/jvi.01823-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01842-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01842_23-20240610011715-9928200/source_files/jvi.01842-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01576-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01576_23-20240610011730-6152864/source_files/jvi.01576-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.02006-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_02006_23-20240609110808-2738226/source_files/jvi.02006-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01507-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i1_10_1128_jvi_01507_23-20240609110740-9909211/source_files/jvi.01507-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00242-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_00242_24-20240610011650-6186876/source_files/jvi.00242-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00282-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_00282_24-20240610011650-6186876/source_files/jvi.00282-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01652-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01652_23-20240609110750-9018411/source_files/jvi.01652-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01516-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_01516_23-20240610011730-1435919/source_files/jvi.01516-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01436-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i1_10_1128_jvi_01436_23-20240609110740-9909211/source_files/jvi.01436-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01319-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i1_10_1128_jvi_01319_23-20240610011729-2664964/source_files/jvi.01319-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00005-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i6_10_1128_jvi_00005_24-20240613060108-4538139/source_files/jvi.00005-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00093-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_00093_24-20240610011730-1435919/source_files/jvi.00093-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01778-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i6_10_1128_jvi_01778_23-20240613060108-4538139/source_files/jvi.01778-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00263-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i6_10_1128_jvi_00263_24-20240613060108-4538139/source_files/jvi.00263-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00138-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_00138_24-20240609110813-7072366/source_files/jvi.00138-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01764-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01764_23-20240609110750-9018411/source_files/jvi.01764-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01944-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01944_23-20240609110808-2738226/source_files/jvi.01944-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01599-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i1_10_1128_jvi_01599_23-20240609110740-9909211/source_files/jvi.01599-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01941-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_01941_23-20240610011650-6186876/source_files/jvi.01941-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01102-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i1_10_1128_jvi_01102_23-20240609110740-9909211/source_files/jvi.01102-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00116-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_00116_24-20240609110813-7072366/source_files/jvi.00116-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01802-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01802_23-20240609110808-2738226/source_files/jvi.01802-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01655-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01655_23-20240609110750-9018411/source_files/jvi.01655-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00549-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_00549_24-20240610011730-1435919/source_files/jvi.00549-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00603-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_00603_23-20240610011650-6186876/source_files/jvi.00603-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01814-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01814_23-20240609110750-9018411/source_files/jvi.01814-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01885-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01885_23-20240609110750-9018411/source_files/jvi.01885-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00239-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_00239_24-20240609110813-7072366/source_files/jvi.00239-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01735-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01735_23-20240609110750-9018411/source_files/jvi.01735-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01594-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01594_23-20240610011715-9928200/source_files/jvi.01594-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01915-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01915_23-20240609110808-2738226/source_files/jvi.01915-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01742-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01742_23-20240609110750-9018411/source_files/jvi.01742-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01908-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01908_23-20240610011730-6152864/source_files/jvi.01908-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00849-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i1_10_1128_jvi_00849_23-20240609110740-9909211/source_files/jvi.00849-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01420-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv97i12_10_1128_jvi_01420_23-20240609110404-7852792/source_files/jvi.01420-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00237-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_00237_24-20240609110751-2676540/source_files/jvi.00237-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01190-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_01190_23-20240610011650-6186876/source_files/jvi.01190-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01972-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_01972_23-20240610011650-6186876/source_files/jvi.01972-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01624-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i6_10_1128_jvi_01624_23-20240613060108-4538139/source_files/jvi.01624-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00527-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_00527_24-20240609110813-7072366/source_files/jvi.00527-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01802-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01802_23-20240610011730-6152864/source_files/jvi.01802-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00902-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_00902_23-20240609110750-9018411/source_files/jvi.00902-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01567-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01567_23-20240609110750-9018411/source_files/jvi.01567-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00248-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_00248_24-20240609110751-2676540/source_files/jvi.00248-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01567-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01567_23-20240610011715-9928200/source_files/jvi.01567-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00524-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i6_10_1128_jvi_00524_24-20240613060108-4538139/source_files/jvi.00524-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00108-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i6_10_1128_jvi_00108_24-20240613060108-4538139/source_files/jvi.00108-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00902-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_00902_23-20240610011715-9928200/source_files/jvi.00902-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00253-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_00253_24-20240609110813-7072366/source_files/jvi.00253-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01513-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv97i12_10_1128_jvi_01513_23-20240610011357-0195936/source_files/jvi.01513-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01801-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01801_23-20240610011715-9928200/source_files/jvi.01801-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.02002-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_02002_23-20240609110750-9018411/source_files/jvi.02002-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00483-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_00483_24-20240610011730-1435919/source_files/jvi.00483-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01908-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01908_23-20240609110808-2738226/source_files/jvi.01908-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01573-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_01573_23-20240610011730-1435919/source_files/jvi.01573-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.02002-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_02002_23-20240610011715-9928200/source_files/jvi.02002-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01801-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01801_23-20240609110750-9018411/source_files/jvi.01801-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00159-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_00159_24-20240610011650-6186876/source_files/jvi.00159-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00046-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_00046_24-20240610011650-6186876/source_files/jvi.00046-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01957-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_01957_23-20240609110813-7072366/source_files/jvi.01957-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "editorial-board",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_2024_98_issue_3-20240609110808-2738226/source_files/editorial-board.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01700-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv97i12_10_1128_jvi_01700_23-20240610011357-0195936/source_files/jvi.01700-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01485-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01485_23-20240609110808-2738226/source_files/jvi.01485-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00578-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i6_10_1128_jvi_00578_24-20240613060108-4538139/source_files/jvi.00578-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01478-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i1_10_1128_jvi_01478_23-20240609110740-9909211/source_files/jvi.01478-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01510-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i1_10_1128_jvi_01510_23-20240609110740-9909211/source_files/jvi.01510-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01052-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv97i12_10_1128_jvi_01052_23-20240610011357-0195936/source_files/jvi.01052-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00335-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i6_10_1128_jvi_00335_24-20240613060108-4538139/source_files/jvi.00335-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00043-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_00043_24-20240610011650-6186876/source_files/jvi.00043-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01358-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01358_23-20240609110750-9018411/source_files/jvi.01358-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01398-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01398_23-20240610011715-9928200/source_files/jvi.01398-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00273-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i6_10_1128_jvi_00273_24-20240613060108-4538139/source_files/jvi.00273-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01401-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01401_23-20240610011730-6152864/source_files/jvi.01401-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01923-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01923_23-20240609110808-2738226/source_files/jvi.01923-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01660-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01660_23-20240610011730-6152864/source_files/jvi.01660-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00349-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_00349_24-20240609110813-7072366/source_files/jvi.00349-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01399-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv97i12_10_1128_jvi_01399_23-20240609110404-7852792/source_files/jvi.01399-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01216-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01216_23-20240609110750-9018411/source_files/jvi.01216-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01686-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01686_23-20240610011730-6152864/source_files/jvi.01686-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01941-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_01941_23-20240609110751-2676540/source_files/jvi.01941-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00255-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i6_10_1128_jvi_00255_24-20240613060108-4538139/source_files/jvi.00255-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01216-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01216_23-20240610011715-9928200/source_files/jvi.01216-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01964-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01964_23-20240609110750-9018411/source_files/jvi.01964-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01809-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i1_10_1128_jvi_01809_23-20240609110740-9909211/source_files/jvi.01809-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01538-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_01538_23-20240609110751-2676540/source_files/jvi.01538-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00441-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i6_10_1128_jvi_00441_24-20240613060108-4538139/source_files/jvi.00441-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01834-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01834_23-20240609110808-2738226/source_files/jvi.01834-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00603-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_00603_23-20240609110751-2676540/source_files/jvi.00603-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00197-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_00197_24-20240609110813-7072366/source_files/jvi.00197-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00248-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_00248_24-20240610011650-6186876/source_files/jvi.00248-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01751-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01751_23-20240609110808-2738226/source_files/jvi.01751-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01507-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i1_10_1128_jvi_01507_23-20240610011729-2664964/source_files/jvi.01507-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01501-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv97i12_10_1128_jvi_01501_23-20240609110404-7852792/source_files/jvi.01501-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01485-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01485_23-20240610011730-6152864/source_files/jvi.01485-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01660-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01660_23-20240609110808-2738226/source_files/jvi.01660-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01319-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i1_10_1128_jvi_01319_23-20240609110740-9909211/source_files/jvi.01319-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01476-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01476_23-20240609110808-2738226/source_files/jvi.01476-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01345-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01345_23-20240610011715-9928200/source_files/jvi.01345-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00350-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_00350_24-20240610011730-1435919/source_files/jvi.00350-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01880-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01880_23-20240609110750-9018411/source_files/jvi.01880-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00379-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_00379_24-20240610011650-6186876/source_files/jvi.00379-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01705-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i6_10_1128_jvi_01705_23-20240613060108-4538139/source_files/jvi.01705-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00494-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i6_10_1128_jvi_00494_24-20240613060108-4538139/source_files/jvi.00494-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01401-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01401_23-20240609110808-2738226/source_files/jvi.01401-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01686-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01686_23-20240609110808-2738226/source_files/jvi.01686-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00424-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_00424_24-20240610011730-1435919/source_files/jvi.00424-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00493-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_00493_24-20240610011730-1435919/source_files/jvi.00493-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01650-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01650_23-20240609110750-9018411/source_files/jvi.01650-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01600-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv97i12_10_1128_jvi_01600_23-20240609110404-7852792/source_files/jvi.01600-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01650-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01650_23-20240610011715-9928200/source_files/jvi.01650-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01190-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_01190_23-20240609110751-2676540/source_files/jvi.01190-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01830-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i1_10_1128_jvi_01830_23-20240610011729-2664964/source_files/jvi.01830-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00825-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i6_10_1128_jvi_00825_24-20240613060108-4538139/source_files/jvi.00825-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01888-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01888_23-20240610011715-9928200/source_files/jvi.01888-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01834-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01834_23-20240610011730-6152864/source_files/jvi.01834-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01883-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01883_23-20240610011730-6152864/source_files/jvi.01883-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01972-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_01972_23-20240609110751-2676540/source_files/jvi.01972-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00988-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv97i12_10_1128_jvi_00988_23-20240610011357-0195936/source_files/jvi.00988-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00118-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i6_10_1128_jvi_00118_24-20240613060108-4538139/source_files/jvi.00118-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01888-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01888_23-20240609110750-9018411/source_files/jvi.01888-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01859-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01859_23-20240609110808-2738226/source_files/jvi.01859-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01625-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i1_10_1128_jvi_01625_23-20240609110740-9909211/source_files/jvi.01625-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01157-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01157_23-20240610011730-6152864/source_files/jvi.01157-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00051-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_00051_24-20240610011650-6186876/source_files/jvi.00051-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01343-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv97i12_10_1128_jvi_01343_23-20240609110404-7852792/source_files/jvi.01343-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01902-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01902_23-20240610011730-6152864/source_files/jvi.01902-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01102-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i1_10_1128_jvi_01102_23-20240610011729-2664964/source_files/jvi.01102-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01179-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv97i12_10_1128_jvi_01179_23-20240610011357-0195936/source_files/jvi.01179-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01912-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_01912_23-20240610011650-6186876/source_files/jvi.01912-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01815-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01815_23-20240610011730-6152864/source_files/jvi.01815-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01857-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_01857_23-20240609110813-7072366/source_files/jvi.01857-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00146-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_00146_24-20240610011650-6186876/source_files/jvi.00146-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01278-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01278_23-20240610011730-6152864/source_files/jvi.01278-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00386-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_00386_24-20240609110813-7072366/source_files/jvi.00386-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01859-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01859_23-20240610011730-6152864/source_files/jvi.01859-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01157-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01157_23-20240609110808-2738226/source_files/jvi.01157-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00282-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_00282_24-20240609110751-2676540/source_files/jvi.00282-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00468-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i6_10_1128_jvi_00468_24-20240613060108-4538139/source_files/jvi.00468-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01902-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01902_23-20240609110808-2738226/source_files/jvi.01902-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01959-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_01959_23-20240610011730-1435919/source_files/jvi.01959-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00112-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_00112_24-20240609110751-2676540/source_files/jvi.00112-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00849-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i1_10_1128_jvi_00849_23-20240610011729-2664964/source_files/jvi.00849-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01851-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01851_23-20240610011730-6152864/source_files/jvi.01851-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00047-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_00047_24-20240609110813-7072366/source_files/jvi.00047-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00102-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_00102_24-20240610011650-6186876/source_files/jvi.00102-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01649-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_01649_23-20240609110751-2676540/source_files/jvi.01649-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01494-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01494_23-20240609110750-9018411/source_files/jvi.01494-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01350-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i1_10_1128_jvi_01350_23-20240610011729-2664964/source_files/jvi.01350-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.00084-24",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_00084_24-20240610011650-6186876/source_files/jvi.00084-24.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01511-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv97i12_10_1128_jvi_01511_23-20240610011357-0195936/source_files/jvi.01511-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    },
+    {
+      "id": "jvi.01494-23",
+      "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01494_23-20240610011715-9928200/source_files/jvi.01494-23.txt",
+      "domain": "infectious_disease",
+      "status": "pending",
+      "attempts": 0,
+      "last_error": null,
+      "completed_at": null
+    }
+  ]
+}

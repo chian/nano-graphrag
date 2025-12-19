@@ -88,6 +88,7 @@ class BatchRunner:
         print(f"\n{'='*70}\n")
 
         processed = 0
+        skipped = 0
         for i, paper in enumerate(papers, 1):
             if self.interrupted:
                 print("\nSaving manifest before exit...")
@@ -97,6 +98,30 @@ class BatchRunner:
 
             paper_id = paper["id"]
             paper_path = paper["path"]
+            status = paper.get("status", "pending")
+
+            # Skip already completed, failed, or unsuitable papers
+            if status in ("completed", "failed", "unsuitable"):
+                skipped += 1
+                print(f"\n[{i}/{len(papers)}] Skipping ({status}): {paper_id}")
+                continue
+
+            # Skip papers that already failed suitability assessment for this domain
+            suitability_file = Path(paper_path).parent / f"suitability_{self.manifest['domain']}.json"
+            if suitability_file.exists():
+                try:
+                    with open(suitability_file) as f:
+                        suitability = json.load(f)
+                    if not suitability.get("suitable", True):
+                        skipped += 1
+                        print(f"\n[{i}/{len(papers)}] Skipping (unsuitable for {self.manifest['domain']}): {paper_id}")
+                        # Update status to reflect this
+                        from manifest_utils import update_paper_status
+                        update_paper_status(self.manifest, paper_id, "unsuitable", suitability.get("reasoning", "Not suitable for domain"))
+                        save_manifest(self.manifest, self.manifest_file)
+                        continue
+                except (json.JSONDecodeError, IOError):
+                    pass  # If we can't read the file, proceed with processing
 
             print(f"\n[{i}/{len(papers)}] Processing: {paper_id}")
             print(f"Path: {paper_path}")
@@ -153,6 +178,8 @@ class BatchRunner:
 
         print(f"\n{'='*70}")
         print(f"\nBatch processing complete!")
+        print(f"  Processed: {processed}")
+        print(f"  Skipped (already completed): {skipped}")
         print_manifest_stats(self.manifest)
 
     def _run_paper_pipeline(self, paper_path: str, paper: dict) -> None:

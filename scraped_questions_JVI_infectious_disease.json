@@ -1,0 +1,768 @@
+{
+  "scraped_at": "2025-12-19T14:57:49.634322",
+  "base_directory": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI",
+  "domain_filter": "infectious_disease",
+  "total_papers": 2,
+  "total_questions": 19,
+  "questions": [
+    {
+      "paper_id": "jvi.01304-23",
+      "domain": "infectious_disease",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv97i12_10_1128_jvi_01304_23-20240610011357-0195936/source_files/.qa_output/jvi.01304-23/infectious_disease/contrastive_qa.json",
+      "question": "AML-12 cells (mouse hepatocytes) are exposed to a viral RNA mimic that activates the RIG-I-like receptor (RLR) pathway, leading to interferon (IFN) induction. In these cells, DDX3 and PACT are both expressed at similar levels. Sendai virus infection of AML-12 cells results in a 2-fold increase in RIG-I mRNA expression compared to mock-infected controls, but does not alter cell viability over a 24-hour period. Experimental knockdown of DDX3 results in a 90% reduction in IFN production, while knockdown of PACT leads to an 85% reduction. IRF3 phosphorylation levels increase 4-fold in AML-12 cells following exposure to the viral RNA mimic, but total IRF3 protein abundance remains unchanged in both AML-12 and LA-4 cells. In LA-4 cells (mouse lung epithelial), knockdown of DDX3 or PACT does not affect IFN induction. MAVS protein levels remain unchanged in both AML-12 and LA-4 cells following exposure to the viral RNA mimic, and its mitochondrial localization is not affected by DDX3 or PACT knockdown. Both cell types have intact RLR signaling components. Which protein is more critical for IFN induction in AML-12 cells under these conditions?",
+      "original_question": "AML-12 cells (mouse hepatocytes) are exposed to a viral RNA mimic that activates the RIG-I-like receptor (RLR) pathway, leading to interferon (IFN) induction. In these cells, DDX3 and PACT are both expressed at similar levels. Experimental knockdown of DDX3 results in a 90% reduction in IFN production, while knockdown of PACT leads to an 85% reduction. In LA-4 cells (mouse lung epithelial), knockdown of DDX3 or PACT does not affect IFN induction. Both cell types have intact RLR signaling components. Which protein is more critical for IFN induction in AML-12 cells under these conditions?",
+      "reasoning_steps": [
+        "Both DDX3 and PACT are expressed at similar levels in AML-12 cells.",
+        "Knockdown of DDX3 reduces IFN by 90%; PACT knockdown reduces IFN by 85%.",
+        "In LA-4 cells, neither knockdown affects IFN, indicating cell-type specificity.",
+        "Both cell types have functional RLR pathways, so differences are not due to pathway defects.",
+        "The magnitude of IFN reduction is greater with DDX3 knockdown than with PACT.",
+        "Therefore, DDX3 has a more pronounced effect on IFN induction in AML-12 cells.",
+        "The most critical protein is the one whose loss causes the greatest reduction."
+      ],
+      "correct_answer": "DDX3",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "AML-12 CELL",
+        "DDX3",
+        "PACT"
+      ],
+      "quality_score": 4.0,
+      "answer_word_count": 1,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Sendai virus infection of AML-12 cells results in a 2-fold increase in RIG-I mRNA expression compared to mock-infected controls, but does not alter cell viability over a 24-hour period.",
+        "IRF3 phosphorylation levels increase 4-fold in AML-12 cells following exposure to the viral RNA mimic, but total IRF3 protein abundance remains unchanged in both AML-12 and LA-4 cells.",
+        "MAVS protein levels remain unchanged in both AML-12 and LA-4 cells following exposure to the viral RNA mimic, and its mitochondrial localization is not affected by DDX3 or PACT knockdown."
+      ],
+      "enrichment_entities": [
+        "SENDAI VIRUS",
+        "IRF3",
+        "MAVS"
+      ]
+    },
+    {
+      "paper_id": "jvi.01304-23",
+      "domain": "infectious_disease",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv97i12_10_1128_jvi_01304_23-20240610011357-0195936/source_files/.qa_output/jvi.01304-23/infectious_disease/contrastive_qa.json",
+      "question": "An experiment is conducted using AML-12 hepatocyte cells to study the induction of interferon in response to RNA virus infection. Three conditions are tested: (1) wild-type AML-12 cells, (2) AML-12 cells with PACT gene knockout, and (3) AML-12 cells with RIG-I gene knockout. MDA-5 expression in AML-12 cells increases 2-fold following RNA virus infection, but this upregulation does not alter baseline cell viability within the first 6 hours. Upon infection with an RNA virus, wild-type cells show a 10-fold increase in interferon mRNA within 6 hours. MDA5 expression levels in AML-12 cells remain unchanged following RNA virus infection, and its activation typically requires the presence of long double-stranded RNA. In previous studies, MDA5 knockout in similar hepatocyte lines did not alter baseline interferon mRNA levels under mock-infected conditions. PACT knockout cells show no increase in interferon mRNA, while RIG-I knockout cells also show no increase. Double-stranded RNA isolated from infected AML-12 cells was found to activate PKR, resulting in a 60% reduction in overall protein synthesis within 8 hours post-infection. This effect was observed across all cell lines regardless of interferon induction status. All cell lines have intact MAVS and IRF3 genes. Which protein is essential for RIG-like receptor pathway activation and subsequent interferon induction in this system?",
+      "original_question": "An experiment is conducted using AML-12 hepatocyte cells to study the induction of interferon in response to RNA virus infection. Three conditions are tested: (1) wild-type AML-12 cells, (2) AML-12 cells with PACT gene knockout, and (3) AML-12 cells with RIG-I gene knockout. Upon infection with an RNA virus, wild-type cells show a 10-fold increase in interferon mRNA within 6 hours. PACT knockout cells show no increase in interferon mRNA, while RIG-I knockout cells also show no increase. All cell lines have intact MAVS and IRF3 genes. Which protein is essential for RIG-like receptor pathway activation and subsequent interferon induction in this system?",
+      "reasoning_steps": [
+        "RIG-like receptor pathway triggers interferon induction upon RNA virus infection.",
+        "Wild-type cells show strong interferon induction, indicating intact pathway.",
+        "PACT knockout cells show no interferon induction, suggesting PACT is required.",
+        "RIG-I knockout cells also show no induction, indicating RIG-I is required.",
+        "MAVS and IRF3 are intact in all lines, so their absence is not responsible.",
+        "Both PACT and RIG-I are necessary, but the question asks for the essential protein for pathway activation.",
+        "PACT is specifically described as required for RLR pathway activation in AML-12 cells."
+      ],
+      "correct_answer": "PACT",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "RIG-LIKE RECEPTOR PATHWAY",
+        "PACT"
+      ],
+      "quality_score": 4.0,
+      "answer_word_count": 1,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "MDA-5 expression in AML-12 cells increases 2-fold following RNA virus infection, but this upregulation does not alter baseline cell viability within the first 6 hours.",
+        "MDA5 expression levels in AML-12 cells remain unchanged following RNA virus infection, and its activation typically requires the presence of long double-stranded RNA. In previous studies, MDA5 knockout in similar hepatocyte lines did not alter baseline interferon mRNA levels under mock-infected conditions.",
+        "Double-stranded RNA isolated from infected AML-12 cells was found to activate PKR, resulting in a 60% reduction in overall protein synthesis within 8 hours post-infection. This effect was observed across all cell lines regardless of interferon induction status."
+      ],
+      "enrichment_entities": [
+        "MDA-5",
+        "MDA5",
+        "DOUBLE-STRANDED RNA"
+      ]
+    },
+    {
+      "paper_id": "jvi.01304-23",
+      "domain": "infectious_disease",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv97i12_10_1128_jvi_01304_23-20240610011357-0195936/source_files/.qa_output/jvi.01304-23/infectious_disease/contrastive_qa.json",
+      "question": "A patient with acute viral infection shows elevated levels of both IFN-\u03b2 (type I interferon, 500 pg/mL) and IFN-\u03b3 (type II interferon, 300 pg/mL) in serum. Immune cell analysis reveals high expression of IFNAR (type I interferon receptor) and moderate expression of the receptor for IFN-\u03b3. In parallel assays, IFN-\u03b1 stimulation of patient-derived monocytes resulted in a 2.5-fold increase in IRF7 mRNA expression without significant changes in TNF-\u03b1 levels. Notably, IFN-\u03b1 concentrations in serum remained below 100 pg/mL during the acute phase. TNF-\u03b1 is also present at 200 pg/mL. IRF8 expression in the patient's monocytes was found to be moderately elevated (1.8-fold above baseline), consistent with its known role in regulating cytokine responses during viral infection. Notably, IRF8 protein levels remained stable following combined IFN-\u03b3 and TNF-\u03b1 stimulation. In vitro, stimulation of patient-derived monocytes with IFN-\u03b2 alone leads to robust phosphorylation of STAT1 and STAT2, while IFN-\u03b3 alone induces STAT1 phosphorylation but not STAT2. IRF1 protein levels in patient-derived monocytes increase by approximately 2-fold following combined IFN-\u03b3 and TNF-\u03b1 stimulation, but remain unchanged with IFN-\u03b2 alone. Notably, IRF1 expression is also modulated by other inflammatory signals independent of interferon pathways. Combined stimulation with IFN-\u03b3 and TNF-\u03b1 results in strong activation of the JAK/STAT1/IRF1 pathway and increased transcription of inflammatory cell death genes. Which cytokine-receptor interaction is most likely to induce the broadest spectrum of interferon-stimulated gene (ISG) transcription via the JAK-STAT pathway in this patient?",
+      "original_question": "A patient with acute viral infection shows elevated levels of both IFN-\u03b2 (type I interferon, 500 pg/mL) and IFN-\u03b3 (type II interferon, 300 pg/mL) in serum. Immune cell analysis reveals high expression of IFNAR (type I interferon receptor) and moderate expression of the receptor for IFN-\u03b3. TNF-\u03b1 is also present at 200 pg/mL. In vitro, stimulation of patient-derived monocytes with IFN-\u03b2 alone leads to robust phosphorylation of STAT1 and STAT2, while IFN-\u03b3 alone induces STAT1 phosphorylation but not STAT2. Combined stimulation with IFN-\u03b3 and TNF-\u03b1 results in strong activation of the JAK/STAT1/IRF1 pathway and increased transcription of inflammatory cell death genes. Which cytokine-receptor interaction is most likely to induce the broadest spectrum of interferon-stimulated gene (ISG) transcription via the JAK-STAT pathway in this patient?",
+      "reasoning_steps": [
+        "IFN-\u03b2 is a type I interferon, binds IFNAR, and activates JAK-STAT signaling.",
+        "IFNAR expression is high, increasing responsiveness to IFN-\u03b2.",
+        "IFN-\u03b2 stimulation leads to phosphorylation of both STAT1 and STAT2.",
+        "Activation of both STAT1 and STAT2 is required for broad ISG transcription.",
+        "IFN-\u03b3 (type II) binds its receptor, but expression is moderate.",
+        "IFN-\u03b3 alone activates STAT1 but not STAT2, leading to a narrower ISG profile.",
+        "Combined IFN-\u03b3 and TNF-\u03b1 activates JAK/STAT1/IRF1, focusing on inflammatory cell death genes, not broad ISGs.",
+        "Therefore, IFN-\u03b2 binding to IFNAR is most likely to induce the broadest ISG transcription via JAK-STAT."
+      ],
+      "correct_answer": "IFN-\u03b2 binding to IFNAR",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "JAK-STAT SIGNALING PATHWAY",
+        "INTERFERON",
+        "INTERFERON-\u0392",
+        "IFNAR",
+        "CYTOKINE",
+        "IRF4",
+        "IFN-\u0393",
+        "TNF-\u0391",
+        "G-CSF",
+        "RECEPTOR OF THE TYPE I INTERFERON FAMILY"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 4,
+      "answer_format": "mechanism",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "In parallel assays, IFN-\u03b1 stimulation of patient-derived monocytes resulted in a 2.5-fold increase in IRF7 mRNA expression without significant changes in TNF-\u03b1 levels. Notably, IFN-\u03b1 concentrations in serum remained below 100 pg/mL during the acute phase.",
+        "IRF8 expression in the patient's monocytes was found to be moderately elevated (1.8-fold above baseline), consistent with its known role in regulating cytokine responses during viral infection. Notably, IRF8 protein levels remained stable following combined IFN-\u03b3 and TNF-\u03b1 stimulation.",
+        "IRF1 protein levels in patient-derived monocytes increase by approximately 2-fold following combined IFN-\u03b3 and TNF-\u03b1 stimulation, but remain unchanged with IFN-\u03b2 alone. Notably, IRF1 expression is also modulated by other inflammatory signals independent of interferon pathways."
+      ],
+      "enrichment_entities": [
+        "IFN-\u0391",
+        "IRF8",
+        "IRF1"
+      ]
+    },
+    {
+      "paper_id": "jvi.01304-23",
+      "domain": "infectious_disease",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv97i12_10_1128_jvi_01304_23-20240610011357-0195936/source_files/.qa_output/jvi.01304-23/infectious_disease/contrastive_qa.json",
+      "question": "In AML-12 cells, the RNA helicase DDX3 is required for both interferon action and induction, regulating translation of STAT1 and PACT mRNAs. During influenza infection, the viral protein PB1-F2 promotes co-degradation of DDX3, suppressing interferon signaling and increasing viral virulence. In AML-12 cells infected with influenza, IRF7 phosphorylation levels increase by approximately 2-fold within 6 hours of viral entry, independent of changes in IRF3 expression. IRF7 forms heterodimers with IRF3 at a ratio of roughly 1:1 during peak interferon induction. DDX3 interacts with the TBK1-IKK\u03b5 complex, acting as a co-factor to promote efficient phosphorylation and activation of IRF3 and IRF7, which are essential for IFN1 signaling. In AML-12 cells, activation of interferon regulatory factor 3 (IRF3) leads to a 2.5-fold increase in IFN-\u03b2 mRNA within 6 hours of viral challenge. However, IRF3 phosphorylation levels remain unchanged in the absence of TBK1-IKK\u03b5 complex formation. IKK\u03b5 phosphorylates DDX3, activating it to facilitate IRF3 interaction with the TBK1-IKK\u03b5 complex. In AML-12 cells, IRF3 phosphorylation increases by approximately 60% following poly(I:C) stimulation, independent of changes in total IRF3 protein levels. IRF3 nuclear translocation occurs within 30 minutes of activation in these cells. DDX19 blocks the interaction between DDX3 and the TBK1-IKK\u03b5 complex, thereby inhibiting IFN1 signaling. If a cell is exposed to both PB1-F2 and DDX19, which molecule will have the dominant effect on IFN1 signaling, and what is the expected outcome?",
+      "original_question": "In AML-12 cells, the RNA helicase DDX3 is required for both interferon action and induction, regulating translation of STAT1 and PACT mRNAs. During influenza infection, the viral protein PB1-F2 promotes co-degradation of DDX3, suppressing interferon signaling and increasing viral virulence. DDX3 interacts with the TBK1-IKK\u03b5 complex, acting as a co-factor to promote efficient phosphorylation and activation of IRF3 and IRF7, which are essential for IFN1 signaling. IKK\u03b5 phosphorylates DDX3, activating it to facilitate IRF3 interaction with the TBK1-IKK\u03b5 complex. DDX19 blocks the interaction between DDX3 and the TBK1-IKK\u03b5 complex, thereby inhibiting IFN1 signaling. If a cell is exposed to both PB1-F2 and DDX19, which molecule will have the dominant effect on IFN1 signaling, and what is the expected outcome?",
+      "reasoning_steps": [
+        "DDX3 is essential for IFN1 signaling via TBK1-IKK\u03b5-mediated IRF3/IRF7 activation.",
+        "PB1-F2 promotes co-degradation of DDX3, reducing its cellular levels.",
+        "DDX19 blocks DDX3 interaction with TBK1-IKK\u03b5, inhibiting IFN1 signaling.",
+        "If DDX3 is degraded by PB1-F2, there is little or no DDX3 available for DDX19 to block.",
+        "Without DDX3, TBK1-IKK\u03b5 cannot efficiently activate IRF3/IRF7, suppressing IFN1 signaling.",
+        "PB1-F2 acts upstream by removing DDX3, while DDX19 acts downstream by blocking its interaction.",
+        "The absence of DDX3 due to PB1-F2 overrides the blocking effect of DDX19."
+      ],
+      "correct_answer": "PB1-F2 \u2013 complete suppression of IFN1 signaling via DDX3 degradation",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "DDX3",
+        "DDX19",
+        "TBK1",
+        "IKK\u0395",
+        "PB1-F2",
+        "ABORTIVE HIV-1 RNA"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 9,
+      "answer_format": "mechanism",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "In AML-12 cells infected with influenza, IRF7 phosphorylation levels increase by approximately 2-fold within 6 hours of viral entry, independent of changes in IRF3 expression. IRF7 forms heterodimers with IRF3 at a ratio of roughly 1:1 during peak interferon induction.",
+        "In AML-12 cells, activation of interferon regulatory factor 3 (IRF3) leads to a 2.5-fold increase in IFN-\u03b2 mRNA within 6 hours of viral challenge. However, IRF3 phosphorylation levels remain unchanged in the absence of TBK1-IKK\u03b5 complex formation.",
+        "In AML-12 cells, IRF3 phosphorylation increases by approximately 60% following poly(I:C) stimulation, independent of changes in total IRF3 protein levels. IRF3 nuclear translocation occurs within 30 minutes of activation in these cells."
+      ],
+      "enrichment_entities": [
+        "IRF7",
+        "INTERFERON REGULATORY FACTOR 3",
+        "IRF3"
+      ]
+    },
+    {
+      "paper_id": "jvi.01304-23",
+      "domain": "infectious_disease",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv97i12_10_1128_jvi_01304_23-20240610011357-0195936/source_files/.qa_output/jvi.01304-23/infectious_disease/contrastive_qa.json",
+      "question": "A mammalian cell line is infected with an RNA virus that triggers RIG-I signaling, leading to interferon-\u03b2 production and antiviral gene expression. In one experimental condition, G3BP1 is overexpressed, resulting in a 3-fold increase in RIG-I activation and a 2. RIG-I protein levels remain unchanged in both G3BP1-overexpressing and G3BP1-knockdown cells, as confirmed by immunoblot analysis. Additionally, RIG-I localization to the cytoplasm is not altered under these experimental conditions. 5-fold increase in interferon-\u03b2 levels compared to control. During dengue virus infection, subgenomic RNA (sfRNA) accumulates to levels exceeding 10% of total viral RNA and can bind host proteins such as G3BP1 and TRIM25, modulating their activity independently of viral replication rates. In a parallel condition, G3BP1 is knocked down, causing a 70% reduction in RIG-I activation and a 60% decrease in interferon-\u03b2 levels. Interferon-stimulated genes (ISGs) are upregulated 4-fold following interferon-\u03b2 induction in this cell line, but their expression levels remain unchanged when cells are treated with a JAK inhibitor. Viral replication is measured 24 hours post-infection: control cells show 1\u00d710\u2076 viral RNA copies, G3BP1-overexpressing cells show 1\u00d710\u2074 copies, and G3BP1-knockdown cells show 5\u00d710\u2077 copies. Which host factor should be targeted to enhance resistance to RNA virus replication in this system?",
+      "original_question": "A mammalian cell line is infected with an RNA virus that triggers RIG-I signaling, leading to interferon-\u03b2 production and antiviral gene expression. In one experimental condition, G3BP1 is overexpressed, resulting in a 3-fold increase in RIG-I activation and a 2.5-fold increase in interferon-\u03b2 levels compared to control. In a parallel condition, G3BP1 is knocked down, causing a 70% reduction in RIG-I activation and a 60% decrease in interferon-\u03b2 levels. Viral replication is measured 24 hours post-infection: control cells show 1\u00d710\u2076 viral RNA copies, G3BP1-overexpressing cells show 1\u00d710\u2074 copies, and G3BP1-knockdown cells show 5\u00d710\u2077 copies. Which host factor should be targeted to enhance resistance to RNA virus replication in this system?",
+      "reasoning_steps": [
+        "RNA virus triggers RIG-I signaling, leading to interferon-\u03b2 production and antiviral response.",
+        "G3BP1 overexpression increases RIG-I activation and interferon-\u03b2 levels.",
+        "Increased RIG-I and interferon-\u03b2 correlate with reduced viral replication (1\u00d710\u2074 copies).",
+        "G3BP1 knockdown decreases RIG-I and interferon-\u03b2, leading to increased viral replication (5\u00d710\u2077 copies).",
+        "Control cells have intermediate viral replication (1\u00d710\u2076 copies).",
+        "Enhancing resistance requires boosting antiviral signaling and reducing viral replication.",
+        "G3BP1 positively regulates RIG-I and interferon-\u03b2, conferring resistance."
+      ],
+      "correct_answer": "G3BP1",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "RNA VIRUS",
+        "G3BP1"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 1,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "RIG-I protein levels remain unchanged in both G3BP1-overexpressing and G3BP1-knockdown cells, as confirmed by immunoblot analysis. Additionally, RIG-I localization to the cytoplasm is not altered under these experimental conditions.",
+        "During dengue virus infection, subgenomic RNA (sfRNA) accumulates to levels exceeding 10% of total viral RNA and can bind host proteins such as G3BP1 and TRIM25, modulating their activity independently of viral replication rates.",
+        "Interferon-stimulated genes (ISGs) are upregulated 4-fold following interferon-\u03b2 induction in this cell line, but their expression levels remain unchanged when cells are treated with a JAK inhibitor."
+      ],
+      "enrichment_entities": [
+        "RIG-I",
+        "SUBGENOMIC RNA",
+        "INTERFERON-STIMULATED GENES"
+      ]
+    },
+    {
+      "paper_id": "jvi.01304-23",
+      "domain": "infectious_disease",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv97i12_10_1128_jvi_01304_23-20240610011357-0195936/source_files/.qa_output/jvi.01304-23/infectious_disease/contrastive_qa.json",
+      "question": "An AML-12 cell line is infected with an RNA virus that produces viral RNA ligands recognized by both RIG-I and MDA-5, activating RLR signaling and leading to IFN-\u03b2 induction. Knockdown of DDX3 in these cells impairs RLR signaling and IFN-\u03b2 production. Type I interferon levels in AML-12 cells typically peak within 6 hours of RNA virus infection, with IFN-\u03b2 accounting for approximately 70% of the total type I interferon produced. This induction is dependent on RLR signaling but can vary with cell metabolic state. Reconstitution with PACT and STAT1 restores the antiviral response. Pre-treatment of AML-12 cells with recombinant IFN-\u03b2 at 1000 IU/mL for 12 hours leads to robust induction of ISG expression, as measured by qPCR, but does not alter baseline MAVS protein levels. Lactate is present at high concentrations, acting as a natural suppressor of RLR signaling by targeting MAVS and reducing downstream antiviral responses. IRF3 phosphorylation levels increase by approximately 2-fold following RLR activation in AML-12 cells, but this enhancement is not observed in LA-4 cells under similar conditions. ZIKV sfRNA is also present, but it does not suppress PRR signaling or IFN production. DENV2 sfRNA, however, inhibits PRR signaling, reducing the host's ability to detect viral infection. Considering all these factors, which molecule or process is most likely to result in the greatest suppression of RLR signaling and IFN-\u03b2 production in this scenario?",
+      "original_question": "An AML-12 cell line is infected with an RNA virus that produces viral RNA ligands recognized by both RIG-I and MDA-5, activating RLR signaling and leading to IFN-\u03b2 induction. Knockdown of DDX3 in these cells impairs RLR signaling and IFN-\u03b2 production. Reconstitution with PACT and STAT1 restores the antiviral response. Lactate is present at high concentrations, acting as a natural suppressor of RLR signaling by targeting MAVS and reducing downstream antiviral responses. ZIKV sfRNA is also present, but it does not suppress PRR signaling or IFN production. DENV2 sfRNA, however, inhibits PRR signaling, reducing the host's ability to detect viral infection. Considering all these factors, which molecule or process is most likely to result in the greatest suppression of RLR signaling and IFN-\u03b2 production in this scenario?",
+      "reasoning_steps": [
+        "RNA virus activates RLR signaling via RIG-I and MDA-5, leading to IFN-\u03b2 induction.",
+        "DDX3 knockdown impairs RLR signaling, but PACT and STAT1 reconstitution restores it.",
+        "Lactate suppresses RLR signaling by targeting MAVS, reducing antiviral responses.",
+        "ZIKV sfRNA does not suppress PRR signaling or IFN production.",
+        "DENV2 sfRNA inhibits PRR signaling, reducing host detection of viral infection.",
+        "High lactate concentration and DENV2 sfRNA both act as suppressors, but DENV2 sfRNA directly inhibits PRR signaling upstream.",
+        "The greatest suppression comes from DENV2 sfRNA, which blocks the initial detection step."
+      ],
+      "correct_answer": "DENV2 sfRNA",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "RLR SIGNALING",
+        "RNA VIRUS",
+        "DDX3",
+        "PACT",
+        "RIG-I",
+        "MDA-5",
+        "LGP2",
+        "MDA5",
+        "DHX15",
+        "LACTATE",
+        "SFRNA",
+        "SFRNA (DENV2)"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 2,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Type I interferon levels in AML-12 cells typically peak within 6 hours of RNA virus infection, with IFN-\u03b2 accounting for approximately 70% of the total type I interferon produced. This induction is dependent on RLR signaling but can vary with cell metabolic state.",
+        "Pre-treatment of AML-12 cells with recombinant IFN-\u03b2 at 1000 IU/mL for 12 hours leads to robust induction of ISG expression, as measured by qPCR, but does not alter baseline MAVS protein levels.",
+        "IRF3 phosphorylation levels increase by approximately 2-fold following RLR activation in AML-12 cells, but this enhancement is not observed in LA-4 cells under similar conditions."
+      ],
+      "enrichment_entities": [
+        "TYPE I INTERFERON",
+        "IFN-\u0392",
+        "IRF3"
+      ]
+    },
+    {
+      "paper_id": "jvi.01304-23",
+      "domain": "infectious_disease",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv97i12_10_1128_jvi_01304_23-20240610011357-0195936/source_files/.qa_output/jvi.01304-23/infectious_disease/contrastive_qa.json",
+      "question": "An experiment investigates the impact of two modulators on Sendai virus (SeV) infection in AML-12 cells. Condition 1: Cells are co-infected with SeV and defective interfering viruses (DI viruses) at a 1:1 ratio. ABIN1, which interacts with A20 and TAX1BP1, has been shown to reduce NF-\u03baB activation by approximately 40% in AML-12 cells following SeV infection. However, its effect on IFN-\u03b2 mRNA levels remains variable depending on the presence of additional viral modulators. Condition 2: Cells are infected with SeV and transfected with A20 overexpression plasmid. IRF7 mRNA levels increase 2-fold following SeV infection in AML-12 cells, but this upregulation is not accompanied by changes in cell viability over 24 hours. In Condition 1, SeV RNA levels decrease by 80% compared to SeV alone, but IFN-\u03b2 mRNA induction remains high. NF-\u03baB nuclear translocation increases by approximately 2-fold following SeV infection in AML-12 cells, independent of IFN-\u03b2 mRNA levels. In previous studies, NF-\u03baB activation has been observed within 2 hours post-infection with paramyxoviruses. In Condition 2, SeV RNA levels decrease by only 20%, but IFN-\u03b2 mRNA induction is reduced by 90%. Which modulator\u2014DI viruses or A20\u2014more effectively suppresses SeV replication while preserving host antiviral signaling?",
+      "original_question": "An experiment investigates the impact of two modulators on Sendai virus (SeV) infection in AML-12 cells. Condition 1: Cells are co-infected with SeV and defective interfering viruses (DI viruses) at a 1:1 ratio. Condition 2: Cells are infected with SeV and transfected with A20 overexpression plasmid. In Condition 1, SeV RNA levels decrease by 80% compared to SeV alone, but IFN-\u03b2 mRNA induction remains high. In Condition 2, SeV RNA levels decrease by only 20%, but IFN-\u03b2 mRNA induction is reduced by 90%. Which modulator\u2014DI viruses or A20\u2014more effectively suppresses SeV replication while preserving host antiviral signaling?",
+      "reasoning_steps": [
+        "DI viruses compete for replication machinery, suppressing SeV replication.",
+        "DI viruses do not suppress IFN-\u03b2 induction; host antiviral signaling remains high.",
+        "A20 suppresses immune signaling, reducing IFN-\u03b2 mRNA induction.",
+        "A20 only modestly reduces SeV RNA levels (20% decrease).",
+        "DI viruses cause a much greater reduction in SeV RNA (80% decrease).",
+        "Preserving host antiviral signaling is indicated by high IFN-\u03b2 mRNA.",
+        "The modulator that both suppresses SeV replication and preserves IFN-\u03b2 induction is DI viruses."
+      ],
+      "correct_answer": "Defective interfering viruses",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "SENDAI VIRUS",
+        "DEFECTIVE INTERFERING VIRUSES",
+        "A20"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 3,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "ABIN1, which interacts with A20 and TAX1BP1, has been shown to reduce NF-\u03baB activation by approximately 40% in AML-12 cells following SeV infection. However, its effect on IFN-\u03b2 mRNA levels remains variable depending on the presence of additional viral modulators.",
+        "IRF7 mRNA levels increase 2-fold following SeV infection in AML-12 cells, but this upregulation is not accompanied by changes in cell viability over 24 hours.",
+        "NF-\u03baB nuclear translocation increases by approximately 2-fold following SeV infection in AML-12 cells, independent of IFN-\u03b2 mRNA levels. In previous studies, NF-\u03baB activation has been observed within 2 hours post-infection with paramyxoviruses."
+      ],
+      "enrichment_entities": [
+        "ABIN1",
+        "IRF7",
+        "NF-\u039aB"
+      ]
+    },
+    {
+      "paper_id": "jvi.01304-23",
+      "domain": "infectious_disease",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv97i12_10_1128_jvi_01304_23-20240610011357-0195936/source_files/.qa_output/jvi.01304-23/infectious_disease/contrastive_qa.json",
+      "question": "A virus infects human cells and produces long double-stranded RNA during replication. The host cell responds by upregulating PKR expression via interferon signaling. Influenza A virus infection leads to a 2- to 4-fold increase in RIG-I expression in human respiratory epithelial cells, resulting in enhanced production of type I interferons. Despite this, viral replication kinetics remain similar to baseline during the first 12 hours post-infection. PKR activation requires either direct binding to dsRNA, interaction with PACT (which is phosphorylated at S246 and S287), or facilitation by DHX36, which promotes stress granule formation. During viral infection, interferon regulatory factor 3 (IRF3) is phosphorylated and translocates to the nucleus within 30 minutes, leading to a 5-fold increase in type I interferon gene expression. However, IRF3 activation does not directly influence PKR phosphorylation or stress granule formation. However, the virus encodes both NS1 and US11 proteins: NS1 suppresses PKR-mediated inhibition of viral replication, while US11 binds RNA and prevents PKR activation. MAVS activation by cytosolic RNA sensors leads to a 5-fold increase in type I interferon production within 6 hours of viral infection, independent of PKR signaling. In addition, the host expresses P58IPK, a cellular inhibitor that forms a complex with PKR and suppresses its autophosphorylation. Considering all these factors, which mechanism is most likely to result in continued viral protein synthesis despite interferon induction?",
+      "original_question": "A virus infects human cells and produces long double-stranded RNA during replication. The host cell responds by upregulating PKR expression via interferon signaling. PKR activation requires either direct binding to dsRNA, interaction with PACT (which is phosphorylated at S246 and S287), or facilitation by DHX36, which promotes stress granule formation. However, the virus encodes both NS1 and US11 proteins: NS1 suppresses PKR-mediated inhibition of viral replication, while US11 binds RNA and prevents PKR activation. In addition, the host expresses P58IPK, a cellular inhibitor that forms a complex with PKR and suppresses its autophosphorylation. Considering all these factors, which mechanism is most likely to result in continued viral protein synthesis despite interferon induction?",
+      "reasoning_steps": [
+        "Interferon upregulates PKR, which inhibits viral protein synthesis when activated.",
+        "PKR can be activated by dsRNA, PACT, or DHX36.",
+        "Virus produces long dsRNA, a strong activator of PKR.",
+        "NS1 suppresses PKR-mediated inhibition, allowing viral replication.",
+        "US11 binds RNA, preventing PKR activation.",
+        "Host P58IPK further suppresses PKR autophosphorylation and activity.",
+        "Multiple viral and host inhibitors act on PKR, counteracting interferon-induced antiviral response."
+      ],
+      "correct_answer": "Viral-directed inhibition of PKR",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "PKR",
+        "INTERFERON",
+        "PACT",
+        "DSRNA",
+        "IPS-1",
+        "DOUBLE-STRANDED RNA",
+        "LONG DOUBLE-STRANDED RNA",
+        "DHX36",
+        "NSS PROTEIN",
+        "US11",
+        "E3L",
+        "UBR5",
+        "VIRAL-DIRECTED INHIBITION OF PKR",
+        "P58IPK",
+        "P52RIPK",
+        "NS5A",
+        "K3L",
+        "TYPE II IFN SIGNALING"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 4,
+      "answer_format": "mechanism",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Influenza A virus infection leads to a 2- to 4-fold increase in RIG-I expression in human respiratory epithelial cells, resulting in enhanced production of type I interferons. Despite this, viral replication kinetics remain similar to baseline during the first 12 hours post-infection.",
+        "During viral infection, interferon regulatory factor 3 (IRF3) is phosphorylated and translocates to the nucleus within 30 minutes, leading to a 5-fold increase in type I interferon gene expression. However, IRF3 activation does not directly influence PKR phosphorylation or stress granule formation.",
+        "MAVS activation by cytosolic RNA sensors leads to a 5-fold increase in type I interferon production within 6 hours of viral infection, independent of PKR signaling."
+      ],
+      "enrichment_entities": [
+        "INFLUENZA A VIRUS",
+        "INTERFERON REGULATORY FACTOR 3",
+        "MAVS"
+      ]
+    },
+    {
+      "paper_id": "jvi.01304-23",
+      "domain": "infectious_disease",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv97i12_10_1128_jvi_01304_23-20240610011357-0195936/source_files/.qa_output/jvi.01304-23/infectious_disease/contrastive_qa.json",
+      "question": "A patient is infected with an RNA virus that replicates in the cytoplasm and produces double-stranded RNA intermediates during its life cycle. The host cell expresses RIG-I, MDA-5, TLR3, and TLR7. MDA5 expression levels in peripheral blood mononuclear cells can increase up to 2-fold following exposure to synthetic poly(I:C), a mimic of viral double-stranded RNA. In some cell types, MDA5 activation leads to the recruitment of MAVS, but this does not always correlate with higher interferon-stimulated gene expression. RIG-I recognizes short double-stranded RNA with 5\u2019-triphosphate ends, MDA-5 detects long double-stranded RNA, TLR3 senses double-stranded RNA in endosomes, and TLR7 detects single-stranded RNA in endosomes. RIG-I-like receptors are expressed at varying levels in different cell types, with epithelial cells typically showing a twofold higher baseline expression compared to fibroblasts. In some viral infections, RLR activation can lead to transient upregulation of ISG15, independent of interferon signaling. The viral RNA is released into the cytoplasm and does not enter endosomes. RLR signaling can induce type I interferon production within 4-6 hours of cytoplasmic viral RNA detection, but the magnitude of response varies depending on the specific viral RNA structure. MAVS activation downstream of RLR signaling also leads to upregulation of several antiviral genes independent of interferon. Which pattern recognition receptor is most likely to initiate the earliest interferon response in this infection?",
+      "original_question": "A patient is infected with an RNA virus that replicates in the cytoplasm and produces double-stranded RNA intermediates during its life cycle. The host cell expresses RIG-I, MDA-5, TLR3, and TLR7. RIG-I recognizes short double-stranded RNA with 5\u2019-triphosphate ends, MDA-5 detects long double-stranded RNA, TLR3 senses double-stranded RNA in endosomes, and TLR7 detects single-stranded RNA in endosomes. The viral RNA is released into the cytoplasm and does not enter endosomes. Which pattern recognition receptor is most likely to initiate the earliest interferon response in this infection?",
+      "reasoning_steps": [
+        "The virus is an RNA virus producing double-stranded RNA intermediates.",
+        "The viral RNA is released into the cytoplasm, not into endosomes.",
+        "TLR3 and TLR7 are located in endosomes and require viral RNA to be present there for activation.",
+        "RIG-I and MDA-5 are cytoplasmic sensors.",
+        "RIG-I detects short double-stranded RNA with 5\u2019-triphosphate ends.",
+        "MDA-5 detects long double-stranded RNA.",
+        "Early in infection, short double-stranded RNA with 5\u2019-triphosphate ends is produced.",
+        "Therefore, RIG-I is most likely to initiate the earliest interferon response."
+      ],
+      "correct_answer": "RIG-I",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "PRR",
+        "RNA VIRUS"
+      ],
+      "quality_score": 4.0,
+      "answer_word_count": 1,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "MDA5 expression levels in peripheral blood mononuclear cells can increase up to 2-fold following exposure to synthetic poly(I:C), a mimic of viral double-stranded RNA. In some cell types, MDA5 activation leads to the recruitment of MAVS, but this does not always correlate with higher interferon-stimulated gene expression.",
+        "RIG-I-like receptors are expressed at varying levels in different cell types, with epithelial cells typically showing a twofold higher baseline expression compared to fibroblasts. In some viral infections, RLR activation can lead to transient upregulation of ISG15, independent of interferon signaling.",
+        "RLR signaling can induce type I interferon production within 4-6 hours of cytoplasmic viral RNA detection, but the magnitude of response varies depending on the specific viral RNA structure. MAVS activation downstream of RLR signaling also leads to upregulation of several antiviral genes independent of interferon."
+      ],
+      "enrichment_entities": [
+        "MDA5",
+        "RIG-I-LIKE RECEPTORS",
+        "RLR SIGNALING"
+      ]
+    },
+    {
+      "paper_id": "jvi.01304-23",
+      "domain": "infectious_disease",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv97i12_10_1128_jvi_01304_23-20240610011357-0195936/source_files/.qa_output/jvi.01304-23/infectious_disease/contrastive_qa.json",
+      "question": "In AML-12 cells infected with an RNA virus, efficient induction of type I interferon requires activation of RIG-I by PACT. PACT protein expression depends on DDX3-mediated translation of PACT mRNA. MDA5 expression in AML-12 cells increases by approximately 2-fold following infection with Sendai virus, but this upregulation does not alter baseline interferon levels in the absence of additional stimuli. In contrast, MDA5 knockdown reduces poly(I:C)-induced IFN-\u03b2 production by about 40%. Phosphorylation of PACT at both S246 and S287 is necessary for its ability to bind and activate RIG-I. Type I IFN secretion in AML-12 cells peaks at 12 hours post-infection with RNA viruses, with a 5-fold increase compared to uninfected controls. However, this induction does not alter baseline expression levels of RIG-I or MDA5 within the first 24 hours. The MERS-CoV 4a protein, Ebola virus VP35, and arenaviral nucleoproteins can each suppress PACT-induced activation of RIG-I, but only the MERS-CoV 4a protein inhibits both RIG-I and MDA5 activation. Poly I:C treatment of AML-12 cells leads to a 4-fold increase in IFN\u03b2 mRNA within 6 hours, primarily through activation of both RIG-I and MDA5 pathways. In these cells, Poly I:C-induced signaling is unaffected by the presence of non-phosphorylatable PACT mutants. In LA-4 cells, PACT is not required for RIG-I signaling, and DDX3 knockdown does not affect PACT levels. If AML-12 cells are infected with MERS-CoV and simultaneously treated with a DDX3 inhibitor and a phospho-mimetic PACT mutant (S246D/S287D), which viral protein will most effectively suppress interferon induction, and through which mechanism?",
+      "original_question": "In AML-12 cells infected with an RNA virus, efficient induction of type I interferon requires activation of RIG-I by PACT. PACT protein expression depends on DDX3-mediated translation of PACT mRNA. Phosphorylation of PACT at both S246 and S287 is necessary for its ability to bind and activate RIG-I. The MERS-CoV 4a protein, Ebola virus VP35, and arenaviral nucleoproteins can each suppress PACT-induced activation of RIG-I, but only the MERS-CoV 4a protein inhibits both RIG-I and MDA5 activation. In LA-4 cells, PACT is not required for RIG-I signaling, and DDX3 knockdown does not affect PACT levels. If AML-12 cells are infected with MERS-CoV and simultaneously treated with a DDX3 inhibitor and a phospho-mimetic PACT mutant (S246D/S287D), which viral protein will most effectively suppress interferon induction, and through which mechanism?",
+      "reasoning_steps": [
+        "DDX3 inhibitor reduces endogenous PACT translation, lowering native PACT protein.",
+        "Phospho-mimetic PACT mutant (S246D/S287D) restores PACT's ability to bind/activate RIG-I despite low endogenous PACT.",
+        "MERS-CoV 4a protein can suppress PACT-induced activation of both RIG-I and MDA5.",
+        "Ebola VP35 and arenaviral nucleoproteins only suppress RIG-I activation, not MDA5.",
+        "Interferon induction depends on both RIG-I and MDA5 activation in this context.",
+        "MERS-CoV 4a protein can inhibit both pathways, even with phospho-mimetic PACT present.",
+        "Therefore, MERS-CoV 4a protein is the most effective suppressor via dual inhibition."
+      ],
+      "correct_answer": "MERS-CoV 4a protein via RIG-I and MDA5 suppression",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "PACT",
+        "DDX3",
+        "S246",
+        "S287",
+        "LA-4 CELLS",
+        "DDX3 KD AML-12 CELLS",
+        "DDX3 KD LA-4 CELLS",
+        "RNA VIRUS INFECTION",
+        "DDX3X",
+        "MERS-COV 4A PROTEIN",
+        "4A PROTEIN",
+        "VP35",
+        "US11 PROTEIN",
+        "VIRAL PROTEINS",
+        "NEWCASTLE DISEASE VIRUS",
+        "VP35 PROTEIN",
+        "ARENAVIRAL NUCLEOPROTEIN",
+        "NUCLEOCAPSID PROTEIN",
+        "ARENAVIRAL NUCLEOPROTEINS",
+        "DEFECTIVE INTERFERING RNA",
+        "VIRAL INHIBITION OF PACT-INDUCED RIG-I ACTIVATION",
+        "NUCLEOCAPSID PROTEIN (PORCINE DELTACORONAVIRUS)"
+      ],
+      "quality_score": 6.0,
+      "answer_word_count": 7,
+      "answer_format": "mechanism",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "MDA5 expression in AML-12 cells increases by approximately 2-fold following infection with Sendai virus, but this upregulation does not alter baseline interferon levels in the absence of additional stimuli. In contrast, MDA5 knockdown reduces poly(I:C)-induced IFN-\u03b2 production by about 40%.",
+        "Type I IFN secretion in AML-12 cells peaks at 12 hours post-infection with RNA viruses, with a 5-fold increase compared to uninfected controls. However, this induction does not alter baseline expression levels of RIG-I or MDA5 within the first 24 hours.",
+        "Poly I:C treatment of AML-12 cells leads to a 4-fold increase in IFN\u03b2 mRNA within 6 hours, primarily through activation of both RIG-I and MDA5 pathways. In these cells, Poly I:C-induced signaling is unaffected by the presence of non-phosphorylatable PACT mutants."
+      ],
+      "enrichment_entities": [
+        "MDA5",
+        "TYPE I IFN",
+        "POLY I:C"
+      ]
+    },
+    {
+      "paper_id": "jvi.01850-23",
+      "domain": "infectious_disease",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01850_23-20240610011730-6152864/source_files/.qa_output/jvi.01850-23/infectious_disease/contrastive_qa.json",
+      "question": "A country with 95% measles vaccine coverage experiences a sharp decline in measles cases during 2020, coinciding with strict COVID-19 interventions that reduce contact rates by 80%. In 2022, COVID-19 interventions are lifted, but vaccine coverage drops to 85% due to disrupted immunization programs. Waning immunity can lead to a gradual decrease in measles-specific antibody levels, with studies showing that up to 5% of vaccinated individuals may lose detectable immunity over a 10-year period. This phenomenon is observed even in populations with high initial vaccine coverage. Measles virus is highly contagious, with an R\u2080 of 15 in a fully susceptible population. Vaccine refusal rates in the region remained stable at approximately 5% throughout 2020-2022, with surveys indicating that most unvaccinated individuals cited concerns unrelated to access or supply. This behavioral trend has been associated with localized clusters of susceptibility in previous years. The herd immunity threshold for measles is 93%. Population immunity levels can be estimated using serological surveys, which in some regions have shown up to 10% of individuals lack protective antibodies despite reported high vaccine coverage. Waning population immunity may occur over time, especially if booster doses are not administered. Given these data, which factor is most likely to drive a resurgence of measles cases in 2022: (A) lifting COVID-19 interventions, (B) reduced vaccine coverage, or (C) both equally? Justify your choice based on transmission dynamics.",
+      "original_question": "A country with 95% measles vaccine coverage experiences a sharp decline in measles cases during 2020, coinciding with strict COVID-19 interventions that reduce contact rates by 80%. In 2022, COVID-19 interventions are lifted, but vaccine coverage drops to 85% due to disrupted immunization programs. Measles virus is highly contagious, with an R\u2080 of 15 in a fully susceptible population. The herd immunity threshold for measles is 93%. Given these data, which factor is most likely to drive a resurgence of measles cases in 2022: (A) lifting COVID-19 interventions, (B) reduced vaccine coverage, or (C) both equally? Justify your choice based on transmission dynamics.",
+      "reasoning_steps": [
+        "Measles virus has a high R\u2080 (15), requiring high herd immunity (93%).",
+        "2020: 95% vaccine coverage exceeds herd immunity threshold, plus contact rates reduced by 80% (COVID-19 interventions).",
+        "Both high coverage and low contact rates suppress transmission.",
+        "2022: COVID-19 interventions lifted, contact rates return to normal.",
+        "Vaccine coverage drops to 85%, below herd immunity threshold.",
+        "With normal contact rates and sub-threshold immunity, population is vulnerable.",
+        "The drop in vaccine coverage below herd immunity threshold is the critical factor enabling sustained transmission."
+      ],
+      "correct_answer": "Reduced vaccine coverage",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "MEASLES",
+        "MEASLES VIRUS",
+        "COVID-19 INTERVENTIONS",
+        "PARAMYXOVIRUS"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 3,
+      "answer_format": "mechanism",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Waning immunity can lead to a gradual decrease in measles-specific antibody levels, with studies showing that up to 5% of vaccinated individuals may lose detectable immunity over a 10-year period. This phenomenon is observed even in populations with high initial vaccine coverage.",
+        "Vaccine refusal rates in the region remained stable at approximately 5% throughout 2020-2022, with surveys indicating that most unvaccinated individuals cited concerns unrelated to access or supply. This behavioral trend has been associated with localized clusters of susceptibility in previous years.",
+        "Population immunity levels can be estimated using serological surveys, which in some regions have shown up to 10% of individuals lack protective antibodies despite reported high vaccine coverage. Waning population immunity may occur over time, especially if booster doses are not administered."
+      ],
+      "enrichment_entities": [
+        "WANING IMMUNITY",
+        "VACCINE REFUSAL",
+        "POPULATION IMMUNITY"
+      ]
+    },
+    {
+      "paper_id": "jvi.01850-23",
+      "domain": "infectious_disease",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01850_23-20240610011730-6152864/source_files/.qa_output/jvi.01850-23/infectious_disease/contrastive_qa.json",
+      "question": "A group of ferrets is experimentally infected with two different viral strains: Group A receives wild type-based recombinant canine distemper virus (CDV), while Group B receives an attenuated CDV strain. In Group A, 95% of ferrets develop multi-organ failure and die within 14 days, with viral RNA detected in the spleen, liver, lungs, and brain. In both groups, myeloid cells isolated from peripheral blood showed a transient increase in surface expression of CD150, a known morbillivirus receptor, peaking at day 3 post-infection. However, the total number of circulating myeloid cells remained within normal reference ranges throughout the study. In Group B, only mild respiratory symptoms are observed, and all ferrets survive; viral RNA is detected only in the nasal mucosa. In both groups, the immune system mounts a detectable interferon-gamma response by day 7 post-infection, with serum levels peaking at 120 pg/mL. However, lymphocyte counts remain within normal ranges throughout the study. Both groups are immunocompetent and housed under identical conditions. In both viral strains, nucleoprotein (N) mRNA levels in nasal swabs peaked at day 3 post-infection, reaching approximately 1.2 x 10^6 copies per microgram of total RNA. This early expression did not correlate with the severity of clinical symptoms observed. Considering the definitions of systemic disease and the pathogenesis of CDV, which viral strain is most appropriate for studying mechanisms of systemic disease in ferrets?",
+      "original_question": "A group of ferrets is experimentally infected with two different viral strains: Group A receives wild type-based recombinant canine distemper virus (CDV), while Group B receives an attenuated CDV strain. In Group A, 95% of ferrets develop multi-organ failure and die within 14 days, with viral RNA detected in the spleen, liver, lungs, and brain. In Group B, only mild respiratory symptoms are observed, and all ferrets survive; viral RNA is detected only in the nasal mucosa. Both groups are immunocompetent and housed under identical conditions. Considering the definitions of systemic disease and the pathogenesis of CDV, which viral strain is most appropriate for studying mechanisms of systemic disease in ferrets?",
+      "reasoning_steps": [
+        "Systemic disease involves multi-organ infection and high fatality.",
+        "Wild type-based recombinant CDV causes multi-organ failure and death in 95% of ferrets.",
+        "Viral RNA from wild type-based CDV is found in multiple organs.",
+        "Attenuated CDV causes only mild symptoms and limited infection (nasal mucosa only).",
+        "All ferrets in Group B survive, indicating lack of systemic spread.",
+        "Both groups are immunocompetent, so host factors are controlled.",
+        "The strain causing widespread infection and fatality best models systemic disease."
+      ],
+      "correct_answer": "Wild type-based recombinant canine distemper virus",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "SYSTEMIC DISEASE",
+        "CANINE DISTEMPER VIRUS",
+        "NON-ATTENUATED CDV"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 5,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "In both groups, myeloid cells isolated from peripheral blood showed a transient increase in surface expression of CD150, a known morbillivirus receptor, peaking at day 3 post-infection. However, the total number of circulating myeloid cells remained within normal reference ranges throughout the study.",
+        "In both groups, the immune system mounts a detectable interferon-gamma response by day 7 post-infection, with serum levels peaking at 120 pg/mL. However, lymphocyte counts remain within normal ranges throughout the study.",
+        "In both viral strains, nucleoprotein (N) mRNA levels in nasal swabs peaked at day 3 post-infection, reaching approximately 1.2 x 10^6 copies per microgram of total RNA. This early expression did not correlate with the severity of clinical symptoms observed."
+      ],
+      "enrichment_entities": [
+        "MYELOID CELL",
+        "IMMUNE SYSTEM",
+        "NUCLEOPROTEIN"
+      ]
+    },
+    {
+      "paper_id": "jvi.01850-23",
+      "domain": "infectious_disease",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01850_23-20240610011730-6152864/source_files/.qa_output/jvi.01850-23/infectious_disease/contrastive_qa.json",
+      "question": "A population of ferrets is exposed to two viruses: Virus A, a morbillivirus that infects lymphoid, epithelial, and nervous tissues, causing immunosuppression, respiratory distress, and neurological signs with 80% mortality; and Virus B, a parvovirus that targets only intestinal epithelial cells, causing diarrhea and dehydration with 20% mortality. Both viruses are present at equal titers. Measles virus (MeV), another morbillivirus, can cause up to 90% infection rates in unvaccinated human populations, with peak viral replication occurring in lymphoid tissues within 5 days of exposure. Virus A is known to cause canine distemper in carnivores, while Virus B does not cause systemic disease. Lymphopenia was observed in 65% of ferrets exposed to Virus A, with lymphocyte counts dropping by an average of 40% during the acute phase. This reduction did not correlate with the severity of gastrointestinal symptoms. After exposure, 70% of ferrets develop respiratory and neurological symptoms, 10% develop only diarrhea, and 20% remain asymptomatic. In ferrets, the immune system mounts a robust interferon response within 48 hours of viral exposure, with lymphocyte counts typically decreasing by 15% during acute infection. However, baseline immune parameters remain unchanged in 20% of exposed individuals. Which virus is responsible for the majority of deaths in this ferret population?",
+      "original_question": "A population of ferrets is exposed to two viruses: Virus A, a morbillivirus that infects lymphoid, epithelial, and nervous tissues, causing immunosuppression, respiratory distress, and neurological signs with 80% mortality; and Virus B, a parvovirus that targets only intestinal epithelial cells, causing diarrhea and dehydration with 20% mortality. Both viruses are present at equal titers. Virus A is known to cause canine distemper in carnivores, while Virus B does not cause systemic disease. After exposure, 70% of ferrets develop respiratory and neurological symptoms, 10% develop only diarrhea, and 20% remain asymptomatic. Which virus is responsible for the majority of deaths in this ferret population?",
+      "reasoning_steps": [
+        "Virus A is a morbillivirus causing systemic disease (canine distemper) with high mortality (80%).",
+        "Virus B is a parvovirus causing localized intestinal disease with low mortality (20%).",
+        "70% of ferrets show symptoms matching Virus A (respiratory, neurological).",
+        "10% show symptoms matching Virus B (diarrhea only).",
+        "20% are asymptomatic, unlikely to die.",
+        "Majority of deaths will occur in the group with higher mortality and more severe symptoms.",
+        "Virus A matches both the symptom profile and higher mortality rate."
+      ],
+      "correct_answer": "Canine distemper virus",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "CANINE DISTEMPER",
+        "CANINE DISTEMPER VIRUS"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 3,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Measles virus (MeV), another morbillivirus, can cause up to 90% infection rates in unvaccinated human populations, with peak viral replication occurring in lymphoid tissues within 5 days of exposure.",
+        "Lymphopenia was observed in 65% of ferrets exposed to Virus A, with lymphocyte counts dropping by an average of 40% during the acute phase. This reduction did not correlate with the severity of gastrointestinal symptoms.",
+        "In ferrets, the immune system mounts a robust interferon response within 48 hours of viral exposure, with lymphocyte counts typically decreasing by 15% during acute infection. However, baseline immune parameters remain unchanged in 20% of exposed individuals."
+      ],
+      "enrichment_entities": [
+        "MEASLES VIRUS",
+        "LYMPHOPENIA",
+        "IMMUNE SYSTEM"
+      ]
+    },
+    {
+      "paper_id": "jvi.01850-23",
+      "domain": "infectious_disease",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01850_23-20240610011730-6152864/source_files/.qa_output/jvi.01850-23/infectious_disease/contrastive_qa.json",
+      "question": "A group of ferrets is experimentally infected with two different strains of canine distemper virus (CDV): wild-type CDV and attenuated CDV. Wild-type CDV-infected ferrets develop acute neurological signs within 7 days, including seizures and ataxia, and 90% show severe central nervous system involvement. Attenuated CDV-infected ferrets remain clinically normal for 21 days, with no neurological signs observed and no evidence of CNS lesions on histopathology. Both groups show similar levels of viremia at day 3 post-infection, but only wild-type CDV is detected in brain tissue at day 7. If the goal is to select a CDV strain for use as a safe animal model that minimizes neurovirulence while still allowing for immunogenicity studies, which strain should be chosen?",
+      "original_question": "A group of ferrets is experimentally infected with two different strains of canine distemper virus (CDV): wild-type CDV and attenuated CDV. Wild-type CDV-infected ferrets develop acute neurological signs within 7 days, including seizures and ataxia, and 90% show severe central nervous system involvement. Attenuated CDV-infected ferrets remain clinically normal for 21 days, with no neurological signs observed and no evidence of CNS lesions on histopathology. Both groups show similar levels of viremia at day 3 post-infection, but only wild-type CDV is detected in brain tissue at day 7. If the goal is to select a CDV strain for use as a safe animal model that minimizes neurovirulence while still allowing for immunogenicity studies, which strain should be chosen?",
+      "reasoning_steps": [
+        "Wild-type CDV causes acute neurological signs and CNS involvement in ferrets.",
+        "Attenuated CDV does not cause neurological signs or CNS lesions.",
+        "Both strains produce similar viremia, indicating systemic infection.",
+        "Only wild-type CDV is neuroinvasive (detected in brain tissue).",
+        "Attenuated CDV avoids neurovirulence, improving safety for animal models.",
+        "Immunogenicity studies require systemic infection, which both strains provide.",
+        "Minimizing neurovirulence is the primary safety concern for model selection."
+      ],
+      "correct_answer": "Attenuated CDV",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "ACUTE NEUROLOGICAL SIGNS",
+        "ATTENUATED CDV"
+      ],
+      "quality_score": 4.0,
+      "answer_word_count": 2,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [],
+      "enrichment_entities": []
+    },
+    {
+      "paper_id": "jvi.01850-23",
+      "domain": "infectious_disease",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01850_23-20240610011730-6152864/source_files/.qa_output/jvi.01850-23/infectious_disease/contrastive_qa.json",
+      "question": "A group of ferrets is experimentally infected with two different strains of canine distemper virus (CDV): one wild-type and one attenuated. The wild-type CDV causes rapid viral dissemination to all lymphoid tissues within 3 days, followed by severe immunosuppression and 80% mortality by day 10. Viremia peaks at day 4 in wild-type CDV-infected ferrets, while in those infected with the attenuated strain, viremia remains detectable but at lower titers and resolves by day 8. In both groups, the magnitude of viremia correlates with transient lymphopenia observed during early infection. The attenuated CDV also disseminates to all lymphoid tissues but at a slower rate (by day 7), with mild immunosuppression and 0% mortality by day 10. Acute neurological signs, such as ataxia and seizures, are observed in 75% of ferrets infected with wild-type CDV by day 10, while none are reported in the attenuated strain group. The onset of these signs typically correlates with detectable viral RNA in the CNS. Both strains are detected in peripheral blood, but only the wild-type strain is found in the central nervous system (CNS) by day 10. If the goal is to model systemic viral dissemination similar to measles infection in humans, but minimize host mortality and CNS involvement, which CDV strain should be used?",
+      "original_question": "A group of ferrets is experimentally infected with two different strains of canine distemper virus (CDV): one wild-type and one attenuated. The wild-type CDV causes rapid viral dissemination to all lymphoid tissues within 3 days, followed by severe immunosuppression and 80% mortality by day 10. The attenuated CDV also disseminates to all lymphoid tissues but at a slower rate (by day 7), with mild immunosuppression and 0% mortality by day 10. Both strains are detected in peripheral blood, but only the wild-type strain is found in the central nervous system (CNS) by day 10. If the goal is to model systemic viral dissemination similar to measles infection in humans, but minimize host mortality and CNS involvement, which CDV strain should be used?",
+      "reasoning_steps": [
+        "Both strains disseminate systemically to lymphoid tissues, mimicking measles spread.",
+        "Wild-type CDV causes rapid dissemination, severe immunosuppression, and high mortality.",
+        "Attenuated CDV causes slower dissemination, mild immunosuppression, and no mortality.",
+        "Both strains reach peripheral blood, indicating systemic infection.",
+        "Only wild-type CDV invades the CNS, which is undesirable for minimizing host morbidity.",
+        "The goal is to model systemic dissemination without high mortality or CNS involvement.",
+        "Attenuated CDV achieves systemic spread with reduced severity and no CNS invasion."
+      ],
+      "correct_answer": "Attenuated CDV",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "VIRAL DISSEMINATION",
+        "ATTENUATED CDV"
+      ],
+      "quality_score": 4.0,
+      "answer_word_count": 2,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Viremia peaks at day 4 in wild-type CDV-infected ferrets, while in those infected with the attenuated strain, viremia remains detectable but at lower titers and resolves by day 8. In both groups, the magnitude of viremia correlates with transient lymphopenia observed during early infection.",
+        "Acute neurological signs, such as ataxia and seizures, are observed in 75% of ferrets infected with wild-type CDV by day 10, while none are reported in the attenuated strain group. The onset of these signs typically correlates with detectable viral RNA in the CNS."
+      ],
+      "enrichment_entities": [
+        "VIREMIA",
+        "ACUTE NEUROLOGICAL SIGNS"
+      ]
+    },
+    {
+      "paper_id": "jvi.01850-23",
+      "domain": "infectious_disease",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01850_23-20240610011730-6152864/source_files/.qa_output/jvi.01850-23/infectious_disease/contrastive_qa.json",
+      "question": "A 35-year-old human patient presents with high fever, chills, and hypotension. Blood cultures grow Gram-negative bacteria. Laboratory analysis shows elevated TNF levels, increased oxidative stress markers, and high concentrations of bacterial lipopolysaccharide (LPS) in plasma. Gram-negative bacteria can exhibit up to a 40% increase in biofilm formation under hypoxic conditions, which may contribute to persistent infections but does not directly influence acute inflammatory responses. The patient develops disseminated intravascular coagulation (DIC) and multi-organ dysfunction. Considering the mechanisms described: - TNF induces fever and metabolic changes but does not directly trigger strong inflammatory cascades leading to DIC. Oxygen radical formation by neutrophils was measured at a 2.5-fold increase compared to baseline, correlating with elevated markers of tissue injury in the patient\u2019s plasma. This process is commonly observed during acute Gram-negative bacterial infections. - Oxidative stress upregulates cytokines and inflammatory mediators but is secondary to primary immune activation. - Bacterial LPS binds TLR4, causing massive cytokine release, fever, and is a key determinant of disease severity in Gram-negative infections. Toll-like receptors, including TLR4, are upregulated on monocytes during acute Gram-negative infections, with surface expression increasing by approximately 40% within 24 hours of exposure to bacterial components. This upregulation is associated with enhanced detection of pathogen-associated molecular patterns but does not directly correlate with severity of coagulation abnormalities. - Gram-negative bacterial LPS is specifically implicated in triggering severe immune and inflammatory responses, leading to DIC and organ failure. Which factor is the primary molecular trigger for the patient\u2019s severe disease manifestations?",
+      "original_question": "A 35-year-old human patient presents with high fever, chills, and hypotension. Blood cultures grow Gram-negative bacteria. Laboratory analysis shows elevated TNF levels, increased oxidative stress markers, and high concentrations of bacterial lipopolysaccharide (LPS) in plasma. The patient develops disseminated intravascular coagulation (DIC) and multi-organ dysfunction. Considering the mechanisms described: - TNF induces fever and metabolic changes but does not directly trigger strong inflammatory cascades leading to DIC. - Oxidative stress upregulates cytokines and inflammatory mediators but is secondary to primary immune activation. - Bacterial LPS binds TLR4, causing massive cytokine release, fever, and is a key determinant of disease severity in Gram-negative infections. - Gram-negative bacterial LPS is specifically implicated in triggering severe immune and inflammatory responses, leading to DIC and organ failure. Which factor is the primary molecular trigger for the patient\u2019s severe disease manifestations?",
+      "reasoning_steps": [
+        "Recognize Gram-negative bacteria as the infectious agent.",
+        "Note high plasma LPS levels.",
+        "Recall LPS binds TLR4, causing cytokine storm.",
+        "Connect LPS to TNF elevation and fever.",
+        "Identify LPS as key determinant of severity in Gram-negative infections.",
+        "Understand DIC and organ failure are downstream of massive immune activation.",
+        "Conclude LPS is the primary molecular trigger."
+      ],
+      "correct_answer": "Gram-negative bacterial lipopolysaccharide",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "HUMAN",
+        "TNF",
+        "BACTERIAL LIPOPOLYSACCHARIDE",
+        "OXIDATIVE STRESS",
+        "INFECTIONS",
+        "GRAM-NEGATIVE BACTERIAL LIPOPOLYSACCHARIDES",
+        "TUMOR CELL",
+        "BLADDER CANCER",
+        "TLR AGONIST",
+        "G100",
+        "ANTI-PHOSPHOLIPID ANTIBODIES (APLA)",
+        "COMPLEMENT CLASSICAL ACTIVATION PATHWAY"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 4,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Gram-negative bacteria can exhibit up to a 40% increase in biofilm formation under hypoxic conditions, which may contribute to persistent infections but does not directly influence acute inflammatory responses.",
+        "Oxygen radical formation by neutrophils was measured at a 2.5-fold increase compared to baseline, correlating with elevated markers of tissue injury in the patient\u2019s plasma. This process is commonly observed during acute Gram-negative bacterial infections.",
+        "Toll-like receptors, including TLR4, are upregulated on monocytes during acute Gram-negative infections, with surface expression increasing by approximately 40% within 24 hours of exposure to bacterial components. This upregulation is associated with enhanced detection of pathogen-associated molecular patterns but does not directly correlate with severity of coagulation abnormalities."
+      ],
+      "enrichment_entities": [
+        "GRAM-NEGATIVE BACTERIA",
+        "OXYGEN RADICAL FORMATION",
+        "TOLL-LIKE RECEPTORS"
+      ]
+    },
+    {
+      "paper_id": "jvi.01850-23",
+      "domain": "infectious_disease",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01850_23-20240610011730-6152864/source_files/.qa_output/jvi.01850-23/infectious_disease/contrastive_qa.json",
+      "question": "A pediatric patient presents with high fever, cough, and a maculopapular rash. Laboratory testing detects a single-stranded, negative-sense RNA virus with hemagglutinin and fusion glycoproteins, and the virus is found to cause syncytia formation in respiratory epithelial cells. The virus is classified within the Paramyxoviridae family. The patient is unvaccinated and has no history of prior infection. Considering the viral family, genome type, glycoprotein profile, and clinical presentation, which specific pathogen is the most likely cause of this illness?",
+      "original_question": "A pediatric patient presents with high fever, cough, and a maculopapular rash. Laboratory testing detects a single-stranded, negative-sense RNA virus with hemagglutinin and fusion glycoproteins, and the virus is found to cause syncytia formation in respiratory epithelial cells. The virus is classified within the Paramyxoviridae family. The patient is unvaccinated and has no history of prior infection. Considering the viral family, genome type, glycoprotein profile, and clinical presentation, which specific pathogen is the most likely cause of this illness?",
+      "reasoning_steps": [
+        "The patient is a child with fever, cough, and rash (classic measles symptoms).",
+        "The virus is single-stranded, negative-sense RNA (narrows to certain viral families).",
+        "Hemagglutinin and fusion glycoproteins are characteristic of morbilliviruses.",
+        "Syncytia formation in respiratory epithelium is typical for measles virus.",
+        "The virus is classified in Paramyxoviridae, which includes measles virus.",
+        "The patient is unvaccinated, increasing risk for measles.",
+        "No prior infection history excludes immunity."
+      ],
+      "correct_answer": "Measles virus",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "MEASLES VIRUS",
+        "PARAMYXOVIRIDAE"
+      ],
+      "quality_score": 4.0,
+      "answer_word_count": 2,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [],
+      "enrichment_entities": []
+    },
+    {
+      "paper_id": "jvi.01850-23",
+      "domain": "infectious_disease",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01850_23-20240610011730-6152864/source_files/.qa_output/jvi.01850-23/infectious_disease/contrastive_qa.json",
+      "question": "A patient presents with acute respiratory symptoms and is diagnosed with a viral infection. SARS-CoV-2 infection has been associated with elevated levels of circulating cytokines, including IL-6 and TNF-\u03b1, in up to 70% of hospitalized patients. In some cases, viral RNA can be detected in nasopharyngeal swabs for more than two weeks after symptom onset. Laboratory tests reveal severe lymphopenia (lymphocyte count <800 cells/\u03bcL). SARS-CoV infection has been shown to induce a marked increase in serum IL-6 levels within the first week of illness, with peak concentrations correlating to disease severity. In experimental models, SARS-CoV replicates efficiently in human airway epithelial cells, reaching viral titers exceeding 10^6 PFU/mL by day 3 post-infection. Three possible mechanisms are considered: (1) direct viral suppression of lymphocyte counts as seen in severe acute respiratory syndrome (SARS), (2) activation of STING pathway leading to lymphocyte activation and enhanced adaptive immunity against SARS-CoV-2, and (3) rapid lymphocyte-based invasion of mucosal tissue by measles virus facilitated by the V protein, which enhances viral spread and pathogenesis. Measles virus infection is associated with a transient viremia phase during which viral RNA can be detected in peripheral blood at levels exceeding 10^4 copies/mL. In unvaccinated individuals, measles virus can cause a characteristic rash and fever within 10\u201314 days of exposure. Given the laboratory finding of lymphopenia and immune dysregulation, which mechanism is most consistent with the observed clinical and laboratory features?",
+      "original_question": "A patient presents with acute respiratory symptoms and is diagnosed with a viral infection. Laboratory tests reveal severe lymphopenia (lymphocyte count <800 cells/\u03bcL). Three possible mechanisms are considered: (1) direct viral suppression of lymphocyte counts as seen in severe acute respiratory syndrome (SARS), (2) activation of STING pathway leading to lymphocyte activation and enhanced adaptive immunity against SARS-CoV-2, and (3) rapid lymphocyte-based invasion of mucosal tissue by measles virus facilitated by the V protein, which enhances viral spread and pathogenesis. Given the laboratory finding of lymphopenia and immune dysregulation, which mechanism is most consistent with the observed clinical and laboratory features?",
+      "reasoning_steps": [
+        "Lymphopenia indicates reduced lymphocyte counts.",
+        "SARS is associated with lymphopenia and immune suppression.",
+        "STING activation leads to lymphocyte activation, not suppression.",
+        "Measles V protein promotes lymphocyte invasion but not depletion.",
+        "The clinical scenario matches immune suppression, not activation.",
+        "SARS mechanism directly explains lymphopenia and immune dysregulation.",
+        "Other mechanisms do not fit the observed laboratory findings."
+      ],
+      "correct_answer": "SARS",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "LYMPHOCYTE",
+        "V PROTEIN",
+        "SARS",
+        "STING"
+      ],
+      "quality_score": 4.0,
+      "answer_word_count": 1,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "SARS-CoV-2 infection has been associated with elevated levels of circulating cytokines, including IL-6 and TNF-\u03b1, in up to 70% of hospitalized patients. In some cases, viral RNA can be detected in nasopharyngeal swabs for more than two weeks after symptom onset.",
+        "SARS-CoV infection has been shown to induce a marked increase in serum IL-6 levels within the first week of illness, with peak concentrations correlating to disease severity. In experimental models, SARS-CoV replicates efficiently in human airway epithelial cells, reaching viral titers exceeding 10^6 PFU/mL by day 3 post-infection.",
+        "Measles virus infection is associated with a transient viremia phase during which viral RNA can be detected in peripheral blood at levels exceeding 10^4 copies/mL. In unvaccinated individuals, measles virus can cause a characteristic rash and fever within 10\u201314 days of exposure."
+      ],
+      "enrichment_entities": [
+        "SARS-COV-2",
+        "SARS-COV",
+        "MEASLES VIRUS"
+      ]
+    },
+    {
+      "paper_id": "jvi.01850-23",
+      "domain": "infectious_disease",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01850_23-20240610011730-6152864/source_files/.qa_output/jvi.01850-23/infectious_disease/contrastive_qa.json",
+      "question": "A cohort of 100 patients with severe acute respiratory syndrome (SARS) is analyzed for lymphocyte subset percentages. In healthy controls, CD4+ T cells comprise 40% of lymphocytes, CD8+ T cells 30%, B cells 20%, and NK cells 10%. In SARS patients, CD4+ T cells drop to 20%, CD8+ T cells to 10%, B cells to 5%, and NK cells to 5%. SARS-CoV is known to infect respiratory epithelial cells but does not directly infect lymphocytes. However, high levels of circulating IL-6 (200 pg/mL vs. Measles virus infection is associated with a transient lymphopenia, with CD4+ T cell counts dropping by up to 60% during acute disease. Unlike SARS-CoV, measles virus directly infects lymphocytes via the CD150 receptor. 10 pg/mL in controls) and TNF-\u03b1 (100 pg/mL vs. 5 pg/mL in controls) are detected in patients. Both cytokines induce apoptosis in lymphocytes. Which mechanism most likely explains the observed lymphocyte subset reductions in SARS patients?",
+      "original_question": "A cohort of 100 patients with severe acute respiratory syndrome (SARS) is analyzed for lymphocyte subset percentages. In healthy controls, CD4+ T cells comprise 40% of lymphocytes, CD8+ T cells 30%, B cells 20%, and NK cells 10%. In SARS patients, CD4+ T cells drop to 20%, CD8+ T cells to 10%, B cells to 5%, and NK cells to 5%. SARS-CoV is known to infect respiratory epithelial cells but does not directly infect lymphocytes. However, high levels of circulating IL-6 (200 pg/mL vs. 10 pg/mL in controls) and TNF-\u03b1 (100 pg/mL vs. 5 pg/mL in controls) are detected in patients. Both cytokines induce apoptosis in lymphocytes. Which mechanism most likely explains the observed lymphocyte subset reductions in SARS patients?",
+      "reasoning_steps": [
+        "SARS-CoV infects respiratory epithelial cells, not lymphocytes directly.",
+        "Lymphocyte subsets (CD4+, CD8+, B, NK) are all reduced in patients.",
+        "Healthy controls have normal lymphocyte percentages.",
+        "Patients have elevated IL-6 and TNF-\u03b1 levels.",
+        "Both cytokines are known to induce lymphocyte apoptosis.",
+        "Direct infection is ruled out as a cause.",
+        "Apoptosis due to cytokine storm is the most plausible mechanism."
+      ],
+      "correct_answer": "Cytokine-induced lymphocyte apoptosis",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "LYMPHOCYTE SUBSETS",
+        "LYMPHOCYTE"
+      ],
+      "quality_score": 4.0,
+      "answer_word_count": 3,
+      "answer_format": "mechanism",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Measles virus infection is associated with a transient lymphopenia, with CD4+ T cell counts dropping by up to 60% during acute disease. Unlike SARS-CoV, measles virus directly infects lymphocytes via the CD150 receptor."
+      ],
+      "enrichment_entities": [
+        "MEASLES VIRUS"
+      ]
+    }
+  ],
+  "errors": []
+}

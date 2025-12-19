@@ -1,0 +1,1018 @@
+{
+  "scraped_at": "2025-12-19T14:57:40.588326",
+  "base_directory": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC",
+  "domain_filter": "ecology",
+  "total_papers": 4,
+  "total_questions": 22,
+  "questions": [
+    {
+      "paper_id": "aac.00588-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv67i12_10_1128_aac_00588_23-20240609072746-8065465/source_files/.qa_output/aac.00588-23/ecology/contrastive_qa.json",
+      "question": "In a malaria-endemic region, Plasmodium vivax and Plasmodium falciparum co-circulate. P. PVDHFR-TS expression levels in P. vivax isolates from the region are observed to be 2-fold higher than in non-endemic areas, with no significant change in overall parasite replication rates. In laboratory assays, altered PVDHFR-TS activity does not impact susceptibility to non-antifolate drugs. vivax populations show high frequencies (80%) of DHFR polymorphisms conferring pyrimethamine resistance, while P. In recent surveys, dihydrofolate-reductase (DHFR) mutations in Plasmodium vivax were detected in 85% of isolates, with the majority carrying double or triple mutant alleles. DHFR gene amplification events have also been reported, though their frequency remains below 5% in the region. falciparum populations display multiple independent mutations in pfcrt, pfmdr1, pfdhfr, and pfdhps genes, resulting in sulfadoxine-pyrimethamine resistance. The CRT gene in Plasmodium falciparum is present in over 95% of isolates in this region, with several distinct allelic variants identified through molecular surveillance. Some CRT mutations have also been linked to altered parasite fitness in laboratory studies. Mutant parasite populations with these resistance-associated alleles are increasing due to sustained drug pressure. Surveillance reveals that the backbone of mutant parasite populations is defined by DHFR and DHPS mutations. Considering the mechanisms described, which genetic feature most directly produces drug resistance traits in both Plasmodium species in this region?",
+      "original_question": "In a malaria-endemic region, Plasmodium vivax and Plasmodium falciparum co-circulate. P. vivax populations show high frequencies (80%) of DHFR polymorphisms conferring pyrimethamine resistance, while P. falciparum populations display multiple independent mutations in pfcrt, pfmdr1, pfdhfr, and pfdhps genes, resulting in sulfadoxine-pyrimethamine resistance. Mutant parasite populations with these resistance-associated alleles are increasing due to sustained drug pressure. Surveillance reveals that the backbone of mutant parasite populations is defined by DHFR and DHPS mutations. Considering the mechanisms described, which genetic feature most directly produces drug resistance traits in both Plasmodium species in this region?",
+      "reasoning_steps": [
+        "Both P. vivax and P. falciparum are present in the region.",
+        "P. vivax has high-frequency DHFR polymorphisms conferring pyrimethamine resistance.",
+        "P. falciparum has mutations in pfcrt, pfmdr1, pfdhfr, and pfdhps, conferring sulfadoxine-pyrimethamine resistance.",
+        "Mutant parasite populations are increasing due to drug pressure.",
+        "The backbone of resistance is defined by DHFR and DHPS mutations.",
+        "Drug resistance traits are produced by genetic changes affecting drug targets.",
+        "The most direct genetic feature producing resistance in both species is mutations in DHFR and DHPS genes."
+      ],
+      "correct_answer": "DHFR and DHPS mutations",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "DRUG RESISTANCE",
+        "PLASMODIUM VIVAX",
+        "MUTANT PARASITE POPULATION",
+        "MUTANT PARASITE POPULATION BACKBONE",
+        "ORIGIN AND EVOLUTION OF RESISTANCE",
+        "MUTATIONS IN PFCRT, PFMDR1, PFDHFR, AND PFDHPS GENES",
+        "RESISTANCE MUTATIONS",
+        "MALARIA PARASITES",
+        "DHFR POLYMORPHISMS"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 4,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "PVDHFR-TS expression levels in P. vivax isolates from the region are observed to be 2-fold higher than in non-endemic areas, with no significant change in overall parasite replication rates. In laboratory assays, altered PVDHFR-TS activity does not impact susceptibility to non-antifolate drugs.",
+        "In recent surveys, dihydrofolate-reductase (DHFR) mutations in Plasmodium vivax were detected in 85% of isolates, with the majority carrying double or triple mutant alleles. DHFR gene amplification events have also been reported, though their frequency remains below 5% in the region.",
+        "The CRT gene in Plasmodium falciparum is present in over 95% of isolates in this region, with several distinct allelic variants identified through molecular surveillance. Some CRT mutations have also been linked to altered parasite fitness in laboratory studies."
+      ],
+      "enrichment_entities": [
+        "PVDHFR-TS",
+        "DIHYDROFOLATE-REDUCTASE (DHFR)",
+        "CRT"
+      ]
+    },
+    {
+      "paper_id": "aac.00588-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv67i12_10_1128_aac_00588_23-20240609072746-8065465/source_files/.qa_output/aac.00588-23/ecology/contrastive_qa.json",
+      "question": "A population of Plasmodium malariae in a region with high sulfadoxine use shows the PMDHPS S436A437 haplotype at 40% frequency. This haplotype confers moderate resistance to sulfadoxine by reducing drug binding to the DHPS enzyme. The DIHYDROFOLATE-REDUCTASE (DHFR) gene in P. malariae remains wild-type in 95% of sampled isolates, with no pyrimethamine resistance mutations detected over the same five-year period. DHFR enzyme activity assays show consistent folate metabolism rates across all tested haplotypes. In the same region, alternative anti-malarial drugs are used at low frequency, and no other resistance haplotypes are detected in P. Pyrimethamine, which is often combined with sulfadoxine in SP therapy, inhibits the dihydrofolate reductase enzyme in Plasmodium species, and resistance mutations in the dhfr gene can increase IC50 values by up to 100-fold. In recent surveys, pyrimethamine resistance alleles have remained below 5% frequency in P. malariae populations from the same region. malariae. The PMDHFR haplotype (N50K55L57R58S59S114F168I170) is present at a low frequency (<5%) in the local P. malariae population and is primarily detected during periods of high anti-folate drug use. Laboratory assays show this haplotype confers a 60% reduction in pyrimethamine sensitivity. Sulfadoxine treatment failure rates have increased from 10% to 35% over five years. If a new anti-malarial policy is implemented that reduces sulfadoxine use by 80% and increases use of alternative drugs, which P. malariae haplotype is most likely to decrease in frequency over the next five years?",
+      "original_question": "A population of Plasmodium malariae in a region with high sulfadoxine use shows the PMDHPS S436A437 haplotype at 40% frequency. This haplotype confers moderate resistance to sulfadoxine by reducing drug binding to the DHPS enzyme. In the same region, alternative anti-malarial drugs are used at low frequency, and no other resistance haplotypes are detected in P. malariae. Sulfadoxine treatment failure rates have increased from 10% to 35% over five years. If a new anti-malarial policy is implemented that reduces sulfadoxine use by 80% and increases use of alternative drugs, which P. malariae haplotype is most likely to decrease in frequency over the next five years?",
+      "reasoning_steps": [
+        "PMDHPS S436A437 haplotype confers resistance to sulfadoxine.",
+        "Sulfadoxine use is currently high, selecting for resistance.",
+        "The haplotype is present at moderate frequency (40%), indicating ongoing selection.",
+        "Treatment failure rates have increased, suggesting resistance is spreading.",
+        "New policy reduces sulfadoxine use by 80%, removing selection pressure.",
+        "Alternative drugs are used more, but no resistance haplotypes for them are present.",
+        "Without selection, the frequency of the sulfadoxine resistance haplotype should decrease."
+      ],
+      "correct_answer": "PMDHPS S436A437",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "PMDHPS HAPLOTYPE (S436A437)",
+        "PLASMODIUM MALARIAE"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 2,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "The DIHYDROFOLATE-REDUCTASE (DHFR) gene in P. malariae remains wild-type in 95% of sampled isolates, with no pyrimethamine resistance mutations detected over the same five-year period. DHFR enzyme activity assays show consistent folate metabolism rates across all tested haplotypes.",
+        "Pyrimethamine, which is often combined with sulfadoxine in SP therapy, inhibits the dihydrofolate reductase enzyme in Plasmodium species, and resistance mutations in the dhfr gene can increase IC50 values by up to 100-fold. In recent surveys, pyrimethamine resistance alleles have remained below 5% frequency in P. malariae populations from the same region.",
+        "The PMDHFR haplotype (N50K55L57R58S59S114F168I170) is present at a low frequency (<5%) in the local P. malariae population and is primarily detected during periods of high anti-folate drug use. Laboratory assays show this haplotype confers a 60% reduction in pyrimethamine sensitivity."
+      ],
+      "enrichment_entities": [
+        "DIHYDROFOLATE-REDUCTASE (DHFR)",
+        "PYRIMETHAMINE",
+        "PMDHFR HAPLOTYPE (N50K55L57R58S59S114F168I170)"
+      ]
+    },
+    {
+      "paper_id": "aac.00588-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv67i12_10_1128_aac_00588_23-20240609072746-8065465/source_files/.qa_output/aac.00588-23/ecology/contrastive_qa.json",
+      "question": "A malaria surveillance program in a West African region detects 2% of malaria cases caused by Plasmodium vivax, while 98% are due to Plasmodium falciparum. SNP data from local P. vivax isolates show high genetic similarity to South American reference genomes, and relapse events are reported in 40% of P. The quadruple mutation N50I,S58R,S117N,I173L in the P. vivax DHFR gene, which confers pyrimethamine resistance, has been detected at a frequency of 5% in Southeast Asian isolates but was not observed in the local West African samples. Laboratory assays show that parasites carrying this mutation can survive drug concentrations up to 100 nM pyrimethamine. vivax cases but never in P. falciparum cases. Pyrimethamine resistance mutations in the DHFR gene are detected in over 85% of local P. falciparum isolates, but are rarely observed in P. vivax samples from the same region. These mutations can alter the efficacy of antifolate drugs used in malaria treatment programs. The region uses sulfadoxine-pyrimethamine as first-line antimalarial therapy, which targets the DHFR gene. P. Among the local Plasmodium isolates, 15% of P. falciparum and 5% of P. vivax samples carry mutations in the DHPS gene, which is associated with sulfadoxine resistance. However, these DHPS mutations do not correlate with treatment failure rates in the region. vivax isolates lack known DHFR resistance mutations, while 90% of P. falciparum isolates carry resistance mutations. For a patient presenting with a second malaria episode 3 months after initial P. vivax infection and treatment, which mechanism most likely explains the recurrence?",
+      "original_question": "A malaria surveillance program in a West African region detects 2% of malaria cases caused by Plasmodium vivax, while 98% are due to Plasmodium falciparum. SNP data from local P. vivax isolates show high genetic similarity to South American reference genomes, and relapse events are reported in 40% of P. vivax cases but never in P. falciparum cases. The region uses sulfadoxine-pyrimethamine as first-line antimalarial therapy, which targets the DHFR gene. P. vivax isolates lack known DHFR resistance mutations, while 90% of P. falciparum isolates carry resistance mutations. For a patient presenting with a second malaria episode 3 months after initial P. vivax infection and treatment, which mechanism most likely explains the recurrence?",
+      "reasoning_steps": [
+        "P. vivax is present at low frequency but causes some cases.",
+        "Relapse events are common in P. vivax (40%), absent in P. falciparum.",
+        "Relapse is due to hypnozoite activation, not reinfection or drug resistance.",
+        "SNP data shows similarity to South American strains, but this does not affect relapse mechanism.",
+        "Sulfadoxine-pyrimethamine targets DHFR; P. vivax lacks resistance mutations, so treatment failure is unlikely.",
+        "P. falciparum resistance is high, but the patient had P. vivax.",
+        "Recurrence after 3 months fits the timeline for hypnozoite activation."
+      ],
+      "correct_answer": "Activation of hypnozoites",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "PLASMODIUM VIVAX",
+        "SNP DATA",
+        "RELAPSE",
+        "PLASMODIUM VIVAX REFERENCE GENOME"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 2,
+      "answer_format": "mechanism",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "The quadruple mutation N50I,S58R,S117N,I173L in the P. vivax DHFR gene, which confers pyrimethamine resistance, has been detected at a frequency of 5% in Southeast Asian isolates but was not observed in the local West African samples. Laboratory assays show that parasites carrying this mutation can survive drug concentrations up to 100 nM pyrimethamine.",
+        "Pyrimethamine resistance mutations in the DHFR gene are detected in over 85% of local P. falciparum isolates, but are rarely observed in P. vivax samples from the same region. These mutations can alter the efficacy of antifolate drugs used in malaria treatment programs.",
+        "Among the local Plasmodium isolates, 15% of P. falciparum and 5% of P. vivax samples carry mutations in the DHPS gene, which is associated with sulfadoxine resistance. However, these DHPS mutations do not correlate with treatment failure rates in the region."
+      ],
+      "enrichment_entities": [
+        "N50I,S58R,S117N,I173L",
+        "PYRIMETHAMINE RESISTANCE MUTATIONS",
+        "DHPS GENE"
+      ]
+    },
+    {
+      "paper_id": "aac.00588-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv67i12_10_1128_aac_00588_23-20240609072746-8065465/source_files/.qa_output/aac.00588-23/ecology/contrastive_qa.json",
+      "question": "A population of Plasmodium malariae in a tropical region exhibits the combined PMDHFR/PMDHPS quadruple haplotype (N50K55L57R58S59S114F168I170_S436G437K540A581A613), conferring multi-locus resistance to anti-folate drugs. Local malaria control uses sulfadoxine-pyrimethamine (SP) as first-line therapy, with 85% of infections caused by P. Mixed infection with P. falciparum and P. malariae occurs in approximately 15% of cases locally, and has been associated with a 2-fold increase in gametocyte density compared to single-species infections. malariae. Anopheles gambiae populations in the region show a mean sporozoite infection rate of 12%, with peak densities recorded during the rainy season. Recent sampling in Bankeng and Mangoum revealed no significant change in adult mosquito abundance over the past two years. SP treatment failure rates have risen from 10% to 60% over three years. The dihydrofolate-reductase (dhfr) gene in Plasmodium malariae shows a mutation frequency of 92% in recent regional isolates, with sequencing revealing three distinct dhfr alleles circulating in the population. No alternative therapies are currently available, and vector control coverage is 40%. Considering the resistance profile, treatment failure rates, and control measures, is continued SP monotherapy likely to reduce malaria prevalence in this population over the next year?",
+      "original_question": "A population of Plasmodium malariae in a tropical region exhibits the combined PMDHFR/PMDHPS quadruple haplotype (N50K55L57R58S59S114F168I170_S436G437K540A581A613), conferring multi-locus resistance to anti-folate drugs. Local malaria control uses sulfadoxine-pyrimethamine (SP) as first-line therapy, with 85% of infections caused by P. malariae. SP treatment failure rates have risen from 10% to 60% over three years. No alternative therapies are currently available, and vector control coverage is 40%. Considering the resistance profile, treatment failure rates, and control measures, is continued SP monotherapy likely to reduce malaria prevalence in this population over the next year?",
+      "reasoning_steps": [
+        "The quadruple haplotype confers strong resistance to SP (anti-folate drugs).",
+        "85% of infections are by P. malariae carrying this resistance trait.",
+        "SP treatment failure rates have increased dramatically (10% to 60%).",
+        "No alternative antimalarial drugs are available.",
+        "Vector control coverage is low (40%), so transmission remains high.",
+        "High resistance and treatment failure mean SP is largely ineffective.",
+        "Without effective therapy or high vector control, prevalence will not decrease."
+      ],
+      "correct_answer": "No \u2013 high resistance and low control prevent prevalence reduction",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "COMBINED PMDHFR/PMDHPS QUADRUPLE HAPLOTYPE (N50K55L57R58S59S114F168I170_S436G437K540A581A613)",
+        "PLASMODIUM MALARIAE"
+      ],
+      "quality_score": 4.0,
+      "answer_word_count": 9,
+      "answer_format": "yes_no",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Mixed infection with P. falciparum and P. malariae occurs in approximately 15% of cases locally, and has been associated with a 2-fold increase in gametocyte density compared to single-species infections.",
+        "Anopheles gambiae populations in the region show a mean sporozoite infection rate of 12%, with peak densities recorded during the rainy season. Recent sampling in Bankeng and Mangoum revealed no significant change in adult mosquito abundance over the past two years.",
+        "The dihydrofolate-reductase (dhfr) gene in Plasmodium malariae shows a mutation frequency of 92% in recent regional isolates, with sequencing revealing three distinct dhfr alleles circulating in the population."
+      ],
+      "enrichment_entities": [
+        "MIXED INFECTION (P. FALCIPARUM + P. MALARIAE)",
+        "ANOPHELES GAMBIAE",
+        "DIHYDROFOLATE-REDUCTASE (DHFR)"
+      ]
+    },
+    {
+      "paper_id": "aac.00588-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv67i12_10_1128_aac_00588_23-20240609072746-8065465/source_files/.qa_output/aac.00588-23/ecology/contrastive_qa.json",
+      "question": "Two malaria parasite species, Plasmodium malariae and Plasmodium vivax, both possess the dihydrofolate reductase (dhfr) gene, which is targeted by the antifolate drug pyrimethamine. In a region where pyrimethamine is used extensively, Plasmodium vivax populations show frequent dhfr mutations conferring drug resistance, while Plasmodium malariae populations rarely exhibit such mutations. Plasmodium knowlesi, frequently used in laboratory studies, demonstrates successful CRISPR-Cas9 mediated replacement of its dhfr gene with orthologs from other Plasmodium species, allowing precise measurement of pyrimethamine susceptibility in vitro. In these assays, drug response profiles can vary by up to 40% depending on the source of the dhfr ortholog. Both species are exposed to similar drug pressure, and surveillance data confirm that dhfr mutations in P. Plasmodium falciparum, another major human malaria parasite, frequently acquires dhfr mutations under antifolate drug pressure, with over 80% of isolates in some regions carrying resistance-associated alleles. However, the rate of spontaneous dhfr mutation in P. falciparum laboratory cultures remains below 1 in 10^8 parasites per replication cycle. vivax are associated with treatment failure, whereas P. Both Plasmodium malariae and Plasmodium vivax also possess the dhps gene, which is targeted by sulfadoxine; surveillance data indicate that dhps mutations occur at a frequency of less than 5% in both species in the same region. Mutations in the dhps gene are known to confer resistance to sulfadoxine, another antifolate drug often used in combination therapy. malariae infections remain susceptible. Considering the molecular target, mutation frequency, drug pressure, and clinical outcomes, which species is more likely to develop pyrimethamine resistance through dhfr mutation under continued drug use?",
+      "original_question": "Two malaria parasite species, Plasmodium malariae and Plasmodium vivax, both possess the dihydrofolate reductase (dhfr) gene, which is targeted by the antifolate drug pyrimethamine. In a region where pyrimethamine is used extensively, Plasmodium vivax populations show frequent dhfr mutations conferring drug resistance, while Plasmodium malariae populations rarely exhibit such mutations. Both species are exposed to similar drug pressure, and surveillance data confirm that dhfr mutations in P. vivax are associated with treatment failure, whereas P. malariae infections remain susceptible. Considering the molecular target, mutation frequency, drug pressure, and clinical outcomes, which species is more likely to develop pyrimethamine resistance through dhfr mutation under continued drug use?",
+      "reasoning_steps": [
+        "Both species possess the dhfr gene, the molecular target of pyrimethamine.",
+        "Both are exposed to similar levels of drug pressure in the region.",
+        "P. vivax populations frequently show dhfr mutations.",
+        "P. malariae populations rarely show dhfr mutations.",
+        "dhfr mutations in P. vivax are linked to treatment failure (resistance).",
+        "P. malariae infections remain susceptible (no resistance observed).",
+        "High mutation frequency under drug pressure increases likelihood of resistance development."
+      ],
+      "correct_answer": "Plasmodium vivax",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "DIHYDROFOLATE-REDUCTASE (DHFR)",
+        "PLASMODIUM MALARIAE",
+        "PLASMODIUM VIVAX"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 2,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Plasmodium knowlesi, frequently used in laboratory studies, demonstrates successful CRISPR-Cas9 mediated replacement of its dhfr gene with orthologs from other Plasmodium species, allowing precise measurement of pyrimethamine susceptibility in vitro. In these assays, drug response profiles can vary by up to 40% depending on the source of the dhfr ortholog.",
+        "Plasmodium falciparum, another major human malaria parasite, frequently acquires dhfr mutations under antifolate drug pressure, with over 80% of isolates in some regions carrying resistance-associated alleles. However, the rate of spontaneous dhfr mutation in P. falciparum laboratory cultures remains below 1 in 10^8 parasites per replication cycle.",
+        "Both Plasmodium malariae and Plasmodium vivax also possess the dhps gene, which is targeted by sulfadoxine; surveillance data indicate that dhps mutations occur at a frequency of less than 5% in both species in the same region. Mutations in the dhps gene are known to confer resistance to sulfadoxine, another antifolate drug often used in combination therapy."
+      ],
+      "enrichment_entities": [
+        "PLASMODIUM KNOWLESI",
+        "PLASMODIUM FALCIPARUM",
+        "DHPS GENE"
+      ]
+    },
+    {
+      "paper_id": "aac.00588-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv67i12_10_1128_aac_00588_23-20240609072746-8065465/source_files/.qa_output/aac.00588-23/ecology/contrastive_qa.json",
+      "question": "A population of Plasmodium malariae in a region with high anti-folate drug usage shows a predominance (85%) of the PMDHFR haplotype N50K55L57R58S59S114F168I170 in the asexual blood stage. This haplotype confers resistance to anti-folate drugs by altering the dhfr enzyme, reducing drug binding. Anopheles gambiae, the primary malaria vector in both regions, was found at similar densities of approximately 25 mosquitoes per household during peak transmission season. In Bankeng and Mangoum, over 90% of An. gambiae individuals tested positive for Plasmodium sporozoites. In a neighboring region with low anti-folate drug usage, only 10% of P. In both regions, the dihydrofolate-reductase (dhfr) gene is routinely monitored in surveillance programs, with sequencing revealing over 95% accuracy in detecting resistance-associated mutations. The dhfr enzyme activity in wild-type P. malariae isolates averages 120 nmol/min/mg protein under standard assay conditions. malariae carry this haplotype. Pyrimethamine, an antifolate drug commonly used in malaria treatment, inhibits the dihydrofolate reductase enzyme with an IC50 of approximately 10 nM in wild-type P. malariae isolates. In laboratory assays, resistance mutations can increase the IC50 for pyrimethamine by up to 100-fold. Both regions have similar transmission rates and host immunity profiles. If anti-folate drug pressure is suddenly removed in the high-usage region, which population is expected to have a higher frequency of the PMDHFR haplotype after 10 generations, assuming the resistance haplotype incurs a 5% fitness cost in the absence of drug?",
+      "original_question": "A population of Plasmodium malariae in a region with high anti-folate drug usage shows a predominance (85%) of the PMDHFR haplotype N50K55L57R58S59S114F168I170 in the asexual blood stage. This haplotype confers resistance to anti-folate drugs by altering the dhfr enzyme, reducing drug binding. In a neighboring region with low anti-folate drug usage, only 10% of P. malariae carry this haplotype. Both regions have similar transmission rates and host immunity profiles. If anti-folate drug pressure is suddenly removed in the high-usage region, which population is expected to have a higher frequency of the PMDHFR haplotype after 10 generations, assuming the resistance haplotype incurs a 5% fitness cost in the absence of drug?",
+      "reasoning_steps": [
+        "The resistance haplotype is currently at high frequency (85%) in the high drug region due to selection.",
+        "In the low drug region, the haplotype is rare (10%) due to lack of selection.",
+        "Removal of drug pressure eliminates the selective advantage for resistance.",
+        "The resistance haplotype now incurs a 5% fitness cost without drug.",
+        "Over 10 generations, selection will favor the wild-type haplotype in both regions.",
+        "The high drug region starts with a much higher resistance haplotype frequency.",
+        "The resistance haplotype will decline faster in the high drug region due to higher initial frequency and fitness cost.",
+        "After 10 generations, the low drug region will retain a higher relative frequency of the resistance haplotype."
+      ],
+      "correct_answer": "Low drug region",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "PMDHFR HAPLOTYPE (N50K55L57R58S59S114F168I170)",
+        "PLASMODIUM MALARIAE"
+      ],
+      "quality_score": 4.0,
+      "answer_word_count": 3,
+      "answer_format": "term",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Anopheles gambiae, the primary malaria vector in both regions, was found at similar densities of approximately 25 mosquitoes per household during peak transmission season. In Bankeng and Mangoum, over 90% of An. gambiae individuals tested positive for Plasmodium sporozoites.",
+        "In both regions, the dihydrofolate-reductase (dhfr) gene is routinely monitored in surveillance programs, with sequencing revealing over 95% accuracy in detecting resistance-associated mutations. The dhfr enzyme activity in wild-type P. malariae isolates averages 120 nmol/min/mg protein under standard assay conditions.",
+        "Pyrimethamine, an antifolate drug commonly used in malaria treatment, inhibits the dihydrofolate reductase enzyme with an IC50 of approximately 10 nM in wild-type P. malariae isolates. In laboratory assays, resistance mutations can increase the IC50 for pyrimethamine by up to 100-fold."
+      ],
+      "enrichment_entities": [
+        "ANOPHELES GAMBIAE",
+        "DIHYDROFOLATE-REDUCTASE (DHFR)",
+        "PYRIMETHAMINE"
+      ]
+    },
+    {
+      "paper_id": "aac.00588-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv67i12_10_1128_aac_00588_23-20240609072746-8065465/source_files/.qa_output/aac.00588-23/ecology/contrastive_qa.json",
+      "question": "In a tropical region, four Plasmodium species\u2014P. falciparum, P. vivax, P. malariae, and P. ovale\u2014are present. P. falciparum infections are associated with higher rates of severe anemia, and in this region, 40% of hospitalized malaria patients test positive for this species. P. falciparum accounts for 70% of malaria cases, P. vivax for 20%, P. malariae for 7%, and P. Anopheles gambiae, sampled in Bankeng and Mangoum, was found to comprise 60% of the local Anopheles mosquito population, with peak biting activity occurring between 10 p.m. and 2 a.m. ovale for 3%. Only P. vivax and P. ovale can form dormant liver stages (hypnozoites), causing relapses months after initial infection. P. malariae is notable for its chronic persistence trait, with studies showing that it can remain detectable in the bloodstream for over 20 years without causing acute symptoms. This long-term presence may contribute to sustained transmission in endemic areas. P. falciparum and P. malariae do not form hypnozoites. Anopheles mosquitoes transmit all four species. A malaria control program aims to reduce both acute cases and relapses. Which Plasmodium species should be specifically targeted to minimize relapsing malaria in this region?",
+      "original_question": "In a tropical region, four Plasmodium species\u2014P. falciparum, P. vivax, P. malariae, and P. ovale\u2014are present. P. falciparum accounts for 70% of malaria cases, P. vivax for 20%, P. malariae for 7%, and P. ovale for 3%. Only P. vivax and P. ovale can form dormant liver stages (hypnozoites), causing relapses months after initial infection. P. falciparum and P. malariae do not form hypnozoites. Anopheles mosquitoes transmit all four species. A malaria control program aims to reduce both acute cases and relapses. Which Plasmodium species should be specifically targeted to minimize relapsing malaria in this region?",
+      "reasoning_steps": [
+        "Identify which species can form hypnozoites (P. vivax and P. ovale)",
+        "Recognize that hypnozoites cause relapses, not acute cases",
+        "Note that P. falciparum and P. malariae do not cause relapses",
+        "Quantify the proportion of cases due to relapsing species (P. vivax: 20%, P. ovale: 3%)",
+        "Understand that targeting relapsing species will minimize relapses",
+        "Exclude P. falciparum and P. malariae from relapse-focused control",
+        "Conclude which species should be targeted for relapse reduction"
+      ],
+      "correct_answer": "Plasmodium vivax and Plasmodium ovale",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "MALARIA",
+        "PLASMODIUM FALCIPARUM",
+        "PLASMODIUM MALARIAE",
+        "PLASMODIUM OVALE",
+        "PLASMODIUM VIVAX",
+        "ANOPHELES MOSQUITOES",
+        "TRANSMISSION",
+        "PLASMODIUM",
+        "RODENT MALARIA PARASITE",
+        "HUMAN MALARIA PARASITE"
+      ],
+      "quality_score": 4.0,
+      "answer_word_count": 4,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "P. falciparum infections are associated with higher rates of severe anemia, and in this region, 40% of hospitalized malaria patients test positive for this species.",
+        "Anopheles gambiae, sampled in Bankeng and Mangoum, was found to comprise 60% of the local Anopheles mosquito population, with peak biting activity occurring between 10 p.m. and 2 a.m.",
+        "P. malariae is notable for its chronic persistence trait, with studies showing that it can remain detectable in the bloodstream for over 20 years without causing acute symptoms. This long-term presence may contribute to sustained transmission in endemic areas."
+      ],
+      "enrichment_entities": [
+        "P. FALCIPARUM",
+        "ANOPHELES GAMBIAE",
+        "CHRONIC PERSISTENCE"
+      ]
+    },
+    {
+      "paper_id": "aac.00588-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv67i12_10_1128_aac_00588_23-20240609072746-8065465/source_files/.qa_output/aac.00588-23/ecology/contrastive_qa.json",
+      "question": "A population of Plasmodium falciparum in a region with high pyrimethamine usage shows near fixation (>95%) of the Pfdhfr triple-mutant allele (A16I51R59N108I164), which confers high-level resistance to pyrimethamine. In the same region, a new anti-folate drug is introduced that targets the same DHFR enzyme but binds with 10-fold higher affinity than pyrimethamine. The triple-mutant allele (AIRNI) has been shown to persist in parasite populations even in the absence of pyrimethamine, with a minor fitness cost estimated at less than 5% under laboratory conditions. In field surveys, its prevalence remains above 90% for at least two years following drug withdrawal. Laboratory assays show that wild-type Pfdhfr parasites are fully susceptible to the new drug, while triple-mutant parasites exhibit only partial inhibition (40% growth reduction at therapeutic concentrations). Mutations in the dihydropteroate synthase (DHPS) gene, which confer resistance to sulfadoxine, are present at a frequency of 15% in the local Plasmodium falciparum population. However, these DHPS variants do not alter susceptibility to pyrimethamine or the new anti-folate drug. No other resistance alleles are present. Parasites carrying the N51I,C59R,S108N,I164L quadruple mutation display a 70% survival rate in vitro when exposed to pyrimethamine concentrations that are lethal to wild-type strains. This genotype has been detected at low frequencies in some regions with prolonged pyrimethamine use. Considering drug selection dynamics, which P. falciparum genotype is most likely to increase in frequency after widespread use of the new drug?",
+      "original_question": "A population of Plasmodium falciparum in a region with high pyrimethamine usage shows near fixation (>95%) of the Pfdhfr triple-mutant allele (A16I51R59N108I164), which confers high-level resistance to pyrimethamine. In the same region, a new anti-folate drug is introduced that targets the same DHFR enzyme but binds with 10-fold higher affinity than pyrimethamine. Laboratory assays show that wild-type Pfdhfr parasites are fully susceptible to the new drug, while triple-mutant parasites exhibit only partial inhibition (40% growth reduction at therapeutic concentrations). No other resistance alleles are present. Considering drug selection dynamics, which P. falciparum genotype is most likely to increase in frequency after widespread use of the new drug?",
+      "reasoning_steps": [
+        "The population is currently dominated by the triple-mutant allele due to pyrimethamine selection.",
+        "The new drug targets the same enzyme but binds more tightly.",
+        "Wild-type parasites are fully susceptible to the new drug.",
+        "Triple-mutant parasites are only partially inhibited (40% reduction), so they survive better than wild-type under drug pressure.",
+        "No other resistance alleles are present, so only wild-type and triple-mutant genotypes compete.",
+        "Widespread use of the new drug will select for parasites that survive best under its pressure.",
+        "Therefore, the triple-mutant genotype will be favored and increase in frequency."
+      ],
+      "correct_answer": "Pfdhfr triple-mutant (A16I51R59N108I164)",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "PFDHFR TRIPLE-MUTANT (A16I51R59N108I164)",
+        "PLASMODIUM FALCIPARUM"
+      ],
+      "quality_score": 4.0,
+      "answer_word_count": 2,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "The triple-mutant allele (AIRNI) has been shown to persist in parasite populations even in the absence of pyrimethamine, with a minor fitness cost estimated at less than 5% under laboratory conditions. In field surveys, its prevalence remains above 90% for at least two years following drug withdrawal.",
+        "Mutations in the dihydropteroate synthase (DHPS) gene, which confer resistance to sulfadoxine, are present at a frequency of 15% in the local Plasmodium falciparum population. However, these DHPS variants do not alter susceptibility to pyrimethamine or the new anti-folate drug.",
+        "Parasites carrying the N51I,C59R,S108N,I164L quadruple mutation display a 70% survival rate in vitro when exposed to pyrimethamine concentrations that are lethal to wild-type strains. This genotype has been detected at low frequencies in some regions with prolonged pyrimethamine use."
+      ],
+      "enrichment_entities": [
+        "TRIPLE-MUTANT ALLELE (AIRNI)",
+        "DIHYDROPTEROATE SYNTHETASE (DHPS)",
+        "N51I,C59R,S108N,I164L"
+      ]
+    },
+    {
+      "paper_id": "aac.00903-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv68i1_10_1128_aac_00903_23-20240609113002-5820521/source_files/.qa_output/aac.00903-23/ecology/contrastive_qa.json",
+      "question": "A hospital patient develops diarrhea after a 10-day course of broad-spectrum antibiotics, which reduced intestinal microbiota diversity by 80%. Stool analysis reveals high levels of Clostridioides difficile spores and vegetative cells, with toxin A and B concentrations exceeding 100 ng/mL. Bile acid profiles in the patient's stool show a 60% reduction in secondary bile acids compared to baseline, a change commonly observed after broad-spectrum antibiotic treatment. This alteration is associated with shifts in gut microbial metabolism but does not directly impact vancomycin efficacy. The patient is treated with vancomycin, which eliminates vegetative C. Ursodeoxycholic acid (UDCA) concentrations in the patient's stool were measured at 15 \u03bcM, a level associated with a 40% reduction in C. difficile spore germination in vitro. However, UDCA did not alter the total spore count during antibiotic treatment. difficile but leaves spore counts unchanged. Colonization by C. difficile can be quantified by measuring bacterial load in stool samples, with persistent colonization defined as >10^4 CFU/g after antibiotic treatment. In some studies, colonization rates remain above 60% even after apparent clinical resolution. Two weeks later, after vancomycin cessation, the patient experiences recurrent symptoms, and stool again shows high C. difficile vegetative cell counts and toxins. Given that C. difficile spores are resistant to vancomycin, germinate when microbiota diversity is low, and vegetative cells produce toxins only after germination, which process is most responsible for the recurrence of infection in this scenario?",
+      "original_question": "A hospital patient develops diarrhea after a 10-day course of broad-spectrum antibiotics, which reduced intestinal microbiota diversity by 80%. Stool analysis reveals high levels of Clostridioides difficile spores and vegetative cells, with toxin A and B concentrations exceeding 100 ng/mL. The patient is treated with vancomycin, which eliminates vegetative C. difficile but leaves spore counts unchanged. Two weeks later, after vancomycin cessation, the patient experiences recurrent symptoms, and stool again shows high C. difficile vegetative cell counts and toxins. Given that C. difficile spores are resistant to vancomycin, germinate when microbiota diversity is low, and vegetative cells produce toxins only after germination, which process is most responsible for the recurrence of infection in this scenario?",
+      "reasoning_steps": [
+        "Broad-spectrum antibiotics reduce microbiota diversity by 80%",
+        "Low microbiota diversity allows C. difficile spores to germinate",
+        "Initial infection involves both spores and vegetative cells producing toxins",
+        "Vancomycin kills vegetative cells but does not affect spores",
+        "After vancomycin, spores remain in the gut",
+        "Microbiota diversity remains low, enabling spores to germinate again",
+        "Germinated vegetative cells produce toxins, causing recurrent symptoms"
+      ],
+      "correct_answer": "Spore germination in low-diversity microbiota",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "CLOSTRIDIOIDES DIFFICILE",
+        "RECURRENT CDI"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 4,
+      "answer_format": "mechanism",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Bile acid profiles in the patient's stool show a 60% reduction in secondary bile acids compared to baseline, a change commonly observed after broad-spectrum antibiotic treatment. This alteration is associated with shifts in gut microbial metabolism but does not directly impact vancomycin efficacy.",
+        "Ursodeoxycholic acid (UDCA) concentrations in the patient's stool were measured at 15 \u03bcM, a level associated with a 40% reduction in C. difficile spore germination in vitro. However, UDCA did not alter the total spore count during antibiotic treatment.",
+        "Colonization by C. difficile can be quantified by measuring bacterial load in stool samples, with persistent colonization defined as >10^4 CFU/g after antibiotic treatment. In some studies, colonization rates remain above 60% even after apparent clinical resolution."
+      ],
+      "enrichment_entities": [
+        "BILE ACID PROFILES",
+        "URSODEOXYCHOLIC ACID (UDCA)",
+        "COLONIZATION"
+      ]
+    },
+    {
+      "paper_id": "aac.00903-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv68i1_10_1128_aac_00903_23-20240609113002-5820521/source_files/.qa_output/aac.00903-23/ecology/contrastive_qa.json",
+      "question": "A hospital environment is contaminated with three bacterial species: Bacillus subtilis, Clostridium difficile, and Clostridium perfringens. Bacillus subtilis spores survive autoclaving at 121\u00b0C for 15 minutes, while vegetative cells are killed. Methicillin-resistant Staphylococcus aureus (MRSA) can survive on dry hospital surfaces for up to seven days and is commonly transmitted via direct contact, but it does not form spores. In recent surveillance, MRSA accounted for 18% of all hospital-acquired infections in the facility. Clostridium difficile produces spores that resist standard disinfectants but are inactivated by bleach (1000 ppm) after 10 minutes. Hypervirulent Clostridioides difficile strains have been shown to produce up to 23% more spores than non-hypervirulent strains under laboratory conditions. These populations also demonstrate a twofold increase in toxin A and B production during exponential growth. Clostridium perfringens spores survive heat at 100\u00b0C for 30 minutes but are killed by autoclaving. Bacillus subtilis forms endospores in response to nutrient limitation, with sporulation efficiency reaching up to 80% under laboratory conditions. Its spore coat proteins share 60% sequence similarity with those of Clostridium difficile. All three species can cause disease if transmitted to immunocompromised patients. The hospital uses alcohol-based hand sanitizers, routine cleaning with quaternary ammonium compounds, and occasional bleach treatment. Which species poses the greatest risk of persistent transmission in this environment, and why?",
+      "original_question": "A hospital environment is contaminated with three bacterial species: Bacillus subtilis, Clostridium difficile, and Clostridium perfringens. Bacillus subtilis spores survive autoclaving at 121\u00b0C for 15 minutes, while vegetative cells are killed. Clostridium difficile produces spores that resist standard disinfectants but are inactivated by bleach (1000 ppm) after 10 minutes. Clostridium perfringens spores survive heat at 100\u00b0C for 30 minutes but are killed by autoclaving. All three species can cause disease if transmitted to immunocompromised patients. The hospital uses alcohol-based hand sanitizers, routine cleaning with quaternary ammonium compounds, and occasional bleach treatment. Which species poses the greatest risk of persistent transmission in this environment, and why?",
+      "reasoning_steps": [
+        "Bacillus subtilis spores survive autoclaving, but bleach is not mentioned as a routine treatment.",
+        "Clostridium difficile spores resist standard disinfectants and quaternary ammonium compounds, but are killed by bleach.",
+        "Bleach is only used occasionally, not routinely.",
+        "Alcohol-based sanitizers and quaternary ammonium compounds do not kill C. difficile spores.",
+        "Clostridium perfringens spores are killed by autoclaving, which is a standard sterilization method.",
+        "Bacillus subtilis spores survive autoclaving, but are not specifically linked to transmission in the scenario.",
+        "C. difficile spores persist despite routine cleaning and hand sanitizers, and bleach is not used frequently enough to eliminate them."
+      ],
+      "correct_answer": "Clostridium difficile",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "SPORES",
+        "CLOSTRIDIOIDES DIFFICILE",
+        "C. DIFFICILE",
+        "BACILLUS SUBTILIS",
+        "CLOSTRIDIUM DIFFICILE",
+        "SPORULATION",
+        "CLOSTRIDIUM PERFRINGENS",
+        "BACILLUS ANTHRACIS",
+        "\u0394CSPA MUTANT",
+        "C. DIFFICILE STRAIN 630 WILDTYPE",
+        "CLOSTRIDIUM SORDELLII",
+        "TL178",
+        "R20291",
+        "CD305",
+        "M120",
+        "STRAIN M120",
+        "MUCORALES",
+        "LICHTHEIMIA CORYMBIFERA",
+        "RHIZOPUS ARRHIZUS"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 2,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Methicillin-resistant Staphylococcus aureus (MRSA) can survive on dry hospital surfaces for up to seven days and is commonly transmitted via direct contact, but it does not form spores. In recent surveillance, MRSA accounted for 18% of all hospital-acquired infections in the facility.",
+        "Hypervirulent Clostridioides difficile strains have been shown to produce up to 23% more spores than non-hypervirulent strains under laboratory conditions. These populations also demonstrate a twofold increase in toxin A and B production during exponential growth.",
+        "Bacillus subtilis forms endospores in response to nutrient limitation, with sporulation efficiency reaching up to 80% under laboratory conditions. Its spore coat proteins share 60% sequence similarity with those of Clostridium difficile."
+      ],
+      "enrichment_entities": [
+        "METHICILLIN-RESISTANT STAPHYLOCOCCUS AUREUS (MRSA)",
+        "HYPERVIRULENT CLOSTRIDIOIDES DIFFICILE STRAIN",
+        "B. SUBTILIS"
+      ]
+    },
+    {
+      "paper_id": "aac.00903-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv68i1_10_1128_aac_00903_23-20240609113002-5820521/source_files/.qa_output/aac.00903-23/ecology/contrastive_qa.json",
+      "question": "A mouse model is used to study intestinal colonization by Clostridioides difficile. Three groups are treated as follows: Group A receives broad-spectrum antibiotics for 5 days, then is inoculated with C. difficile spores (10^6 CFU). Group B receives the same antibiotics, then is inoculated with C. Bile acid profiles were measured in all groups, revealing a 40% increase in secondary bile acids following antibiotic treatment. However, total bile acid concentrations remained within the normal physiological range across all groups. difficile spores plus a defined consortium of commensal bacteria (Bacteroides ovatus, Lactobacillus rhamnosus, and Faecalibacterium prausnitzii) at 10^8 CFU each. Group C receives antibiotics, C. difficile spores, and a consortium lacking F. Ursodeoxycholic acid (UDCA) levels in the mouse gut increase by approximately 40% following broad-spectrum antibiotic treatment, and UDCA has been shown to inhibit C. difficile spore germination in vitro at concentrations above 100 \u00b5M. prausnitzii (only B. ovatus and L. rhamnosus). \u03b1-muricholic acid concentrations in mouse cecal contents typically reach 150\u2013200 \u03bcM after antibiotic treatment, and this bile acid inhibits C. difficile spore germination by up to 80% in vitro. Levels of \u03b1-muricholic acid are unaffected by the addition of commensal bacteria in this model. After 7 days, colonization rates are: Group A: 90%, Group B: 20%, Group C: 75%. F. prausnitzii is known to produce butyrate, which inhibits C. difficile growth in vitro. Which commensal species is most critical for reducing C. difficile colonization in this model?",
+      "original_question": "A mouse model is used to study intestinal colonization by Clostridioides difficile. Three groups are treated as follows: Group A receives broad-spectrum antibiotics for 5 days, then is inoculated with C. difficile spores (10^6 CFU). Group B receives the same antibiotics, then is inoculated with C. difficile spores plus a defined consortium of commensal bacteria (Bacteroides ovatus, Lactobacillus rhamnosus, and Faecalibacterium prausnitzii) at 10^8 CFU each. Group C receives antibiotics, C. difficile spores, and a consortium lacking F. prausnitzii (only B. ovatus and L. rhamnosus). After 7 days, colonization rates are: Group A: 90%, Group B: 20%, Group C: 75%. F. prausnitzii is known to produce butyrate, which inhibits C. difficile growth in vitro. Which commensal species is most critical for reducing C. difficile colonization in this model?",
+      "reasoning_steps": [
+        "Antibiotics disrupt native microbiota, increasing susceptibility to C. difficile.",
+        "Group A (no commensals) shows high colonization (90%).",
+        "Group B (all three commensals) shows low colonization (20%).",
+        "Group C (missing F. prausnitzii) shows higher colonization (75%) than Group B.",
+        "The major difference between Group B and C is presence/absence of F. prausnitzii.",
+        "F. prausnitzii produces butyrate, which inhibits C. difficile.",
+        "The drop in colonization in Group B suggests F. prausnitzii is key."
+      ],
+      "correct_answer": "Faecalibacterium prausnitzii",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "COLONIZATION",
+        "CLOSTRIDIOIDES DIFFICILE"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 2,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Bile acid profiles were measured in all groups, revealing a 40% increase in secondary bile acids following antibiotic treatment. However, total bile acid concentrations remained within the normal physiological range across all groups.",
+        "Ursodeoxycholic acid (UDCA) levels in the mouse gut increase by approximately 40% following broad-spectrum antibiotic treatment, and UDCA has been shown to inhibit C. difficile spore germination in vitro at concentrations above 100 \u00b5M.",
+        "\u03b1-muricholic acid concentrations in mouse cecal contents typically reach 150\u2013200 \u03bcM after antibiotic treatment, and this bile acid inhibits C. difficile spore germination by up to 80% in vitro. Levels of \u03b1-muricholic acid are unaffected by the addition of commensal bacteria in this model."
+      ],
+      "enrichment_entities": [
+        "BILE ACID PROFILES",
+        "URSODEOXYCHOLIC ACID (UDCA)",
+        "\u0391-MURICHOLIC ACID"
+      ]
+    },
+    {
+      "paper_id": "aac.00903-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv68i1_10_1128_aac_00903_23-20240609113002-5820521/source_files/.qa_output/aac.00903-23/ecology/contrastive_qa.json",
+      "question": "Three hospital rooms are contaminated with different C. difficile spore preparations. Room A is treated with cold plasma for 10 minutes against crude spore preparations from strain R20291 (contains cell debris). Helium plasma, when used for surface decontamination, typically achieves a 75% reduction in Bacillus subtilis spores after 8 minutes of exposure. The antimicrobial efficacy of helium plasma can vary depending on the gas flow rate and humidity levels in the environment. Room B is treated for 10 minutes against purified spore preparations from strain M120 (no cell debris). Room C is treated for 10 minutes against crude spore preparations from ribotype 078. Atmospheric pressure plasma treatment generates reactive oxygen and nitrogen species, with average concentrations reaching 2.5 \u03bcmol/L after 10 minutes of exposure. This process does not significantly alter room temperature during application. Cold plasma inactivates 90% of M120 purified spores, 40% of R20291 crude spores, and 60% of ribotype 078 crude spores. All strains produce highly resistant spores, but cell debris reduces plasma efficacy by 30%. Organic matter, such as 0.03% bovine serum albumin (BSA), can be present on hospital surfaces and has been shown to decrease cold plasma efficacy by up to 25% in some studies. This effect is attributed to BSA forming a protective layer around spores during treatment. Which room will have the highest residual viable C. difficile spores after treatment?",
+      "original_question": "Three hospital rooms are contaminated with different C. difficile spore preparations. Room A is treated with cold plasma for 10 minutes against crude spore preparations from strain R20291 (contains cell debris). Room B is treated for 10 minutes against purified spore preparations from strain M120 (no cell debris). Room C is treated for 10 minutes against crude spore preparations from ribotype 078. Cold plasma inactivates 90% of M120 purified spores, 40% of R20291 crude spores, and 60% of ribotype 078 crude spores. All strains produce highly resistant spores, but cell debris reduces plasma efficacy by 30%. Which room will have the highest residual viable C. difficile spores after treatment?",
+      "reasoning_steps": [
+        "Identify the spore strain and preparation type for each room.",
+        "Note that M120 is highly susceptible to plasma, R20291 is less susceptible, ribotype 078 is intermediate.",
+        "Recognize that crude preparations (Rooms A and C) contain cell debris, reducing plasma efficacy by 30%.",
+        "Calculate effective inactivation for each room:",
+        "Room A: 40% inactivation (already includes debris effect for R20291 crude)",
+        "Room B: 90% inactivation (purified M120, no debris)",
+        "Room C: 60% inactivation (already includes debris effect for ribotype 078 crude)",
+        "Determine residual spores:",
+        "Room A: 60% remain",
+        "Room B: 10% remain",
+        "Room C: 40% remain",
+        "Compare residual percentages to find the highest."
+      ],
+      "correct_answer": "Room A",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "C. DIFFICILE SPORES",
+        "CLOSTRIDIOIDES DIFFICILE",
+        "VEGETATIVE C. DIFFICILE",
+        "C. DIFFICILE",
+        "CLOSTRIDIUM DIFFICILE",
+        "SPORULATION",
+        "SPORE FORMATION",
+        "CDC",
+        "C. DIFFICILE TYPE STRAIN 630",
+        "C. DIFFICILE STRAIN R20291",
+        "C. DIFFICILE STRAIN 630 \u0394CSPC",
+        "RIBOTYPE 078",
+        "R20291",
+        "M120",
+        "PURIFIED SPORE PREPARATION",
+        "CRUDE SPORE PREPARATION"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 2,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Helium plasma, when used for surface decontamination, typically achieves a 75% reduction in Bacillus subtilis spores after 8 minutes of exposure. The antimicrobial efficacy of helium plasma can vary depending on the gas flow rate and humidity levels in the environment.",
+        "Atmospheric pressure plasma treatment generates reactive oxygen and nitrogen species, with average concentrations reaching 2.5 \u03bcmol/L after 10 minutes of exposure. This process does not significantly alter room temperature during application.",
+        "Organic matter, such as 0.03% bovine serum albumin (BSA), can be present on hospital surfaces and has been shown to decrease cold plasma efficacy by up to 25% in some studies. This effect is attributed to BSA forming a protective layer around spores during treatment."
+      ],
+      "enrichment_entities": [
+        "HELIUM PLASMA",
+        "ATMOSPHERIC PRESSURE PLASMA TREATMENT",
+        "ORGANIC MATTER (0.03% BSA)"
+      ]
+    },
+    {
+      "paper_id": "aac.00903-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv68i1_10_1128_aac_00903_23-20240609113002-5820521/source_files/.qa_output/aac.00903-23/ecology/contrastive_qa.json",
+      "question": "A mouse model is used to study colonization resistance against Clostridioides difficile. Three groups are established: (A) germ-free mice, (B) mice colonized with a defined murine gut microbiota, and (C) mice colonized with a human intestinal microbiota. Secondary bile acids, such as deoxycholic acid and lithocholic acid, were detected at concentrations below 5 \u03bcM in the feces of group C mice, compared to typical murine levels exceeding 20 \u03bcM. These metabolites are known to modulate microbial community structure and host signaling pathways. After oral challenge with 10^6 C. In all groups, fecal levels of short-chain fatty acids were measured post-challenge, with group B showing a mean concentration of 40 mM, while group C averaged 18 mM. Short-chain fatty acids are known to influence epithelial barrier function and local immune responses. difficile spores, group A shows 100% colonization and severe disease, group B shows 0% colonization and no disease, and group C shows 40% colonization and mild disease. Host immunity in these mouse groups was assessed by measuring fecal IgA levels, which were found to be comparable across all groups prior to C. difficile challenge. Additionally, introduction of the human microbiota did not significantly alter baseline neutrophil counts in the intestinal lamina propria. The murine gut microbiota is known to produce colonization resistance via resource competition, inhibitory compound production, and immune modulation. The human microbiota in this experiment lacks key butyrate-producing species and has reduced diversity. Which group demonstrates the most effective colonization resistance against C. difficile, and what is the primary ecological mechanism responsible?",
+      "original_question": "A mouse model is used to study colonization resistance against Clostridioides difficile. Three groups are established: (A) germ-free mice, (B) mice colonized with a defined murine gut microbiota, and (C) mice colonized with a human intestinal microbiota. After oral challenge with 10^6 C. difficile spores, group A shows 100% colonization and severe disease, group B shows 0% colonization and no disease, and group C shows 40% colonization and mild disease. The murine gut microbiota is known to produce colonization resistance via resource competition, inhibitory compound production, and immune modulation. The human microbiota in this experiment lacks key butyrate-producing species and has reduced diversity. Which group demonstrates the most effective colonization resistance against C. difficile, and what is the primary ecological mechanism responsible?",
+      "reasoning_steps": [
+        "Germ-free mice lack any microbiota, so no colonization resistance (100% colonization, severe disease).",
+        "Murine gut microbiota group shows complete protection (0% colonization, no disease).",
+        "Human microbiota group shows partial protection (40% colonization, mild disease).",
+        "Murine microbiota is described as producing colonization resistance via multiple mechanisms.",
+        "Human microbiota lacks key butyrate producers and has reduced diversity, weakening resistance.",
+        "Resource competition, inhibitory compound production, and immune modulation are all listed for murine microbiota.",
+        "The most effective group is the murine microbiota group, with resource competition as a primary mechanism."
+      ],
+      "correct_answer": "Murine gut microbiota via resource competition",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "COLONIZATION RESISTANCE",
+        "INTESTINAL MICROBIOTA",
+        "MICROBIOTA",
+        "MURINE GUT MICROBIOTA"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 5,
+      "answer_format": "mechanism",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Secondary bile acids, such as deoxycholic acid and lithocholic acid, were detected at concentrations below 5 \u03bcM in the feces of group C mice, compared to typical murine levels exceeding 20 \u03bcM. These metabolites are known to modulate microbial community structure and host signaling pathways.",
+        "In all groups, fecal levels of short-chain fatty acids were measured post-challenge, with group B showing a mean concentration of 40 mM, while group C averaged 18 mM. Short-chain fatty acids are known to influence epithelial barrier function and local immune responses.",
+        "Host immunity in these mouse groups was assessed by measuring fecal IgA levels, which were found to be comparable across all groups prior to C. difficile challenge. Additionally, introduction of the human microbiota did not significantly alter baseline neutrophil counts in the intestinal lamina propria."
+      ],
+      "enrichment_entities": [
+        "SECONDARY BILE ACIDS",
+        "SHORT-CHAIN FATTY ACIDS",
+        "HOST IMMUNITY"
+      ]
+    },
+    {
+      "paper_id": "aac.01001-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv68i2_10_1128_aac_01001_23-20240609072925-8166738/source_files/.qa_output/aac.01001-23/ecology/contrastive_qa.json",
+      "question": "A laboratory microcosm contains two bacterial populations: PA14 (a wild-type Pseudomonas aeruginosa strain that produces pyocyanin and phenazine-1-carboxylic acid [PCA]) and Staphylococcus aureus. PA14 reduces Ag+ ions to Ag nanoparticles via phenazine-mediated electron transfer, with pyocyanin production peaking at 24 hours (50 \u03bcM) and PCA at 36 hours (80 \u03bcM). Staphylococcus aureus forms robust biofilms in vitro, with biomass increasing by 40% in the presence of glucose. In mixed cultures, S. aureus maintains stable cell counts for up to 24 hours before nutrient depletion. S. Rhamnolipids, biosurfactants produced by Pseudomonas aeruginosa, reach concentrations of up to 25 mg/L in similar microcosms and enhance surface motility without altering phenazine production. These molecules can also increase the emulsification of hydrophobic substrates present in the medium. aureus is sensitive to Ag+ (growth inhibited at \u226510 \u03bcM Ag+), but resistant to pyocyanin and PCA at these concentrations. 1-hydroxyphenazine (1-OH-PHZ), a phenazine derivative detected at 15 \u03bcM after 24 hours in PA14 cultures, is known to participate in redox cycling but does not alter Ag+ reduction rates under these conditions. A \u0394nora mutant of PA14 (lacking the nora gene) produces only 10% of wild-type pyocyanin and PCA, and reduces Ag+ at 20% efficiency compared to wild-type. If Ag+ (20 \u03bcM) is added at time zero, which population will dominate after 48 hours: wild-type PA14, \u0394nora mutant PA14, or S. aureus?",
+      "original_question": "A laboratory microcosm contains two bacterial populations: PA14 (a wild-type Pseudomonas aeruginosa strain that produces pyocyanin and phenazine-1-carboxylic acid [PCA]) and Staphylococcus aureus. PA14 reduces Ag+ ions to Ag nanoparticles via phenazine-mediated electron transfer, with pyocyanin production peaking at 24 hours (50 \u03bcM) and PCA at 36 hours (80 \u03bcM). S. aureus is sensitive to Ag+ (growth inhibited at \u226510 \u03bcM Ag+), but resistant to pyocyanin and PCA at these concentrations. A \u0394nora mutant of PA14 (lacking the nora gene) produces only 10% of wild-type pyocyanin and PCA, and reduces Ag+ at 20% efficiency compared to wild-type. If Ag+ (20 \u03bcM) is added at time zero, which population will dominate after 48 hours: wild-type PA14, \u0394nora mutant PA14, or S. aureus?",
+      "reasoning_steps": [
+        "Ag+ at 20 \u03bcM inhibits S. aureus growth (threshold is \u226510 \u03bcM).",
+        "Wild-type PA14 efficiently reduces Ag+ via phenazine production, lowering Ag+ toxicity.",
+        "Pyocyanin and PCA concentrations are not toxic to S. aureus.",
+        "\u0394nora mutant PA14 produces much less pyocyanin/PCA, so Ag+ reduction is minimal.",
+        "With wild-type PA14, Ag+ is reduced, S. aureus can survive.",
+        "With \u0394nora mutant, Ag+ remains high, S. aureus is inhibited.",
+        "After 48 hours, wild-type PA14 will dominate due to Ag+ reduction and phenazine production."
+      ],
+      "correct_answer": "Wild-type PA14",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "PA14",
+        "P. AERUGINOSA"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 2,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Staphylococcus aureus forms robust biofilms in vitro, with biomass increasing by 40% in the presence of glucose. In mixed cultures, S. aureus maintains stable cell counts for up to 24 hours before nutrient depletion.",
+        "Rhamnolipids, biosurfactants produced by Pseudomonas aeruginosa, reach concentrations of up to 25 mg/L in similar microcosms and enhance surface motility without altering phenazine production. These molecules can also increase the emulsification of hydrophobic substrates present in the medium.",
+        "1-hydroxyphenazine (1-OH-PHZ), a phenazine derivative detected at 15 \u03bcM after 24 hours in PA14 cultures, is known to participate in redox cycling but does not alter Ag+ reduction rates under these conditions."
+      ],
+      "enrichment_entities": [
+        "S. AUREUS",
+        "RHAMNOLIPIDS",
+        "1-HYDROXYPHENAZINE"
+      ]
+    },
+    {
+      "paper_id": "aac.01001-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv68i2_10_1128_aac_01001_23-20240609072925-8166738/source_files/.qa_output/aac.01001-23/ecology/contrastive_qa.json",
+      "question": "A soil microcosm contains Pseudomonas aeruginosa and two other bacterial species: Bacillus subtilis and Staphylococcus aureus. P. aeruginosa produces pyocyanin at a concentration of 50 \u03bcM, which is known to inhibit S. Expression of the phzM gene in P. aeruginosa increases by approximately 40% when exposed to elevated iron concentrations, but this does not alter the overall population density in the microcosm. aureus growth by 80% but has no direct effect on B. subtilis. Pyocyanin, classified as a virulence factor, can reach concentrations up to 100 \u03bcM in nutrient-rich environments, although its production is influenced by oxygen availability. In some strains, the expression of virulence factors is regulated by quorum sensing molecules. Bacillus subtilis secretes a protease that degrades phenazine compounds, including pyocyanin, reducing their concentration by 60% over 24 hours. The phenazine biosynthesis enzyme PhzF in P. In addition to pyocyanin, Pseudomonas aeruginosa produces 1-hydroxyphenazine at concentrations up to 10 \u03bcM, which has been detected in soil extracts using GC-MS analysis. This compound is known to participate in redox cycling and can inhibit fungal growth in co-culture assays. aeruginosa is required for pyocyanin production. If Bacillus subtilis is removed from the microcosm, what is the expected effect on S. aureus growth after 24 hours, and which molecular mechanism explains this change?",
+      "original_question": "A soil microcosm contains Pseudomonas aeruginosa and two other bacterial species: Bacillus subtilis and Staphylococcus aureus. P. aeruginosa produces pyocyanin at a concentration of 50 \u03bcM, which is known to inhibit S. aureus growth by 80% but has no direct effect on B. subtilis. Bacillus subtilis secretes a protease that degrades phenazine compounds, including pyocyanin, reducing their concentration by 60% over 24 hours. The phenazine biosynthesis enzyme PhzF in P. aeruginosa is required for pyocyanin production. If Bacillus subtilis is removed from the microcosm, what is the expected effect on S. aureus growth after 24 hours, and which molecular mechanism explains this change?",
+      "reasoning_steps": [
+        "P. aeruginosa produces pyocyanin (50 \u03bcM), inhibiting S. aureus by 80%.",
+        "B. subtilis secretes protease that degrades pyocyanin by 60% in 24 hours.",
+        "With B. subtilis present, pyocyanin drops to 20 \u03bcM (40% remaining).",
+        "Lower pyocyanin means less inhibition of S. aureus.",
+        "Removing B. subtilis means no protease, pyocyanin remains at 50 \u03bcM.",
+        "S. aureus faces full 80% inhibition due to high pyocyanin.",
+        "The mechanism is phenazine biosynthesis via PhzF."
+      ],
+      "correct_answer": "Increased inhibition via phenazine biosynthesis enzyme PhzF",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "PSEUDOMONAS AERUGINOSA",
+        "BACTERIAL PIGMENTS",
+        "PHENAZINE BIOSYNTHESIS ENZYME PHZF"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 6,
+      "answer_format": "mechanism",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Expression of the phzM gene in P. aeruginosa increases by approximately 40% when exposed to elevated iron concentrations, but this does not alter the overall population density in the microcosm.",
+        "Pyocyanin, classified as a virulence factor, can reach concentrations up to 100 \u03bcM in nutrient-rich environments, although its production is influenced by oxygen availability. In some strains, the expression of virulence factors is regulated by quorum sensing molecules.",
+        "In addition to pyocyanin, Pseudomonas aeruginosa produces 1-hydroxyphenazine at concentrations up to 10 \u03bcM, which has been detected in soil extracts using GC-MS analysis. This compound is known to participate in redox cycling and can inhibit fungal growth in co-culture assays."
+      ],
+      "enrichment_entities": [
+        "PHZM",
+        "VIRULENCE FACTOR",
+        "1-HYDROXYPHENAZINE"
+      ]
+    },
+    {
+      "paper_id": "aac.01001-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv68i2_10_1128_aac_01001_23-20240609072925-8166738/source_files/.qa_output/aac.01001-23/ecology/contrastive_qa.json",
+      "question": "A soil microcosm contains two strains of Pseudomonas aeruginosa: wild-type PA14 and mutant PA14PHZS. PA14 produces pyocyanin, a phenazine that inhibits Staphylococcus aureus growth by generating reactive oxygen species. PA14PHZS, due to a phzS gene mutation, cannot produce pyocyanin but still synthesizes other phenazines that do not inhibit S. PA14PHZM, another mutant strain lacking pyocyanin production, reaches a final density of 10^8 CFU/mL in soil microcosms, similar to both PA14 and PA14PHZS. In these conditions, PA14PHZM still produces other phenazines at levels comparable to PA14PHZS. aureus. In a mixed community, S. The PA14 phzM mutant accumulates phenazine-1-carboxylic acid at concentrations up to 20 \u00b5M in soil microcosms, but does not alter the overall pH of the environment during 48 hours of incubation. aureus initial density is 10^6 CFU/mL. After 48 hours, S. PAO1, another well-studied Pseudomonas aeruginosa strain, forms biofilms with a biomass of approximately 120 \u00b5g/cm\u00b2 after 48 hours under similar microcosm conditions. Unlike PA14, PAO1 primarily produces pyoverdine as its major siderophore. aureus density drops to 10^3 CFU/mL when co-cultured with PA14, but remains at 10^6 CFU/mL with PA14PHZS. Both strains grow equally well and reach 10^8 CFU/mL. If you want to maintain S. aureus viability in the microcosm while allowing P. aeruginosa to proliferate, which strain should you use?",
+      "original_question": "A soil microcosm contains two strains of Pseudomonas aeruginosa: wild-type PA14 and mutant PA14PHZS. PA14 produces pyocyanin, a phenazine that inhibits Staphylococcus aureus growth by generating reactive oxygen species. PA14PHZS, due to a phzS gene mutation, cannot produce pyocyanin but still synthesizes other phenazines that do not inhibit S. aureus. In a mixed community, S. aureus initial density is 10^6 CFU/mL. After 48 hours, S. aureus density drops to 10^3 CFU/mL when co-cultured with PA14, but remains at 10^6 CFU/mL with PA14PHZS. Both strains grow equally well and reach 10^8 CFU/mL. If you want to maintain S. aureus viability in the microcosm while allowing P. aeruginosa to proliferate, which strain should you use?",
+      "reasoning_steps": [
+        "PA14 produces pyocyanin, which inhibits S. aureus via reactive oxygen species.",
+        "PA14PHZS cannot produce pyocyanin due to phzS mutation.",
+        "Other phenazines from PA14PHZS do not inhibit S. aureus.",
+        "S. aureus density drops drastically with PA14, but not with PA14PHZS.",
+        "Both P. aeruginosa strains reach high density, so growth is not a limiting factor.",
+        "To maintain S. aureus viability, inhibition must be avoided.",
+        "Therefore, the strain lacking pyocyanin production is preferred."
+      ],
+      "correct_answer": "PA14PHZS",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "PA14PHZS",
+        "PA14"
+      ],
+      "quality_score": 4.0,
+      "answer_word_count": 1,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "PA14PHZM, another mutant strain lacking pyocyanin production, reaches a final density of 10^8 CFU/mL in soil microcosms, similar to both PA14 and PA14PHZS. In these conditions, PA14PHZM still produces other phenazines at levels comparable to PA14PHZS.",
+        "The PA14 phzM mutant accumulates phenazine-1-carboxylic acid at concentrations up to 20 \u00b5M in soil microcosms, but does not alter the overall pH of the environment during 48 hours of incubation.",
+        "PAO1, another well-studied Pseudomonas aeruginosa strain, forms biofilms with a biomass of approximately 120 \u00b5g/cm\u00b2 after 48 hours under similar microcosm conditions. Unlike PA14, PAO1 primarily produces pyoverdine as its major siderophore."
+      ],
+      "enrichment_entities": [
+        "PA14PHZM",
+        "PA14 PHZM MUTANT",
+        "PAO1"
+      ]
+    },
+    {
+      "paper_id": "aac.01001-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv68i2_10_1128_aac_01001_23-20240609072925-8166738/source_files/.qa_output/aac.01001-23/ecology/contrastive_qa.json",
+      "question": "A soil microcosm contains Staphylococcus aureus and Pseudomonas aeruginosa. P. aeruginosa produces pyocyanin at 50 \u03bcM, which is toxic to S. aureus. The TET38 efflux pump in S. aureus was tested for its ability to export pyocyanin, but its activity resulted in less than a 5% reduction in intracellular pyocyanin levels. Expression of TET38 did not significantly change upon pyocyanin exposure. S. aureus expresses the NorA efflux pump, which exports pyocyanin and fluoroquinolones. When exposed to pyocyanin, NorA expression in S. Reactive oxygen species (ROS) levels in S. aureus increase by approximately 70% following exposure to pyocyanin, with superoxide and hydrogen peroxide being the predominant forms detected. However, ROS accumulation does not alter the minimum inhibitory concentration of fluoroquinolones in these microcosms. aureus increases 3-fold, resulting in a 60% reduction in intracellular pyocyanin and a 40% increase in survival compared to S. aureus lacking NorA. If fluoroquinolone antibiotics are added at 10 \u03bcM, which S. Overexpression of tet38 in S. aureus leads to a 25% increase in efflux activity for certain dyes, but its impact on pyocyanin export remains under investigation. In some assays, tet38 expression is not induced by pyocyanin exposure. aureus population will have the highest survival: (A) NorA-deficient S. aureus, (B) wild-type S. aureus, or (C) wild-type S. aureus pre-exposed to pyocyanin?",
+      "original_question": "A soil microcosm contains Staphylococcus aureus and Pseudomonas aeruginosa. P. aeruginosa produces pyocyanin at 50 \u03bcM, which is toxic to S. aureus. S. aureus expresses the NorA efflux pump, which exports pyocyanin and fluoroquinolones. When exposed to pyocyanin, NorA expression in S. aureus increases 3-fold, resulting in a 60% reduction in intracellular pyocyanin and a 40% increase in survival compared to S. aureus lacking NorA. If fluoroquinolone antibiotics are added at 10 \u03bcM, which S. aureus population will have the highest survival: (A) NorA-deficient S. aureus, (B) wild-type S. aureus, or (C) wild-type S. aureus pre-exposed to pyocyanin?",
+      "reasoning_steps": [
+        "Pyocyanin is toxic to S. aureus; NorA exports pyocyanin, increasing survival.",
+        "NorA expression increases 3-fold upon pyocyanin exposure.",
+        "Increased NorA reduces intracellular pyocyanin by 60%, boosting survival by 40%.",
+        "NorA also exports fluoroquinolones, conferring resistance.",
+        "Pre-exposure to pyocyanin upregulates NorA, enhancing efflux of both pyocyanin and fluoroquinolones.",
+        "NorA-deficient S. aureus cannot export either compound, leading to lowest survival.",
+        "Wild-type S. aureus exports both compounds, but pre-exposed cells have higher NorA levels, maximizing efflux and survival."
+      ],
+      "correct_answer": "Wild-type S. aureus pre-exposed to pyocyanin",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "NORA EFFLUX PUMP",
+        "STAPHYLOCOCCUS AUREUS"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 6,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "The TET38 efflux pump in S. aureus was tested for its ability to export pyocyanin, but its activity resulted in less than a 5% reduction in intracellular pyocyanin levels. Expression of TET38 did not significantly change upon pyocyanin exposure.",
+        "Reactive oxygen species (ROS) levels in S. aureus increase by approximately 70% following exposure to pyocyanin, with superoxide and hydrogen peroxide being the predominant forms detected. However, ROS accumulation does not alter the minimum inhibitory concentration of fluoroquinolones in these microcosms.",
+        "Overexpression of tet38 in S. aureus leads to a 25% increase in efflux activity for certain dyes, but its impact on pyocyanin export remains under investigation. In some assays, tet38 expression is not induced by pyocyanin exposure."
+      ],
+      "enrichment_entities": [
+        "TET38 EFFLUX PUMP",
+        "REACTIVE OXYGEN SPECIES",
+        "TET38"
+      ]
+    },
+    {
+      "paper_id": "aac.01001-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv68i2_10_1128_aac_01001_23-20240609072925-8166738/source_files/.qa_output/aac.01001-23/ecology/contrastive_qa.json",
+      "question": "Staphylococcus aureus is exposed to two bacteriophages: Phage A, which triggers abortive infection, and Phage B, which is neutralized by a prophage-encoded protein. In a mixed bacterial population, 60% of S. Protein A expression in S. aureus increases by 40% when co-cultured with P. aeruginosa, but this upregulation does not alter the rate of phage adsorption for Phage A or Phage B in isolated cultures. aureus cells carry the prophage encoding the resistance protein, while 40% possess the abortive infection system. NORA transcript levels in S. aureus increase by approximately 2.5-fold during exposure to both Phage A and Phage B, reflecting a general stress response but not conferring direct phage resistance. In mixed populations, NORA expression is highest in cells undergoing co-colonization with other bacterial species. Phage A infects at a rate of 80% per hour, and Phage B at 50% per hour. Kayvirus phages typically lyse S. aureus cells within 30 minutes of infection, with burst sizes averaging 120 virions per cell. In mixed cultures, Kayvirus replication rates remain stable regardless of initial bacterial density. Both phages are present at equal concentrations. Only one resistance mechanism per cell is active. Which S. aureus subpopulation will have higher survival after 2 hours, and by what relative percentage difference?",
+      "original_question": "Staphylococcus aureus is exposed to two bacteriophages: Phage A, which triggers abortive infection, and Phage B, which is neutralized by a prophage-encoded protein. In a mixed bacterial population, 60% of S. aureus cells carry the prophage encoding the resistance protein, while 40% possess the abortive infection system. Phage A infects at a rate of 80% per hour, and Phage B at 50% per hour. Both phages are present at equal concentrations. Only one resistance mechanism per cell is active. Which S. aureus subpopulation will have higher survival after 2 hours, and by what relative percentage difference?",
+      "reasoning_steps": [
+        "Identify that 60% of cells have prophage-encoded protein, 40% have abortive infection.",
+        "Phage A infects at 80%/hr, Phage B at 50%/hr; both present equally.",
+        "Prophage-encoded protein protects against Phage B only; abortive infection protects against Phage A only.",
+        "After 2 hours, calculate survival for each subpopulation:",
+        "Prophage-encoded protein cells: exposed to Phage A (no protection), infected at 80%/hr for 2 hours.",
+        "Abortive infection cells: exposed to Phage B (no protection), infected at 50%/hr for 2 hours.",
+        "Calculate percent survival for each:",
+        "Prophage-encoded protein cells: survival = (1 - 0.8)^2 = 0.04 (4%)",
+        "Abortive infection cells: survival = (1 - 0.5)^2 = 0.25 (25%)",
+        "Compare survival rates and calculate relative percentage difference.",
+        "Conclude which subpopulation survives better and by how much."
+      ],
+      "correct_answer": "Abortive infection cells (21% higher survival)",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "STAPHYLOCOCCUS AUREUS",
+        "BACTERIOPHAGE RESISTANCE MECHANISM"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 4,
+      "answer_format": "numerical",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Protein A expression in S. aureus increases by 40% when co-cultured with P. aeruginosa, but this upregulation does not alter the rate of phage adsorption for Phage A or Phage B in isolated cultures.",
+        "NORA transcript levels in S. aureus increase by approximately 2.5-fold during exposure to both Phage A and Phage B, reflecting a general stress response but not conferring direct phage resistance. In mixed populations, NORA expression is highest in cells undergoing co-colonization with other bacterial species.",
+        "Kayvirus phages typically lyse S. aureus cells within 30 minutes of infection, with burst sizes averaging 120 virions per cell. In mixed cultures, Kayvirus replication rates remain stable regardless of initial bacterial density."
+      ],
+      "enrichment_entities": [
+        "PROTEIN A",
+        "NORA",
+        "KAYVIRUS"
+      ]
+    },
+    {
+      "paper_id": "aac.01001-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv68i2_10_1128_aac_01001_23-20240609072925-8166738/source_files/.qa_output/aac.01001-23/ecology/contrastive_qa.json",
+      "question": "A researcher is comparing pyocyanin production among three Pseudomonas aeruginosa strains: PA14 wild-type, PA14phzM mutant, and PA14phzS mutant. The wild-type PA14 produces 100 \u03bcg/mL pyocyanin in MHB after 24 hours. In nutrient-limited environments, PYO concentrations above 20 \u03bcg/mL have been shown to increase extracellular DNA release in P. aeruginosa biofilms. PYO also modulates iron acquisition by altering redox cycling in mixed-species communities. The PA14phzM mutant produces 5 \u03bcg/mL, and the PA14phzS mutant produces 3 \u03bcg/mL under identical conditions. Pseudomonas fluorescens, which encodes phzS but not phzM, accumulates up to 20 \u03bcg/mL of 1-hydroxyphenazine when cultured in MHB for 24 hours. Unlike pyocyanin, 1-hydroxyphenazine exhibits moderate fluorescence under UV light. Both mutants have single gene disruptions: phzM or phzS, respectively. 1-hydroxyphenazine is detected at concentrations up to 15 \u03bcg/mL in cultures of Pseudomonas aeruginosa mutants lacking phzM but retaining phzS activity. This compound has been shown to inhibit fungal growth in vitro without significantly altering pyocyanin levels. Pyocyanin biosynthesis requires sequential conversion of phenazine-1-carboxylic acid (PCA) by PhzM and then PhzS. Only strains with functional phzM and phzS can complete pyocyanin synthesis. Which strain should be used as a positive control for pyocyanin-dependent antimicrobial assays against Staphylococcus aureus?",
+      "original_question": "A researcher is comparing pyocyanin production among three Pseudomonas aeruginosa strains: PA14 wild-type, PA14phzM mutant, and PA14phzS mutant. The wild-type PA14 produces 100 \u03bcg/mL pyocyanin in MHB after 24 hours. The PA14phzM mutant produces 5 \u03bcg/mL, and the PA14phzS mutant produces 3 \u03bcg/mL under identical conditions. Both mutants have single gene disruptions: phzM or phzS, respectively. Pyocyanin biosynthesis requires sequential conversion of phenazine-1-carboxylic acid (PCA) by PhzM and then PhzS. Only strains with functional phzM and phzS can complete pyocyanin synthesis. Which strain should be used as a positive control for pyocyanin-dependent antimicrobial assays against Staphylococcus aureus?",
+      "reasoning_steps": [
+        "Pyocyanin is synthesized from PCA via PhzM and PhzS enzymes.",
+        "Disruption of either phzM or phzS blocks pyocyanin production.",
+        "PA14 wild-type has both functional phzM and phzS.",
+        "PA14phzM and PA14phzS mutants have severely reduced pyocyanin (5 and 3 \u03bcg/mL).",
+        "Wild-type PA14 produces 100 \u03bcg/mL pyocyanin (much higher).",
+        "Positive control requires robust pyocyanin production.",
+        "Only PA14 wild-type meets this requirement."
+      ],
+      "correct_answer": "PA14 wild-type",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "PYOCYANIN",
+        "PSEUDOMONAS AERUGINOSA",
+        "PA14",
+        "PA14PHZM",
+        "PA14PHZS",
+        "CF-PA",
+        "P. AERUGINOSA",
+        "PAO1",
+        "PSEUDOMONAS AERUGINOSA PAO1",
+        "PSEUDOMONAS AERUGINOSA PA14",
+        "PSEUDOMONAS AERUGINOSA POPULATIONS",
+        "PSEUDOMONAS SP. MPF-2",
+        "PSEUDOMONAS",
+        "BACTERIAL LAWN",
+        "PYOCYANIN PRODUCTION PROCESS",
+        "PRODUCTION PROCESS OF PYOCYANIN",
+        "PSEUDOMONAS SP.",
+        "CHROMOGENIC PSEUDOMONAS SPECIES",
+        "PSEUDOMONAS SPECIES",
+        "CLINICAL PSEUDOMONAS AERUGINOSA",
+        "ENVIRONMENTAL PSEUDOMONAS AERUGINOSA",
+        "MARINE PSEUDOMONAS AERUGINOSA",
+        "PSEUDOMONAS SP. JJTBVK",
+        "PSEUDOMONAS OTITIDIS EGY-NIOF-A1",
+        "PSEUDOMONAS OTITIDIS",
+        "PSEUDOMONAS AERUGINOSA STRAIN ONO14782",
+        "PSEUDOMONAS CITRONELLOLIS 620 C",
+        "E. COLI",
+        "PYOCYANIN PRODUCTION",
+        "MICROBIAL POPULATION",
+        "PSEUDOMONAS CITRONELLOLIS",
+        "PSEUDOMONAS AERUGINOSA STRAIN BTRY1",
+        "PHZA1B1C1D1E1F1G1 OPERON",
+        "VIRULENCE FACTORS",
+        "PAO1 STRAIN",
+        "PYOCYANIN SYNTHESIS",
+        "PHZ1",
+        "WILD-TYPE PAO1 POPULATION",
+        "LASR MUTANT POPULATION",
+        "\u0394 RPOS",
+        "PSEUDOMONAS AERUGINOSA ATCC 9027",
+        "PHENAZINE BIOSYNTHETIC OPERONS",
+        "BIOSYNTHESIS OF PHENAZINES",
+        "MICROORGANISMS",
+        "BACTERIAL PIGMENTS",
+        "PIGMENT SYNTHESIS",
+        "P. AERUGINOSA STRAINS",
+        "RECOMBINANT BACTERIA",
+        "FERMENTATION PROCESS",
+        "PYOCYANIN-PRODUCING P. AERUGINOSA STRAINS",
+        "MUTANT STRAIN S300-8",
+        "PSEUDOMONAS AERUGINOSA 7NSK2",
+        "PIGMENTED PSEUDOMONAS AERUGINOSA",
+        "URINE ISOLATES OF PSEUDOMONAS AERUGINOSA",
+        "WILD TYPE PSEUDOMONAS AERUGINOSA",
+        "MICROBES",
+        "MICROBIAL COMMUNITY IN AGRICULTURAL WASTES",
+        "KU_BIO2",
+        "PSEUDOMONAS SPP.",
+        "CHEMICAL SYNTHESIS",
+        "OIL-DEGRADING PSEUDOMONAS AERUGINOSA STRAIN",
+        "BIOSYNTHESIS OF PYOCYANIN",
+        "PHZ1 OPERON",
+        "PSEUDOMONAS PYOCYANEA",
+        "CONVERSION OF PCA TO PYOCYANIN",
+        "PHZ2",
+        "WILD-TYPE COLONIES",
+        "PYOCYANIN-OVERPRODUCING COLONIES",
+        "CLINICAL PSEUDOMONAS AERUGINOSA STRAIN",
+        "LABORATORY STRAINS OF PSEUDOMONAS AERUGINOSA",
+        "CYSTIC FIBROSIS EPIDEMIC STRAIN",
+        "\u0394PHZ MUTANT",
+        "FLUORESCENT PSEUDOMONAS SPP.",
+        "PYOCYANIN BIOSYNTHETIC PROCESS",
+        "PHENAZINE BIOSYNTHETIC PATHWAY",
+        "METHYLATED PHENAZINE INTERMEDIATE",
+        "PHZA2-G2 TRANSCRIPT",
+        "PHZ GENE CLUSTERS",
+        "PYOCYANIN BIOSYNTHETIC PROTEIN PHZM",
+        "COOPERATOR",
+        "COOPERATORS",
+        "CLINICAL STRAINS",
+        "WILD-TYPE PA14 STRAIN",
+        "PYOCYANIN EXTRACTION",
+        "PA14 WILD-TYPE STRAIN",
+        "PA14 WILD-TYPE",
+        "PA14 WILD-TYPE POPULATION",
+        "\u0394PHZM",
+        "PA14 CULTURE",
+        "PSEUDOMONAS AERUGINOSA MCCB 117"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 2,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "In nutrient-limited environments, PYO concentrations above 20 \u03bcg/mL have been shown to increase extracellular DNA release in P. aeruginosa biofilms. PYO also modulates iron acquisition by altering redox cycling in mixed-species communities.",
+        "Pseudomonas fluorescens, which encodes phzS but not phzM, accumulates up to 20 \u03bcg/mL of 1-hydroxyphenazine when cultured in MHB for 24 hours. Unlike pyocyanin, 1-hydroxyphenazine exhibits moderate fluorescence under UV light.",
+        "1-hydroxyphenazine is detected at concentrations up to 15 \u03bcg/mL in cultures of Pseudomonas aeruginosa mutants lacking phzM but retaining phzS activity. This compound has been shown to inhibit fungal growth in vitro without significantly altering pyocyanin levels."
+      ],
+      "enrichment_entities": [
+        "PYO",
+        "PSEUDOMONAS FLUORESCENS",
+        "1-HYDROXYPHENAZINE"
+      ]
+    },
+    {
+      "paper_id": "aac.00057-24",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv68i5_10_1128_aac_00057_24-20240609072947-6661864/source_files/.qa_output/aac.00057-24/ecology/contrastive_qa.json",
+      "question": "An outbreak of hemorrhagic colitis occurs in a population of C57BL/6 mice exposed to Enterohemorrhagic Escherichia coli (EHEC). EHEC pathogenesis requires bacterial attachment to host intestinal cells and delivery of virulence factors via a type III secretion system. The type III secretion system (T3SS) in E. coli is composed of over 20 proteins and can translocate up to 10 different effector molecules into host cells during infection. In vitro, T3SS assembly is completed within 45 minutes after bacterial contact with epithelial monolayers. Three EHEC mutants are tested: (1) an intimin-deficient mutant (cannot produce intimin), (2) an EspA-deficient mutant (cannot produce EspA), and (3) an EspB-deficient mutant (cannot produce EspB). The type 3 secretion (T3S) apparatus, encoded by the LEE pathogenicity island, assembles in EHEC within 30 minutes of host cell contact and can translocate up to 10 different effector proteins during infection. Studies show that T3S activity is detectable even in mutants lacking individual effector proteins. Only wild-type EHEC causes severe diarrhea and hemorrhagic colitis; the intimin-deficient mutant shows no attachment to host cells and no disease, while both EspA- and EspB-deficient mutants attach to host cells but do not cause disease. The T3 secretion system in E. coli O157:H7 can translocate up to 10 different effector proteins into host cells during infection, with peak activity observed within the first 6 hours post-exposure. Inhibition of the T3 secretion system reduces overall bacterial colonization by approximately 40% in murine models. Which EHEC protein is essential for both host cell attachment and pathogenesis in this mouse model?",
+      "original_question": "An outbreak of hemorrhagic colitis occurs in a population of C57BL/6 mice exposed to Enterohemorrhagic Escherichia coli (EHEC). EHEC pathogenesis requires bacterial attachment to host intestinal cells and delivery of virulence factors via a type III secretion system. Three EHEC mutants are tested: (1) an intimin-deficient mutant (cannot produce intimin), (2) an EspA-deficient mutant (cannot produce EspA), and (3) an EspB-deficient mutant (cannot produce EspB). Only wild-type EHEC causes severe diarrhea and hemorrhagic colitis; the intimin-deficient mutant shows no attachment to host cells and no disease, while both EspA- and EspB-deficient mutants attach to host cells but do not cause disease. Which EHEC protein is essential for both host cell attachment and pathogenesis in this mouse model?",
+      "reasoning_steps": [
+        "EHEC pathogenesis requires both attachment and delivery of virulence factors.",
+        "Intimin-deficient mutant cannot attach and does not cause disease.",
+        "EspA- and EspB-deficient mutants can attach but do not cause disease.",
+        "Wild-type EHEC attaches and causes disease.",
+        "Attachment alone is insufficient for disease (EspA/B mutants).",
+        "Delivery of virulence factors (type III secretion) is required for disease (EspA/B mutants lack this).",
+        "Intimin is required for attachment and pathogenesis."
+      ],
+      "correct_answer": "Intimin",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "ENTEROHEMORRHAGIC ESCHERICHIA COLI (EHEC)",
+        "INTIMIN",
+        "ESPA",
+        "ESPB"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 1,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "The type III secretion system (T3SS) in E. coli is composed of over 20 proteins and can translocate up to 10 different effector molecules into host cells during infection. In vitro, T3SS assembly is completed within 45 minutes after bacterial contact with epithelial monolayers.",
+        "The type 3 secretion (T3S) apparatus, encoded by the LEE pathogenicity island, assembles in EHEC within 30 minutes of host cell contact and can translocate up to 10 different effector proteins during infection. Studies show that T3S activity is detectable even in mutants lacking individual effector proteins.",
+        "The T3 secretion system in E. coli O157:H7 can translocate up to 10 different effector proteins into host cells during infection, with peak activity observed within the first 6 hours post-exposure. Inhibition of the T3 secretion system reduces overall bacterial colonization by approximately 40% in murine models."
+      ],
+      "enrichment_entities": [
+        "TYPE III SECRETION SYSTEM (T3SS)",
+        "TYPE 3 SECRETION (T3S) APPARATUS",
+        "T3 SECRETION SYSTEM"
+      ]
+    },
+    {
+      "paper_id": "aac.00057-24",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv68i5_10_1128_aac_00057_24-20240609072947-6661864/source_files/.qa_output/aac.00057-24/ecology/contrastive_qa.json",
+      "question": "A mouse model is used to study gut microbiota dynamics. Mice are divided into three groups: Group A receives broad-spectrum antibiotics for 7 days, Group B receives a narrow-spectrum antibiotic targeting only Gram-positive bacteria for 7 days, and Group C receives no antibiotics. After treatment, fecal samples are analyzed. Analysis of the local metabolome revealed a 70% decrease in short-chain fatty acid concentrations in Group A, while Groups B and C maintained baseline levels. Additionally, amino acid profiles remained unchanged across all groups. Group A shows a 90% reduction in total bacterial diversity, a 95% decrease in Bacteroidetes, and a 98% decrease in Firmicutes. Group B shows a 60% reduction in Firmicutes, no change in Bacteroidetes, and a 40% reduction in overall diversity. Immune response markers, such as IL-6 and TNF-\u03b1, were measured in all groups and showed a transient 20% increase following antibiotic treatment, returning to baseline within 48 hours. This modulation was independent of the observed changes in microbiota composition. Group C shows no significant changes. All groups are then challenged with oral Salmonella. Microbial diversity in the mouse gut typically ranges from 200 to 500 distinct operational taxonomic units (OTUs) under standard laboratory conditions. Previous studies have shown that shifts in microbial diversity can occur within 48 hours of antibiotic administration, even before major changes in host physiology are detected. Only Group A develops severe Salmonella infection, with high pathogen loads and systemic spread; Group B shows mild infection, and Group C resists colonization. Considering the effects of antibiotic spectrum and microbiota composition, which group is most likely to experience dysbiosis-associated loss of colonization resistance?",
+      "original_question": "A mouse model is used to study gut microbiota dynamics. Mice are divided into three groups: Group A receives broad-spectrum antibiotics for 7 days, Group B receives a narrow-spectrum antibiotic targeting only Gram-positive bacteria for 7 days, and Group C receives no antibiotics. After treatment, fecal samples are analyzed. Group A shows a 90% reduction in total bacterial diversity, a 95% decrease in Bacteroidetes, and a 98% decrease in Firmicutes. Group B shows a 60% reduction in Firmicutes, no change in Bacteroidetes, and a 40% reduction in overall diversity. Group C shows no significant changes. All groups are then challenged with oral Salmonella. Only Group A develops severe Salmonella infection, with high pathogen loads and systemic spread; Group B shows mild infection, and Group C resists colonization. Considering the effects of antibiotic spectrum and microbiota composition, which group is most likely to experience dysbiosis-associated loss of colonization resistance?",
+      "reasoning_steps": [
+        "Broad-spectrum antibiotics (Group A) drastically reduce overall diversity and both major phyla.",
+        "Narrow-spectrum antibiotics (Group B) mainly affect Firmicutes, less impact on Bacteroidetes.",
+        "No antibiotics (Group C) maintain normal microbiota.",
+        "Colonization resistance depends on diverse, intact microbiota.",
+        "Group A's severe reduction in both Bacteroidetes and Firmicutes disrupts colonization resistance.",
+        "Group A develops severe Salmonella infection, indicating loss of resistance.",
+        "Group B has partial loss, Group C maintains resistance."
+      ],
+      "correct_answer": "Group A",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "DYSBIOSIS",
+        "ANTIBIOTICS"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 2,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Analysis of the local metabolome revealed a 70% decrease in short-chain fatty acid concentrations in Group A, while Groups B and C maintained baseline levels. Additionally, amino acid profiles remained unchanged across all groups.",
+        "Immune response markers, such as IL-6 and TNF-\u03b1, were measured in all groups and showed a transient 20% increase following antibiotic treatment, returning to baseline within 48 hours. This modulation was independent of the observed changes in microbiota composition.",
+        "Microbial diversity in the mouse gut typically ranges from 200 to 500 distinct operational taxonomic units (OTUs) under standard laboratory conditions. Previous studies have shown that shifts in microbial diversity can occur within 48 hours of antibiotic administration, even before major changes in host physiology are detected."
+      ],
+      "enrichment_entities": [
+        "LOCAL METABOLOME",
+        "IMMUNE RESPONSE",
+        "MICROBIAL DIVERSITY"
+      ]
+    },
+    {
+      "paper_id": "aac.00057-24",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv68i5_10_1128_aac_00057_24-20240609072947-6661864/source_files/.qa_output/aac.00057-24/ecology/contrastive_qa.json",
+      "question": "A freshwater protozoan predator is introduced into a microcosm containing three bacterial populations: (A) Escherichia coli O157:H7 carrying stx genes on a lambdoid bacteriophage, (B) Shigella dysenteriae 1 lacking stx genes, and (C) E. coli K-12 with no prophages. Activation of the phage lytic cycle in E. coli O157:H7 typically results in a 2- to 5-fold increase in phage particle release within 24 hours. However, the overall bacterial density remains stable under nutrient-rich conditions. After 48 hours, population A shows 80% survival, population B 20% survival, and population C 10% survival. Escherichia coli populations, when exposed to protozoan predation, can increase expression of stress response genes by up to 2-fold, independent of toxin production. In microcosm experiments, E. coli typically maintains a baseline survival rate of 15% without antibiotic intervention. Addition of enrofloxacin to the microcosm increases population A's survival to 95%, but does not affect B or C. A plasmid derived from lambdoid bacteriophage was detected in 60% of E. coli O157:H7 cells after 48 hours, with copy number remaining stable regardless of protozoan presence. This plasmid is commonly used to study horizontal gene transfer in microcosm experiments. Shiga toxin is detected only in population A after enrofloxacin treatment. Which population is responsible for Shiga toxin-mediated defense against protozoan predation under antibiotic stress?",
+      "original_question": "A freshwater protozoan predator is introduced into a microcosm containing three bacterial populations: (A) Escherichia coli O157:H7 carrying stx genes on a lambdoid bacteriophage, (B) Shigella dysenteriae 1 lacking stx genes, and (C) E. coli K-12 with no prophages. After 48 hours, population A shows 80% survival, population B 20% survival, and population C 10% survival. Addition of enrofloxacin to the microcosm increases population A's survival to 95%, but does not affect B or C. Shiga toxin is detected only in population A after enrofloxacin treatment. Which population is responsible for Shiga toxin-mediated defense against protozoan predation under antibiotic stress?",
+      "reasoning_steps": [
+        "Population A is E. coli O157:H7 with stx genes on a lambdoid bacteriophage.",
+        "Population B is Shigella dysenteriae 1 but lacks stx genes.",
+        "Population C is E. coli K-12 with no prophages.",
+        "Survival rates: A (80%), B (20%), C (10%) without antibiotic; A (95%) with enrofloxacin.",
+        "Enrofloxacin increases survival only in A, and Shiga toxin is detected only in A after treatment.",
+        "Shiga toxin is known to mediate defense against protozoan predation.",
+        "Only population A produces Shiga toxin under antibiotic stress."
+      ],
+      "correct_answer": "Escherichia coli O157:H7",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "SHIGA TOXIN",
+        "ENTEROHEMORRHAGIC ESCHERICHIA COLI (EHEC)",
+        "ENROFLOXACIN",
+        "EHEC",
+        "C. RODENTIUM \u03a6STX2DACT",
+        "E. COLI",
+        "ESCHERICHIA COLI",
+        "E. COLI O104:H4",
+        "ESCHERICHIA COLI O157:H7",
+        "SHIGELLA DYSENTERIAE 1",
+        "BACTERIOPHAGE",
+        "SHIGA TOXIN-PRODUCING ESCHERICHIA COLI",
+        "STX GENES",
+        "PROPHAGE INDUCTION",
+        "LYTIC DEVELOPMENT",
+        "SHIGA TOXIN-PRODUCING E. COLI",
+        "SHIGA TOXIN-CONVERTING PROPHAGE",
+        "SHIGA TOXIN-CONVERTING BACTERIOPHAGE",
+        "SHIGA TOXIN-CONVERTING BACTERIOPHAGES",
+        "STX GENE",
+        "E. COLI O157:H7",
+        "LAMBDOID BACTERIOPHAGES",
+        "ENTEROHEMORRHAGIC ESCHERICHIA COLI",
+        "ESCHERICHIA COLI O157",
+        "SHIGA TOXIN-PRODUCING ESCHERICHIA COLI (STEC) O104:H4",
+        "ESCHERICHIA COLI O157:H7 EDL933",
+        "SHIGA TOXIN-PRODUCING ESCHERICHIA COLI (STEC)",
+        "SHIGA TOXIN-ENCODING BACTERIOPHAGES",
+        "STX ENCODING PHAGES",
+        "SHIGA TOXIN GENE",
+        "PROPHAGE \u03a624B",
+        "SHIGELLA DYSENTERIAE SEROTYPE I",
+        "STEC",
+        "SHIGELLA",
+        "ESCHERICHIA COLI O104:H4",
+        "SHIGELLA DYSENTERIAE",
+        "PATHOGENIC ESCHERICHIA COLI",
+        "COLIPHAGE H-19B",
+        "ENTEROHEMORRHAGIC ESCHERICHIA COLI SEROGROUP O157",
+        "BACTERIOPHAGE 933W",
+        "EHEC STRAIN",
+        "SHIGA-LIKE TOXIN-CONVERTING PHAGE",
+        "SHIGA TOXIGENIC ESCHERICHIA COLI",
+        "DYSENTERY BACILLUS"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 2,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Activation of the phage lytic cycle in E. coli O157:H7 typically results in a 2- to 5-fold increase in phage particle release within 24 hours. However, the overall bacterial density remains stable under nutrient-rich conditions.",
+        "Escherichia coli populations, when exposed to protozoan predation, can increase expression of stress response genes by up to 2-fold, independent of toxin production. In microcosm experiments, E. coli typically maintains a baseline survival rate of 15% without antibiotic intervention.",
+        "A plasmid derived from lambdoid bacteriophage was detected in 60% of E. coli O157:H7 cells after 48 hours, with copy number remaining stable regardless of protozoan presence. This plasmid is commonly used to study horizontal gene transfer in microcosm experiments."
+      ],
+      "enrichment_entities": [
+        "PHAGE LYTIC CYCLE",
+        "ESCHERICHIA COLI (E. COLI)",
+        "PLASMID DERIVED FROM LAMBDOID BACTERIOPHAGE"
+      ]
+    }
+  ],
+  "errors": []
+}

@@ -1,0 +1,132 @@
+# Clinical Microbiology Domain Schema
+# Focus: Diagnostic testing, pathogen detection, antimicrobial susceptibility, clinical laboratory methods
+
+domain_name: "Clinical Microbiology"
+domain_description: "Clinical laboratory diagnosis of infectious diseases, including pathogen detection methods, antimicrobial susceptibility testing, biomarker evaluation, and diagnostic assay performance"
+
+entity_types:
+  PATHOGEN:
+    description: "Microorganisms detected or identified in clinical specimens"
+    examples: ["MRSA", "Campylobacter fetus", "HSV-1", "Klebsiella pneumoniae", "Enterobacterales"]
+
+  DIAGNOSTIC_TEST:
+    description: "Laboratory tests, assays, platforms used for detection or identification"
+    examples: ["PCR", "MALDI-TOF MS", "ELISA", "western blot", "lateral flow assay", "culture"]
+
+  SPECIMEN:
+    description: "Clinical sample types used for testing"
+    examples: ["blood culture", "urine", "nasal swab", "rectal swab", "CSF", "wound"]
+
+  ANTIMICROBIAL:
+    description: "Antibiotics, antivirals, antifungals tested or used for treatment"
+    examples: ["vancomycin", "ciprofloxacin", "meropenem", "erythromycin", "cefotaxime"]
+
+  RESISTANCE_MECHANISM:
+    description: "Molecular or phenotypic resistance determinants"
+    examples: ["ESBL", "CTX-M", "carbapenemase", "KPC", "NDM", "mecA", "VIM"]
+
+  BIOMARKER:
+    description: "Molecular markers, antigens, antibodies used for diagnosis or prognosis"
+    examples: ["IgG", "HBsAg", "HBeAg", "SNP", "antigen", "antibody titer"]
+
+  PERFORMANCE_METRIC:
+    description: "Test performance characteristics"
+    examples: ["sensitivity", "specificity", "PPV", "NPV", "MIC", "MIC50", "MIC90"]
+
+  METHOD:
+    description: "Laboratory techniques and procedures"
+    examples: ["agar dilution", "disk diffusion", "chromogenic media", "enrichment culture"]
+
+  CLINICAL_OUTCOME:
+    description: "Patient or treatment outcomes"
+    examples: ["treatment response", "seroconversion", "clearance", "mortality", "cure rate"]
+
+  PLATFORM:
+    description: "Automated systems, instruments, commercial products"
+    examples: ["WASPLab", "Roche Elecsys", "Bio-Rad BioPlex", "VITEK", "BacT/Alert"]
+
+relationship_types:
+  DETECTS:
+    description: "Test A detects pathogen/marker B"
+    inverse: "DETECTED_BY"
+    examples: ["PCR DETECTS HSV DNA", "ELISA DETECTS IgG antibodies"]
+
+  IDENTIFIES:
+    description: "Method A identifies organism B"
+    inverse: "IDENTIFIED_BY"
+    examples: ["MALDI-TOF IDENTIFIES Bacterial species"]
+
+  MEASURES:
+    description: "Test A measures metric/marker B"
+    inverse: "MEASURED_BY"
+    examples: ["Agar dilution MEASURES MIC", "Immunoassay MEASURES Antibody titer"]
+
+  CONFERS:
+    description: "Gene/mechanism A confers resistance to antimicrobial B"
+    inverse: "RESISTED_BY"
+    examples: ["CTX-M CONFERS Resistance to ceftriaxone", "mecA CONFERS Methicillin resistance"]
+
+  INHIBITS:
+    description: "Antimicrobial A inhibits pathogen B"
+    inverse: "INHIBITED_BY"
+    examples: ["Meropenem INHIBITS Campylobacter fetus"]
+
+  PREDICTS:
+    description: "Marker/result A predicts outcome B"
+    inverse: "PREDICTED_BY"
+    examples: ["SNP PREDICTS Treatment response", "Low MIC PREDICTS Susceptibility"]
+
+  OUTPERFORMS:
+    description: "Test A has better performance than test B"
+    inverse: "OUTPERFORMED_BY"
+    examples: ["Western blot OUTPERFORMS ELISA for specificity"]
+
+  VALIDATED_AGAINST:
+    description: "Test A validated against reference method B"
+    inverse: "REFERENCE_FOR"
+    examples: ["Rapid test VALIDATED_AGAINST Culture", "Immunoassay VALIDATED_AGAINST Western blot"]
+
+  COLLECTED_FROM:
+    description: "Specimen A collected from anatomical site B"
+    inverse: "SOURCE_OF"
+    examples: ["Swab COLLECTED_FROM Nares", "Blood culture COLLECTED_FROM Venipuncture"]
+
+  TESTED_ON:
+    description: "Method A tested on platform/instrument B"
+    inverse: "PLATFORM_FOR"
+    examples: ["Assay TESTED_ON Automated analyzer"]
+
+  INDICATES:
+    description: "Result A indicates condition/status B"
+    inverse: "INDICATED_BY"
+    examples: ["Positive culture INDICATES Infection", "High MIC INDICATES Resistance"]
+
+  CORRELATES_WITH:
+    description: "Marker A correlates with outcome/marker B"
+    inverse: "CORRELATES_WITH"
+    symmetric: true
+    examples: ["Antibody titer CORRELATES_WITH Protection", "Genotype CORRELATES_WITH Response"]
+
+suitability_criteria:
+  min_entities: 5
+  min_entity_types: 3
+  min_relationships: 4
+  required_entity_types: ["PATHOGEN", "DIAGNOSTIC_TEST"]
+  keywords:
+    positive: ["sensitivity", "specificity", "diagnostic", "detection", "identification", "susceptibility", "MIC", "assay", "test performance", "clinical specimen", "laboratory"]
+    negative: ["pathogenesis mechanism", "host-pathogen interaction", "animal model", "in vivo study"]
+
+contrastive_patterns:
+  - "alternative diagnostic methods"
+  - "different specimen types for same pathogen"
+  - "multiple antimicrobial options"
+  - "competing commercial platforms"
+  - "different resistance mechanisms"
+  - "various biomarkers for same condition"
+
+question_generation_focus:
+  - "Test selection: Which assay provides better sensitivity for detecting pathogen X?"
+  - "Specimen choice: Which specimen type is optimal for diagnosing infection Y?"
+  - "Resistance detection: Which method best identifies resistance mechanism Z?"
+  - "Treatment guidance: Based on MIC results, which antimicrobial is most appropriate?"
+  - "Biomarker utility: Which marker best predicts treatment response?"
