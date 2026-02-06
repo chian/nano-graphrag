@@ -44,126 +44,126 @@
       "id": "aac.00012-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv67i4_10_1128_aac_00012_23-20240609072831-6572377/source_files/aac.00012-23.txt",
       "domain": "microbial_biology",
-      "status": "pending",
-      "attempts": 0,
+      "status": "completed",
+      "attempts": 1,
       "last_error": null,
-      "completed_at": null
+      "completed_at": "2025-12-19T19:16:48.055569"
     },
     {
       "id": "aac.00744-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv67i11_10_1128_aac_00744_23-20240609072729-9672008/source_files/aac.00744-23.txt",
       "domain": "microbial_biology",
-      "status": "pending",
-      "attempts": 0,
+      "status": "completed",
+      "attempts": 1,
       "last_error": null,
-      "completed_at": null
+      "completed_at": "2025-12-20T05:40:11.396323"
     },
     {
       "id": "aac.01358-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv67i1_10_1128_aac_01358_22-20240609072649-6168760/source_files/aac.01358-22.txt",
       "domain": "microbial_biology",
-      "status": "pending",
-      "attempts": 0,
-      "last_error": null,
+      "status": "failed",
+      "attempts": 1,
+      "last_error": "Pipeline failed with exit code 1 - Last error: See error output above for details.",
       "completed_at": null
     },
     {
       "id": "aac.masthead.67-3",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv67i3_10_1128_AAC_masthead_67_3-20240609072748-6159045/source_files/aac.masthead.67-3.txt",
       "domain": "microbial_biology",
-      "status": "pending",
-      "attempts": 0,
-      "last_error": null,
+      "status": "failed",
+      "attempts": 1,
+      "last_error": "Pipeline failed with exit code 1",
       "completed_at": null
     },
     {
       "id": "aac.00721-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv67i10_10_1128_aac_00721_23-20240609072740-0689028/source_files/aac.00721-23.txt",
       "domain": "microbial_biology",
-      "status": "pending",
-      "attempts": 0,
+      "status": "completed",
+      "attempts": 1,
       "last_error": null,
-      "completed_at": null
+      "completed_at": "2025-12-20T15:46:53.450448"
     },
     {
       "id": "aac.00022-24",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv68i6_10_1128_aac_00022_24-20240609072956-6041705/source_files/aac.00022-24.txt",
       "domain": "microbial_biology",
-      "status": "pending",
-      "attempts": 0,
+      "status": "completed",
+      "attempts": 1,
       "last_error": null,
-      "completed_at": null
+      "completed_at": "2025-12-20T23:31:07.314438"
     },
     {
       "id": "aac.01562-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv67i1_10_1128_aac_01562_22-20240609072649-6168760/source_files/aac.01562-22.txt",
       "domain": "microbial_biology",
-      "status": "pending",
-      "attempts": 0,
-      "last_error": null,
+      "status": "failed",
+      "attempts": 1,
+      "last_error": "Pipeline failed with exit code 1",
       "completed_at": null
     },
     {
       "id": "aac.01427-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv67i4_10_1128_aac_01427_22-20240609072831-6572377/source_files/aac.01427-22.txt",
       "domain": "microbial_biology",
-      "status": "pending",
-      "attempts": 0,
-      "last_error": null,
+      "status": "failed",
+      "attempts": 1,
+      "last_error": "Pipeline failed with exit code 1",
       "completed_at": null
     },
     {
       "id": "aac.00778-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv68i1_10_1128_aac_00778_23-20240609072917-5820521/source_files/aac.00778-23.txt",
       "domain": "microbial_biology",
-      "status": "pending",
-      "attempts": 0,
+      "status": "completed",
+      "attempts": 1,
       "last_error": null,
-      "completed_at": null
+      "completed_at": "2025-12-21T14:12:34.644274"
     },
     {
       "id": "aac.01231-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv68i3_10_1128_aac_01231_23-20240609072926-1459396/source_files/aac.01231-23.txt",
       "domain": "microbial_biology",
-      "status": "pending",
-      "attempts": 0,
+      "status": "completed",
+      "attempts": 1,
       "last_error": null,
-      "completed_at": null
+      "completed_at": "2025-12-22T00:12:01.719125"
     },
     {
       "id": "aac.01399-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv68i3_10_1128_aac_01399_23-20240609072926-1459396/source_files/aac.01399-23.txt",
       "domain": "microbial_biology",
-      "status": "pending",
-      "attempts": 0,
-      "last_error": null,
+      "status": "failed",
+      "attempts": 1,
+      "last_error": "Pipeline failed with exit code 1",
       "completed_at": null
     },
     {
       "id": "aac.00960-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv67i10_10_1128_aac_00960_23-20240609072740-0689028/source_files/aac.00960-23.txt",
       "domain": "microbial_biology",
-      "status": "pending",
-      "attempts": 0,
-      "last_error": null,
+      "status": "failed",
+      "attempts": 1,
+      "last_error": "Pipeline failed with exit code 1",
       "completed_at": null
     },
     {
       "id": "aac.01456-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv68i6_10_1128_aac_01456_23-20240609072956-6041705/source_files/aac.01456-23.txt",
       "domain": "microbial_biology",
-      "status": "pending",
-      "attempts": 0,
+      "status": "completed",
+      "attempts": 1,
       "last_error": null,
-      "completed_at": null
+      "completed_at": "2025-12-22T05:55:38.697338"
     },
     {
       "id": "aac.00402-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv67i9_10_1128_aac_00402_23-20240609072837-1774189/source_files/aac.00402-23.txt",
       "domain": "microbial_biology",
-      "status": "pending",
-      "attempts": 0,
-      "last_error": null,
+      "status": "failed",
+      "attempts": 1,
+      "last_error": "Pipeline failed with exit code -2 - Last error: Traceback (most recent call last):",
       "completed_at": null
     },
     {

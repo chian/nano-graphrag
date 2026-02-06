@@ -143,63 +143,63 @@
       "id": "jcm.01048-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i3_10_1128_jcm_01048_23-20240610123116-0748190/source_files/jcm.01048-23.txt",
       "domain": "clinical_microbiology",
-      "status": "pending",
+      "status": "failed",
       "attempts": 1,
-      "last_error": "Connection error - not attempted",
+      "last_error": "Skipped - content triggers Azure safety filter",
       "completed_at": null
     },
     {
       "id": "jcm.00822-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i2_10_1128_jcm_00822_23-20240609100735-3046271/source_files/jcm.00822-23.txt",
       "domain": "clinical_microbiology",
-      "status": "pending",
-      "attempts": 0,
+      "status": "completed",
+      "attempts": 1,
       "last_error": null,
-      "completed_at": null
+      "completed_at": "2025-12-21T04:17:40.763313"
     },
     {
       "id": "jcm.00913-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i11_10_1128_jcm_00913_23-20240610123009-2625334/source_files/jcm.00913-23.txt",
       "domain": "clinical_microbiology",
-      "status": "pending",
-      "attempts": 0,
+      "status": "completed",
+      "attempts": 1,
       "last_error": null,
-      "completed_at": null
+      "completed_at": "2025-12-21T07:51:50.024625"
     },
     {
       "id": "jcm.00242-24",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i5_10_1128_jcm_00242_24-20240609100807-7473231/source_files/jcm.00242-24.txt",
       "domain": "clinical_microbiology",
-      "status": "pending",
-      "attempts": 0,
-      "last_error": null,
+      "status": "failed",
+      "attempts": 1,
+      "last_error": "Pipeline failed with exit code 1",
       "completed_at": null
     },
     {
       "id": "jcm.01537-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv62i3_10_1128_jcm_01537_23-20240610123116-0748190/source_files/jcm.01537-23.txt",
       "domain": "clinical_microbiology",
-      "status": "pending",
-      "attempts": 0,
-      "last_error": null,
+      "status": "failed",
+      "attempts": 3,
+      "last_error": "Pipeline failed with exit code -2 - Last error: Traceback (most recent call last):",
       "completed_at": null
     },
     {
       "id": "jcm.00628-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i10_10_1128_jcm_00628_23-20240609101155-7839640/source_files/jcm.00628-23.txt",
       "domain": "clinical_microbiology",
-      "status": "pending",
-      "attempts": 0,
+      "status": "completed",
+      "attempts": 1,
       "last_error": null,
-      "completed_at": null
+      "completed_at": "2025-12-22T04:43:46.652010"
     },
     {
       "id": "jcm.01302-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JCM/JCMv61i12_10_1128_jcm_01302_23-20240609100531-9256669/source_files/jcm.01302-23.txt",
       "domain": "clinical_microbiology",
-      "status": "pending",
-      "attempts": 0,
-      "last_error": null,
+      "status": "failed",
+      "attempts": 1,
+      "last_error": "Pipeline failed with exit code -2 - Last error: Traceback (most recent call last):",
       "completed_at": null
     },
     {

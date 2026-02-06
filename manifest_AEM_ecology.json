@@ -314,27 +314,27 @@
       "id": "aem.01108-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i10_10_1128_aem_01108_23-20240609085801-8048634/source_files/aem.01108-23.txt",
       "domain": "ecology",
-      "status": "failed",
-      "attempts": 1,
+      "status": "completed",
+      "attempts": 2,
       "last_error": "Pipeline failed with exit code 1 - Last error: ModuleNotFoundError: No module named 'aioboto3'",
-      "completed_at": null
+      "completed_at": "2025-12-19T18:43:53.050139"
     },
     {
       "id": "aem.01109-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i10_10_1128_aem_01109_23-20240609085801-8048634/source_files/aem.01109-23.txt",
       "domain": "ecology",
-      "status": "failed",
-      "attempts": 1,
+      "status": "completed",
+      "attempts": 2,
       "last_error": "Pipeline failed with exit code 1 - Last error: ModuleNotFoundError: No module named 'aioboto3'",
-      "completed_at": null
+      "completed_at": "2025-12-19T22:10:33.846679"
     },
     {
       "id": "aem.01133-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i10_10_1128_aem_01133_23-20240609085801-8048634/source_files/aem.01133-23.txt",
       "domain": "ecology",
       "status": "failed",
-      "attempts": 1,
-      "last_error": "Pipeline failed with exit code 1 - Last error: ModuleNotFoundError: No module named 'aioboto3'",
+      "attempts": 2,
+      "last_error": "Pipeline failed with exit code 1",
       "completed_at": null
     },
     {
@@ -342,53 +342,53 @@
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i10_10_1128_aem_01147_23-20240609085801-8048634/source_files/aem.01147-23.txt",
       "domain": "ecology",
       "status": "failed",
-      "attempts": 1,
-      "last_error": "Pipeline failed with exit code 1 - Last error: ModuleNotFoundError: No module named 'aioboto3'",
+      "attempts": 2,
+      "last_error": "Pipeline failed with exit code 1",
       "completed_at": null
     },
     {
       "id": "aem.01155-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i10_10_1128_aem_01155_23-20240609085801-8048634/source_files/aem.01155-23.txt",
       "domain": "ecology",
-      "status": "failed",
-      "attempts": 1,
+      "status": "completed",
+      "attempts": 2,
       "last_error": "Pipeline failed with exit code 1 - Last error: ModuleNotFoundError: No module named 'aioboto3'",
-      "completed_at": null
+      "completed_at": "2025-12-20T08:22:22.499492"
     },
     {
       "id": "aem.01184-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i10_10_1128_aem_01184_23-20240609085801-8048634/source_files/aem.01184-23.txt",
       "domain": "ecology",
-      "status": "failed",
-      "attempts": 1,
+      "status": "completed",
+      "attempts": 2,
       "last_error": "Pipeline failed with exit code 1 - Last error: ModuleNotFoundError: No module named 'aioboto3'",
-      "completed_at": null
+      "completed_at": "2025-12-20T14:39:10.445792"
     },
     {
       "id": "aem.01185-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i10_10_1128_aem_01185_23-20240609085801-8048634/source_files/aem.01185-23.txt",
       "domain": "ecology",
       "status": "failed",
-      "attempts": 1,
-      "last_error": "Pipeline failed with exit code 1 - Last error: ModuleNotFoundError: No module named 'aioboto3'",
+      "attempts": 2,
+      "last_error": "Pipeline failed with exit code 1",
       "completed_at": null
     },
     {
       "id": "aem.01187-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i10_10_1128_aem_01187_23-20240609085801-8048634/source_files/aem.01187-23.txt",
       "domain": "ecology",
-      "status": "failed",
-      "attempts": 1,
+      "status": "completed",
+      "attempts": 2,
       "last_error": "Pipeline failed with exit code 1 - Last error: ModuleNotFoundError: No module named 'aioboto3'",
-      "completed_at": null
+      "completed_at": "2025-12-20T19:08:14.867605"
     },
     {
       "id": "aem.01204-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i10_10_1128_aem_01204_23-20240609085801-8048634/source_files/aem.01204-23.txt",
       "domain": "ecology",
       "status": "failed",
-      "attempts": 1,
-      "last_error": "Pipeline failed with exit code 1 - Last error: ModuleNotFoundError: No module named 'aioboto3'",
+      "attempts": 2,
+      "last_error": "Skipped - content triggers Azure safety filter",
       "completed_at": null
     },
     {
@@ -422,72 +422,72 @@
       "id": "aem.01904-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i10_10_1128_aem_01904_23-20240609085801-8048634/source_files/aem.01904-23.txt",
       "domain": "ecology",
-      "status": "pending",
-      "attempts": 0,
+      "status": "completed",
+      "attempts": 1,
       "last_error": null,
-      "completed_at": null
+      "completed_at": "2025-12-21T20:46:33.523715"
     },
     {
       "id": "editorial-board",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i10_10_1128_aem_2023_89_issue_10-20240609085801-8048634/source_files/editorial-board.txt",
       "domain": "ecology",
-      "status": "pending",
-      "attempts": 0,
-      "last_error": null,
+      "status": "failed",
+      "attempts": 1,
+      "last_error": "Pipeline failed with exit code 1",
       "completed_at": null
     },
     {
       "id": "aem.00577-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i11_10_1128_aem_00577_23-20240609085743-5614820/source_files/aem.00577-23.txt",
       "domain": "ecology",
-      "status": "pending",
-      "attempts": 0,
+      "status": "completed",
+      "attempts": 1,
       "last_error": null,
-      "completed_at": null
+      "completed_at": "2025-12-22T04:11:15.315613"
     },
     {
       "id": "aem.00602-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i11_10_1128_aem_00602_23-20240609085743-5614820/source_files/aem.00602-23.txt",
       "domain": "ecology",
-      "status": "pending",
-      "attempts": 0,
-      "last_error": null,
+      "status": "failed",
+      "attempts": 1,
+      "last_error": "Pipeline failed with exit code 1",
       "completed_at": null
     },
     {
       "id": "aem.00632-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i11_10_1128_aem_00632_23-20240609085743-5614820/source_files/aem.00632-23.txt",
       "domain": "ecology",
-      "status": "pending",
-      "attempts": 0,
-      "last_error": null,
+      "status": "failed",
+      "attempts": 1,
+      "last_error": "Pipeline failed with exit code 1",
       "completed_at": null
     },
     {
       "id": "aem.00740-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i11_10_1128_aem_00740_23-20240609085743-5614820/source_files/aem.00740-23.txt",
       "domain": "ecology",
-      "status": "pending",
-      "attempts": 0,
-      "last_error": null,
+      "status": "failed",
+      "attempts": 1,
+      "last_error": "Pipeline failed with exit code 1",
       "completed_at": null
     },
     {
       "id": "aem.00819-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i11_10_1128_aem_00819_23-20240609085743-5614820/source_files/aem.00819-23.txt",
       "domain": "ecology",
-      "status": "pending",
-      "attempts": 0,
-      "last_error": null,
+      "status": "failed",
+      "attempts": 1,
+      "last_error": "Pipeline failed with exit code 1",
       "completed_at": null
     },
     {
       "id": "aem.00825-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i11_10_1128_aem_00825_23-20240609085743-5614820/source_files/aem.00825-23.txt",
       "domain": "ecology",
-      "status": "pending",
-      "attempts": 0,
-      "last_error": null,
+      "status": "failed",
+      "attempts": 1,
+      "last_error": "Pipeline failed with exit code -2 - Last error: Traceback (most recent call last):",
       "completed_at": null
     },
     {

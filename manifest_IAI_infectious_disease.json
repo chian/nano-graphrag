@@ -62,99 +62,99 @@
       "id": "iai.00455-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/IAI/IAIv92i3_10_1128_iai_00455_23-20240609094407-6546767/source_files/iai.00455-23.txt",
       "domain": "infectious_disease",
-      "status": "pending",
-      "attempts": 0,
+      "status": "completed",
+      "attempts": 1,
       "last_error": null,
-      "completed_at": null
+      "completed_at": "2025-12-19T18:49:46.222321"
     },
     {
       "id": "iai.masthead.91-6",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/IAI/IAIv91i6_10_1128_IAI_masthead_91_6-20240609094250-3615754/source_files/iai.masthead.91-6.txt",
       "domain": "infectious_disease",
-      "status": "pending",
-      "attempts": 0,
-      "last_error": null,
+      "status": "failed",
+      "attempts": 1,
+      "last_error": "Pipeline failed with exit code 1",
       "completed_at": null
     },
     {
       "id": "iai.00352-21",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/IAI/IAIv90i1_10_1128_IAI_00352_21-20240609093925-3151173/source_files/iai.00352-21.txt",
       "domain": "infectious_disease",
-      "status": "pending",
-      "attempts": 0,
+      "status": "completed",
+      "attempts": 1,
       "last_error": null,
-      "completed_at": null
+      "completed_at": "2025-12-20T05:55:26.538713"
     },
     {
       "id": "iai.00310-21",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/IAI/IAIv89i11_10_1128_iai_00310_21-20240609093742-3115946/source_files/iai.00310-21.txt",
       "domain": "infectious_disease",
-      "status": "pending",
-      "attempts": 0,
-      "last_error": null,
+      "status": "failed",
+      "attempts": 1,
+      "last_error": "Pipeline failed with exit code 1",
       "completed_at": null
     },
     {
       "id": "iai.00334-21",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/IAI/IAIv90i5_10_1128_iai_00334_21-20240609094037-4069013/source_files/iai.00334-21.txt",
       "domain": "infectious_disease",
-      "status": "pending",
-      "attempts": 0,
+      "status": "completed",
+      "attempts": 1,
       "last_error": null,
-      "completed_at": null
+      "completed_at": "2025-12-20T13:23:52.083670"
     },
     {
       "id": "iai.00064-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/IAI/IAIv91i4_10_1128_iai_00064_23-20240609094238-5186412/source_files/iai.00064-23.txt",
       "domain": "infectious_disease",
-      "status": "pending",
-      "attempts": 0,
+      "status": "completed",
+      "attempts": 1,
       "last_error": null,
-      "completed_at": null
+      "completed_at": "2025-12-20T20:41:47.129604"
     },
     {
       "id": "iai.00456-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/IAI/IAIv92i2_10_1128_iai_00456_23-20240609094339-8094474/source_files/iai.00456-23.txt",
       "domain": "infectious_disease",
-      "status": "pending",
-      "attempts": 0,
+      "status": "completed",
+      "attempts": 1,
       "last_error": null,
-      "completed_at": null
+      "completed_at": "2025-12-21T05:52:56.851319"
     },
     {
       "id": "iai.00579-21",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/IAI/IAIv90i5_10_1128_iai_00579_21-20240609094037-4069013/source_files/iai.00579-21.txt",
       "domain": "infectious_disease",
-      "status": "pending",
-      "attempts": 0,
+      "status": "completed",
+      "attempts": 1,
       "last_error": null,
-      "completed_at": null
+      "completed_at": "2025-12-21T15:18:18.737746"
     },
     {
       "id": "iai.00422-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/IAI/IAIv92i3_10_1128_iai_00422_23-20240609094407-6546767/source_files/iai.00422-23.txt",
       "domain": "infectious_disease",
-      "status": "pending",
-      "attempts": 0,
+      "status": "completed",
+      "attempts": 1,
       "last_error": null,
-      "completed_at": null
+      "completed_at": "2025-12-21T19:32:08.763757"
     },
     {
       "id": "iai.00441-21",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/IAI/IAIv89i12_10_1128_iai_00441_21-20240609093758-5875866/source_files/iai.00441-21.txt",
       "domain": "infectious_disease",
-      "status": "pending",
-      "attempts": 0,
+      "status": "completed",
+      "attempts": 1,
       "last_error": null,
-      "completed_at": null
+      "completed_at": "2025-12-22T03:33:21.324374"
     },
     {
       "id": "iai.00214-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/IAI/IAIv90i11_10_1128_iai_00214_22-20240609093949-9193930/source_files/iai.00214-22.txt",
       "domain": "infectious_disease",
-      "status": "pending",
-      "attempts": 0,
-      "last_error": null,
+      "status": "failed",
+      "attempts": 1,
+      "last_error": "Pipeline failed with exit code -2 - Last error: Traceback (most recent call last):",
       "completed_at": null
     },
     {

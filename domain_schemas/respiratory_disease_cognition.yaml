@@ -1,0 +1,291 @@
+# Respiratory Disease Cognition Domain Schema
+# Focus: Literature synthesis of respiratory infection effects on cognitive function in healthcare workers
+
+domain_name: "Respiratory Disease Cognition"
+domain_description: "Synthesis of published literature examining the effects of respiratory infections on cognitive function, including disease-cognition associations, covariates, assessment methods, and evidence quality with epistemic gradations"
+
+entity_types:
+  STUDY:
+    description: "Published paper or preprint reporting findings"
+    properties: ["authors", "year", "doi", "design_type", "duration", "follow_up_points"]
+    examples: ["Hampshire et al. 2021", "Taquet et al. 2022", "Douaud et al. 2022"]
+    aliases: ["paper", "publication", "article", "research study", "preprint"]
+
+  COHORT:
+    description: "Study population with characteristics"
+    properties: ["n", "profession", "setting", "country"]
+    examples: ["ICU nurses n=200", "UK healthcare workers", "hospitalized COVID patients"]
+    aliases: ["study population", "participant group", "sample", "subjects"]
+
+  RESPIRATORY_DISEASE:
+    description: "Infectious respiratory illness studied"
+    examples: ["COVID-19", "influenza", "SARS", "MERS", "RSV", "tuberculosis"]
+    aliases: ["respiratory infection", "respiratory illness", "viral respiratory disease", "acute respiratory infection", "ARI"]
+
+  DISEASE_SEVERITY:
+    description: "Categories of illness severity as studied"
+    examples: ["mild", "moderate", "severe", "critical", "hospitalized", "non-hospitalized"]
+    aliases: ["severity category", "illness severity", "disease stage", "severity level"]
+
+  COGNITIVE_FUNCTION:
+    description: "Cognitive domains assessed"
+    examples: ["executive function", "working memory", "processing speed", "attention", "verbal fluency", "episodic memory"]
+    aliases: ["cognitive domain", "neurocognitive function", "mental function", "cognitive ability"]
+
+  NEUROPSYCH_TEST:
+    description: "Standardized validated neuropsychological assessment instruments"
+    examples: ["MoCA", "Trail Making Test A/B", "CANTAB", "Digit Span", "Stroop", "NIH Toolbox"]
+    aliases: ["cognitive test", "neuropsychological assessment", "cognitive assessment", "psychometric test", "neurocognitive test"]
+
+  TEST_BATTERY:
+    description: "Grouped instruments used together in a study"
+    examples: ["NIH Toolbox Cognition Battery", "CANTAB Core Battery", "custom COVID-cog battery"]
+    aliases: ["assessment battery", "test panel", "cognitive battery"]
+
+  CLAIM:
+    description: "Specific assertion linking disease to cognitive outcome, with epistemic strength"
+    properties:
+      - assertion_strength: ["definitive", "moderate", "tentative", "speculative", "exploratory"]
+      - authors_framing: ["confirmed", "suggested", "hypothesized", "noted as trend", "proposed for future study"]
+    examples:
+      - "COVID-19 associated with reduced processing speed (definitive, confirmed)"
+      - "trend toward attention deficit, p=0.08 (tentative, noted as trend)"
+      - "we speculate hypoxia may drive memory deficits (speculative, hypothesized)"
+    aliases: ["assertion", "finding", "conclusion", "result"]
+
+  EFFECT_ESTIMATE:
+    description: "Quantified finding with statistical parameters and significance status"
+    properties:
+      - effect_size
+      - confidence_interval
+      - p_value
+      - direction
+      - reached_significance: true/false
+      - statistical_trend: true/false  # p between 0.05-0.10
+    examples:
+      - "d = -0.47, 95% CI [-0.62, -0.32], p<0.001, reached_significance=true"
+      - "d = -0.18, p=0.07, reached_significance=false, statistical_trend=true"
+    aliases: ["effect size", "statistical estimate", "quantified effect", "statistical result"]
+
+  COVARIATE:
+    description: "Variables reported alongside the disease-cognition association"
+    examples: ["corticosteroid use", "mechanical ventilation", "ICU sedation", "elevated CRP", "hypoxemia", "antiviral treatment", "supplemental oxygen", "remdesivir"]
+    aliases: ["confounder", "adjustment variable", "control variable", "associated factor"]
+
+  DISEASE_PHASE:
+    description: "Phase relative to infection when cognition was assessed"
+    examples: ["acute", "post-acute", "convalescent", "chronic", "long-term"]
+    aliases: ["infection phase", "illness phase", "temporal phase", "disease stage"]
+
+  EFFECT_MODIFIER:
+    description: "Factors that alter the disease-cognition relationship"
+    examples: ["age", "disease severity", "vaccination status", "time since infection", "sex", "education"]
+    aliases: ["moderator", "interaction factor", "modifying factor", "effect modifier variable"]
+
+  COMORBIDITY:
+    description: "Pre-existing conditions in the study population"
+    examples: ["Parkinson's disease", "Alzheimer's disease", "prior stroke", "diabetes", "depression", "hypertension"]
+    aliases: ["pre-existing condition", "comorbid condition", "baseline condition", "medical history"]
+
+  EVIDENCE_PATTERN:
+    description: "Set of claims showing convergence, from emerging trend to strong consensus"
+    properties:
+      - pattern_strength: ["emerging", "developing", "moderate", "strong", "consensus"]
+    examples:
+      - "post-COVID executive dysfunction pattern (strong)"
+      - "emerging signal for RSV-attention link (emerging)"
+    aliases: ["evidence cluster", "finding pattern", "convergent evidence"]
+
+  TENSION:
+    description: "Inconsistency or disagreement between findings, ranging from minor discrepancy to active debate"
+    properties:
+      - tension_level: ["minor discrepancy", "inconsistent findings", "active disagreement", "unresolved debate"]
+    examples:
+      - "long COVID cognitive permanence (unresolved debate)"
+      - "severity-dependence findings (inconsistent findings)"
+    aliases: ["discrepancy", "disagreement", "conflicting evidence", "inconsistency"]
+
+  META_ANALYTIC_ESTIMATE:
+    description: "Pooled effect from multiple studies"
+    examples: ["pooled SMD for COVID-memory impairment k=12"]
+    aliases: ["pooled estimate", "meta-analysis result", "aggregated effect"]
+
+  KNOWLEDGE_GAP:
+    description: "Inferred absence of evidence for a disease-cognition pair"
+    examples: ["no studies on RSV and executive function", "MERS long-term cognition unstudied"]
+    aliases: ["research gap", "evidence gap", "unstudied area"]
+
+relationship_types:
+  REPORTS:
+    description: "Study A reports claim B"
+    inverse: "REPORTED_BY"
+    examples: ["Hampshire 2021 REPORTS COVID impairs executive function"]
+
+  EXAMINED:
+    description: "Study A examined cohort B"
+    inverse: "EXAMINED_BY"
+    examples: ["Taquet 2022 EXAMINED UK Biobank participants"]
+
+  QUANTIFIED_BY:
+    description: "Claim A quantified by effect estimate B"
+    inverse: "QUANTIFIES"
+    examples: ["Memory impairment claim QUANTIFIED_BY d = -0.35"]
+
+  SUPPORTS:
+    description: "Claim A provides evidence supporting claim B"
+    inverse: "SUPPORTED_BY"
+    properties:
+      - strength: ["strong", "moderate", "weak", "tentative"]
+    examples:
+      - "Large replication SUPPORTS (strong) original finding"
+      - "Underpowered study SUPPORTS (tentative) hypothesis"
+
+  CONTRADICTS:
+    description: "Claim A provides evidence against claim B"
+    inverse: "CONTRADICTED_BY"
+    properties:
+      - strength: ["strong", "moderate", "weak", "tentative"]
+    examples:
+      - "Large RCT CONTRADICTS (strong) prior observational claim"
+      - "Small study CONTRADICTS (weak) established finding"
+
+  QUALIFIES:
+    description: "Claim A adds nuance or conditions to claim B"
+    inverse: "QUALIFIED_BY"
+    examples: ["Severity-dependent finding QUALIFIES broad impairment claim"]
+
+  CONCERNS_DISEASE:
+    description: "Claim A is about respiratory disease B"
+    inverse: "DISEASE_FOR"
+    examples: ["Claim CONCERNS_DISEASE COVID-19"]
+
+  CONCERNS_COGNITION:
+    description: "Claim A is about cognitive function B"
+    inverse: "COGNITION_FOR"
+    examples: ["Claim CONCERNS_COGNITION processing speed"]
+
+  AT_PHASE:
+    description: "Claim A applies at disease phase B"
+    inverse: "PHASE_FOR"
+    examples: ["Finding AT_PHASE post-acute"]
+
+  MODIFIED_BY:
+    description: "Claim A is modified by factor B"
+    inverse: "MODIFIES"
+    examples: ["Association MODIFIED_BY age"]
+
+  ADJUSTED_FOR:
+    description: "Claim A was statistically adjusted for covariate B"
+    inverse: "ADJUSTMENT_IN"
+    examples: ["Finding ADJUSTED_FOR corticosteroid use"]
+
+  ASSOCIATED_WITH:
+    description: "Claim A reported association with covariate B (not necessarily causal)"
+    inverse: "ASSOCIATION_IN"
+    examples: ["Cognitive deficit ASSOCIATED_WITH mechanical ventilation"]
+
+  USED_INSTRUMENT:
+    description: "Study A used neuropsychological test B"
+    inverse: "USED_BY"
+    examples: ["Study USED_INSTRUMENT MoCA"]
+
+  MEASURES:
+    description: "Neuropsych test A measures cognitive function B"
+    inverse: "MEASURED_BY"
+    examples: ["Trail Making B MEASURES executive function"]
+
+  SUBTEST_OF:
+    description: "Neuropsych test A is subtest of battery B"
+    inverse: "INCLUDES_SUBTEST"
+    examples: ["Digit Span SUBTEST_OF WAIS-IV"]
+
+  CORRELATES_WITH:
+    description: "Test A correlates with test B in validation studies"
+    inverse: "CORRELATES_WITH"
+    symmetric: true
+    properties: ["r", "n", "source"]
+    examples: ["MoCA CORRELATES_WITH MMSE r=0.87"]
+
+  CO_IMPAIRED_WITH:
+    description: "Cognitive function A co-occurs with impairment in function B across studies"
+    inverse: "CO_IMPAIRED_WITH"
+    symmetric: true
+    provenance: "derived"
+    properties: ["jaccard", "study_count"]
+    examples: ["Executive function CO_IMPAIRED_WITH processing speed"]
+
+  SIMILAR_PROFILE_TO:
+    description: "Disease A produces similar cognitive signature to disease B"
+    inverse: "SIMILAR_PROFILE_TO"
+    symmetric: true
+    provenance: "derived"
+    properties: ["similarity"]
+    examples: ["COVID-19 SIMILAR_PROFILE_TO SARS"]
+
+  MEMBER_OF:
+    description: "Claim A belongs to evidence pattern B"
+    inverse: "CONTAINS"
+    examples: ["Claim MEMBER_OF post-COVID executive dysfunction pattern"]
+
+  IN_TENSION_WITH:
+    description: "Evidence pattern A is in tension with pattern B"
+    inverse: "IN_TENSION_WITH"
+    symmetric: true
+    examples: ["Persistence pattern IN_TENSION_WITH recovery pattern"]
+
+  CONTRIBUTES_TO:
+    description: "Effect estimate A contributes to meta-analytic estimate B"
+    inverse: "AGGREGATES"
+    examples: ["Study effect CONTRIBUTES_TO pooled estimate"]
+
+  INCLUDED_SUBJECTS_WITH:
+    description: "Cohort A included subjects with comorbidity B"
+    inverse: "INCLUDED_IN"
+    properties: ["proportion", "subgroup_n"]
+    examples: ["Cohort INCLUDED_SUBJECTS_WITH Parkinson's disease"]
+
+  EXCLUDED_SUBJECTS_WITH:
+    description: "Cohort A excluded subjects with comorbidity B"
+    inverse: "EXCLUDED_FROM"
+    examples: ["Cohort EXCLUDED_SUBJECTS_WITH prior dementia"]
+
+  STRATIFIED_BY:
+    description: "Claim A reports findings stratified by comorbidity B"
+    inverse: "STRATIFIES"
+    examples: ["Findings STRATIFIED_BY diabetes status"]
+
+  NO_EVIDENCE_FOR:
+    description: "No studies link disease A to cognitive function B"
+    inverse: "NO_EVIDENCE_FOR"
+    provenance: "derived"
+    examples: ["MERS NO_EVIDENCE_FOR verbal fluency"]
+
+suitability_criteria:
+  min_entities: 4
+  min_entity_types: 3
+  min_relationships: 3
+  required_entity_types: ["RESPIRATORY_DISEASE", "COGNITIVE_FUNCTION", "CLAIM"]
+  keywords:
+    positive: ["cognitive", "neuropsychological", "cognition", "memory", "attention", "executive function", "brain fog", "long COVID", "post-acute", "neurocognitive", "MoCA", "processing speed"]
+    negative: ["animal model", "in vitro", "cell culture", "mouse", "rat", "pathogenesis only", "vaccine efficacy only"]
+
+contrastive_patterns:
+  - "different respiratory diseases compared"
+  - "acute vs post-acute findings"
+  - "different cognitive domains affected"
+  - "severity-dependent vs independent effects"
+  - "healthcare workers vs general population"
+  - "different assessment instruments for same construct"
+  - "covariate-adjusted vs unadjusted findings"
+  - "definitive vs tentative claims on same topic"
+  - "significant vs trending findings"
+
+question_generation_focus:
+  - "Disease comparison: Does COVID-19 produce more severe cognitive deficits than influenza?"
+  - "Domain specificity: Which cognitive functions are most affected by respiratory illness?"
+  - "Temporal course: Do deficits persist beyond the post-acute phase?"
+  - "Covariates: Which medications or treatments are associated with cognitive outcomes?"
+  - "Risk factors: Which effect modifiers predict worse cognitive outcomes?"
+  - "Assessment: Which neuropsychological tests are most sensitive to respiratory disease effects?"
+  - "Evidence strength: Which findings are definitive vs still emerging?"
+  - "Tensions: Where do findings conflict and what might explain the discrepancy?"

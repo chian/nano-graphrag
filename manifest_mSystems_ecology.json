@@ -260,108 +260,108 @@
       "id": "msystems.01029-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i1_10_1128_msystems_01029_22-20240609053753-5727089/source_files/msystems.01029-22.txt",
       "domain": "ecology",
-      "status": "failed",
-      "attempts": 1,
+      "status": "completed",
+      "attempts": 2,
       "last_error": "Pipeline failed with exit code -2 - Last error: Traceback (most recent call last):",
-      "completed_at": null
+      "completed_at": "2025-12-19T17:47:17.370831"
     },
     {
       "id": "msystems.01043-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i1_10_1128_msystems_01043_22-20240609053753-5727089/source_files/msystems.01043-22.txt",
       "domain": "ecology",
-      "status": "pending",
-      "attempts": 0,
-      "last_error": null,
+      "status": "failed",
+      "attempts": 1,
+      "last_error": "Pipeline failed with exit code 1",
       "completed_at": null
     },
     {
       "id": "msystems.01068-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i1_10_1128_msystems_01068_22-20240609053753-5727089/source_files/msystems.01068-22.txt",
       "domain": "ecology",
-      "status": "pending",
-      "attempts": 0,
-      "last_error": null,
+      "status": "failed",
+      "attempts": 1,
+      "last_error": "Skipped - content triggers safety filter",
       "completed_at": null
     },
     {
       "id": "msystems.01106-22-s0006",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i1_10_1128_msystems_01106_22-20240609053753-5727089/msystems.2023.8.issue-1/msystems.01106-22/suppl/msystems.01106-22-s0006.txt",
       "domain": "ecology",
-      "status": "pending",
-      "attempts": 0,
-      "last_error": null,
+      "status": "failed",
+      "attempts": 1,
+      "last_error": "Pipeline failed with exit code 1",
       "completed_at": null
     },
     {
       "id": "msystems.01282-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i1_10_1128_msystems_01282_22-20240609053753-5727089/source_files/msystems.01282-22.txt",
       "domain": "ecology",
-      "status": "pending",
-      "attempts": 0,
+      "status": "completed",
+      "attempts": 1,
       "last_error": null,
-      "completed_at": null
+      "completed_at": "2025-12-21T06:18:01.497570"
     },
     {
       "id": "msystems.00002-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i2_10_1128_msystems_00002_23-20240609053807-5568251/source_files/msystems.00002-23.txt",
       "domain": "ecology",
-      "status": "pending",
-      "attempts": 0,
+      "status": "completed",
+      "attempts": 1,
       "last_error": null,
-      "completed_at": null
+      "completed_at": "2025-12-21T12:40:45.057883"
     },
     {
       "id": "msystems.00024-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i2_10_1128_msystems_00024_23-20240609053807-5568251/source_files/msystems.00024-23.txt",
       "domain": "ecology",
-      "status": "pending",
-      "attempts": 0,
-      "last_error": null,
+      "status": "failed",
+      "attempts": 1,
+      "last_error": "Pipeline failed with exit code 1",
       "completed_at": null
     },
     {
       "id": "msystems.00622-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i2_10_1128_msystems_00622_22-20240609053807-5568251/source_files/msystems.00622-22.txt",
       "domain": "ecology",
-      "status": "pending",
-      "attempts": 0,
-      "last_error": null,
+      "status": "failed",
+      "attempts": 1,
+      "last_error": "Pipeline failed with exit code 1",
       "completed_at": null
     },
     {
       "id": "msystems.00718-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i2_10_1128_msystems_00718_22-20240609053807-5568251/source_files/msystems.00718-22.txt",
       "domain": "ecology",
-      "status": "pending",
-      "attempts": 0,
-      "last_error": null,
+      "status": "failed",
+      "attempts": 1,
+      "last_error": "Pipeline failed with exit code 1",
       "completed_at": null
     },
     {
       "id": "msystems.00884-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i2_10_1128_msystems_00884_22-20240609053807-5568251/source_files/msystems.00884-22.txt",
       "domain": "ecology",
-      "status": "pending",
-      "attempts": 0,
+      "status": "completed",
+      "attempts": 1,
       "last_error": null,
-      "completed_at": null
+      "completed_at": "2025-12-21T19:05:35.832580"
     },
     {
       "id": "msystems.00992-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i2_10_1128_msystems_00992_22-20240609053807-5568251/source_files/msystems.00992-22.txt",
       "domain": "ecology",
-      "status": "pending",
-      "attempts": 0,
+      "status": "completed",
+      "attempts": 1,
       "last_error": null,
-      "completed_at": null
+      "completed_at": "2025-12-22T03:01:18.290982"
     },
     {
       "id": "msystems.01003-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv8i2_10_1128_msystems_01003_22-20240609053807-5568251/source_files/msystems.01003-22.txt",
       "domain": "ecology",
-      "status": "pending",
-      "attempts": 0,
-      "last_error": null,
+      "status": "failed",
+      "attempts": 1,
+      "last_error": "Pipeline failed with exit code -2 - Last error: Traceback (most recent call last):",
       "completed_at": null
     },
     {

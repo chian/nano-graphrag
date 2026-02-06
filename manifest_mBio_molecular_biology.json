@@ -98,99 +98,99 @@
       "id": "mbio.02850-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mBio/MBIOv15i5_10_1128_mbio_02850_23-20240609061420-2616404/source_files/mbio.02850-23.txt",
       "domain": "molecular_biology",
-      "status": "pending",
-      "attempts": 0,
+      "status": "completed",
+      "attempts": 1,
       "last_error": null,
-      "completed_at": null
+      "completed_at": "2025-12-19T15:47:40.649701"
     },
     {
       "id": "mbio.02570-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mBio/MBIOv14i6_10_1128_mbio_02570_23-20240609061127-0856324/source_files/mbio.02570-23.txt",
       "domain": "molecular_biology",
-      "status": "pending",
-      "attempts": 0,
+      "status": "completed",
+      "attempts": 1,
       "last_error": null,
-      "completed_at": null
+      "completed_at": "2025-12-19T20:26:30.156884"
     },
     {
       "id": "mbio.03300-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mBio/MBIOv15i3_10_1128_mbio_03300_23-20240609061141-9658266/source_files/mbio.03300-23.txt",
       "domain": "molecular_biology",
-      "status": "pending",
-      "attempts": 0,
+      "status": "completed",
+      "attempts": 1,
       "last_error": null,
-      "completed_at": null
+      "completed_at": "2025-12-20T02:42:36.372065"
     },
     {
       "id": "mbio.02840-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mBio/MBIOv15i3_10_1128_mbio_02840_23-20240609061141-9658266/source_files/mbio.02840-23.txt",
       "domain": "molecular_biology",
-      "status": "pending",
-      "attempts": 0,
+      "status": "completed",
+      "attempts": 1,
       "last_error": null,
-      "completed_at": null
+      "completed_at": "2025-12-20T08:43:29.733167"
     },
     {
       "id": "mbio.02043-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mBio/MBIOv14i6_10_1128_mbio_02043_23-20240609061127-0856324/source_files/mbio.02043-23.txt",
       "domain": "molecular_biology",
-      "status": "pending",
-      "attempts": 0,
+      "status": "completed",
+      "attempts": 1,
       "last_error": null,
-      "completed_at": null
+      "completed_at": "2025-12-20T16:49:46.708186"
     },
     {
       "id": "mbio.02255-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mBio/MBIOv14i6_10_1128_mbio_02255_23-20240609061127-0856324/source_files/mbio.02255-23.txt",
       "domain": "molecular_biology",
-      "status": "pending",
-      "attempts": 0,
+      "status": "completed",
+      "attempts": 1,
       "last_error": null,
-      "completed_at": null
+      "completed_at": "2025-12-21T00:02:34.651045"
     },
     {
       "id": "mbio.02603-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mBio/MBIOv15i2_10_1128_mbio_02603_23-20240609061303-4781390/source_files/mbio.02603-23.txt",
       "domain": "molecular_biology",
-      "status": "pending",
-      "attempts": 0,
+      "status": "completed",
+      "attempts": 1,
       "last_error": null,
-      "completed_at": null
+      "completed_at": "2025-12-21T07:26:44.608878"
     },
     {
       "id": "mbio.01676-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mBio/MBIOv14i6_10_1128_mbio_01676_23-20240609061127-0856324/source_files/mbio.01676-23.txt",
       "domain": "molecular_biology",
-      "status": "pending",
-      "attempts": 0,
+      "status": "completed",
+      "attempts": 1,
       "last_error": null,
-      "completed_at": null
+      "completed_at": "2025-12-21T14:37:42.492747"
     },
     {
       "id": "mbio.01925-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mBio/MBIOv15i2_10_1128_mbio_01925_23-20240609061303-4781390/source_files/mbio.01925-23.txt",
       "domain": "molecular_biology",
-      "status": "pending",
-      "attempts": 0,
-      "last_error": null,
+      "status": "failed",
+      "attempts": 1,
+      "last_error": "Pipeline failed with exit code 1",
       "completed_at": null
     },
     {
       "id": "mbio.02880-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mBio/MBIOv15i3_10_1128_mbio_02880_23-20240609061141-9658266/source_files/mbio.02880-23.txt",
       "domain": "molecular_biology",
-      "status": "pending",
-      "attempts": 0,
+      "status": "completed",
+      "attempts": 1,
       "last_error": null,
-      "completed_at": null
+      "completed_at": "2025-12-22T02:58:56.664721"
     },
     {
       "id": "mbio.02830-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mBio/MBIOv15i1_10_1128_mbio_02830_23-20240609061140-9679708/source_files/mbio.02830-23.txt",
       "domain": "molecular_biology",
-      "status": "pending",
-      "attempts": 0,
-      "last_error": null,
+      "status": "failed",
+      "attempts": 1,
+      "last_error": "Pipeline failed with exit code -2 - Last error: Traceback (most recent call last):",
       "completed_at": null
     },
     {

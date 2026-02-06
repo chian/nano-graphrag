@@ -26,90 +26,90 @@
       "id": "jvi.01693-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_01693_23-20240609110813-7072366/source_files/jvi.01693-23.txt",
       "domain": "infectious_disease",
-      "status": "pending",
-      "attempts": 0,
+      "status": "completed",
+      "attempts": 1,
       "last_error": null,
-      "completed_at": null
+      "completed_at": "2025-12-19T21:28:41.232147"
     },
     {
       "id": "jvi.01070-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv97i12_10_1128_jvi_01070_23-20240609110404-7852792/source_files/jvi.01070-23.txt",
       "domain": "infectious_disease",
-      "status": "pending",
-      "attempts": 0,
+      "status": "completed",
+      "attempts": 1,
       "last_error": null,
-      "completed_at": null
+      "completed_at": "2025-12-20T05:33:09.592533"
     },
     {
       "id": "jvi.01827-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01827_23-20240610011730-6152864/source_files/jvi.01827-23.txt",
       "domain": "infectious_disease",
-      "status": "pending",
-      "attempts": 0,
-      "last_error": null,
+      "status": "failed",
+      "attempts": 1,
+      "last_error": "Pipeline failed with exit code 1",
       "completed_at": null
     },
     {
       "id": "jvi.01683-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01683_23-20240609110750-9018411/source_files/jvi.01683-23.txt",
       "domain": "infectious_disease",
-      "status": "pending",
-      "attempts": 0,
-      "last_error": null,
+      "status": "failed",
+      "attempts": 4,
+      "last_error": "Pipeline failed with exit code -2 - Last error: Traceback (most recent call last):",
       "completed_at": null
     },
     {
       "id": "jvi.01762-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i5_10_1128_jvi_01762_23-20240609110813-7072366/source_files/jvi.01762-23.txt",
       "domain": "infectious_disease",
-      "status": "pending",
-      "attempts": 0,
+      "status": "completed",
+      "attempts": 1,
       "last_error": null,
-      "completed_at": null
+      "completed_at": "2025-12-21T10:05:47.159407"
     },
     {
       "id": "editorial-board",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i4_10_1128_jvi_2024_98_issue_4-20240610011650-6186876/source_files/editorial-board.txt",
       "domain": "infectious_disease",
-      "status": "pending",
-      "attempts": 0,
-      "last_error": null,
+      "status": "failed",
+      "attempts": 1,
+      "last_error": "Pipeline failed with exit code 1",
       "completed_at": null
     },
     {
       "id": "jvi.01720-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01720_23-20240610011730-6152864/source_files/jvi.01720-23.txt",
       "domain": "infectious_disease",
-      "status": "pending",
-      "attempts": 0,
+      "status": "completed",
+      "attempts": 1,
       "last_error": null,
-      "completed_at": null
+      "completed_at": "2025-12-21T18:35:42.966066"
     },
     {
       "id": "jvi.01683-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i2_10_1128_jvi_01683_23-20240610011715-9928200/source_files/jvi.01683-23.txt",
       "domain": "infectious_disease",
-      "status": "pending",
-      "attempts": 0,
-      "last_error": null,
+      "status": "failed",
+      "attempts": 1,
+      "last_error": "LLM connection error - skipped",
       "completed_at": null
     },
     {
       "id": "jvi.01536-23",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_01536_23-20240610011730-6152864/source_files/jvi.01536-23.txt",
       "domain": "infectious_disease",
-      "status": "pending",
-      "attempts": 0,
+      "status": "completed",
+      "attempts": 1,
       "last_error": null,
-      "completed_at": null
+      "completed_at": "2025-12-22T04:16:17.753461"
     },
     {
       "id": "jvi.00182-24",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/JVI/JVIv98i3_10_1128_jvi_00182_24-20240610011730-6152864/source_files/jvi.00182-24.txt",
       "domain": "infectious_disease",
-      "status": "pending",
-      "attempts": 0,
-      "last_error": null,
+      "status": "failed",
+      "attempts": 1,
+      "last_error": "Pipeline failed with exit code -2 - Last error: Traceback (most recent call last):",
       "completed_at": null
     },
     {

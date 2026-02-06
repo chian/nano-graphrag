@@ -1,9 +1,9 @@
 {
-  "scraped_at": "2025-12-19T14:57:40.588326",
+  "scraped_at": "2025-12-22T10:02:23.377083",
   "base_directory": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC",
   "domain_filter": "ecology",
-  "total_papers": 4,
-  "total_questions": 22,
+  "total_papers": 6,
+  "total_questions": 34,
   "questions": [
     {
       "paper_id": "aac.00588-23",
@@ -321,6 +321,247 @@
       ]
     },
     {
+      "paper_id": "aac.01465-22",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv67i4_10_1128_aac_01465_22-20240609072831-6572377/source_files/.qa_output/aac.01465-22/ecology/contrastive_qa.json",
+      "question": "In a controlled ecological experiment, two malaria parasite species\u2014Plasmodium berghei and Plasmodium falciparum\u2014are introduced separately into populations of laboratory mice and humans, respectively. In both hosts, a fraction of the parasites undergo sexual development to produce gametocytes, which are essential for transmission to mosquitoes. Artesunate, when administered at 2 mg/kg in mice, achieves over 90% reduction in circulating asexual Plasmodium berghei parasites within 24 hours. In clinical studies, artesunate is rapidly metabolized to dihydroartemisinin, its active form, with a plasma half-life of less than one hour. Only gametocytes can survive and activate in the mosquito midgut, leading to fertilization and completion of the parasite life cycle. Sporozoites of Plasmodium falciparum are typically found in the mosquito salivary glands at densities ranging from 10,000 to 100,000 per infected mosquito, enabling efficient transmission to vertebrate hosts. In laboratory settings, sporozoite motility can be quantified using time-lapse microscopy to assess their ability to invade host tissues. Merozoites, another stage, do not survive in the mosquito. Anopheles mosquitoes can ingest up to 2 microliters of blood per feeding event, exposing them to varying concentrations of Plasmodium gametocytes depending on host parasitemia. In laboratory settings, the midgut infection rate in Anopheles mosquitoes can range from 10% to 80% depending on both mosquito and parasite strain. Transmission-blocking drugs specifically target gametocyte activation. If the goal is to interrupt malaria transmission from vertebrate hosts to mosquitoes, which parasite stage should be targeted by intervention?",
+      "original_question": "In a controlled ecological experiment, two malaria parasite species\u2014Plasmodium berghei and Plasmodium falciparum\u2014are introduced separately into populations of laboratory mice and humans, respectively. In both hosts, a fraction of the parasites undergo sexual development to produce gametocytes, which are essential for transmission to mosquitoes. Only gametocytes can survive and activate in the mosquito midgut, leading to fertilization and completion of the parasite life cycle. Merozoites, another stage, do not survive in the mosquito. Transmission-blocking drugs specifically target gametocyte activation. If the goal is to interrupt malaria transmission from vertebrate hosts to mosquitoes, which parasite stage should be targeted by intervention?",
+      "reasoning_steps": [
+        "Both Plasmodium berghei and Plasmodium falciparum produce gametocytes in their respective vertebrate hosts.",
+        "Gametocytes are the only stage capable of surviving and activating in the mosquito midgut.",
+        "Activation of gametocytes in the mosquito is required for fertilization and life cycle completion.",
+        "Merozoites cannot survive in the mosquito and do not contribute to transmission.",
+        "Transmission-blocking drugs act by inhibiting gametocyte activation.",
+        "Interrupting transmission requires targeting the stage responsible for mosquito infection.",
+        "Therefore, the intervention should focus on the gametocyte stage."
+      ],
+      "correct_answer": "Gametocyte",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "GAMETOCYTE",
+        "PLASMODIUM BERGHEI",
+        "PLASMODIUM FALCIPARUM",
+        "P. FALCIPARUM",
+        "PLASMODIUM",
+        "MEROZOITE"
+      ],
+      "quality_score": 4.0,
+      "answer_word_count": 1,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Artesunate, when administered at 2 mg/kg in mice, achieves over 90% reduction in circulating asexual Plasmodium berghei parasites within 24 hours. In clinical studies, artesunate is rapidly metabolized to dihydroartemisinin, its active form, with a plasma half-life of less than one hour.",
+        "Sporozoites of Plasmodium falciparum are typically found in the mosquito salivary glands at densities ranging from 10,000 to 100,000 per infected mosquito, enabling efficient transmission to vertebrate hosts. In laboratory settings, sporozoite motility can be quantified using time-lapse microscopy to assess their ability to invade host tissues.",
+        "Anopheles mosquitoes can ingest up to 2 microliters of blood per feeding event, exposing them to varying concentrations of Plasmodium gametocytes depending on host parasitemia. In laboratory settings, the midgut infection rate in Anopheles mosquitoes can range from 10% to 80% depending on both mosquito and parasite strain."
+      ],
+      "enrichment_entities": [
+        "ARTESUNATE",
+        "SPOROZOITES",
+        "ANOPHELES MOSQUITO"
+      ]
+    },
+    {
+      "paper_id": "aac.01465-22",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv67i4_10_1128_aac_01465_22-20240609072831-6572377/source_files/.qa_output/aac.01465-22/ecology/contrastive_qa.json",
+      "question": "A transgenic line of Plasmodium berghei called OOKLUC expresses NanoLuc luciferase, allowing bioluminescent detection of sexual stage development. HESPERADIN has been shown to reduce male gamete formation by over 80% in Plasmodium berghei, effectively blocking exflagellation without altering luciferase reporter activity. In a high-throughput screening assay, two compounds are tested for their ability to block malaria transmission: Compound A inhibits zygote formation by 90% but does not affect NanoLuc activity; Compound B reduces NanoLuc activity by 95% but only inhibits zygote formation by 10%. The NLUC REPORTER signal remains stable for up to 24 hours post-fertilization, allowing accurate quantification of ookinete maturation. In control assays, background luminescence from uninfected samples is typically less than 2% of the positive signal. Zygotes must develop into ookinetes (detected by NanoLuc) to facilitate transmission to the mosquito vector. Fascaplysin has been shown to inhibit male gamete formation in Plasmodium species by over 80%, primarily by blocking exflagellation events. However, its effect on luciferase-based detection systems remains uncharacterized in this assay. Which compound is more effective at blocking transmission in this assay?",
+      "original_question": "A transgenic line of Plasmodium berghei called OOKLUC expresses NanoLuc luciferase, allowing bioluminescent detection of sexual stage development. In a high-throughput screening assay, two compounds are tested for their ability to block malaria transmission: Compound A inhibits zygote formation by 90% but does not affect NanoLuc activity; Compound B reduces NanoLuc activity by 95% but only inhibits zygote formation by 10%. Zygotes must develop into ookinetes (detected by NanoLuc) to facilitate transmission to the mosquito vector. Which compound is more effective at blocking transmission in this assay?",
+      "reasoning_steps": [
+        "OOKLUC detects sexual stage development via NanoLuc activity.",
+        "Zygotes must become ookinetes (NanoLuc positive) for transmission.",
+        "Compound A blocks zygote formation (90%), so fewer zygotes can become ookinetes.",
+        "Compound A does not affect NanoLuc, so any formed ookinetes are detected.",
+        "Compound B reduces NanoLuc activity (95%), but only slightly inhibits zygote formation (10%).",
+        "Compound B may mask detection but does not prevent development.",
+        "Transmission depends on actual inhibition of zygote-to-ookinete development, not just reporter activity."
+      ],
+      "correct_answer": "Compound A",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "OOKLUC",
+        "ZYGOTES",
+        "NLUC"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 2,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "HESPERADIN has been shown to reduce male gamete formation by over 80% in Plasmodium berghei, effectively blocking exflagellation without altering luciferase reporter activity.",
+        "The NLUC REPORTER signal remains stable for up to 24 hours post-fertilization, allowing accurate quantification of ookinete maturation. In control assays, background luminescence from uninfected samples is typically less than 2% of the positive signal.",
+        "Fascaplysin has been shown to inhibit male gamete formation in Plasmodium species by over 80%, primarily by blocking exflagellation events. However, its effect on luciferase-based detection systems remains uncharacterized in this assay."
+      ],
+      "enrichment_entities": [
+        "HESPERADIN",
+        "NLUC REPORTER",
+        "FASCAPLYSIN"
+      ]
+    },
+    {
+      "paper_id": "aac.01465-22",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv67i4_10_1128_aac_01465_22-20240609072831-6572377/source_files/.qa_output/aac.01465-22/ecology/contrastive_qa.json",
+      "question": "A tropical wetland ecosystem is experiencing increased malaria transmission. Two interventions are proposed: (A) introducing a fish species that preys on mosquito larvae, reducing larval density by 80% but also preying on native tadpoles, which decreases frog populations by 60%; (B) applying Primaquine to human residents, which reduces gametocyte carriage by 90% but is contraindicated in 20% of the population due to glucose-6-phosphate dehydrogenase (G6PD) deficiency. Glucose-6-phosphate dehydrogenase (G6PD) enzyme deficiency occurs in approximately 15% of the local population, and individuals with this trait may experience a 70% increase in risk of hemolytic anemia when exposed to primaquine. Frogs are the main predators of adult mosquitoes, and their decline leads to a 50% increase in adult mosquito abundance. Plasmodium falciparum gametocytes typically reach peak density in human blood 10-14 days after initial infection, with transmission rates varying depending on local mosquito vector competence. Laboratory assays show that Anopheles stephensi mosquitoes infected with P. falciparum have a median sporozoite development time of 12 days under optimal temperature conditions. Only adult mosquitoes transmit malaria. Plasmodium vivax accounts for approximately 40% of malaria cases in tropical wetlands and is capable of forming dormant liver stages (hypnozoites) that can reactivate weeks to months after initial infection. In laboratory studies, P. vivax transmission to mosquitoes is typically assessed using direct membrane-feeding assays. Which intervention is expected to result in a greater reduction in malaria transmission in this ecosystem?",
+      "original_question": "A tropical wetland ecosystem is experiencing increased malaria transmission. Two interventions are proposed: (A) introducing a fish species that preys on mosquito larvae, reducing larval density by 80% but also preying on native tadpoles, which decreases frog populations by 60%; (B) applying Primaquine to human residents, which reduces gametocyte carriage by 90% but is contraindicated in 20% of the population due to glucose-6-phosphate dehydrogenase (G6PD) deficiency. Frogs are the main predators of adult mosquitoes, and their decline leads to a 50% increase in adult mosquito abundance. Only adult mosquitoes transmit malaria. Which intervention is expected to result in a greater reduction in malaria transmission in this ecosystem?",
+      "reasoning_steps": [
+        "Fish introduction reduces mosquito larvae by 80%, but also reduces frog populations by 60%.",
+        "Frog decline causes a 50% increase in adult mosquitoes, the malaria vectors.",
+        "Net effect of fish: fewer larvae, but more adult mosquitoes due to fewer frogs.",
+        "Primaquine reduces gametocyte carriage (human infectiousness) by 90%, but only in 80% of the population (due to G6PD deficiency).",
+        "80% of residents benefit from Primaquine, leading to a large reduction in transmission potential.",
+        "Adult mosquito abundance is not increased by Primaquine.",
+        "Malaria transmission depends on adult mosquito abundance and human infectiousness.",
+        "Comparing net effects: fish intervention may inadvertently increase transmission; Primaquine directly reduces transmission in most of the population."
+      ],
+      "correct_answer": "Primaquine",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "PRIMAQUINE",
+        "THERAPEUTIC USE OF PRIMAQUINE"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 1,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Glucose-6-phosphate dehydrogenase (G6PD) enzyme deficiency occurs in approximately 15% of the local population, and individuals with this trait may experience a 70% increase in risk of hemolytic anemia when exposed to primaquine.",
+        "Plasmodium falciparum gametocytes typically reach peak density in human blood 10-14 days after initial infection, with transmission rates varying depending on local mosquito vector competence. Laboratory assays show that Anopheles stephensi mosquitoes infected with P. falciparum have a median sporozoite development time of 12 days under optimal temperature conditions.",
+        "Plasmodium vivax accounts for approximately 40% of malaria cases in tropical wetlands and is capable of forming dormant liver stages (hypnozoites) that can reactivate weeks to months after initial infection. In laboratory studies, P. vivax transmission to mosquitoes is typically assessed using direct membrane-feeding assays."
+      ],
+      "enrichment_entities": [
+        "GLUCOSE-6-PHOSPHATE DEHYDROGENASE (G6PD) ENZYME DEFICIENCY",
+        "PLASMODIUM FALCIPARUM",
+        "PLASMODIUM VIVAX"
+      ]
+    },
+    {
+      "paper_id": "aac.01465-22",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv67i4_10_1128_aac_01465_22-20240609072831-6572377/source_files/.qa_output/aac.01465-22/ecology/contrastive_qa.json",
+      "question": "A research team is evaluating two approaches for identifying antimalarial compounds that block transmission of Plasmodium berghei in a mouse model. Approach A uses high-throughput screening to select compounds that inhibit both parasite fertilization (\u226580% reduction) and maturation (\u226575% reduction) in vitro. Plasmodium falciparum, the most virulent human malaria parasite, completes its sexual development in Anopheles mosquitoes within approximately 10-14 days under optimal conditions. In standard membrane-feeding assays, transmission-blocking activity against P. falciparum is typically assessed by measuring oocyst prevalence and intensity in the mosquito midgut. Approach B relies on the drug development process, starting with known antimalarial agents and modifying their structure to improve efficacy, but only tests for inhibition of parasite maturation (\u226590% reduction) in vivo. Sporogonic development in Plasmodium falciparum typically spans 10-14 days within Anopheles gambiae, with environmental temperature influencing the rate of sporozoite maturation. In some studies, compounds that disrupt sporogonic development reduce sporozoite numbers by up to 60% without affecting earlier parasite stages. Both approaches yield compounds with similar safety profiles. Transmission-blocking compounds have been shown to reduce oocyst formation in Anopheles mosquitoes by up to 85% in laboratory assays, though their efficacy can vary depending on the parasite strain. In some studies, these compounds also display minimal activity against asexual blood stages of Plasmodium berghei. If the goal is to maximize the likelihood of discovering agents that block both transmission and development of the parasite, which approach should be prioritized?",
+      "original_question": "A research team is evaluating two approaches for identifying antimalarial compounds that block transmission of Plasmodium berghei in a mouse model. Approach A uses high-throughput screening to select compounds that inhibit both parasite fertilization (\u226580% reduction) and maturation (\u226575% reduction) in vitro. Approach B relies on the drug development process, starting with known antimalarial agents and modifying their structure to improve efficacy, but only tests for inhibition of parasite maturation (\u226590% reduction) in vivo. Both approaches yield compounds with similar safety profiles. If the goal is to maximize the likelihood of discovering agents that block both transmission and development of the parasite, which approach should be prioritized?",
+      "reasoning_steps": [
+        "Transmission blocking requires inhibition of both fertilization and maturation.",
+        "Approach A screens for both fertilization and maturation inhibition.",
+        "Approach B only screens for maturation inhibition.",
+        "Approach A uses in vitro screening, allowing rapid assessment of multiple candidates.",
+        "Approach B modifies known agents but may miss compounds that block fertilization.",
+        "Both approaches yield safe compounds, so safety is not a differentiator.",
+        "Maximizing discovery of dual-action agents favors the approach that screens for both processes."
+      ],
+      "correct_answer": "High-throughput screening",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "ANTIMALARIAL COMPOUNDS",
+        "HIGH-THROUGHPUT SCREENING",
+        "DRUG DEVELOPMENT PROCESS"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 2,
+      "answer_format": "term",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Plasmodium falciparum, the most virulent human malaria parasite, completes its sexual development in Anopheles mosquitoes within approximately 10-14 days under optimal conditions. In standard membrane-feeding assays, transmission-blocking activity against P. falciparum is typically assessed by measuring oocyst prevalence and intensity in the mosquito midgut.",
+        "Sporogonic development in Plasmodium falciparum typically spans 10-14 days within Anopheles gambiae, with environmental temperature influencing the rate of sporozoite maturation. In some studies, compounds that disrupt sporogonic development reduce sporozoite numbers by up to 60% without affecting earlier parasite stages.",
+        "Transmission-blocking compounds have been shown to reduce oocyst formation in Anopheles mosquitoes by up to 85% in laboratory assays, though their efficacy can vary depending on the parasite strain. In some studies, these compounds also display minimal activity against asexual blood stages of Plasmodium berghei."
+      ],
+      "enrichment_entities": [
+        "PLASMODIUM FALCIPARUM",
+        "SPOROGONIC DEVELOPMENT",
+        "TRANSMISSION-BLOCKING COMPOUNDS"
+      ]
+    },
+    {
+      "paper_id": "aac.01465-22",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv67i4_10_1128_aac_01465_22-20240609072831-6572377/source_files/.qa_output/aac.01465-22/ecology/contrastive_qa.json",
+      "question": "A rural region experiences seasonal malaria outbreaks. The human population is exposed to two mosquito types: indoor-biting Anopheles (80% of bites, controlled by bed nets reducing bites by 90%) and outdoor-biting mosquitoes (20% of bites, unaffected by nets). Plasmodium falciparum and Plasmodium vivax are both present; P. P. vivax infections can result in relapses months after the initial episode due to hypnozoite activation, with up to 40% of cases experiencing at least one recurrence within a year. In this region, P. vivax accounts for a significant proportion of malaria cases during the dry season when transmission rates are lower. falciparum causes 70% of malaria cases, P. vivax 30%. Anopheles mosquitoes in this region have an average lifespan of 14 days, with peak biting activity occurring between 8 pm and midnight. Studies show that their population density increases by 25% during the rainy season. Only Anopheles mosquitoes transmit Plasmodium. Plasmodium development in mosquitoes requires 10 days at local temperatures. Eave tubes, when installed in 70% of households, have been shown to reduce indoor-entry of Anopheles mosquitoes by approximately 80%. However, their effectiveness depends on the structural integrity of house walls and the maintenance of insecticidal inserts. School children are the most affected group, with 60% of cases. If a new intervention targets only indoor-biting Anopheles, which malaria agent will remain the primary cause of residual transmission among school children after intervention?",
+      "original_question": "A rural region experiences seasonal malaria outbreaks. The human population is exposed to two mosquito types: indoor-biting Anopheles (80% of bites, controlled by bed nets reducing bites by 90%) and outdoor-biting mosquitoes (20% of bites, unaffected by nets). Plasmodium falciparum and Plasmodium vivax are both present; P. falciparum causes 70% of malaria cases, P. vivax 30%. Only Anopheles mosquitoes transmit Plasmodium. Plasmodium development in mosquitoes requires 10 days at local temperatures. School children are the most affected group, with 60% of cases. If a new intervention targets only indoor-biting Anopheles, which malaria agent will remain the primary cause of residual transmission among school children after intervention?",
+      "reasoning_steps": [
+        "Indoor-biting Anopheles account for 80% of bites, controlled by nets (90% reduction).",
+        "Outdoor-biting mosquitoes (20% of bites) are not affected by nets.",
+        "Only Anopheles transmit Plasmodium; outdoor-biting mosquitoes must be Anopheles to transmit malaria.",
+        "P. falciparum causes 70% of cases, P. vivax 30%.",
+        "School children are the most affected group (60% of cases).",
+        "Intervention reduces indoor transmission, leaving outdoor transmission as main route.",
+        "The dominant malaria agent (P. falciparum, 70%) will remain primary in residual transmission."
+      ],
+      "correct_answer": "Plasmodium falciparum",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "MALARIA",
+        "PLASMODIUM BERGHEI",
+        "MOSQUITO",
+        "PLASMODIUM FALCIPARUM",
+        "PLASMODIUM VIVAX",
+        "PLASMODIUM",
+        "PLASMODIUM SPP.",
+        "PLASMODIUM BLOOD STAGE PARASITES",
+        "PLASMODIUM LIVER STAGE PARASITES",
+        "OUTDOOR BITING MOSQUITOES",
+        "PLASMODIUM PARASITES",
+        "PLASMODIUM SPECIES",
+        "PLASMODIUM DEVELOPMENT IN MOSQUITO",
+        "EUKARYOTIC PATHOGENS"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 2,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "P. vivax infections can result in relapses months after the initial episode due to hypnozoite activation, with up to 40% of cases experiencing at least one recurrence within a year. In this region, P. vivax accounts for a significant proportion of malaria cases during the dry season when transmission rates are lower.",
+        "Anopheles mosquitoes in this region have an average lifespan of 14 days, with peak biting activity occurring between 8 pm and midnight. Studies show that their population density increases by 25% during the rainy season.",
+        "Eave tubes, when installed in 70% of households, have been shown to reduce indoor-entry of Anopheles mosquitoes by approximately 80%. However, their effectiveness depends on the structural integrity of house walls and the maintenance of insecticidal inserts."
+      ],
+      "enrichment_entities": [
+        "P. VIVAX",
+        "ANOPHELES MOSQUITO",
+        "EAVE TUBES"
+      ]
+    },
+    {
+      "paper_id": "aac.01465-22",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv67i4_10_1128_aac_01465_22-20240609072831-6572377/source_files/.qa_output/aac.01465-22/ecology/contrastive_qa.json",
+      "question": "A remote island supports two mosquito species: Anopheles minimus and Anopheles dirus. Anopheles minimus feeds primarily on cattle (80% of blood meals), while Anopheles dirus feeds exclusively on humans (100% of blood meals). Sporozoite prevalence in salivary glands averages 12% for both Anopheles minimus and Anopheles dirus populations, regardless of their blood meal source. Laboratory assays show that drug treatment reduces sporozoite prevalence by approximately 20% in both species. Plasmodium vivax gametocytes are present in 10% of the human population and absent in cattle. Plasmodium falciparum, another malaria parasite species, completes its sporogonic cycle in Anopheles mosquitoes within 10-12 days at 27\u00b0C. However, it is not currently detected in the island's human or mosquito populations. Both mosquito species are equally susceptible to Plasmodium vivax infection and have similar lifespans. Anopheles darlingi, a primary malaria vector in South America, demonstrates peak biting activity between 7 pm and 10 pm, with up to 65% of blood meals taken indoors during experimental studies. In laboratory assays, An. darlingi shows a 40% infection rate with Plasmodium vivax under controlled conditions. Malaria transmission requires mosquitoes to feed on infected humans and then bite uninfected humans. If a malaria control program can eliminate only one mosquito species, which should be targeted to most effectively reduce Plasmodium vivax transmission on the island?",
+      "original_question": "A remote island supports two mosquito species: Anopheles minimus and Anopheles dirus. Anopheles minimus feeds primarily on cattle (80% of blood meals), while Anopheles dirus feeds exclusively on humans (100% of blood meals). Plasmodium vivax gametocytes are present in 10% of the human population and absent in cattle. Both mosquito species are equally susceptible to Plasmodium vivax infection and have similar lifespans. Malaria transmission requires mosquitoes to feed on infected humans and then bite uninfected humans. If a malaria control program can eliminate only one mosquito species, which should be targeted to most effectively reduce Plasmodium vivax transmission on the island?",
+      "reasoning_steps": [
+        "Plasmodium vivax is transmitted only via mosquitoes feeding on infected humans.",
+        "Anopheles minimus feeds mostly on cattle, rarely on humans.",
+        "Anopheles dirus feeds exclusively on humans, maximizing contact with infected and uninfected humans.",
+        "Both species are equally susceptible to infection and have similar lifespans, so feeding behavior is the key variable.",
+        "Eliminating Anopheles minimus would have limited impact due to its low human feeding rate.",
+        "Eliminating Anopheles dirus would disrupt the main transmission route.",
+        "Therefore, targeting Anopheles dirus would most effectively reduce transmission."
+      ],
+      "correct_answer": "Anopheles dirus",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "TRANSMISSION",
+        "PLASMODIUM VIVAX"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 2,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Sporozoite prevalence in salivary glands averages 12% for both Anopheles minimus and Anopheles dirus populations, regardless of their blood meal source. Laboratory assays show that drug treatment reduces sporozoite prevalence by approximately 20% in both species.",
+        "Plasmodium falciparum, another malaria parasite species, completes its sporogonic cycle in Anopheles mosquitoes within 10-12 days at 27\u00b0C. However, it is not currently detected in the island's human or mosquito populations.",
+        "Anopheles darlingi, a primary malaria vector in South America, demonstrates peak biting activity between 7 pm and 10 pm, with up to 65% of blood meals taken indoors during experimental studies. In laboratory assays, An. darlingi shows a 40% infection rate with Plasmodium vivax under controlled conditions."
+      ],
+      "enrichment_entities": [
+        "SPOROZOITE PREVALENCE IN SALIVARY GLANDS",
+        "PLASMODIUM FALCIPARUM",
+        "A. DARLINGI"
+      ]
+    },
+    {
       "paper_id": "aac.00903-23",
       "domain": "ecology",
       "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv68i1_10_1128_aac_00903_23-20240609113002-5820521/source_files/.qa_output/aac.00903-23/ecology/contrastive_qa.json",
@@ -541,6 +782,239 @@
         "SECONDARY BILE ACIDS",
         "SHORT-CHAIN FATTY ACIDS",
         "HOST IMMUNITY"
+      ]
+    },
+    {
+      "paper_id": "aac.00594-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv68i2_10_1128_aac_00594_23-20240609072925-8166738/source_files/.qa_output/aac.00594-23/ecology/contrastive_qa.json",
+      "question": "A collection of 335 genetically distinct Salmonella isolates is tested for susceptibility to phage BPSELC-1 in LB medium. 60% of isolates are lysed by BPSELC-1 within 6 hours, while 40% show resistance. Hierarchical clustering analysis of the genomic sequences grouped the Salmonella isolates into five major clusters, with two clusters showing a higher prevalence of phage resistance. These clusters also exhibited distinct single nucleotide polymorphism (SNP) patterns unrelated to the CRISPR-Cas loci. Genomic DNA extraction is performed on all isolates, and sequencing reveals that all resistant isolates possess a unique CRISPR-Cas system targeting BPSELC-1 DNA, while susceptible isolates lack this system. Phage resistance in Salmonella populations has been observed to increase by up to 25% following repeated exposure to lytic phages in nutrient-rich environments. In some cases, resistant isolates also display altered colony morphology compared to susceptible strains. When resistant isolates are exposed to a mutated BPSELC-1 phage lacking the original protospacer sequence, 90% become susceptible. The PHAGE RESISTANCE GENE SET is present in approximately 25% of the tested Salmonella isolates, with its expression levels varying depending on environmental stressors. Notably, isolates harboring this gene set do not always display altered growth rates in LB medium. Which molecular mechanism most likely explains the observed resistance in the original 40% of isolates?",
+      "original_question": "A collection of 335 genetically distinct Salmonella isolates is tested for susceptibility to phage BPSELC-1 in LB medium. 60% of isolates are lysed by BPSELC-1 within 6 hours, while 40% show resistance. Genomic DNA extraction is performed on all isolates, and sequencing reveals that all resistant isolates possess a unique CRISPR-Cas system targeting BPSELC-1 DNA, while susceptible isolates lack this system. When resistant isolates are exposed to a mutated BPSELC-1 phage lacking the original protospacer sequence, 90% become susceptible. Which molecular mechanism most likely explains the observed resistance in the original 40% of isolates?",
+      "reasoning_steps": [
+        "335 isolates tested; 40% resistant to BPSELC-1",
+        "Genomic DNA extraction and sequencing performed",
+        "All resistant isolates have a unique CRISPR-Cas system targeting BPSELC-1 DNA",
+        "Susceptible isolates lack this CRISPR-Cas system",
+        "Mutated phage lacking protospacer overcomes resistance in 90% of previously resistant isolates",
+        "CRISPR-Cas systems provide sequence-specific immunity by targeting matching protospacer sequences",
+        "Loss of protospacer in phage removes CRISPR targeting, leading to susceptibility"
+      ],
+      "correct_answer": "CRISPR-Cas mediated phage resistance",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "SALMONELLA ISOLATES",
+        "GENOMIC DNA EXTRACTION"
+      ],
+      "quality_score": 4.0,
+      "answer_word_count": 4,
+      "answer_format": "mechanism",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Hierarchical clustering analysis of the genomic sequences grouped the Salmonella isolates into five major clusters, with two clusters showing a higher prevalence of phage resistance. These clusters also exhibited distinct single nucleotide polymorphism (SNP) patterns unrelated to the CRISPR-Cas loci.",
+        "Phage resistance in Salmonella populations has been observed to increase by up to 25% following repeated exposure to lytic phages in nutrient-rich environments. In some cases, resistant isolates also display altered colony morphology compared to susceptible strains.",
+        "The PHAGE RESISTANCE GENE SET is present in approximately 25% of the tested Salmonella isolates, with its expression levels varying depending on environmental stressors. Notably, isolates harboring this gene set do not always display altered growth rates in LB medium."
+      ],
+      "enrichment_entities": [
+        "HIERARCHICAL CLUSTERING ANALYSIS",
+        "PHAGE RESISTANCE",
+        "PHAGE RESISTANCE GENE SET"
+      ]
+    },
+    {
+      "paper_id": "aac.00594-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv68i2_10_1128_aac_00594_23-20240609072925-8166738/source_files/.qa_output/aac.00594-23/ecology/contrastive_qa.json",
+      "question": "A population of Salmonella enterica is exposed to a lytic bacteriophage in a controlled aquatic microcosm. After 48 hours, 80% of the Salmonella are killed, and the surviving 20% are phage-resistant mutants. Tetracycline susceptibility assays show that both wild-type and phage-resistant Salmonella maintain an MIC of 1 \u03bcg/mL, indicating no change in sensitivity following phage exposure. Efflux pump activity remains unchanged in the mutants when tested with tetracycline. These mutants have altered outer membrane proteins, resulting in reduced phage adsorption. Gentamicin susceptibility testing revealed identical MIC values of 1 \u03bcg/mL for both wild-type and phage-resistant Salmonella strains. In previous studies, gentamicin has been used as a comparator antibiotic in evaluating treatment efficacy for burn wound infections. However, membrane permeability assays show a 3-fold increase in uptake of cationic molecules compared to wild-type. Ciprofloxacin, when applied at 4 \u03bcg/mL, inhibits wild-type and phage-resistant Salmonella at similar rates, with both populations showing a 90% reduction in colony-forming units after 24 hours. This antibiotic does not alter outer membrane protein expression in either strain under these conditions. When exposed to antibiotics, wild-type Salmonella have a minimum inhibitory concentration (MIC) for polymyxin B of 8 \u03bcg/mL, while phage-resistant mutants have an MIC of 2 \u03bcg/mL. If the goal is to selectively eliminate the phage-resistant Salmonella without affecting the wild-type, which antibiotic should be used at a concentration of 4 \u03bcg/mL?",
+      "original_question": "A population of Salmonella enterica is exposed to a lytic bacteriophage in a controlled aquatic microcosm. After 48 hours, 80% of the Salmonella are killed, and the surviving 20% are phage-resistant mutants. These mutants have altered outer membrane proteins, resulting in reduced phage adsorption. However, membrane permeability assays show a 3-fold increase in uptake of cationic molecules compared to wild-type. When exposed to antibiotics, wild-type Salmonella have a minimum inhibitory concentration (MIC) for polymyxin B of 8 \u03bcg/mL, while phage-resistant mutants have an MIC of 2 \u03bcg/mL. If the goal is to selectively eliminate the phage-resistant Salmonella without affecting the wild-type, which antibiotic should be used at a concentration of 4 \u03bcg/mL?",
+      "reasoning_steps": [
+        "Phage-resistant mutants have altered membranes, increasing cationic molecule uptake.",
+        "Polymyxin B is a cationic antibiotic targeting bacterial membranes.",
+        "Wild-type MIC for polymyxin B is 8 \u03bcg/mL; mutants' MIC is 2 \u03bcg/mL.",
+        "At 4 \u03bcg/mL, wild-type Salmonella will survive (MIC not reached).",
+        "At 4 \u03bcg/mL, phage-resistant mutants will be killed (MIC exceeded).",
+        "The antibiotic must be effective at this concentration only against mutants.",
+        "Polymyxin B fits these criteria."
+      ],
+      "correct_answer": "Polymyxin B",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "POLYMYXIN B",
+        "ANTIBIOTICS"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 2,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Tetracycline susceptibility assays show that both wild-type and phage-resistant Salmonella maintain an MIC of 1 \u03bcg/mL, indicating no change in sensitivity following phage exposure. Efflux pump activity remains unchanged in the mutants when tested with tetracycline.",
+        "Gentamicin susceptibility testing revealed identical MIC values of 1 \u03bcg/mL for both wild-type and phage-resistant Salmonella strains. In previous studies, gentamicin has been used as a comparator antibiotic in evaluating treatment efficacy for burn wound infections.",
+        "Ciprofloxacin, when applied at 4 \u03bcg/mL, inhibits wild-type and phage-resistant Salmonella at similar rates, with both populations showing a 90% reduction in colony-forming units after 24 hours. This antibiotic does not alter outer membrane protein expression in either strain under these conditions."
+      ],
+      "enrichment_entities": [
+        "TETRACYCLINE",
+        "GENTAMICIN",
+        "CIPROFLOXACIN"
+      ]
+    },
+    {
+      "paper_id": "aac.00594-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv68i2_10_1128_aac_00594_23-20240609072925-8166738/source_files/.qa_output/aac.00594-23/ecology/contrastive_qa.json",
+      "question": "A population of Salmonella enterica is exposed to the lytic bacteriophage \u03a6BPSELC-1 in a controlled aquatic microcosm. After 48 hours, 90% of the original Salmonella cells are lysed, but 10% survive and proliferate. In previous studies, impaired adsorption has been observed to decrease phage attachment rates by up to 80% in Salmonella strains with altered LPS structure. However, this trait does not influence susceptibility to phages that utilize alternative receptors. Genome sequencing of survivors reveals mutations in genes involved in lipopolysaccharide (LPS) biosynthesis and metabolic regulation. Mutations in cellular respiration-related genes were detected in 40% of the phage-resistant Salmonella clones, although overall ATP production rates remained unchanged compared to wild-type cells. These survivors are resistant to \u03a6BPSELC-1 but remain sensitive to a different phage targeting outer membrane proteins. Klebsiella pneumoniae, when cultured in the same aquatic microcosm, maintains a stable population density over 24 hours in the absence of phage exposure. In previous studies, this species has demonstrated a 40% increase in biofilm formation under nutrient-limited conditions. In a parallel experiment, multidrug-resistant Klebsiella pneumoniae is exposed to the same phage and shows no survival. Considering the mechanisms described, which process most directly enabled the Salmonella survivors to acquire phage resistance in this scenario?",
+      "original_question": "A population of Salmonella enterica is exposed to the lytic bacteriophage \u03a6BPSELC-1 in a controlled aquatic microcosm. After 48 hours, 90% of the original Salmonella cells are lysed, but 10% survive and proliferate. Genome sequencing of survivors reveals mutations in genes involved in lipopolysaccharide (LPS) biosynthesis and metabolic regulation. These survivors are resistant to \u03a6BPSELC-1 but remain sensitive to a different phage targeting outer membrane proteins. In a parallel experiment, multidrug-resistant Klebsiella pneumoniae is exposed to the same phage and shows no survival. Considering the mechanisms described, which process most directly enabled the Salmonella survivors to acquire phage resistance in this scenario?",
+      "reasoning_steps": [
+        "Salmonella exposed to phage, most cells lysed, some survive",
+        "Survivors have mutations in LPS biosynthesis and metabolic regulation genes",
+        "LPS is a common phage receptor; mutations can block phage attachment",
+        "Survivors are resistant to the original phage, but not to a different phage (suggests specificity)",
+        "Klebsiella pneumoniae does not survive, indicating no similar adaptation occurred",
+        "The process must explain rapid acquisition of resistance in Salmonella",
+        "Genetic changes (mutations) in relevant genes are the direct mechanism"
+      ],
+      "correct_answer": "Gene mutations in LPS biosynthesis",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "PHAGE RESISTANCE",
+        "SALMONELLA ISOLATES",
+        "GENETIC ADAPTATION",
+        "GENE MUTATIONS",
+        "SALMONELLA STRAINS",
+        "PHAGE-RESISTANT MUTANT STRAINS",
+        "MULTIDRUG-RESISTANT KLEBSIELLA PNEUMONIAE"
+      ],
+      "quality_score": 4.0,
+      "answer_word_count": 4,
+      "answer_format": "mechanism",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "In previous studies, impaired adsorption has been observed to decrease phage attachment rates by up to 80% in Salmonella strains with altered LPS structure. However, this trait does not influence susceptibility to phages that utilize alternative receptors.",
+        "Mutations in cellular respiration-related genes were detected in 40% of the phage-resistant Salmonella clones, although overall ATP production rates remained unchanged compared to wild-type cells.",
+        "Klebsiella pneumoniae, when cultured in the same aquatic microcosm, maintains a stable population density over 24 hours in the absence of phage exposure. In previous studies, this species has demonstrated a 40% increase in biofilm formation under nutrient-limited conditions."
+      ],
+      "enrichment_entities": [
+        "IMPAIRED ADSORPTION",
+        "CELLULAR RESPIRATION-RELATED GENES",
+        "KLEBSIELLA PNEUMONIAE"
+      ]
+    },
+    {
+      "paper_id": "aac.00594-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv68i2_10_1128_aac_00594_23-20240609072925-8166738/source_files/.qa_output/aac.00594-23/ecology/contrastive_qa.json",
+      "question": "A population of Salmonella enterica is exposed to a lytic bacteriophage at a multiplicity of infection (MOI) of 10. After 24 hours, 0. Growth fitness assays show that Salmonella Sa3248 mutants with resistance mutations display a 20\u201340% reduction in doubling rate compared to the wild-type strain under standard laboratory conditions. This decrease in growth fitness is consistent across multiple independent isolates. 1% of the original bacterial population survives. Fitness trade-offs have been observed in Salmonella enterica, with certain phage resistance mutations resulting in up to a 40% reduction in growth rate under nutrient-rich conditions. These costs can influence the long-term stability of resistance within the population. Genome sequencing of 100 surviving colonies reveals that 60% have mutations in the fhuA gene, 25% in the ompC gene, and 15% in the rfaL gene. Growth rate measurements of the surviving Salmonella colonies, determined by OD600 and analyzed with the Growthcurve R package, showed a 20% reduction compared to the ancestral population. This decrease was consistent across all resistance mutation types. Each mutation confers phage resistance via a distinct mechanism: fhuA mutations block phage adsorption, ompC mutations alter outer membrane porin structure, and rfaL mutations modify lipopolysaccharide synthesis. No colony has more than one resistance mutation. Considering the distribution and mechanisms of resistance, which trait best describes the surviving population?",
+      "original_question": "A population of Salmonella enterica is exposed to a lytic bacteriophage at a multiplicity of infection (MOI) of 10. After 24 hours, 0.1% of the original bacterial population survives. Genome sequencing of 100 surviving colonies reveals that 60% have mutations in the fhuA gene, 25% in the ompC gene, and 15% in the rfaL gene. Each mutation confers phage resistance via a distinct mechanism: fhuA mutations block phage adsorption, ompC mutations alter outer membrane porin structure, and rfaL mutations modify lipopolysaccharide synthesis. No colony has more than one resistance mutation. Considering the distribution and mechanisms of resistance, which trait best describes the surviving population?",
+      "reasoning_steps": [
+        "Only 0.1% of the population survives phage exposure, indicating strong selection.",
+        "Sequencing shows three distinct resistance mutations: fhuA (60%), ompC (25%), rfaL (15%).",
+        "Each mutation confers resistance via a different molecular mechanism.",
+        "No colony has multiple resistance mutations, so resistance is not due to a single shared mutation.",
+        "The population is composed of subgroups with different genetic changes.",
+        "The diversity of resistance genes and mechanisms indicates variation in genetic makeup.",
+        "The best trait describing this variation is genetic heterogeneity."
+      ],
+      "correct_answer": "Genetic heterogeneity",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "GENETIC HETEROGENEITY",
+        "PHAGE-RESISTANT MUTANTS"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 2,
+      "answer_format": "term",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Growth fitness assays show that Salmonella Sa3248 mutants with resistance mutations display a 20\u201340% reduction in doubling rate compared to the wild-type strain under standard laboratory conditions. This decrease in growth fitness is consistent across multiple independent isolates.",
+        "Fitness trade-offs have been observed in Salmonella enterica, with certain phage resistance mutations resulting in up to a 40% reduction in growth rate under nutrient-rich conditions. These costs can influence the long-term stability of resistance within the population.",
+        "Growth rate measurements of the surviving Salmonella colonies, determined by OD600 and analyzed with the Growthcurve R package, showed a 20% reduction compared to the ancestral population. This decrease was consistent across all resistance mutation types."
+      ],
+      "enrichment_entities": [
+        "GROWTH FITNESS",
+        "FITNESS TRADE-OFFS",
+        "GROWTH RATE"
+      ]
+    },
+    {
+      "paper_id": "aac.00594-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv68i2_10_1128_aac_00594_23-20240609072925-8166738/source_files/.qa_output/aac.00594-23/ecology/contrastive_qa.json",
+      "question": "In a controlled soil microcosm, three bacterial populations are present: (1) Sensitive cells (S), (2) Lysogens (L), and (3) R_s cells. R_s cells actively produce and release phage, which can infect and lyse S cells but not L cells due to their immunity. Phage (P) particles exhibit a decay rate of approximately 10% per day in soil microcosms, primarily due to adsorption to non-host surfaces. In similar experiments, P concentrations remain detectable for up to 72 hours even in the absence of active host infection. Infected S cells (I) lyse after 2 hours, releasing 100 new phage particles per cell. Sensitive cells reach a peak density of 2 x 10^6 cells/mL at 6 hours before declining sharply. Despite their susceptibility, they exhibit a doubling time of 45 minutes in the absence of phage. Lysogens (L) do not produce phage unless induced, and induction does not occur in this experiment. Phage-sensitive cells S exhibit a doubling time of approximately 3 hours under these microcosm conditions. Despite their susceptibility, S cells maintain metabolic activity comparable to lysogens throughout the experiment. After 24 hours, S cells decrease by 90%, L cells increase by 50%, and R_s cells increase by 30%. Phage concentration rises steadily throughout the experiment. Considering the mechanisms described, which entity is primarily responsible for maintaining high phage levels in the environment during this experiment?",
+      "original_question": "In a controlled soil microcosm, three bacterial populations are present: (1) Sensitive cells (S), (2) Lysogens (L), and (3) R_s cells. R_s cells actively produce and release phage, which can infect and lyse S cells but not L cells due to their immunity. Infected S cells (I) lyse after 2 hours, releasing 100 new phage particles per cell. Lysogens (L) do not produce phage unless induced, and induction does not occur in this experiment. After 24 hours, S cells decrease by 90%, L cells increase by 50%, and R_s cells increase by 30%. Phage concentration rises steadily throughout the experiment. Considering the mechanisms described, which entity is primarily responsible for maintaining high phage levels in the environment during this experiment?",
+      "reasoning_steps": [
+        "R_s cells produce and release phage continuously.",
+        "S cells can be infected and lyse, releasing phage, but only after infection.",
+        "L cells do not produce phage unless induced, which does not happen here.",
+        "S cells decrease sharply, so their contribution to phage production declines over time.",
+        "L cells are immune and do not contribute to phage production in this scenario.",
+        "R_s cells increase in number and maintain phage production throughout.",
+        "Phage concentration rises steadily, indicating ongoing production."
+      ],
+      "correct_answer": "R_s",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "PHAGE",
+        "R_S",
+        "I",
+        "HERZFELD INSTITUTE OF IMMUNOLOGY AND EXPERIMENTAL THERAPY",
+        "ELIAVA INSTITUTE OF BACTERIOPHAGES, MICROBIOLOGY, AND VIROLOGY",
+        "LYSOGEN"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 1,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Phage (P) particles exhibit a decay rate of approximately 10% per day in soil microcosms, primarily due to adsorption to non-host surfaces. In similar experiments, P concentrations remain detectable for up to 72 hours even in the absence of active host infection.",
+        "Sensitive cells reach a peak density of 2 x 10^6 cells/mL at 6 hours before declining sharply. Despite their susceptibility, they exhibit a doubling time of 45 minutes in the absence of phage.",
+        "Phage-sensitive cells S exhibit a doubling time of approximately 3 hours under these microcosm conditions. Despite their susceptibility, S cells maintain metabolic activity comparable to lysogens throughout the experiment."
+      ],
+      "enrichment_entities": [
+        "P",
+        "SENSITIVE CELLS",
+        "PHAGE-SENSITIVE CELLS S"
+      ]
+    },
+    {
+      "paper_id": "aac.00594-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AAC/AACv68i2_10_1128_aac_00594_23-20240609072925-8166738/source_files/.qa_output/aac.00594-23/ecology/contrastive_qa.json",
+      "question": "A freshwater lake contains three main bacterial populations: (1) pathogenic bacteria with multiple antibiotic-resistant genes (ARGs), (2) commensal bacteria that harbor ARGs but do not cause disease, and (3) environmental bacteria with ARGs adapted to heavy metal resistance. During summer, agricultural runoff increases antibiotic and heavy metal concentrations in the lake by 300%. Bacteriophage abundance in the lake increases by 200% during summer, with lytic activity observed against both commensal and environmental bacterial populations. Transduction events mediated by bacteriophages are estimated to account for up to 15% of horizontal gene transfer among lake bacteria under stress conditions. Pathogenic bacteria are present at 10% relative abundance, commensal bacteria at 40%, and environmental bacteria at 50%. Transduction rates in freshwater lakes can increase by up to 2-fold during periods of elevated phage activity, especially when nutrient levels rise due to agricultural runoff. This process enables bacteriophages to transfer ARGs between different bacterial populations. Horizontal gene transfer rates increase 5-fold under stress conditions. Temperate phages are present in the lake at an estimated density of 10^6 particles per milliliter, and can mediate gene transfer events such as specialized transduction between bacterial populations. However, their activity is often suppressed during periods of high nutrient availability. Pathogenic bacteria lack heavy metal resistance genes but can acquire ARGs from other bacteria. Which bacterial population is most likely to serve as the primary source of new antibiotic resistance genes for pathogenic bacteria under these conditions?",
+      "original_question": "A freshwater lake contains three main bacterial populations: (1) pathogenic bacteria with multiple antibiotic-resistant genes (ARGs), (2) commensal bacteria that harbor ARGs but do not cause disease, and (3) environmental bacteria with ARGs adapted to heavy metal resistance. During summer, agricultural runoff increases antibiotic and heavy metal concentrations in the lake by 300%. Pathogenic bacteria are present at 10% relative abundance, commensal bacteria at 40%, and environmental bacteria at 50%. Horizontal gene transfer rates increase 5-fold under stress conditions. Pathogenic bacteria lack heavy metal resistance genes but can acquire ARGs from other bacteria. Which bacterial population is most likely to serve as the primary source of new antibiotic resistance genes for pathogenic bacteria under these conditions?",
+      "reasoning_steps": [
+        "Agricultural runoff increases both antibiotic and heavy metal concentrations.",
+        "Environmental bacteria have ARGs adapted to heavy metal resistance.",
+        "Commensal bacteria harbor ARGs but do not cause disease.",
+        "Pathogenic bacteria lack heavy metal resistance genes but can acquire ARGs via horizontal gene transfer.",
+        "Horizontal gene transfer rates increase 5-fold under stress.",
+        "Environmental bacteria are most abundant (50%), commensals are 40%, pathogens are 10%.",
+        "Environmental bacteria are exposed to both antibiotics and heavy metals, increasing selection for ARGs and transfer potential."
+      ],
+      "correct_answer": "Environmental bacteria",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "BACTERIA",
+        "ANTIBIOTIC-RESISTANT GENES",
+        "COMMENSAL ARGS",
+        "ENVIRONMENTAL ARGS"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 2,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Bacteriophage abundance in the lake increases by 200% during summer, with lytic activity observed against both commensal and environmental bacterial populations. Transduction events mediated by bacteriophages are estimated to account for up to 15% of horizontal gene transfer among lake bacteria under stress conditions.",
+        "Transduction rates in freshwater lakes can increase by up to 2-fold during periods of elevated phage activity, especially when nutrient levels rise due to agricultural runoff. This process enables bacteriophages to transfer ARGs between different bacterial populations.",
+        "Temperate phages are present in the lake at an estimated density of 10^6 particles per milliliter, and can mediate gene transfer events such as specialized transduction between bacterial populations. However, their activity is often suppressed during periods of high nutrient availability."
+      ],
+      "enrichment_entities": [
+        "BACTERIOPHAGE",
+        "TRANSDUCTION",
+        "TEMPERATE PHAGE"
       ]
     },
     {

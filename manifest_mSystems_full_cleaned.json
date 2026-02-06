@@ -115,89 +115,96 @@
       "id": "msystems.00640-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i6_10_1128_msystems_00640_22-20240609053749-7485109/source_files/msystems.00640-22.txt",
       "domain": "molecular_biology",
-      "status": "pending",
-      "attempts": 2,
-      "last_error": null
+      "status": "completed",
+      "attempts": 3,
+      "last_error": null,
+      "completed_at": "2025-12-19T22:44:11.479292"
     },
     {
       "id": "msystems.00649-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i6_10_1128_msystems_00649_22-20240609053749-7485109/source_files/msystems.00649-22.txt",
       "domain": "molecular_biology",
-      "status": "pending",
-      "attempts": 2,
-      "last_error": "Pipeline failed with exit code 1"
+      "status": "completed",
+      "attempts": 3,
+      "last_error": "Pipeline failed with exit code 1",
+      "completed_at": "2025-12-20T07:47:21.776853"
     },
     {
       "id": "msystems.00685-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i6_10_1128_msystems_00685_22-20240609053749-7485109/source_files/msystems.00685-22.txt",
       "domain": "molecular_biology",
-      "status": "pending",
-      "attempts": 2,
-      "last_error": null
+      "status": "completed",
+      "attempts": 3,
+      "last_error": null,
+      "completed_at": "2025-12-20T13:02:12.253954"
     },
     {
       "id": "msystems.00710-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i6_10_1128_msystems_00710_22-20240609053749-7485109/source_files/msystems.00710-22.txt",
       "domain": "molecular_biology",
-      "status": "pending",
-      "attempts": 2,
+      "status": "failed",
+      "attempts": 3,
       "last_error": "Pipeline failed with exit code 1"
     },
     {
       "id": "msystems.00775-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i6_10_1128_msystems_00775_22-20240609053749-7485109/source_files/msystems.00775-22.txt",
       "domain": "molecular_biology",
-      "status": "pending",
-      "attempts": 2,
-      "last_error": null
+      "status": "completed",
+      "attempts": 3,
+      "last_error": null,
+      "completed_at": "2025-12-20T23:16:22.373613"
     },
     {
       "id": "msystems.00827-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i6_10_1128_msystems_00827_22-20240609053749-7485109/source_files/msystems.00827-22.txt",
       "domain": "molecular_biology",
-      "status": "pending",
-      "attempts": 2,
-      "last_error": null
+      "status": "completed",
+      "attempts": 3,
+      "last_error": null,
+      "completed_at": "2025-12-21T10:37:29.780740"
     },
     {
       "id": "msystems.00893-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i6_10_1128_msystems_00893_22-20240609053749-7485109/source_files/msystems.00893-22.txt",
       "domain": "molecular_biology",
-      "status": "pending",
-      "attempts": 2,
+      "status": "failed",
+      "attempts": 3,
       "last_error": "Pipeline failed with exit code 1"
     },
     {
       "id": "msystems.00907-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i6_10_1128_msystems_00907_22-20240609053749-7485109/source_files/msystems.00907-22.txt",
       "domain": "molecular_biology",
-      "status": "pending",
-      "attempts": 2,
-      "last_error": "Pipeline failed with exit code 1"
+      "status": "completed",
+      "attempts": 3,
+      "last_error": "Pipeline failed with exit code 1",
+      "completed_at": "2025-12-21T16:57:00.989290"
     },
     {
       "id": "msystems.00925-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i6_10_1128_msystems_00925_22-20240609053749-7485109/source_files/msystems.00925-22.txt",
       "domain": "molecular_biology",
-      "status": "pending",
-      "attempts": 2,
-      "last_error": "Pipeline failed with exit code 1"
+      "status": "completed",
+      "attempts": 3,
+      "last_error": "Pipeline failed with exit code 1",
+      "completed_at": "2025-12-22T01:59:05.537307"
     },
     {
       "id": "msystems.00951-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i6_10_1128_msystems_00951_22-20240609053749-7485109/source_files/msystems.00951-22.txt",
       "domain": "molecular_biology",
-      "status": "pending",
-      "attempts": 2,
+      "status": "failed",
+      "attempts": 3,
       "last_error": "Pipeline failed with exit code 1"
     },
     {
       "id": "msystems.01052-22",
       "path": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/mSystems/MSYSTEMSv7i6_10_1128_msystems_01052_22-20240609053749-7485109/source_files/msystems.01052-22.txt",
       "domain": "molecular_biology",
-      "status": "pending",
-      "attempts": 2,
-      "last_error": null
+      "status": "failed",
+      "attempts": 3,
+      "last_error": "Pipeline failed with exit code -2 - Last error: Traceback (most recent call last):"
     },
     {
       "id": "msystems.00564-22",

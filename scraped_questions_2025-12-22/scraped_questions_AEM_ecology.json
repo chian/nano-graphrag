@@ -1,9 +1,9 @@
 {
-  "scraped_at": "2025-12-19T14:57:42.318096",
+  "scraped_at": "2025-12-22T10:02:25.461587",
   "base_directory": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM",
   "domain_filter": "ecology",
-  "total_papers": 13,
-  "total_questions": 57,
+  "total_papers": 20,
+  "total_questions": 94,
   "questions": [
     {
       "paper_id": "aem.00379-23",
@@ -2538,6 +2538,1537 @@
         "EAL-CONTAINING PROTEINS",
         "PHOSPHODIESTERASE DIPA",
         "MORA"
+      ]
+    },
+    {
+      "paper_id": "aem.01108-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i10_10_1128_aem_01108_23-20240609085801-8048634/source_files/.qa_output/aem.01108-23/ecology/contrastive_qa.json",
+      "question": "Three experimental setups are used to measure sulfite-oxidizing enzyme activity in transforming sulfite to sulfate: (1) whole cells of Shewanella oneidensis, (2) isolated periplasmic fraction from S. oneidensis, and (3) purified sulfite-oxidizing enzymes from S. The SOR complex in S. oneidensis periplasm typically assembles at a 1:1:1:1 stoichiometry of SorA, SorB, SorC, and SorD, with peak SDH activity observed at 37\u00b0C in vitro. In some strains, SOR complex abundance can vary by up to 20% depending on sulfur source availability. oneidensis. The SORCABD complex in Shewanella oneidensis demonstrates a maximum sulfite oxidation rate of 120 nmol/min/mg protein under aerobic conditions, with electron transfer facilitated by its three c-type cytochromes. This activity is independent of the presence of external electron acceptors. Whole cells show variable activity due to cell permeability and competing metabolic processes. Ferricyanide is commonly used as an artificial electron acceptor in sulfite-oxidizing enzyme assays, allowing activity to be monitored by a change in absorbance at 420 nm. In these assays, a 1 mM concentration of ferricyanide typically yields a linear response for up to 10 minutes. The periplasmic fraction contains native enzyme complexes and cofactors but may include other periplasmic proteins. Purified enzymes are isolated, with known concentration and composition, but lack native cofactors and protein partners. In kinetic assays, reproducibility and precise quantification of enzyme activity are required, minimizing interference from other proteins or cellular processes. Which experimental setup provides the most controlled and reproducible measurement of sulfite-oxidizing enzyme kinetics?",
+      "original_question": "Three experimental setups are used to measure sulfite-oxidizing enzyme activity in transforming sulfite to sulfate: (1) whole cells of Shewanella oneidensis, (2) isolated periplasmic fraction from S. oneidensis, and (3) purified sulfite-oxidizing enzymes from S. oneidensis. Whole cells show variable activity due to cell permeability and competing metabolic processes. The periplasmic fraction contains native enzyme complexes and cofactors but may include other periplasmic proteins. Purified enzymes are isolated, with known concentration and composition, but lack native cofactors and protein partners. In kinetic assays, reproducibility and precise quantification of enzyme activity are required, minimizing interference from other proteins or cellular processes. Which experimental setup provides the most controlled and reproducible measurement of sulfite-oxidizing enzyme kinetics?",
+      "reasoning_steps": [
+        "Whole cells have variable permeability and competing metabolic processes, reducing control and reproducibility.",
+        "Periplasmic fraction contains native enzymes and cofactors but also other proteins, introducing potential interference.",
+        "Purified enzymes are isolated, allowing precise concentration and composition control.",
+        "Purified enzymes lack native cofactors, but for kinetic assays, cofactors can be added exogenously.",
+        "Reproducibility and quantification are maximized when enzyme concentration and composition are known.",
+        "Minimizing interference from other proteins or processes is critical for kinetic assays.",
+        "Therefore, purified enzymes provide the most controlled and reproducible measurement."
+      ],
+      "correct_answer": "Purified proteins",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "SULFITE-OXIDIZING ENZYMES",
+        "SHEWANELLA ONEIDENSIS",
+        "PERIPLASMIC FRACTION",
+        "PURIFIED PROTEINS"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 2,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "The SOR complex in S. oneidensis periplasm typically assembles at a 1:1:1:1 stoichiometry of SorA, SorB, SorC, and SorD, with peak SDH activity observed at 37\u00b0C in vitro. In some strains, SOR complex abundance can vary by up to 20% depending on sulfur source availability.",
+        "The SORCABD complex in Shewanella oneidensis demonstrates a maximum sulfite oxidation rate of 120 nmol/min/mg protein under aerobic conditions, with electron transfer facilitated by its three c-type cytochromes. This activity is independent of the presence of external electron acceptors.",
+        "Ferricyanide is commonly used as an artificial electron acceptor in sulfite-oxidizing enzyme assays, allowing activity to be monitored by a change in absorbance at 420 nm. In these assays, a 1 mM concentration of ferricyanide typically yields a linear response for up to 10 minutes."
+      ],
+      "enrichment_entities": [
+        "SOR COMPLEX",
+        "SORCABD",
+        "FERRICYANIDE"
+      ]
+    },
+    {
+      "paper_id": "aem.01108-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i10_10_1128_aem_01108_23-20240609085801-8048634/source_files/.qa_output/aem.01108-23/ecology/contrastive_qa.json",
+      "question": "A researcher is engineering bacterial strains to maximize extracellular electron transfer (EET) in microbial fuel cells. Shewanella oneidensis MR-1 naturally expresses a large repertoire of c-type cytochromes, which are essential for EET. The \u0394TRIPLE/P CCTA strain, another engineered derivative of Shewanella oneidensis MR-1, exhibits a 2.5-fold increase in current density and a 40% reduction in charge transfer resistance compared to the wild-type under standard microbial fuel cell conditions. This strain also shows enhanced methyl orange reduction rates, particularly when riboflavin is supplemented. Overexpression of the ccmFGH gene cluster in MR-1 leads to increased maturation and abundance of c-type cytochromes. In microbial fuel cells utilizing Shewanella oneidensis MR-1, internal ohmic resistance can increase by up to 20% when c-type cytochrome levels are elevated. This resistance is typically measured by analyzing the slope of the voltage-current density curve during operation. Geobacter sulfurreducens also produces c-type cytochromes for EET, but its ccmFGH expression is not manipulated. In microbial fuel cells, output voltage can vary between 0.2 and 0.6 V depending on the strain and operational conditions. However, fluctuations in output voltage may also result from changes in electrode material or medium composition, independent of cytochrome levels. WT/p_ccmFGH (MR-1 with ccmFGH overexpression) produces higher levels of c-type cytochromes than wild-type MR-1. The researcher must choose one strain to maximize EET efficiency. Considering the role of c-type cytochromes in EET, the effect of ccmFGH overexpression, and the natural capabilities of each strain, which strain should she select to maximize EET efficiency?",
+      "original_question": "A researcher is engineering bacterial strains to maximize extracellular electron transfer (EET) in microbial fuel cells. Shewanella oneidensis MR-1 naturally expresses a large repertoire of c-type cytochromes, which are essential for EET. Overexpression of the ccmFGH gene cluster in MR-1 leads to increased maturation and abundance of c-type cytochromes. Geobacter sulfurreducens also produces c-type cytochromes for EET, but its ccmFGH expression is not manipulated. WT/p_ccmFGH (MR-1 with ccmFGH overexpression) produces higher levels of c-type cytochromes than wild-type MR-1. The researcher must choose one strain to maximize EET efficiency. Considering the role of c-type cytochromes in EET, the effect of ccmFGH overexpression, and the natural capabilities of each strain, which strain should she select to maximize EET efficiency?",
+      "reasoning_steps": [
+        "C-type cytochromes are essential for EET in both Shewanella oneidensis MR-1 and Geobacter sulfurreducens.",
+        "Overexpression of ccmFGH in MR-1 increases c-type cytochrome abundance.",
+        "WT/p_ccmFGH (MR-1 with ccmFGH overexpression) produces more c-type cytochromes than wild-type MR-1.",
+        "Geobacter sulfurreducens produces c-type cytochromes but does not have increased ccmFGH expression.",
+        "Higher c-type cytochrome levels correlate with increased EET efficiency.",
+        "WT/p_ccmFGH is expected to have the highest EET efficiency due to elevated c-type cytochromes.",
+        "Therefore, the strain with ccmFGH overexpression should be selected."
+      ],
+      "correct_answer": "WT/p_ccmFGH",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "C-TYPE CYTOCHROMES",
+        "SHEWANELLA ONEIDENSIS",
+        "S. ONEIDENSIS",
+        "SHEWANELLA ONEIDENSIS MR-1",
+        "GEOBACTER SULFURREDUCENS",
+        "WT/P_CCMFGH",
+        "CCMFGH",
+        "MR-1 WITH CCMFGH OVEREXPRESSION"
+      ],
+      "quality_score": 4.0,
+      "answer_word_count": 1,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "The \u0394TRIPLE/P CCTA strain, another engineered derivative of Shewanella oneidensis MR-1, exhibits a 2.5-fold increase in current density and a 40% reduction in charge transfer resistance compared to the wild-type under standard microbial fuel cell conditions. This strain also shows enhanced methyl orange reduction rates, particularly when riboflavin is supplemented.",
+        "In microbial fuel cells utilizing Shewanella oneidensis MR-1, internal ohmic resistance can increase by up to 20% when c-type cytochrome levels are elevated. This resistance is typically measured by analyzing the slope of the voltage-current density curve during operation.",
+        "In microbial fuel cells, output voltage can vary between 0.2 and 0.6 V depending on the strain and operational conditions. However, fluctuations in output voltage may also result from changes in electrode material or medium composition, independent of cytochrome levels."
+      ],
+      "enrichment_entities": [
+        "\u0394TRIPLE/P CCTA STRAIN",
+        "INTERNAL OHMIC RESISTANCE",
+        "OUTPUT VOLTAGE"
+      ]
+    },
+    {
+      "paper_id": "aem.01108-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i10_10_1128_aem_01108_23-20240609085801-8048634/source_files/.qa_output/aem.01108-23/ecology/contrastive_qa.json",
+      "question": "In an aerobic sediment microcosm, sulfite (2 mM) is added as the sole reduced sulfur source. Over 24 hours, wild-type S. oneidensis cells convert 95% of sulfite to sulfate, while cell-free controls with oxygen alone convert only 30% of sulfite to sulfate. The SORCABD complex exhibits maximal activity at 28\u00b0C and is inhibited by high concentrations of nitrate. In S. oneidensis, expression of the sorCABD operon increases twofold in the presence of thiosulfate. Mutant S. oneidensis lacking the Sor complex convert just 35% of sulfite to sulfate, matching abiotic rates. The \u0394SOR (\u03940714-7) strain displays normal growth rates in LB medium and maintains comparable cell densities to wild-type S. oneidensis during aerobic incubation. However, its cytochrome c content remains unchanged relative to the parental strain under these conditions. Addition of purified SorCABD to the mutant restores sulfate production to wild-type levels. Sulfite-oxidizing enzymes and SDH subunits are present only in wild-type cells. In parallel experiments, deletion of the cytochrome cbb3 oxidase in S. oneidensis leads to a 20% decrease in cellular oxygen consumption rates, but does not alter the baseline sulfite concentration over 24 hours. The oxidase complex is also expressed during growth on alternative electron acceptors such as nitrate. Which entity is primarily responsible for the high sulfate yield in wild-type S. oneidensis under these conditions?",
+      "original_question": "In an aerobic sediment microcosm, sulfite (2 mM) is added as the sole reduced sulfur source. Over 24 hours, wild-type S. oneidensis cells convert 95% of sulfite to sulfate, while cell-free controls with oxygen alone convert only 30% of sulfite to sulfate. Mutant S. oneidensis lacking the Sor complex convert just 35% of sulfite to sulfate, matching abiotic rates. Addition of purified SorCABD to the mutant restores sulfate production to wild-type levels. Sulfite-oxidizing enzymes and SDH subunits are present only in wild-type cells. Which entity is primarily responsible for the high sulfate yield in wild-type S. oneidensis under these conditions?",
+      "reasoning_steps": [
+        "Sulfite is the substrate; sulfate is the measured product.",
+        "Wild-type S. oneidensis converts nearly all sulfite to sulfate (95%).",
+        "Oxygen alone (abiotic) achieves only 30% conversion.",
+        "Mutant lacking Sor complex matches abiotic rate (35%), indicating loss of enzymatic activity.",
+        "Adding SorCABD to mutant restores conversion to wild-type levels.",
+        "Sulfite-oxidizing enzymes and SDH subunits are present only in wild-type, but restoration by SorCABD pinpoints its role.",
+        "Therefore, SorCABD is the key entity enabling high sulfate yield."
+      ],
+      "correct_answer": "SorCABD",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "SULFATE",
+        "SORCABD",
+        "OXYGEN",
+        "SULFITE-OXIDIZING ENZYMES",
+        "S. ONEIDENSIS",
+        "WILD-TYPE S. ONEIDENSIS CELLS",
+        "SOR COMPLEX",
+        "SDH SUBUNITS"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 1,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "The SORCABD complex exhibits maximal activity at 28\u00b0C and is inhibited by high concentrations of nitrate. In S. oneidensis, expression of the sorCABD operon increases twofold in the presence of thiosulfate.",
+        "The \u0394SOR (\u03940714-7) strain displays normal growth rates in LB medium and maintains comparable cell densities to wild-type S. oneidensis during aerobic incubation. However, its cytochrome c content remains unchanged relative to the parental strain under these conditions.",
+        "In parallel experiments, deletion of the cytochrome cbb3 oxidase in S. oneidensis leads to a 20% decrease in cellular oxygen consumption rates, but does not alter the baseline sulfite concentration over 24 hours. The oxidase complex is also expressed during growth on alternative electron acceptors such as nitrate."
+      ],
+      "enrichment_entities": [
+        "SORCABD COMPLEX",
+        "\u0394SOR (\u03940714-7) STRAIN",
+        "CYTOCHROME CBB3 OXIDASE"
+      ]
+    },
+    {
+      "paper_id": "aem.01108-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i10_10_1128_aem_01108_23-20240609085801-8048634/source_files/.qa_output/aem.01108-23/ecology/contrastive_qa.json",
+      "question": "In a freshwater sediment microcosm, two bacterial populations are present: (1) a diverse group of bacteria, some of which produce SDH protein homologs with variable sulfite oxidation activity, and (2) Shewanella oneidensis, which expresses the SDH protein that, together with c-type cytochromes, enables efficient sulfite oxidation to sulfate. The microcosm contains high levels of sulfite (2 mM) and low oxygen (0. 5% O2). C-type cytochromes in Shewanella oneidensis exhibit a 2-fold increase in expression under microaerobic conditions (0.5% O2), although their total heme content remains unchanged. In parallel, these proteins can transfer electrons to a variety of artificial acceptors in vitro, with rates up to 120 nmol/min/mg protein. H2S accumulation is toxic to most bacteria except S. oneidensis. The SOR complex in S. oneidensis consists of four subunits\u2014SorA, SorB, SorC, and SorD\u2014and its assembly is enhanced twofold in the presence of elevated sulfite concentrations. However, SOR complex activity is not affected by minor fluctuations in ambient oxygen levels. The SDH protein requires an oxidoreductase molybdopterin binding domain for activity, which is present only in S. oneidensis. Decaheme c-type cytochromes in S. oneidensis facilitate electron transfer to extracellular iron oxides, with rates up to 0.8 \u03bcmol electrons per hour under microaerobic conditions. This activity is independent of sulfite concentration in the microcosm. Over 48 hours, sulfite levels decrease by 80% and H2S remains low. Which bacterial population is primarily responsible for sulfite oxidation under these conditions?",
+      "original_question": "In a freshwater sediment microcosm, two bacterial populations are present: (1) a diverse group of bacteria, some of which produce SDH protein homologs with variable sulfite oxidation activity, and (2) Shewanella oneidensis, which expresses the SDH protein that, together with c-type cytochromes, enables efficient sulfite oxidation to sulfate. The microcosm contains high levels of sulfite (2 mM) and low oxygen (0.5% O2). H2S accumulation is toxic to most bacteria except S. oneidensis. The SDH protein requires an oxidoreductase molybdopterin binding domain for activity, which is present only in S. oneidensis. Over 48 hours, sulfite levels decrease by 80% and H2S remains low. Which bacterial population is primarily responsible for sulfite oxidation under these conditions?",
+      "reasoning_steps": [
+        "Only S. oneidensis has the SDH protein with the required molybdopterin domain.",
+        "SDH protein enables efficient sulfite oxidation with c-type cytochromes.",
+        "Other bacteria have SDH homologs but lack the necessary domain for full activity.",
+        "High sulfite and low oxygen favor anaerobic sulfite oxidation.",
+        "H2S toxicity inhibits most bacteria except S. oneidensis.",
+        "Sulfite decreases by 80%, H2S remains low, indicating active oxidation.",
+        "S. oneidensis is adapted to these conditions and can perform the required reaction."
+      ],
+      "correct_answer": "Shewanella oneidensis",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "SDH PROTEIN",
+        "BACTERIA",
+        "S. ONEIDENSIS"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 2,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "C-type cytochromes in Shewanella oneidensis exhibit a 2-fold increase in expression under microaerobic conditions (0.5% O2), although their total heme content remains unchanged. In parallel, these proteins can transfer electrons to a variety of artificial acceptors in vitro, with rates up to 120 nmol/min/mg protein.",
+        "The SOR complex in S. oneidensis consists of four subunits\u2014SorA, SorB, SorC, and SorD\u2014and its assembly is enhanced twofold in the presence of elevated sulfite concentrations. However, SOR complex activity is not affected by minor fluctuations in ambient oxygen levels.",
+        "Decaheme c-type cytochromes in S. oneidensis facilitate electron transfer to extracellular iron oxides, with rates up to 0.8 \u03bcmol electrons per hour under microaerobic conditions. This activity is independent of sulfite concentration in the microcosm."
+      ],
+      "enrichment_entities": [
+        "C-TYPE CYTOCHROMES",
+        "SOR COMPLEX",
+        "DECAHEME C-TYPE CYTOCHROMES"
+      ]
+    },
+    {
+      "paper_id": "aem.01108-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i10_10_1128_aem_01108_23-20240609085801-8048634/source_files/.qa_output/aem.01108-23/ecology/contrastive_qa.json",
+      "question": "In a soil microcosm experiment, two bacterial species are introduced: Sinorhizobium meliloti and Bacillus subtilis. S. meliloti expresses the SorCABD enzyme complex, which catalyzes sulfite oxidation to sulfate, transferring electrons to oxygen. In parallel studies, the SorTU enzyme complex from Sinorhizobium meliloti has been shown to oxidize sulfite at rates comparable to SorAB, reaching maximum activity at 8 mM substrate concentration. SorTU displays distinct cofactor binding properties, but its expression levels remain unchanged under aerobic conditions. B. subtilis lacks SorCABD but can reduce sulfate to sulfide via assimilatory sulfate reduction. Sulfite-oxidizing enzymes (SOEs) typically exhibit maximal activity at oxygen concentrations above 5 mg/L, with turnover rates reaching up to 100 \u03bcmol sulfite per hour per mg protein. In some soil bacteria, SOE expression is induced by sulfite levels exceeding 2 mM. The microcosm initially contains 10 mM sulfite and 0 mM sulfate. After 48 hours, oxygen remains abundant, and S. Hydrogen sulfide (H2S) levels in the microcosm remained below 0.2 mM throughout the experiment, consistent with minimal volatilization and stable redox conditions. meliloti cell counts increase by 80%, while B. subtilis cell counts increase by 20%. Sulfite concentration drops to 1 mM, and sulfate rises to 9 mM. Which species is primarily responsible for the observed increase in sulfate concentration?",
+      "original_question": "In a soil microcosm experiment, two bacterial species are introduced: Sinorhizobium meliloti and Bacillus subtilis. S. meliloti expresses the SorCABD enzyme complex, which catalyzes sulfite oxidation to sulfate, transferring electrons to oxygen. B. subtilis lacks SorCABD but can reduce sulfate to sulfide via assimilatory sulfate reduction. The microcosm initially contains 10 mM sulfite and 0 mM sulfate. After 48 hours, oxygen remains abundant, and S. meliloti cell counts increase by 80%, while B. subtilis cell counts increase by 20%. Sulfite concentration drops to 1 mM, and sulfate rises to 9 mM. Which species is primarily responsible for the observed increase in sulfate concentration?",
+      "reasoning_steps": [
+        "S. meliloti possesses SorCABD, enabling sulfite oxidation to sulfate.",
+        "B. subtilis cannot oxidize sulfite; it reduces sulfate to sulfide.",
+        "Initial conditions: high sulfite, no sulfate.",
+        "After 48 hours: sulfite decreases, sulfate increases.",
+        "Oxygen is abundant, favoring aerobic sulfite oxidation.",
+        "S. meliloti population increases substantially, indicating active metabolism.",
+        "Sulfate production matches S. meliloti\u2019s enzymatic capability, not B. subtilis\u2019s."
+      ],
+      "correct_answer": "Sinorhizobium meliloti",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "SULFITE OXIDATION",
+        "SINORHIZOBIUM MELILOTI"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 2,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "In parallel studies, the SorTU enzyme complex from Sinorhizobium meliloti has been shown to oxidize sulfite at rates comparable to SorAB, reaching maximum activity at 8 mM substrate concentration. SorTU displays distinct cofactor binding properties, but its expression levels remain unchanged under aerobic conditions.",
+        "Sulfite-oxidizing enzymes (SOEs) typically exhibit maximal activity at oxygen concentrations above 5 mg/L, with turnover rates reaching up to 100 \u03bcmol sulfite per hour per mg protein. In some soil bacteria, SOE expression is induced by sulfite levels exceeding 2 mM.",
+        "Hydrogen sulfide (H2S) levels in the microcosm remained below 0.2 mM throughout the experiment, consistent with minimal volatilization and stable redox conditions."
+      ],
+      "enrichment_entities": [
+        "SORTU",
+        "SULFITE-OXIDIZING ENZYMES",
+        "H2S"
+      ]
+    },
+    {
+      "paper_id": "aem.01109-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i10_10_1128_aem_01109_23-20240609085801-8048634/source_files/.qa_output/aem.01109-23/ecology/contrastive_qa.json",
+      "question": "A soil microbe is capable of degrading coumarin, a plant-derived compound, through a sequential pathway. The first step is the reduction of coumarin to dihydrocoumarin, catalyzed by NAD(P)H-dependent xenobiotic reductase A homologs. NYZ480\u0394COUB1\u0394COUB2 populations show a 40% decrease in overall biomass yield when grown on coumarin compared to wild-type NyZ480, despite similar initial cell densities. In these cultures, residual coumarin levels remain unchanged over 24 hours. Dihydrocoumarin is then further metabolized to melilotic acid. XenA activity in Pseudomonas sp. strain NyZ480 increases twofold when cells are grown on coumarin compared to glucose. However, deletion of xenA does not affect the expression of downstream catabolic genes. In an experiment, two mutant strains are constructed: Strain 1 lacks xenobiotic reductase A homologs, while Strain 2 lacks the enzyme converting dihydrocoumarin to melilotic acid. NYZ480\u0394COUB2 cultures show a 40% decrease in overall biomass yield when grown on coumarin compared to wild-type NyZ480, although their initial lag phase duration remains unchanged. Both strains are grown in media containing only coumarin as the carbon source. Which intermediate will accumulate in the culture of Strain 2 but not in Strain 1?",
+      "original_question": "A soil microbe is capable of degrading coumarin, a plant-derived compound, through a sequential pathway. The first step is the reduction of coumarin to dihydrocoumarin, catalyzed by NAD(P)H-dependent xenobiotic reductase A homologs. Dihydrocoumarin is then further metabolized to melilotic acid. In an experiment, two mutant strains are constructed: Strain 1 lacks xenobiotic reductase A homologs, while Strain 2 lacks the enzyme converting dihydrocoumarin to melilotic acid. Both strains are grown in media containing only coumarin as the carbon source. Which intermediate will accumulate in the culture of Strain 2 but not in Strain 1?",
+      "reasoning_steps": [
+        "Coumarin is converted to dihydrocoumarin by xenobiotic reductase A homologs.",
+        "Strain 1 lacks this enzyme, so cannot convert coumarin to dihydrocoumarin.",
+        "Strain 2 can convert coumarin to dihydrocoumarin, but cannot metabolize dihydrocoumarin further.",
+        "Both strains are grown with coumarin as the sole carbon source.",
+        "In Strain 1, no dihydrocoumarin is produced, so it cannot accumulate.",
+        "In Strain 2, dihydrocoumarin is produced but cannot be metabolized further, so it accumulates.",
+        "The intermediate that accumulates in Strain 2 but not Strain 1 is dihydrocoumarin."
+      ],
+      "correct_answer": "Dihydrocoumarin",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "DIHYDROCOUMARIN",
+        "COUMARIN",
+        "XENOBIOTIC REDUCTASE A HOMOLOGS"
+      ],
+      "quality_score": 4.0,
+      "answer_word_count": 1,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "NYZ480\u0394COUB1\u0394COUB2 populations show a 40% decrease in overall biomass yield when grown on coumarin compared to wild-type NyZ480, despite similar initial cell densities. In these cultures, residual coumarin levels remain unchanged over 24 hours.",
+        "XenA activity in Pseudomonas sp. strain NyZ480 increases twofold when cells are grown on coumarin compared to glucose. However, deletion of xenA does not affect the expression of downstream catabolic genes.",
+        "NYZ480\u0394COUB2 cultures show a 40% decrease in overall biomass yield when grown on coumarin compared to wild-type NyZ480, although their initial lag phase duration remains unchanged."
+      ],
+      "enrichment_entities": [
+        "NYZ480\u0394COUB1\u0394COUB2",
+        "XENA",
+        "NYZ480\u0394COUB2"
+      ]
+    },
+    {
+      "paper_id": "aem.01109-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i10_10_1128_aem_01109_23-20240609085801-8048634/source_files/.qa_output/aem.01109-23/ecology/contrastive_qa.json",
+      "question": "Pseudomonas sp. strain NyZ480 can hydroxylate melilotic acid (MA) to 3-(2,3-dihydroxyphenyl)propionate (DHPP) via the CouC enzyme, encoded by the couC gene. NYZ480\u0394COUC(pMCS-COUC) maintains stable plasmid retention over 24 hours in LB medium without antibiotic selection. In shake-flask cultures, this strain reaches an optical density at 600 nm (OD600) of approximately 1.8 after 12 hours of incubation. A NyZ480\u0394couC mutant lacks the couC gene and cannot produce CouC, resulting in no DHPP formation from MA. NyZ480\u0394couC cultures reach an optical density of 0.8 after 24 hours in LB medium, similar to wild-type NyZ480, when supplemented with glucose as the carbon source. This mutant population is routinely maintained at 37\u00b0C with kanamycin selection. Introducing the pMCS-couC plasmid into NyZ480\u0394couC restores CouC production and DHPP synthesis. The PET-COUC plasmid contains the couC gene fragment cloned into the pET-28a(+) vector, enabling IPTG-inducible expression of CouC in E. coli. In previous studies, PET-COUC-mediated expression resulted in a 2.5-fold increase in total CouC protein compared to the native host background. Separately, E. coli Rosetta (DE3) transformed with pET-couC expresses recombinant CouC and converts MA to DHPP. If you need to select a system for efficient DHPP production from MA in a laboratory setting, which alternative should you choose: (A) wild-type NyZ480, (B) NyZ480\u0394couC, (C) NyZ480\u0394couC + pMCS-couC, or (D) E. coli Rosetta (DE3) + pET-couC?",
+      "original_question": "Pseudomonas sp. strain NyZ480 can hydroxylate melilotic acid (MA) to 3-(2,3-dihydroxyphenyl)propionate (DHPP) via the CouC enzyme, encoded by the couC gene. A NyZ480\u0394couC mutant lacks the couC gene and cannot produce CouC, resulting in no DHPP formation from MA. Introducing the pMCS-couC plasmid into NyZ480\u0394couC restores CouC production and DHPP synthesis. Separately, E. coli Rosetta (DE3) transformed with pET-couC expresses recombinant CouC and converts MA to DHPP. If you need to select a system for efficient DHPP production from MA in a laboratory setting, which alternative should you choose: (A) wild-type NyZ480, (B) NyZ480\u0394couC, (C) NyZ480\u0394couC + pMCS-couC, or (D) E. coli Rosetta (DE3) + pET-couC?",
+      "reasoning_steps": [
+        "Wild-type NyZ480 has couC and produces CouC, so it can convert MA to DHPP.",
+        "NyZ480\u0394couC lacks couC, so cannot produce CouC or DHPP.",
+        "NyZ480\u0394couC + pMCS-couC regains CouC production via plasmid, restoring DHPP synthesis.",
+        "E. coli Rosetta (DE3) + pET-couC expresses recombinant CouC and converts MA to DHPP.",
+        "Both wild-type NyZ480, NyZ480\u0394couC + pMCS-couC, and E. coli Rosetta (DE3) + pET-couC can produce DHPP from MA.",
+        "NyZ480\u0394couC cannot produce DHPP.",
+        "E. coli Rosetta (DE3) + pET-couC is optimized for recombinant protein expression, likely yielding higher CouC levels and more efficient DHPP production in lab conditions."
+      ],
+      "correct_answer": "E. coli Rosetta (DE3) + pET-couC",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "COUC",
+        "NYZ480",
+        "STRAIN NYZ480",
+        "PMCS-COUC",
+        "E. COLI ROSETTA (DE3)"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 4,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "NYZ480\u0394COUC(pMCS-COUC) maintains stable plasmid retention over 24 hours in LB medium without antibiotic selection. In shake-flask cultures, this strain reaches an optical density at 600 nm (OD600) of approximately 1.8 after 12 hours of incubation.",
+        "NyZ480\u0394couC cultures reach an optical density of 0.8 after 24 hours in LB medium, similar to wild-type NyZ480, when supplemented with glucose as the carbon source. This mutant population is routinely maintained at 37\u00b0C with kanamycin selection.",
+        "The PET-COUC plasmid contains the couC gene fragment cloned into the pET-28a(+) vector, enabling IPTG-inducible expression of CouC in E. coli. In previous studies, PET-COUC-mediated expression resulted in a 2.5-fold increase in total CouC protein compared to the native host background."
+      ],
+      "enrichment_entities": [
+        "NYZ480\u0394COUC(PMCS-COUC)",
+        "NYZ480\u0394COUC",
+        "PET-COUC"
+      ]
+    },
+    {
+      "paper_id": "aem.01109-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i10_10_1128_aem_01109_23-20240609085801-8048634/source_files/.qa_output/aem.01109-23/ecology/contrastive_qa.json",
+      "question": "Pseudomonas sp. strain NyZ480 inhabits a soil microcosm containing 100 mg/L coumarin as the sole carbon source. Dihydrocoumarin levels in the wild-type microcosm remain stable between 36 and 48 hours, suggesting that its further metabolism may be slower than its initial formation. In sterile controls, dihydrocoumarin is not detected even after 72 hours. This strain encodes five xenobiotic reductase A homologs, each capable of reducing coumarin to dihydrocoumarin. Members of the Old Yellow Enzyme family typically display peak activity at 30\u00b0C and pH 7.2 in soil microcosms. In related systems, their expression levels can increase twofold in response to aromatic compounds. In a parallel microcosm, a mutant NyZ480 strain lacking all xenobiotic reductase A homologs is inoculated at the same density. The DHPP catabolic gene cluster in strain NyZ480 is upregulated 2-fold after 24 hours of coumarin exposure, facilitating downstream metabolism of dihydrocoumarin. However, its expression does not alter the initial rate of coumarin reduction. After 48 hours, the wild-type microcosm shows 90% coumarin depletion and 80 mg/L dihydrocoumarin accumulation, while the mutant shows no coumarin depletion or dihydrocoumarin production. No other coumarin-degrading microbes are present. Which enzymatic trait is essential for coumarin degradation in this system?",
+      "original_question": "Pseudomonas sp. strain NyZ480 inhabits a soil microcosm containing 100 mg/L coumarin as the sole carbon source. This strain encodes five xenobiotic reductase A homologs, each capable of reducing coumarin to dihydrocoumarin. In a parallel microcosm, a mutant NyZ480 strain lacking all xenobiotic reductase A homologs is inoculated at the same density. After 48 hours, the wild-type microcosm shows 90% coumarin depletion and 80 mg/L dihydrocoumarin accumulation, while the mutant shows no coumarin depletion or dihydrocoumarin production. No other coumarin-degrading microbes are present. Which enzymatic trait is essential for coumarin degradation in this system?",
+      "reasoning_steps": [
+        "Coumarin is the sole carbon source in both microcosms.",
+        "Wild-type NyZ480 encodes five xenobiotic reductase A homologs.",
+        "Wild-type depletes 90% of coumarin and accumulates dihydrocoumarin.",
+        "Mutant lacks all xenobiotic reductase A homologs.",
+        "Mutant shows no coumarin depletion or dihydrocoumarin production.",
+        "No other microbes can degrade coumarin.",
+        "Therefore, xenobiotic reductase A homologs are essential for coumarin degradation."
+      ],
+      "correct_answer": "Xenobiotic reductase A homologs",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "XENOBIOTIC REDUCTASE A HOMOLOGS",
+        "PSEUDOMONAS SP. STRAIN NYZ480"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 3,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Dihydrocoumarin levels in the wild-type microcosm remain stable between 36 and 48 hours, suggesting that its further metabolism may be slower than its initial formation. In sterile controls, dihydrocoumarin is not detected even after 72 hours.",
+        "Members of the Old Yellow Enzyme family typically display peak activity at 30\u00b0C and pH 7.2 in soil microcosms. In related systems, their expression levels can increase twofold in response to aromatic compounds.",
+        "The DHPP catabolic gene cluster in strain NyZ480 is upregulated 2-fold after 24 hours of coumarin exposure, facilitating downstream metabolism of dihydrocoumarin. However, its expression does not alter the initial rate of coumarin reduction."
+      ],
+      "enrichment_entities": [
+        "DIHYDROCOUMARIN",
+        "OLD YELLOW ENZYME FAMILY",
+        "DHPP CATABOLIC GENE CLUSTER"
+      ]
+    },
+    {
+      "paper_id": "aem.01109-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i10_10_1128_aem_01109_23-20240609085801-8048634/source_files/.qa_output/aem.01109-23/ecology/contrastive_qa.json",
+      "question": "In a soil microcosm experiment, two bacterial strains are tested for their ability to degrade coumarin. Strain A possesses the gene encoding CouC monooxygenase, while Strain B lacks this gene but can utilize melilotic acid as a sole carbon source. Dihydrocoumarin was detected at low concentrations (<5 \u00b5M) in monocultures of Strain A, but its levels did not correlate with the rate of coumarin disappearance. In previous studies, dihydrocoumarin accumulation was observed to peak within the first 12 hours of incubation. Both strains are grown separately in media containing coumarin as the only carbon source. Expression of COUB1 in E. coli results in a 2-fold increase in melilotic acid production from dihydrocoumarin, but does not alter the accumulation of 3-(2,3-dihydroxyphenyl)propionate in monoculture assays. After 48 hours, Strain A produces high levels of 3-(2,3-dihydroxyphenyl)propionate, while Strain B accumulates melilotic acid but no downstream products. Expression of COUB2 in E. coli results in a 2-fold increase in the hydrolysis rate of dihydrocoumarin to melilotic acid compared to strains lacking this enzyme. However, COUB2 activity does not alter the accumulation of 3-(2,3-dihydroxyphenyl)propionate in monoculture experiments. When both strains are cocultured, complete mineralization of coumarin is observed, with transient accumulation of 3-(2,3-dihydroxyphenyl)propionate. Which molecule serves as the critical intermediate enabling complete coumarin degradation in the coculture?",
+      "original_question": "In a soil microcosm experiment, two bacterial strains are tested for their ability to degrade coumarin. Strain A possesses the gene encoding CouC monooxygenase, while Strain B lacks this gene but can utilize melilotic acid as a sole carbon source. Both strains are grown separately in media containing coumarin as the only carbon source. After 48 hours, Strain A produces high levels of 3-(2,3-dihydroxyphenyl)propionate, while Strain B accumulates melilotic acid but no downstream products. When both strains are cocultured, complete mineralization of coumarin is observed, with transient accumulation of 3-(2,3-dihydroxyphenyl)propionate. Which molecule serves as the critical intermediate enabling complete coumarin degradation in the coculture?",
+      "reasoning_steps": [
+        "Coumarin is degraded to melilotic acid in both strains.",
+        "Strain A has CouC monooxygenase, which converts melilotic acid to 3-(2,3-dihydroxyphenyl)propionate.",
+        "Strain B cannot convert melilotic acid further due to lack of CouC.",
+        "In monoculture, Strain B accumulates melilotic acid, indicating a block in the pathway.",
+        "Strain A produces 3-(2,3-dihydroxyphenyl)propionate, but only Strain A can do this step.",
+        "In coculture, complete mineralization occurs, suggesting cross-feeding of intermediates.",
+        "The transient accumulation of 3-(2,3-dihydroxyphenyl)propionate in coculture indicates it is the key intermediate passed between strains for full degradation."
+      ],
+      "correct_answer": "3-(2,3-dihydroxyphenyl)propionate",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "3-(2,3-DIHYDROXYPHENYL)PROPIONATE",
+        "MELILOTIC ACID",
+        "COUC",
+        "COUC MONOOXYGENASE"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 1,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Dihydrocoumarin was detected at low concentrations (<5 \u00b5M) in monocultures of Strain A, but its levels did not correlate with the rate of coumarin disappearance. In previous studies, dihydrocoumarin accumulation was observed to peak within the first 12 hours of incubation.",
+        "Expression of COUB1 in E. coli results in a 2-fold increase in melilotic acid production from dihydrocoumarin, but does not alter the accumulation of 3-(2,3-dihydroxyphenyl)propionate in monoculture assays.",
+        "Expression of COUB2 in E. coli results in a 2-fold increase in the hydrolysis rate of dihydrocoumarin to melilotic acid compared to strains lacking this enzyme. However, COUB2 activity does not alter the accumulation of 3-(2,3-dihydroxyphenyl)propionate in monoculture experiments."
+      ],
+      "enrichment_entities": [
+        "DIHYDROCOUMARIN",
+        "COUB1",
+        "COUB2"
+      ]
+    },
+    {
+      "paper_id": "aem.01109-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i10_10_1128_aem_01109_23-20240609085801-8048634/source_files/.qa_output/aem.01109-23/ecology/contrastive_qa.json",
+      "question": "Two bacterial strains are tested for their ability to degrade dihydrocoumarin (DHC) in soil microcosms over 48 hours. Strain NyZ480 naturally encodes the CouB1 enzyme, a hydrolase homologous to 3,4-dihydrocoumarin hydrolase, which accelerates conversion of DHC to melilotic acid (MA). E. E. coli BL21(DE3) transformed with PET-COUB2 expresses the CouB2 enzyme, resulting in moderate DHC depletion (approximately 40%) and detectable but lower melilotic acid accumulation compared to CouB1-expressing strains. The activity of CouB2 is optimal at 30\u00b0C and declines sharply above 37\u00b0C. coli BL21(DE3) does not degrade DHC unless transformed with pET-couB1, which enables CouB1 production. In parallel experiments, only E. When E. coli BL21(DE3) is transformed with PET-COUB1, CouB1 enzyme expression reaches peak levels within 6 hours of induction, with over 80% of total cellular protein attributed to recombinant CouB1. coli BL21(DE3) transformed with pET-couB1 and strain NyZ480 show >90% DHC depletion and high MA accumulation; untransformed E. coli BL21(DE3) shows <5% DHC depletion. Expression of COUB2 in E. coli results in a 75% conversion rate of DHC to melilotic acid within 48 hours, comparable to CouB1-mediated activity. However, COUB2 activity is slightly inhibited in the presence of high soil organic matter. If a soil community is supplemented with either strain NyZ480 or E. coli BL21(DE3) (with or without pET-couB1), which strain will most reliably accelerate DHC degradation to MA without requiring genetic modification?",
+      "original_question": "Two bacterial strains are tested for their ability to degrade dihydrocoumarin (DHC) in soil microcosms over 48 hours. Strain NyZ480 naturally encodes the CouB1 enzyme, a hydrolase homologous to 3,4-dihydrocoumarin hydrolase, which accelerates conversion of DHC to melilotic acid (MA). E. coli BL21(DE3) does not degrade DHC unless transformed with pET-couB1, which enables CouB1 production. In parallel experiments, only E. coli BL21(DE3) transformed with pET-couB1 and strain NyZ480 show >90% DHC depletion and high MA accumulation; untransformed E. coli BL21(DE3) shows <5% DHC depletion. If a soil community is supplemented with either strain NyZ480 or E. coli BL21(DE3) (with or without pET-couB1), which strain will most reliably accelerate DHC degradation to MA without requiring genetic modification?",
+      "reasoning_steps": [
+        "CouB1 enzyme is required for DHC degradation to MA.",
+        "Strain NyZ480 naturally encodes CouB1, so it expresses the enzyme without modification.",
+        "E. coli BL21(DE3) only produces CouB1 if transformed with pET-couB1.",
+        "Untransformed E. coli BL21(DE3) cannot degrade DHC efficiently (<5% depletion).",
+        "Both NyZ480 and transformed E. coli BL21(DE3) show high DHC degradation (>90%).",
+        "The question asks for the strain that does not require genetic modification.",
+        "Only NyZ480 meets this criterion."
+      ],
+      "correct_answer": "Strain NyZ480",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "COUB1",
+        "E. COLI BL21(DE3)",
+        "STRAIN NYZ480"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 2,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "E. coli BL21(DE3) transformed with PET-COUB2 expresses the CouB2 enzyme, resulting in moderate DHC depletion (approximately 40%) and detectable but lower melilotic acid accumulation compared to CouB1-expressing strains. The activity of CouB2 is optimal at 30\u00b0C and declines sharply above 37\u00b0C.",
+        "When E. coli BL21(DE3) is transformed with PET-COUB1, CouB1 enzyme expression reaches peak levels within 6 hours of induction, with over 80% of total cellular protein attributed to recombinant CouB1.",
+        "Expression of COUB2 in E. coli results in a 75% conversion rate of DHC to melilotic acid within 48 hours, comparable to CouB1-mediated activity. However, COUB2 activity is slightly inhibited in the presence of high soil organic matter."
+      ],
+      "enrichment_entities": [
+        "PET-COUB2",
+        "PET-COUB1",
+        "COUB2"
+      ]
+    },
+    {
+      "paper_id": "aem.01109-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i10_10_1128_aem_01109_23-20240609085801-8048634/source_files/.qa_output/aem.01109-23/ecology/contrastive_qa.json",
+      "question": "Two bacterial strains are tested for their ability to biodegrade dihydrocoumarin (DHC) in soil microcosms over 48 hours. Strain NyZ480 encodes the CouB2 enzyme, a hydrolase that converts DHC to melilotic acid (MA), and is known to require CouB2 for this catabolic pathway. E. COUB1, a homologous hydrolase enzyme, has been shown to convert dihydrocoumarin to melilotic acid at a rate of 1.2 \u03bcmol/min/mg protein when expressed in E. coli. In previous studies, COUB1 activity resulted in a 70% reduction of DHC over 48 hours in similar soil microcosms. coli BL21(DE3) is transformed with pET-couB2, enabling it to produce the CouB2 enzyme. In parallel experiments, both strains are inoculated into identical soil microcosms containing 100 mg/L DHC. COUC, a flavin monooxygenase found in Pseudomonas sp. strain NyZ480, catalyzes the conversion of melilotic acid to 3-(2,3-dihydroxyphenyl)propionate with a turnover rate of 120 nmol/min/mg protein. However, COUC activity is not detected in E. coli BL21(DE3) under these experimental conditions. After 48 hours, NyZ480 reduces DHC concentration to 10 mg/L and produces 85 mg/L MA. E. The PET-COUB2 plasmid enables E. coli BL21(DE3) to express CouB2 at levels reaching 2.5 \u03bcg/mL after 24 hours of induction with IPTG. In control experiments, PET-COUB2 does not alter baseline DHC concentrations in uninoculated soil microcosms. coli BL21(DE3) (with pET-couB2) reduces DHC to 15 mg/L and produces 80 mg/L MA. Which strain demonstrates higher efficiency in coumarin biodegradation via the CouB2 pathway under these conditions?",
+      "original_question": "Two bacterial strains are tested for their ability to biodegrade dihydrocoumarin (DHC) in soil microcosms over 48 hours. Strain NyZ480 encodes the CouB2 enzyme, a hydrolase that converts DHC to melilotic acid (MA), and is known to require CouB2 for this catabolic pathway. E. coli BL21(DE3) is transformed with pET-couB2, enabling it to produce the CouB2 enzyme. In parallel experiments, both strains are inoculated into identical soil microcosms containing 100 mg/L DHC. After 48 hours, NyZ480 reduces DHC concentration to 10 mg/L and produces 85 mg/L MA. E. coli BL21(DE3) (with pET-couB2) reduces DHC to 15 mg/L and produces 80 mg/L MA. Which strain demonstrates higher efficiency in coumarin biodegradation via the CouB2 pathway under these conditions?",
+      "reasoning_steps": [
+        "Both strains possess the CouB2 enzyme, enabling DHC to MA conversion.",
+        "Initial DHC concentration is identical (100 mg/L) for both microcosms.",
+        "NyZ480 reduces DHC to 10 mg/L (90 mg/L degraded); E. coli BL21(DE3) reduces to 15 mg/L (85 mg/L degraded).",
+        "NyZ480 produces 85 mg/L MA; E. coli BL21(DE3) produces 80 mg/L MA.",
+        "NyZ480 achieves greater reduction in DHC and higher MA production.",
+        "CouB2 pathway efficiency is measured by DHC degradation and MA yield.",
+        "Therefore, NyZ480 is more efficient under these conditions."
+      ],
+      "correct_answer": "Strain NyZ480",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "COUB2",
+        "E. COLI BL21(DE3)",
+        "STRAIN NYZ480"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 1,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "COUB1, a homologous hydrolase enzyme, has been shown to convert dihydrocoumarin to melilotic acid at a rate of 1.2 \u03bcmol/min/mg protein when expressed in E. coli. In previous studies, COUB1 activity resulted in a 70% reduction of DHC over 48 hours in similar soil microcosms.",
+        "COUC, a flavin monooxygenase found in Pseudomonas sp. strain NyZ480, catalyzes the conversion of melilotic acid to 3-(2,3-dihydroxyphenyl)propionate with a turnover rate of 120 nmol/min/mg protein. However, COUC activity is not detected in E. coli BL21(DE3) under these experimental conditions.",
+        "The PET-COUB2 plasmid enables E. coli BL21(DE3) to express CouB2 at levels reaching 2.5 \u03bcg/mL after 24 hours of induction with IPTG. In control experiments, PET-COUB2 does not alter baseline DHC concentrations in uninoculated soil microcosms."
+      ],
+      "enrichment_entities": [
+        "COUB1",
+        "COUC",
+        "PET-COUB2"
+      ]
+    },
+    {
+      "paper_id": "aem.01109-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i10_10_1128_aem_01109_23-20240609085801-8048634/source_files/.qa_output/aem.01109-23/ecology/contrastive_qa.json",
+      "question": "A plant species releases coumarin into its rhizosphere at a concentration of 50 \u03bcM, which inhibits the growth of most soil bacteria by 80% due to its toxicity. However, a population of rhizobacteria is observed to thrive in this environment. Coumarin concentrations above 100 \u03bcM have been shown to reduce root elongation in several crop species by up to 60%. In soil microcosms, coumarin persists for up to 72 hours before significant abiotic degradation occurs. Genetic analysis reveals that these rhizobacteria possess a unique enzyme, COU reductase, which converts coumarin into a non-toxic compound. Members of the OYE family, such as XenA, are known to catalyze the reduction of nitroaromatic compounds in soil, with activity rates reaching up to 70 nmol/min/mg protein under standard conditions. However, their expression levels remain unchanged in the presence of coumarin. In a controlled experiment, rhizobacteria lacking COU reductase show only 10% survival after 48 hours in 50 \u03bcM coumarin, while those with COU reductase show 95% survival. In Pseudomonas sp. strain NyZ480, COU is metabolized at a rate of 12 \u03bcmol/hour under aerobic conditions, resulting in the accumulation of dihydrocoumarin as a major intermediate. Other soil bacteria typically show less than 5% conversion efficiency for COU in similar assays. If the goal is to select for rhizobacteria capable of colonizing coumarin-rich rhizospheres, which molecular trait should be prioritized during screening?",
+      "original_question": "A plant species releases coumarin into its rhizosphere at a concentration of 50 \u03bcM, which inhibits the growth of most soil bacteria by 80% due to its toxicity. However, a population of rhizobacteria is observed to thrive in this environment. Genetic analysis reveals that these rhizobacteria possess a unique enzyme, COU reductase, which converts coumarin into a non-toxic compound. In a controlled experiment, rhizobacteria lacking COU reductase show only 10% survival after 48 hours in 50 \u03bcM coumarin, while those with COU reductase show 95% survival. If the goal is to select for rhizobacteria capable of colonizing coumarin-rich rhizospheres, which molecular trait should be prioritized during screening?",
+      "reasoning_steps": [
+        "Coumarin is toxic to most soil bacteria at 50 \u03bcM, inhibiting growth by 80%.",
+        "Rhizobacteria thrive in coumarin-rich environments, suggesting a resistance mechanism.",
+        "Genetic analysis identifies COU reductase in thriving rhizobacteria.",
+        "COU reductase converts toxic coumarin into a non-toxic compound.",
+        "Experimental data: rhizobacteria with COU reductase have 95% survival; without, only 10%.",
+        "High survival correlates with presence of COU reductase.",
+        "Screening for colonization ability should focus on the trait conferring resistance."
+      ],
+      "correct_answer": "COU reductase",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "RHIZOBACTERIA",
+        "COU REDUCTASES"
+      ],
+      "quality_score": 4.0,
+      "answer_word_count": 2,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Coumarin concentrations above 100 \u03bcM have been shown to reduce root elongation in several crop species by up to 60%. In soil microcosms, coumarin persists for up to 72 hours before significant abiotic degradation occurs.",
+        "Members of the OYE family, such as XenA, are known to catalyze the reduction of nitroaromatic compounds in soil, with activity rates reaching up to 70 nmol/min/mg protein under standard conditions. However, their expression levels remain unchanged in the presence of coumarin.",
+        "In Pseudomonas sp. strain NyZ480, COU is metabolized at a rate of 12 \u03bcmol/hour under aerobic conditions, resulting in the accumulation of dihydrocoumarin as a major intermediate. Other soil bacteria typically show less than 5% conversion efficiency for COU in similar assays."
+      ],
+      "enrichment_entities": [
+        "COUMARIN",
+        "OYE FAMILY",
+        "COU"
+      ]
+    },
+    {
+      "paper_id": "aem.01109-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i10_10_1128_aem_01109_23-20240609085801-8048634/source_files/.qa_output/aem.01109-23/ecology/contrastive_qa.json",
+      "question": "In a soil microcosm experiment, coumarin is added as the sole carbon source. Over 48 hours, dihydrocoumarin accumulates to 200 \u03bcM, then declines to 20 \u03bcM by hour 72. Xenobiotic reductase A homologs in Pseudomonas sp. strain NyZ480 are expressed at high levels during the first 24 hours of coumarin incubation, with total transcript abundance peaking at 4,500 copies per ng RNA. Despite this, no significant changes in dihydrocoumarin accumulation rates are observed when these homologs are selectively inhibited. Melilotic acid appears at hour 60, reaching 150 \u03bcM by hour 96. CouC monooxygenase activity was previously measured at 120 nmol DHPP produced per hour in strain NyZ480 when melilotic acid was supplied as the substrate. Notably, CouC expression remained unchanged throughout the coumarin incubation period in this microcosm. Genetic analysis reveals expression of both CouB1 and CouB2 hydrolase genes, but no other coumarin pathway hydrolases. COUC activity was detected at 0.8 U/mg protein in parallel cultures, coinciding with a gradual increase in 3-(2,3-dihydroxyphenyl)propionate after hour 96. The couC gene showed a 2-fold induction relative to baseline during melilotic acid accumulation. Only dihydrocoumarin and melilotic acid are detected as intermediates. Which enzyme(s) are responsible for the conversion of dihydrocoumarin to melilotic acid in this system?",
+      "original_question": "In a soil microcosm experiment, coumarin is added as the sole carbon source. Over 48 hours, dihydrocoumarin accumulates to 200 \u03bcM, then declines to 20 \u03bcM by hour 72. Melilotic acid appears at hour 60, reaching 150 \u03bcM by hour 96. Genetic analysis reveals expression of both CouB1 and CouB2 hydrolase genes, but no other coumarin pathway hydrolases. Only dihydrocoumarin and melilotic acid are detected as intermediates. Which enzyme(s) are responsible for the conversion of dihydrocoumarin to melilotic acid in this system?",
+      "reasoning_steps": [
+        "Coumarin is metabolized, producing dihydrocoumarin as an intermediate.",
+        "Dihydrocoumarin accumulates, then declines, indicating further metabolism.",
+        "Melilotic acid appears after dihydrocoumarin declines, suggesting it is a downstream product.",
+        "Only CouB1 and CouB2 hydrolase genes are expressed; no other hydrolases are present.",
+        "Both CouB1 and CouB2 are known to hydrolyze dihydrocoumarin to melilotic acid.",
+        "No other intermediates or enzymes are detected, ruling out alternative pathways.",
+        "Therefore, the conversion must be catalyzed by CouB1 and CouB2 hydrolases."
+      ],
+      "correct_answer": "CouB1 and CouB2 hydrolases",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "MELILOTIC ACID",
+        "DIHYDROCOUMARIN",
+        "COUB1",
+        "COUB2",
+        "COUB1 HYDROLASE"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 3,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Xenobiotic reductase A homologs in Pseudomonas sp. strain NyZ480 are expressed at high levels during the first 24 hours of coumarin incubation, with total transcript abundance peaking at 4,500 copies per ng RNA. Despite this, no significant changes in dihydrocoumarin accumulation rates are observed when these homologs are selectively inhibited.",
+        "CouC monooxygenase activity was previously measured at 120 nmol DHPP produced per hour in strain NyZ480 when melilotic acid was supplied as the substrate. Notably, CouC expression remained unchanged throughout the coumarin incubation period in this microcosm.",
+        "COUC activity was detected at 0.8 U/mg protein in parallel cultures, coinciding with a gradual increase in 3-(2,3-dihydroxyphenyl)propionate after hour 96. The couC gene showed a 2-fold induction relative to baseline during melilotic acid accumulation."
+      ],
+      "enrichment_entities": [
+        "XENOBIOTIC REDUCTASE A HOMOLOGS",
+        "COUC MONOOXYGENASE",
+        "COUC"
+      ]
+    },
+    {
+      "paper_id": "aem.01109-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i10_10_1128_aem_01109_23-20240609085801-8048634/source_files/.qa_output/aem.01109-23/ecology/contrastive_qa.json",
+      "question": "A soil ecosystem contains three dominant plant species: sweet clover, cassia cinnamon, and citrus bergamia. Sweet clover releases coumarin into the rhizosphere, which inhibits fungal growth but promotes Pseudomonas sp. strain NYZ480 proliferation. Cinnamomum verum, commonly known as true cinnamon, also accumulates coumarins in its bark, with concentrations averaging 0.3% by dry weight. However, its coumarin release into soil is limited under temperate conditions, with less than 5% leaching observed during seasonal rainfall events. Cassia cinnamon sheds bark containing high coumarin concentrations, which leaches into the soil during rainfall, increasing coumarin levels by 40% compared to sweet clover alone. Citrus bergamia accumulates coumarin in its peel, but only releases it during fruit drop, which occurs once per season and raises soil coumarin by 10%. The genus Pseudomonas population also expresses high-affinity coumarin dioxygenase enzymes, allowing them to metabolize coumarin even at concentrations as low as 2%. In laboratory microcosms, Pseudomonas abundance remains stable when exposed to other aromatic compounds structurally similar to coumarin. Pseudomonas sp. strain NYZ480 uses coumarin as a carbon source, increasing its population by 3-fold for every 20% rise in coumarin concentration. Pseudomonas sp. USTB-Z, another soil-dwelling bacterium, degrades coumarin at a rate of 0.8 mg/L per day but does not significantly alter fungal biomass in mixed cultures. Its metabolic pathway for coumarin breakdown is distinct from that of Pseudomonas sp. strain NYZ480. Fungal biomass decreases by 50% for every 30% coumarin increase. If all three plants are present and fruit drop has just occurred, which plant species most strongly drives the observed increase in Pseudomonas sp. strain NYZ480 population?",
+      "original_question": "A soil ecosystem contains three dominant plant species: sweet clover, cassia cinnamon, and citrus bergamia. Sweet clover releases coumarin into the rhizosphere, which inhibits fungal growth but promotes Pseudomonas sp. strain NYZ480 proliferation. Cassia cinnamon sheds bark containing high coumarin concentrations, which leaches into the soil during rainfall, increasing coumarin levels by 40% compared to sweet clover alone. Citrus bergamia accumulates coumarin in its peel, but only releases it during fruit drop, which occurs once per season and raises soil coumarin by 10%. Pseudomonas sp. strain NYZ480 uses coumarin as a carbon source, increasing its population by 3-fold for every 20% rise in coumarin concentration. Fungal biomass decreases by 50% for every 30% coumarin increase. If all three plants are present and fruit drop has just occurred, which plant species most strongly drives the observed increase in Pseudomonas sp. strain NYZ480 population?",
+      "reasoning_steps": [
+        "Sweet clover releases coumarin continuously, baseline level.",
+        "Cassia cinnamon increases coumarin by 40% over sweet clover.",
+        "Citrus bergamia adds 10% coumarin during fruit drop.",
+        "Total coumarin increase: 40% (cassia) + 10% (citrus) = 50% over sweet clover alone.",
+        "Pseudomonas sp. strain NYZ480 population increases 3-fold per 20% coumarin rise.",
+        "50% increase yields 7.5-fold population increase (3 x 2.5).",
+        "Cassia cinnamon contributes the largest single coumarin increase (40%).",
+        "Therefore, cassia cinnamon most strongly drives Pseudomonas sp. strain NYZ480 increase."
+      ],
+      "correct_answer": "Cassia cinnamon",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "COUMARIN",
+        "PLANT KINGDOM",
+        "SWEET CLOVER",
+        "WOODRUFF",
+        "CASSIA",
+        "LAVENDER",
+        "PLANT",
+        "SWEET VERNALGRASS (ANTHOXANTHUM ODORATUM L.)",
+        "CINNAMON",
+        "CASSIA CINNAMON",
+        "PLANT RESIDUE",
+        "CASSIA BARK",
+        "SYNTHESIS",
+        "CINNAMOMUM CASSIA",
+        "CITRUS SPECIES",
+        "CINNAMON SUPPLEMENTS",
+        "CINNAMOMUM AROMATICUM",
+        "TRUE CINNAMON",
+        "CICHORIUM",
+        "CINNAMOMUM",
+        "AEGLE MARMELOS",
+        "CINNAMON-FLAVOURED CHEWING GUMS",
+        "CITRUS PEEL",
+        "CITRUS BERGAMIA",
+        "FOENICULUM VULGARE",
+        "PIMPINELLA ANISUM"
+      ],
+      "quality_score": 4.0,
+      "answer_word_count": 2,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Cinnamomum verum, commonly known as true cinnamon, also accumulates coumarins in its bark, with concentrations averaging 0.3% by dry weight. However, its coumarin release into soil is limited under temperate conditions, with less than 5% leaching observed during seasonal rainfall events.",
+        "The genus Pseudomonas population also expresses high-affinity coumarin dioxygenase enzymes, allowing them to metabolize coumarin even at concentrations as low as 2%. In laboratory microcosms, Pseudomonas abundance remains stable when exposed to other aromatic compounds structurally similar to coumarin.",
+        "Pseudomonas sp. USTB-Z, another soil-dwelling bacterium, degrades coumarin at a rate of 0.8 mg/L per day but does not significantly alter fungal biomass in mixed cultures. Its metabolic pathway for coumarin breakdown is distinct from that of Pseudomonas sp. strain NYZ480."
+      ],
+      "enrichment_entities": [
+        "CINNAMOMUM VERUM",
+        "GENUS PSEUDOMONAS",
+        "PSEUDOMONAS SP. USTB-Z"
+      ]
+    },
+    {
+      "paper_id": "aem.01155-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i10_10_1128_aem_01155_23-20240609085801-8048634/source_files/.qa_output/aem.01155-23/ecology/contrastive_qa.json",
+      "question": "A brewery environment contains a persistent biofilm composed of multiple bacterial species. Pseudomonas rhodesiae and Raoultella terrigena are both present and produce extracellular polymeric substances that help establish and stabilize the biofilm matrix. Extracellular polysaccharide (EPS) produced by Bacillus sp. I-450 increases biofilm thickness by up to 40% under alkaline conditions, enhancing microbial resistance to osmotic stress. In mixed-species biofilms, EPS concentration can reach 120 \u00b5g/mL, depending on nutrient availability. Ralstonia solanacearum is also present, forming biofilms where exDNA is a key structural component for cohesion and surface attachment. In brewery biofilms, extracellular polymeric substances (EPS) can constitute up to 90% of the total biofilm biomass, with the relative proportions of polysaccharides, proteins, and nucleic acids varying depending on the dominant microbial species. Studies have shown that EPS composition influences the diffusion rates of cleaning agents through the biofilm matrix. Streptococcus epidermidis is detected, but its biofilm structure is resistant to DNase I treatment, indicating exDNA is not essential for its biofilm integrity. Bacterial amyloids, which are proteinaceous fibers, can constitute up to 40% of the extracellular matrix in some biofilms, contributing to surface adhesion and structural stability. Their presence has been detected in multispecies biofilms formed in brewery environments. DNase I is applied to the biofilm for 48 hours at a concentration known to degrade exDNA. After treatment, the biofilm shows partial dispersal, with some microcolonies remaining intact. Which species is most likely to remain stably attached to the surface after DNase I treatment?",
+      "original_question": "A brewery environment contains a persistent biofilm composed of multiple bacterial species. Pseudomonas rhodesiae and Raoultella terrigena are both present and produce extracellular polymeric substances that help establish and stabilize the biofilm matrix. Ralstonia solanacearum is also present, forming biofilms where exDNA is a key structural component for cohesion and surface attachment. Streptococcus epidermidis is detected, but its biofilm structure is resistant to DNase I treatment, indicating exDNA is not essential for its biofilm integrity. DNase I is applied to the biofilm for 48 hours at a concentration known to degrade exDNA. After treatment, the biofilm shows partial dispersal, with some microcolonies remaining intact. Which species is most likely to remain stably attached to the surface after DNase I treatment?",
+      "reasoning_steps": [
+        "DNase I degrades exDNA, disrupting biofilm structure where exDNA is essential.",
+        "Ralstonia solanacearum relies on exDNA for biofilm cohesion and attachment.",
+        "Streptococcus epidermidis biofilm is resistant to DNase I, so exDNA is not essential for its structure.",
+        "Pseudomonas rhodesiae and Raoultella terrigena produce extracellular polymeric substances, but no mention of exDNA dependence.",
+        "After DNase I treatment, species whose biofilm integrity does not depend on exDNA will remain attached.",
+        "Streptococcus epidermidis is specifically described as resistant to DNase I treatment.",
+        "Therefore, Streptococcus epidermidis is most likely to remain stably attached."
+      ],
+      "correct_answer": "Streptococcus epidermidis",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "BIOFILM",
+        "PSEUDOMONAS RHODESIAE",
+        "RAOULTELLA TERRIGENA",
+        "ESCHERICHIA COLI",
+        "MICROORGANISM",
+        "RALSTONIA SOLANACEARUM",
+        "STREPTOCOCCUS EPIDERMIDIS",
+        "MALODOUR-PRODUCING BACTERIA",
+        "PATHOGENIC BACTERIA",
+        "UROPATHOGENIC ESCHERICHIA COLI",
+        "K. PNEUMONIAE",
+        "CITROBACTER FREUNDII",
+        "E. FAECALIS",
+        "STREPTOCOCCUS VIRIDANS",
+        "PROTEUS MIRABILIS",
+        "A. BAUMANNII",
+        "MICROBIAL PATHOGENS",
+        "KLEBSIELLA",
+        "S. CHOLERAESUIS",
+        "MULTI-DRUG RESISTANT STAPHYLOCOCCUS AUREUS",
+        "EUKARYOTE",
+        "MUCOID PSEUDOMONAS AERUGINOSA ISOLATES",
+        "HOST MICROBIOTA"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 2,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Extracellular polysaccharide (EPS) produced by Bacillus sp. I-450 increases biofilm thickness by up to 40% under alkaline conditions, enhancing microbial resistance to osmotic stress. In mixed-species biofilms, EPS concentration can reach 120 \u00b5g/mL, depending on nutrient availability.",
+        "In brewery biofilms, extracellular polymeric substances (EPS) can constitute up to 90% of the total biofilm biomass, with the relative proportions of polysaccharides, proteins, and nucleic acids varying depending on the dominant microbial species. Studies have shown that EPS composition influences the diffusion rates of cleaning agents through the biofilm matrix.",
+        "Bacterial amyloids, which are proteinaceous fibers, can constitute up to 40% of the extracellular matrix in some biofilms, contributing to surface adhesion and structural stability. Their presence has been detected in multispecies biofilms formed in brewery environments."
+      ],
+      "enrichment_entities": [
+        "EXTRACELLULAR POLYSACCHARIDE (EPS)",
+        "EXTRACELLULAR POLYMERIC SUBSTANCES",
+        "BACTERIAL AMYLOIDS"
+      ]
+    },
+    {
+      "paper_id": "aem.01155-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i10_10_1128_aem_01155_23-20240609085801-8048634/source_files/.qa_output/aem.01155-23/ecology/contrastive_qa.json",
+      "question": "A multicellular aquatic host encodes surface glycoproteins that selectively bind bacteria with type IV pili. In its biofilm, 70% of resident bacteria possess type IV pili, while 30% lack them. Within the host biofilm, a gradient of antibiotic concentration is observed, with surface layers exposed to levels up to 10 \u03bcg/mL and interior regions experiencing less than 1 \u03bcg/mL. This gradient can influence the spatial distribution of bacterial phenotypes but does not alter the overall mutation rate. The host secretes antimicrobial peptides that kill planktonic bacteria lacking type IV pili at a rate of 90% per hour, but only 10% per hour for those with pili. Mutation rates in Pseudomonas rhodesiae biofilms can increase up to 2-fold under oxidative stress, leading to a higher diversity of resistance phenotypes. In mixed-species biofilms, mutation-driven genotypic variation is observed even in the absence of antimicrobial exposure. Mutations conferring partial resistance to the peptides arise in both groups at a rate of 1 in 10^6 cells per generation. Antibiotic-resistant genotypes in biofilm-associated bacteria can persist for up to 72 hours after initial antibiotic exposure, with resistance frequencies reaching 2% in mixed-species communities. This persistence is partly attributed to enhanced efflux pump activity observed in biofilm cells. In duo-species biofilms, partially resistant mutants with type IV pili increase in frequency by 50% over 24 hours, while those without pili decrease by 80%. Which process primarily drives the enrichment of type IV pili-bearing, partially resistant mutants in the host biofilm?",
+      "original_question": "A multicellular aquatic host encodes surface glycoproteins that selectively bind bacteria with type IV pili. In its biofilm, 70% of resident bacteria possess type IV pili, while 30% lack them. The host secretes antimicrobial peptides that kill planktonic bacteria lacking type IV pili at a rate of 90% per hour, but only 10% per hour for those with pili. Mutations conferring partial resistance to the peptides arise in both groups at a rate of 1 in 10^6 cells per generation. In duo-species biofilms, partially resistant mutants with type IV pili increase in frequency by 50% over 24 hours, while those without pili decrease by 80%. Which process primarily drives the enrichment of type IV pili-bearing, partially resistant mutants in the host biofilm?",
+      "reasoning_steps": [
+        "Host surface glycoproteins selectively bind type IV pili bacteria, favoring their initial incorporation.",
+        "Antimicrobial peptides kill non-pili bacteria much faster (90%/hr) than pili-bearers (10%/hr), reducing non-pili population.",
+        "Mutation rate for partial resistance is equal in both groups.",
+        "In duo-species biofilms, partially resistant mutants with pili increase, while those without pili decrease.",
+        "Selection pressure from host cues and peptides favors survival and proliferation of pili-bearing, partially resistant mutants.",
+        "Biofilm-level heritability ensures that these traits are passed on within the biofilm community.",
+        "The process responsible is the evolutionary selection imposed by host-encoded cues and antimicrobial interactions."
+      ],
+      "correct_answer": "Selection via host-encoded cues and antimicrobial peptides",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "SELECTION",
+        "MULTICELLULAR HOST"
+      ],
+      "quality_score": 4.0,
+      "answer_word_count": 7,
+      "answer_format": "mechanism",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Within the host biofilm, a gradient of antibiotic concentration is observed, with surface layers exposed to levels up to 10 \u03bcg/mL and interior regions experiencing less than 1 \u03bcg/mL. This gradient can influence the spatial distribution of bacterial phenotypes but does not alter the overall mutation rate.",
+        "Mutation rates in Pseudomonas rhodesiae biofilms can increase up to 2-fold under oxidative stress, leading to a higher diversity of resistance phenotypes. In mixed-species biofilms, mutation-driven genotypic variation is observed even in the absence of antimicrobial exposure.",
+        "Antibiotic-resistant genotypes in biofilm-associated bacteria can persist for up to 72 hours after initial antibiotic exposure, with resistance frequencies reaching 2% in mixed-species communities. This persistence is partly attributed to enhanced efflux pump activity observed in biofilm cells."
+      ],
+      "enrichment_entities": [
+        "GRADIENT OF ANTIBIOTIC CONCENTRATION",
+        "MUTATION",
+        "ANTIBIOTIC-RESISTANT GENOTYPE"
+      ]
+    },
+    {
+      "paper_id": "aem.01155-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i10_10_1128_aem_01155_23-20240609085801-8048634/source_files/.qa_output/aem.01155-23/ecology/contrastive_qa.json",
+      "question": "In a soil microcosm experiment, two bacterial populations are monitored over 30 days: Population A (Pseudomonas rhodesiae) and Population B (Bacillus subtilis). Population A initially lacks resistance to tetracycline (MIC = 0. 5 \u03bcg/mL), while Population B carries a plasmid encoding tetracycline resistance (MIC = 32 \u03bcg/mL). Transformation efficiency in Pseudomonas species can vary widely, with reported uptake rates ranging from 10^2 to 10^5 transformants per microgram of DNA under optimal laboratory conditions. However, natural transformation is often limited by the availability of extracellular DNA and the physiological state of the cells. Both populations are exposed to 10 \u03bcg/mL tetracycline. After 30 days, Population A shows increased tetracycline resistance (MIC = 16 \u03bcg/mL). Bacteriophages isolated from similar soil environments typically exhibit infection rates of 10^6 plaque-forming units per gram of soil, but their ability to transfer genetic material is often limited by the composition of the surrounding biofilm matrix. Whole-genome sequencing reveals that Population A now contains the same resistance gene found on Population B\u2019s plasmid, but no mutations in chromosomal resistance loci. Plasmid-specific markers are detected in Population A. In previous studies, multi-species biofilms formed by Pseudomonas and Bacillus species have demonstrated a 2-fold increase in extracellular matrix production compared to single-species biofilms. These complex communities often persist on soil particles for over 40 days under laboratory conditions. No bacteriophage particles or transformation-competent cells are present. Which process most likely enabled the spread of tetracycline resistance to Population A?",
+      "original_question": "In a soil microcosm experiment, two bacterial populations are monitored over 30 days: Population A (Pseudomonas rhodesiae) and Population B (Bacillus subtilis). Population A initially lacks resistance to tetracycline (MIC = 0.5 \u03bcg/mL), while Population B carries a plasmid encoding tetracycline resistance (MIC = 32 \u03bcg/mL). Both populations are exposed to 10 \u03bcg/mL tetracycline. After 30 days, Population A shows increased tetracycline resistance (MIC = 16 \u03bcg/mL). Whole-genome sequencing reveals that Population A now contains the same resistance gene found on Population B\u2019s plasmid, but no mutations in chromosomal resistance loci. Plasmid-specific markers are detected in Population A. No bacteriophage particles or transformation-competent cells are present. Which process most likely enabled the spread of tetracycline resistance to Population A?",
+      "reasoning_steps": [
+        "Population A initially lacks resistance, Population B is resistant via plasmid",
+        "Both exposed to tetracycline, selecting for resistance",
+        "After 30 days, Population A acquires resistance gene identical to Population B\u2019s plasmid",
+        "No chromosomal mutations detected in Population A",
+        "Plasmid markers found in Population A, indicating plasmid acquisition",
+        "No evidence for transduction (no phages) or transformation (no competent cells)",
+        "Only remaining mechanism for gene transfer is conjugation"
+      ],
+      "correct_answer": "Conjugation",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "HORIZONTAL GENE TRANSFER",
+        "BACTERIA",
+        "CONJUGATION",
+        "BACTERIUM"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 1,
+      "answer_format": "mechanism",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Transformation efficiency in Pseudomonas species can vary widely, with reported uptake rates ranging from 10^2 to 10^5 transformants per microgram of DNA under optimal laboratory conditions. However, natural transformation is often limited by the availability of extracellular DNA and the physiological state of the cells.",
+        "Bacteriophages isolated from similar soil environments typically exhibit infection rates of 10^6 plaque-forming units per gram of soil, but their ability to transfer genetic material is often limited by the composition of the surrounding biofilm matrix.",
+        "In previous studies, multi-species biofilms formed by Pseudomonas and Bacillus species have demonstrated a 2-fold increase in extracellular matrix production compared to single-species biofilms. These complex communities often persist on soil particles for over 40 days under laboratory conditions."
+      ],
+      "enrichment_entities": [
+        "TRANSFORMATION",
+        "BACTERIOPHAGES",
+        "MULTI-SPECIES BIOFILM"
+      ]
+    },
+    {
+      "paper_id": "aem.01155-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i10_10_1128_aem_01155_23-20240609085801-8048634/source_files/.qa_output/aem.01155-23/ecology/contrastive_qa.json",
+      "question": "A brewery biofilm contains Pseudomonas, Escherichia coli, Enterococcus faecalis, and Methicillin-resistant Staphylococcus aureus (MRSA). Sulfathiazole (an antimicrobial) is applied at 50 \u03bcg/mL for 72 hours. Antibiotic resistance plasmids were detected in 40% of E. coli isolates after sulfathiazole exposure, with plasmid copy number remaining stable throughout the treatment period. These plasmids often encode multiple resistance genes, including those for sulfonamides. Pseudomonas adapts via evolutionary mechanisms, MRSA is intrinsically resistant to beta-lactams, and E. Gene exchange rates in mixed-species biofilms can reach up to 10^-4 events per cell per hour, depending on cell density and environmental stressors. In brewery biofilms, conjugation is often facilitated by close cell-to-cell contact. coli expresses efflux pumps and forms biofilms. Klebsiella pneumoniae, another Gram-negative bacterium often found in hospital environments, can increase expression of the OmpK36 porin by up to 2-fold when exposed to certain antibiotics, though this response varies depending on the compound. In mixed-species biofilms, K. pneumoniae has been shown to persist even at sulfathiazole concentrations exceeding 100 \u03bcg/mL. Enterococcus faecalis is exposed to subinhibitory antibiotic concentrations and can acquire resistance genes. After treatment, resistant mutants are detected in all species, and horizontal gene transfer is observed between E. coli and Enterococcus faecalis. Which mechanism most likely drives the overall increase in antimicrobial resistance within this biofilm community after sulfathiazole exposure?",
+      "original_question": "A brewery biofilm contains Pseudomonas, Escherichia coli, Enterococcus faecalis, and Methicillin-resistant Staphylococcus aureus (MRSA). Sulfathiazole (an antimicrobial) is applied at 50 \u03bcg/mL for 72 hours. Pseudomonas adapts via evolutionary mechanisms, MRSA is intrinsically resistant to beta-lactams, and E. coli expresses efflux pumps and forms biofilms. Enterococcus faecalis is exposed to subinhibitory antibiotic concentrations and can acquire resistance genes. After treatment, resistant mutants are detected in all species, and horizontal gene transfer is observed between E. coli and Enterococcus faecalis. Which mechanism most likely drives the overall increase in antimicrobial resistance within this biofilm community after sulfathiazole exposure?",
+      "reasoning_steps": [
+        "Sulfathiazole applies selective pressure to all species in the biofilm.",
+        "Pseudomonas adapts via evolutionary mechanisms, increasing resistance.",
+        "MRSA is already resistant to beta-lactams, but sulfathiazole is a different class.",
+        "E. coli expresses efflux pumps and forms biofilms, aiding resistance.",
+        "Enterococcus faecalis can acquire resistance genes, especially under subinhibitory concentrations.",
+        "Resistant mutants are detected in all species, indicating mutation-driven resistance.",
+        "Horizontal gene transfer is observed between E. coli and Enterococcus faecalis, facilitating spread of resistance traits.",
+        "The combination of mutation and gene transfer increases resistance, but gene transfer spreads resistance across species."
+      ],
+      "correct_answer": "Resistance gene transfer",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "ANTIMICROBIAL RESISTANCE",
+        "RESISTANT MUTANT",
+        "PSEUDOMONAS",
+        "BACTERIA",
+        "ESCHERICHIA COLI",
+        "MICROORGANISMS",
+        "ENTEROCOCCUS FAECALIS",
+        "ENTEROBACTERIACEAE",
+        "METHICILLIN-RESISTANT STAPHYLOCOCCUS AUREUS",
+        "RESISTANCE GENE TRANSFER"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 3,
+      "answer_format": "mechanism",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Antibiotic resistance plasmids were detected in 40% of E. coli isolates after sulfathiazole exposure, with plasmid copy number remaining stable throughout the treatment period. These plasmids often encode multiple resistance genes, including those for sulfonamides.",
+        "Gene exchange rates in mixed-species biofilms can reach up to 10^-4 events per cell per hour, depending on cell density and environmental stressors. In brewery biofilms, conjugation is often facilitated by close cell-to-cell contact.",
+        "Klebsiella pneumoniae, another Gram-negative bacterium often found in hospital environments, can increase expression of the OmpK36 porin by up to 2-fold when exposed to certain antibiotics, though this response varies depending on the compound. In mixed-species biofilms, K. pneumoniae has been shown to persist even at sulfathiazole concentrations exceeding 100 \u03bcg/mL."
+      ],
+      "enrichment_entities": [
+        "ANTIBIOTIC RESISTANCE PLASMIDS",
+        "GENE EXCHANGE",
+        "KLEBSIELLA PNEUMONIAE"
+      ]
+    },
+    {
+      "paper_id": "aem.01155-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i10_10_1128_aem_01155_23-20240609085801-8048634/source_files/.qa_output/aem.01155-23/ecology/contrastive_qa.json",
+      "question": "In a freshwater biofilm community, Pseudomonas rhodesiae is exposed to 10 \u03bcg/mL ciprofloxacin for 72 hours. In monoculture, 99% of cells are killed, but in mixed-species biofilms with Bacillus subtilis and Acinetobacter johnsonii, only 80% are killed. External stressors such as fluctuating nutrient levels and temperature shifts can increase mutation rates in biofilm cells by up to 2-fold. In freshwater environments, these disturbances often create microgradients that differentially affect cell survival within biofilm layers. Genome sequencing reveals that surviving P. Pseudomonas rhodesiae possesses a multidrug efflux system that can export a variety of antibiotics, including fluoroquinolones, with baseline activity levels unchanged after ciprofloxacin exposure. In previous studies, efflux pump gene expression in P. rhodesiae increased only 1.2-fold under similar antibiotic stress. rhodesiae cells in mixed biofilms carry a point mutation in the gyrA gene, conferring ciprofloxacin resistance. Transposon activity in Pseudomonas rhodesiae increases twofold in mixed-species biofilms, but no transposon-mediated gene transfer was detected under ciprofloxacin exposure. Bacillus subtilis produces extracellular matrix proteins that increase biofilm density, while Acinetobacter johnsonii secretes catalase, reducing oxidative stress. Considering mutation rates, biofilm protection, and interspecies interactions, which process most directly enables the emergence of ciprofloxacin-resistant P. rhodesiae in mixed-species biofilms?",
+      "original_question": "In a freshwater biofilm community, Pseudomonas rhodesiae is exposed to 10 \u03bcg/mL ciprofloxacin for 72 hours. In monoculture, 99% of cells are killed, but in mixed-species biofilms with Bacillus subtilis and Acinetobacter johnsonii, only 80% are killed. Genome sequencing reveals that surviving P. rhodesiae cells in mixed biofilms carry a point mutation in the gyrA gene, conferring ciprofloxacin resistance. Bacillus subtilis produces extracellular matrix proteins that increase biofilm density, while Acinetobacter johnsonii secretes catalase, reducing oxidative stress. Considering mutation rates, biofilm protection, and interspecies interactions, which process most directly enables the emergence of ciprofloxacin-resistant P. rhodesiae in mixed-species biofilms?",
+      "reasoning_steps": [
+        "Mixed-species biofilms have higher survival of P. rhodesiae than monoculture.",
+        "Bacillus subtilis increases biofilm density, enhancing physical protection.",
+        "Acinetobacter johnsonii reduces oxidative stress, lowering cell death.",
+        "Surviving P. rhodesiae cells have a gyrA mutation conferring resistance.",
+        "Biofilm protection allows more cells to persist under antibiotic stress.",
+        "More surviving cells increase the chance for rare resistance mutations to be selected.",
+        "The emergence of resistance is directly linked to mutation in the presence of selective pressure."
+      ],
+      "correct_answer": "Mutation in gyrA under biofilm-mediated protection",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "MUTATION",
+        "BACTERIUM"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 6,
+      "answer_format": "mechanism",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "External stressors such as fluctuating nutrient levels and temperature shifts can increase mutation rates in biofilm cells by up to 2-fold. In freshwater environments, these disturbances often create microgradients that differentially affect cell survival within biofilm layers.",
+        "Pseudomonas rhodesiae possesses a multidrug efflux system that can export a variety of antibiotics, including fluoroquinolones, with baseline activity levels unchanged after ciprofloxacin exposure. In previous studies, efflux pump gene expression in P. rhodesiae increased only 1.2-fold under similar antibiotic stress.",
+        "Transposon activity in Pseudomonas rhodesiae increases twofold in mixed-species biofilms, but no transposon-mediated gene transfer was detected under ciprofloxacin exposure."
+      ],
+      "enrichment_entities": [
+        "EXTERNAL STRESSORS",
+        "EFFLUX SYSTEM",
+        "TRANSPOSON"
+      ]
+    },
+    {
+      "paper_id": "aem.01184-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i10_10_1128_aem_01184_23-20240609085801-8048634/source_files/.qa_output/aem.01184-23/ecology/contrastive_qa.json",
+      "question": "In a soil microcosm experiment, two bacterial species are introduced: Pseudomonas aeruginosa and Burkholderia cenocepacia. P. aeruginosa produces the Pseudomonas quinolone signal (PQS), a small molecule delivered via outer membrane vesicles (OMVs) or liposomes. PQS interferes with quorum sensing in B. In the microcosm, PQS concentrations reached 15 \u00b5M after 24 hours, a level known to induce membrane vesicle formation in P. aeruginosa. PQS also increases expression of efflux pump genes in P. aeruginosa under nutrient-limited conditions. cenocepacia by inhibiting its LysR-type regulator ShvR, reducing B. cenocepacia\u2019s competitiveness. After 48 hours, P. 2-Heptyl-3-hydroxy-4-quinolone is detected at concentrations of 5 \u03bcM in the microcosm after 48 hours, and its presence is associated with increased OMV production by P. aeruginosa. aeruginosa reaches 10^8 CFU/mL, while B. cenocepacia reaches only 10^6 CFU/mL. In a parallel microcosm lacking P. The quinolone quorum sensing signal can also induce biofilm formation in Pseudomonas putida KT2440, increasing its surface attachment by up to 40%. In some environments, this signal is detected at concentrations as low as 10 nM. aeruginosa, B. cenocepacia reaches 10^8 CFU/mL. Which molecule is most directly responsible for the reduced competitiveness of B. cenocepacia in the presence of P. aeruginosa?",
+      "original_question": "In a soil microcosm experiment, two bacterial species are introduced: Pseudomonas aeruginosa and Burkholderia cenocepacia. P. aeruginosa produces the Pseudomonas quinolone signal (PQS), a small molecule delivered via outer membrane vesicles (OMVs) or liposomes. PQS interferes with quorum sensing in B. cenocepacia by inhibiting its LysR-type regulator ShvR, reducing B. cenocepacia\u2019s competitiveness. After 48 hours, P. aeruginosa reaches 10^8 CFU/mL, while B. cenocepacia reaches only 10^6 CFU/mL. In a parallel microcosm lacking P. aeruginosa, B. cenocepacia reaches 10^8 CFU/mL. Which molecule is most directly responsible for the reduced competitiveness of B. cenocepacia in the presence of P. aeruginosa?",
+      "reasoning_steps": [
+        "P. aeruginosa produces a specific signal molecule (PQS).",
+        "PQS is delivered via OMVs/liposomes.",
+        "PQS interferes with quorum sensing in B. cenocepacia.",
+        "The interference occurs via inhibition of the LysR-type regulator ShvR.",
+        "This inhibition reduces B. cenocepacia\u2019s competitiveness.",
+        "B. cenocepacia\u2019s population is much lower when P. aeruginosa is present.",
+        "The difference is not observed when P. aeruginosa is absent."
+      ],
+      "correct_answer": "Pseudomonas quinolone signal",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "PSEUDOMONAS QUINOLONE SIGNAL",
+        "PSEUDOMONAS AERUGINOSA",
+        "PSEUDOMONAS"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 3,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "In the microcosm, PQS concentrations reached 15 \u00b5M after 24 hours, a level known to induce membrane vesicle formation in P. aeruginosa. PQS also increases expression of efflux pump genes in P. aeruginosa under nutrient-limited conditions.",
+        "2-Heptyl-3-hydroxy-4-quinolone is detected at concentrations of 5 \u03bcM in the microcosm after 48 hours, and its presence is associated with increased OMV production by P. aeruginosa.",
+        "The quinolone quorum sensing signal can also induce biofilm formation in Pseudomonas putida KT2440, increasing its surface attachment by up to 40%. In some environments, this signal is detected at concentrations as low as 10 nM."
+      ],
+      "enrichment_entities": [
+        "QUINOLONE CELL SIGNAL (PQS)",
+        "2-HEPTYL-3-HYDROXY-4-QUINOLONE",
+        "QUINOLONE QUORUM SENSING SIGNAL"
+      ]
+    },
+    {
+      "paper_id": "aem.01184-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i10_10_1128_aem_01184_23-20240609085801-8048634/source_files/.qa_output/aem.01184-23/ecology/contrastive_qa.json",
+      "question": "A researcher compares OMV production in two Pseudomonas aeruginosa strains, PAO1 and PA14, grown as biofilms on agar plates for 48 hours. PAO1 biofilms produce OMVs with a mean diameter of 120 nm and a concentration of 2\u00d710^9 particles/mL. Membrane vesicles isolated from E. coli biofilms typically range from 100 to 200 nm in diameter and can constitute up to 15% of the total biofilm matrix volume. In PQS-deficient strains, unusually large membrane vesicles have been observed, though their protein content remains comparable to standard vesicles. PA14 biofilms produce OMVs with a mean diameter of 80 nm and a concentration of 2. LPS content per OMV was measured and found to be similar between PAO1 and PA14 strains, averaging 15 ng LPS per 10^9 particles. Purified LPS from both strains did not significantly inhibit S. epidermidis growth at concentrations up to 50 ng/mL. 5\u00d710^9 particles/mL. PQS levels in PAO1 and PA14 biofilms were quantified at 1.2 \u00b5M and 1.5 \u00b5M, respectively, after 48 hours of growth. In both strains, PQS was detected predominantly within OMV fractions rather than in the surrounding medium. PAO1 OMVs show lower killing potency against Staphylococcus epidermidis than PA14 OMVs. PQS biosynthesis is required for OMV production in both strains under these conditions. Which strain's OMVs are expected to be more effective in interspecies competition within a mixed-species biofilm, and why?",
+      "original_question": "A researcher compares OMV production in two Pseudomonas aeruginosa strains, PAO1 and PA14, grown as biofilms on agar plates for 48 hours. PAO1 biofilms produce OMVs with a mean diameter of 120 nm and a concentration of 2\u00d710^9 particles/mL. PA14 biofilms produce OMVs with a mean diameter of 80 nm and a concentration of 2.5\u00d710^9 particles/mL. PAO1 OMVs show lower killing potency against Staphylococcus epidermidis than PA14 OMVs. PQS biosynthesis is required for OMV production in both strains under these conditions. Which strain's OMVs are expected to be more effective in interspecies competition within a mixed-species biofilm, and why?",
+      "reasoning_steps": [
+        "PAO1 and PA14 both produce OMVs in biofilm, but PA14 OMVs are smaller and more concentrated.",
+        "PQS biosynthesis is required for OMV production in both strains, so both are actively producing OMVs.",
+        "PA14 OMVs have higher killing potency against S. epidermidis than PAO1 OMVs.",
+        "In interspecies competition, higher killing potency is advantageous.",
+        "PA14 OMVs are more abundant (higher concentration) and more potent.",
+        "Smaller OMVs may penetrate biofilm matrix more effectively.",
+        "Therefore, PA14 OMVs are expected to be more effective in interspecies competition."
+      ],
+      "correct_answer": "PA14 OMVs",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "OUTER MEMBRANE VESICLE",
+        "PSEUDOMONAS AERUGINOSA",
+        "GRAM-NEGATIVE BACTERIA",
+        "P. AERUGINOSA",
+        "PAO1",
+        "ESCHERICHIA COLI",
+        "BIOFILM",
+        "MORAXELLA CATARRHALIS",
+        "ACINETOBACTER BAUMANNII",
+        "XYLELLA FASTIDIOSA",
+        "BACTERIA",
+        "BACTERIAL POPULATION",
+        "ENTEROTOXIGENIC ESCHERICHIA COLI",
+        "SINORHIZOBIUM FREDII HH103",
+        "XANTHOMONAS CAMPESTRIS PV. CAMPESTRIS",
+        "RHIZOBIUM ETLI",
+        "BACTERIUM",
+        "MYXOCOCCUS XANTHUS",
+        "PC O6",
+        "NEISSERIA MENINGITIDIS",
+        "SALMONELLA ENTERICA SEROVAR TYPHIMURIUM",
+        "BENEFICIAL RHIZOBACTERIUM",
+        "VESICLE BIOGENESIS",
+        "BARTONELLA HENSELAE",
+        "AGGREGATIBACTER ACTINOMYCETEMCOMITANS",
+        "P. AERUGINOSA PAO1",
+        "P. AERUGINOSA PAO1 \u0394LYS",
+        "P. AERUGINOSA PAO1 \u0394LYS PJN105 LYS",
+        "NEISSERIA MENINGITIDIS SEROGROUP B",
+        "INTERSTITIAL BIOFILM",
+        "AGAR PLATE BIOFILM",
+        "PLANKTONIC BACTERIA",
+        "PA14",
+        "PLANKTONIC PA14 CULTURES",
+        "PA14 BIOFILM",
+        "PROPHAGE ENDOLYSIN ACTIVATION"
+      ],
+      "quality_score": 4.0,
+      "answer_word_count": 2,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Membrane vesicles isolated from E. coli biofilms typically range from 100 to 200 nm in diameter and can constitute up to 15% of the total biofilm matrix volume. In PQS-deficient strains, unusually large membrane vesicles have been observed, though their protein content remains comparable to standard vesicles.",
+        "LPS content per OMV was measured and found to be similar between PAO1 and PA14 strains, averaging 15 ng LPS per 10^9 particles. Purified LPS from both strains did not significantly inhibit S. epidermidis growth at concentrations up to 50 ng/mL.",
+        "PQS levels in PAO1 and PA14 biofilms were quantified at 1.2 \u00b5M and 1.5 \u00b5M, respectively, after 48 hours of growth. In both strains, PQS was detected predominantly within OMV fractions rather than in the surrounding medium."
+      ],
+      "enrichment_entities": [
+        "MEMBRANE VESICLES",
+        "LPS",
+        "PQS"
+      ]
+    },
+    {
+      "paper_id": "aem.01184-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i10_10_1128_aem_01184_23-20240609085801-8048634/source_files/.qa_output/aem.01184-23/ecology/contrastive_qa.json",
+      "question": "A researcher is investigating AHL (N-acyl homoserine lactone) production in Burkholderia cenocepacia under different genetic and environmental conditions. The wild-type B. cenocepacia H111 produces AHL via the activity of both CepI (synthesizes C8-HSL) and CciI (synthesizes C6-HSL). Gene expression analysis revealed that transcription of bclACB and rpfFBC increased by approximately 2-fold in all strains upon BDSF addition, regardless of their AHL production capacity. This modulation did not alter the baseline expression of unrelated metabolic genes. The BCAM0581 mutant produces AHL at levels comparable to wild-type, indicating its mutation does not affect AHL synthesis. Mutant strains with inactivated QS genes (such as cepI or cciI) produce significantly less AHL than wild-type. C8-AHL (N-octanoyl homoserine lactone) is typically detected in B. cenocepacia cultures at concentrations ranging from 0.5 to 2 \u00b5M after 24 hours of growth under standard laboratory conditions. Its synthesis is tightly regulated by cepI expression and is not significantly influenced by the presence of BDSF. In a control population (no BDSF exposure), baseline AHL levels are observed. When BDSF is added, CciI expression is strongly upregulated, leading to increased C6-HSL synthesis. The QS system (BDSF-based) operates independently of AHL-mediated signaling and can induce a 2-fold increase in expression of certain efflux pump genes under nutrient-rich conditions. However, this pathway does not directly alter the enzymatic activity of CepI or CciI. The researcher prepares four cultures: (1) wild-type H111 with BDSF, (2) wild-type H111 without BDSF, (3) BCAM0581 mutant with BDSF, and (4) cepI mutant with BDSF. Which culture will produce the highest total AHL concentration in the supernatant after 24 hours?",
+      "original_question": "A researcher is investigating AHL (N-acyl homoserine lactone) production in Burkholderia cenocepacia under different genetic and environmental conditions. The wild-type B. cenocepacia H111 produces AHL via the activity of both CepI (synthesizes C8-HSL) and CciI (synthesizes C6-HSL). The BCAM0581 mutant produces AHL at levels comparable to wild-type, indicating its mutation does not affect AHL synthesis. Mutant strains with inactivated QS genes (such as cepI or cciI) produce significantly less AHL than wild-type. In a control population (no BDSF exposure), baseline AHL levels are observed. When BDSF is added, CciI expression is strongly upregulated, leading to increased C6-HSL synthesis. The researcher prepares four cultures: (1) wild-type H111 with BDSF, (2) wild-type H111 without BDSF, (3) BCAM0581 mutant with BDSF, and (4) cepI mutant with BDSF. Which culture will produce the highest total AHL concentration in the supernatant after 24 hours?",
+      "reasoning_steps": [
+        "Wild-type H111 has both CepI and CciI, can produce both C8-HSL and C6-HSL.",
+        "BDSF upregulates CciI, increasing C6-HSL production in wild-type H111.",
+        "BCAM0581 mutant produces AHL at wild-type levels, so BDSF will similarly upregulate CciI.",
+        "cepI mutant cannot produce C8-HSL, but BDSF will upregulate CciI, increasing only C6-HSL.",
+        "Wild-type H111 with BDSF will have both C8-HSL (via CepI) and increased C6-HSL (via upregulated CciI).",
+        "BCAM0581 mutant with BDSF will also have both AHLs, but at wild-type levels.",
+        "Wild-type H111 without BDSF will have baseline levels of both AHLs.",
+        "cepI mutant with BDSF will have only increased C6-HSL, lacking C8-HSL.",
+        "Therefore, wild-type H111 with BDSF will have the highest total AHL (sum of both types, both upregulated)."
+      ],
+      "correct_answer": "Wild-type H111 with BDSF",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "AHL",
+        "B. CENOCEPACIA",
+        "CEPI",
+        "B. CENOCEPACIA H111",
+        "MUTANT STRAINS",
+        "B. CENOCEPACIA J2315",
+        "CCII",
+        "BCAM0581 MUTANT",
+        "CONTROL (NO BDSF)",
+        "BDSF-TREATED POPULATION",
+        "BACTERIAL SUSPENSION"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 4,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Gene expression analysis revealed that transcription of bclACB and rpfFBC increased by approximately 2-fold in all strains upon BDSF addition, regardless of their AHL production capacity. This modulation did not alter the baseline expression of unrelated metabolic genes.",
+        "C8-AHL (N-octanoyl homoserine lactone) is typically detected in B. cenocepacia cultures at concentrations ranging from 0.5 to 2 \u00b5M after 24 hours of growth under standard laboratory conditions. Its synthesis is tightly regulated by cepI expression and is not significantly influenced by the presence of BDSF.",
+        "The QS system (BDSF-based) operates independently of AHL-mediated signaling and can induce a 2-fold increase in expression of certain efflux pump genes under nutrient-rich conditions. However, this pathway does not directly alter the enzymatic activity of CepI or CciI."
+      ],
+      "enrichment_entities": [
+        "GENE EXPRESSION",
+        "C8-AHL (N-OCTANOYL HOMOSERINE LACTONE)",
+        "QS SYSTEM (BDSF-BASED)"
+      ]
+    },
+    {
+      "paper_id": "aem.01184-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i10_10_1128_aem_01184_23-20240609085801-8048634/source_files/.qa_output/aem.01184-23/ecology/contrastive_qa.json",
+      "question": "A marine microbial community contains two dominant bacterial groups: Vibrio spp. and Pseudoalteromonas spp. Vibrio spp. produce both AI-2 and AHL autoinducers, enabling quorum sensing and collective regulation of biofilm formation and virulence genes. Outer membrane vesicles (OMVs) released by Vibrio spp. in mixed cultures typically reach concentrations of 2\u20135 \u03bcg/mL and contain a variety of proteins and lipids, but their composition is not significantly altered by the presence of Pseudoalteromonas spp. Pseudoalteromonas spp. do not produce AHLs but can detect and respond to AI-2, upregulating genes for extracellular enzyme production when AI-2 concentration exceeds 10 nM. In a controlled experiment, Vibrio spp. N-acyl homoserine lactone (AHL) molecules, such as those produced by Burkholderia cenocepacia, typically accumulate to concentrations above 10 nM in dense cultures and are synthesized by LuxI-type enzymes. In some Gram-negative bacteria, AHLs can induce the expression of genes involved in motility and secondary metabolite production. reach a population density of 10^8 cells/mL, producing 15 nM AI-2 and 20 nM AHLs. Pseudoalteromonas spp. reach 10^7 cells/mL and do not produce autoinducers. AHL concentrations above 25 nM have been shown to induce biofilm formation in Burkholderia cenocepacia, with maximal gene expression observed at 50 nM. However, neither Vibrio spp. nor Pseudoalteromonas spp. in this experiment are known to produce or respond to BDSF, another quorum sensing signal. Both species are grown together in a mixed culture. Which signaling molecule is most likely to mediate interspecies communication leading to increased extracellular enzyme production by Pseudoalteromonas spp. ?",
+      "original_question": "A marine microbial community contains two dominant bacterial groups: Vibrio spp. and Pseudoalteromonas spp. Vibrio spp. produce both AI-2 and AHL autoinducers, enabling quorum sensing and collective regulation of biofilm formation and virulence genes. Pseudoalteromonas spp. do not produce AHLs but can detect and respond to AI-2, upregulating genes for extracellular enzyme production when AI-2 concentration exceeds 10 nM. In a controlled experiment, Vibrio spp. reach a population density of 10^8 cells/mL, producing 15 nM AI-2 and 20 nM AHLs. Pseudoalteromonas spp. reach 10^7 cells/mL and do not produce autoinducers. Both species are grown together in a mixed culture. Which signaling molecule is most likely to mediate interspecies communication leading to increased extracellular enzyme production by Pseudoalteromonas spp.?",
+      "reasoning_steps": [
+        "Vibrio spp. produce both AI-2 and AHLs at high concentrations.",
+        "Pseudoalteromonas spp. do not produce autoinducers themselves.",
+        "Pseudoalteromonas spp. can detect and respond only to AI-2, not AHLs.",
+        "AI-2 concentration in mixed culture is 15 nM, above the 10 nM threshold for gene upregulation.",
+        "AHLs are present at 20 nM, but Pseudoalteromonas spp. cannot detect/respond to them.",
+        "Interspecies communication requires a molecule produced by one species and detected by another.",
+        "Increased extracellular enzyme production by Pseudoalteromonas spp. is triggered by AI-2."
+      ],
+      "correct_answer": "AI-2",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "QUORUM SENSING",
+        "VIBRIO SPP."
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 1,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Outer membrane vesicles (OMVs) released by Vibrio spp. in mixed cultures typically reach concentrations of 2\u20135 \u03bcg/mL and contain a variety of proteins and lipids, but their composition is not significantly altered by the presence of Pseudoalteromonas spp.",
+        "N-acyl homoserine lactone (AHL) molecules, such as those produced by Burkholderia cenocepacia, typically accumulate to concentrations above 10 nM in dense cultures and are synthesized by LuxI-type enzymes. In some Gram-negative bacteria, AHLs can induce the expression of genes involved in motility and secondary metabolite production.",
+        "AHL concentrations above 25 nM have been shown to induce biofilm formation in Burkholderia cenocepacia, with maximal gene expression observed at 50 nM. However, neither Vibrio spp. nor Pseudoalteromonas spp. in this experiment are known to produce or respond to BDSF, another quorum sensing signal."
+      ],
+      "enrichment_entities": [
+        "OUTER MEMBRANE VESICLES",
+        "N-ACYL HOMOSERINE LACTONE (AHL)",
+        "AHL"
+      ]
+    },
+    {
+      "paper_id": "aem.01184-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i10_10_1128_aem_01184_23-20240609085801-8048634/source_files/.qa_output/aem.01184-23/ecology/contrastive_qa.json",
+      "question": "Burkholderia cenocepacia J2315 produces BDSF via the BCAM0581 gene product, which regulates AHL synthesis and biofilm formation. A shvR-mutant strain of J2315 shows a 70% reduction in BDSF levels compared to wild-type, resulting in decreased biofilm formation and AHL production. In Burkholderia cenocepacia J2315, AHL levels peak at 12 hours post-inoculation, coinciding with the onset of biofilm maturation. Mutants deficient in AHL synthesis show a 40% reduction in protease activity compared to wild-type. Complementation with shvR restores BDSF and biofilm formation to wild-type levels. Intracellular levels of cyclic di-GMP (c-di-GMP) in J2315 increase twofold during biofilm maturation, independently of BDSF signaling. Additionally, c-di-GMP regulates the expression of the bep gene cluster, which is not directly involved in AHL synthesis. A \u0394BCAM0581 mutant produces no BDSF and shows minimal biofilm formation and AHL production. In Xanthomonas campestris, DSF levels peak at 24 hours post-inoculation, coinciding with a 60% increase in biofilm biomass. DSF-mediated signaling also triggers expression of plant defense-modulating genes during host colonization. When exogenous BDSF is added to the \u0394BCAM0581 mutant, biofilm formation and AHL production increase to 90% of wild-type levels. Which molecule is both necessary and sufficient to restore quorum sensing-regulated biofilm formation in the \u0394BCAM0581 mutant?",
+      "original_question": "Burkholderia cenocepacia J2315 produces BDSF via the BCAM0581 gene product, which regulates AHL synthesis and biofilm formation. A shvR-mutant strain of J2315 shows a 70% reduction in BDSF levels compared to wild-type, resulting in decreased biofilm formation and AHL production. Complementation with shvR restores BDSF and biofilm formation to wild-type levels. A \u0394BCAM0581 mutant produces no BDSF and shows minimal biofilm formation and AHL production. When exogenous BDSF is added to the \u0394BCAM0581 mutant, biofilm formation and AHL production increase to 90% of wild-type levels. Which molecule is both necessary and sufficient to restore quorum sensing-regulated biofilm formation in the \u0394BCAM0581 mutant?",
+      "reasoning_steps": [
+        "BCAM0581 encodes the enzyme for BDSF synthesis.",
+        "\u0394BCAM0581 mutant cannot produce BDSF, so biofilm and AHL production are minimal.",
+        "Exogenous BDSF addition restores biofilm and AHL production to near wild-type levels.",
+        "ShvR regulates BDSF production via rpfFBC, but in \u0394BCAM0581, the enzyme is missing.",
+        "Complementation with shvR does not restore BDSF in \u0394BCAM0581, only exogenous BDSF does.",
+        "Restoration of biofilm and AHL production in \u0394BCAM0581 requires BDSF.",
+        "Therefore, BDSF is both necessary and sufficient for quorum sensing-regulated biofilm formation in this mutant."
+      ],
+      "correct_answer": "BDSF",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "BDSF",
+        "BURKHOLDERIA CENOCEPACIA",
+        "B. CENOCEPACIA",
+        "RPFFBC",
+        "WILD-TYPE STRAIN",
+        "SHVR-MUTANT STRAIN",
+        "COMPLEMENTED STRAIN",
+        "B. CENOCEPACIA H111",
+        "RPFF",
+        "B. CENOCEPACIA J2315",
+        "H111 STRAIN",
+        "BCAM0581",
+        "BDSF SYNTHASE",
+        "\u0394CEPI \u0394CCII DOUBLE MUTANT"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 1,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "In Burkholderia cenocepacia J2315, AHL levels peak at 12 hours post-inoculation, coinciding with the onset of biofilm maturation. Mutants deficient in AHL synthesis show a 40% reduction in protease activity compared to wild-type.",
+        "Intracellular levels of cyclic di-GMP (c-di-GMP) in J2315 increase twofold during biofilm maturation, independently of BDSF signaling. Additionally, c-di-GMP regulates the expression of the bep gene cluster, which is not directly involved in AHL synthesis.",
+        "In Xanthomonas campestris, DSF levels peak at 24 hours post-inoculation, coinciding with a 60% increase in biofilm biomass. DSF-mediated signaling also triggers expression of plant defense-modulating genes during host colonization."
+      ],
+      "enrichment_entities": [
+        "AHL",
+        "C-DI-GMP",
+        "DSF"
+      ]
+    },
+    {
+      "paper_id": "aem.01184-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i10_10_1128_aem_01184_23-20240609085801-8048634/source_files/.qa_output/aem.01184-23/ecology/contrastive_qa.json",
+      "question": "A soil microcosm contains Burkholderia cenocepacia strains with either a functional LuxI-type synthase gene or a knockout of this gene. Both strains are grown in identical conditions for 48 hours. In Burkholderia cenocepacia, the LuxR-type regulator is expressed at similar levels in both wild-type and LuxI knockout strains, regardless of AHL presence. Previous studies show that LuxR-type regulator abundance remains constant during the first 48 hours of growth. Only the wild-type strain produces N-acyl homoserine lactone (AHL) molecules, which are required for quorum sensing (QS)-mediated regulation of biofilm formation and virulence. The LysR-type regulator ShvR binds to the promoter regions of both the luxI and bdsA genes, increasing their transcription rates by approximately 2-fold under standard laboratory conditions. However, ShvR activity can be modulated by the presence of PQS, which alters its DNA-binding affinity. ShvR is a transcriptional regulator that activates LuxI expression. Quorum sensing activity in Burkholderia cenocepacia can be quantified by measuring AHL concentrations, which typically reach 2\u20135 \u03bcM in wild-type cultures after 48 hours. In mixed-species microcosms, quorum sensing can also influence the expression of secondary metabolite genes. In the knockout strain, ShvR is present but LuxI is nonfunctional. After 48 hours, only the wild-type strain forms robust biofilms and expresses virulence genes. Which molecule is absent in the knockout strain and directly explains the lack of QS-mediated biofilm and virulence gene expression?",
+      "original_question": "A soil microcosm contains Burkholderia cenocepacia strains with either a functional LuxI-type synthase gene or a knockout of this gene. Both strains are grown in identical conditions for 48 hours. Only the wild-type strain produces N-acyl homoserine lactone (AHL) molecules, which are required for quorum sensing (QS)-mediated regulation of biofilm formation and virulence. ShvR is a transcriptional regulator that activates LuxI expression. In the knockout strain, ShvR is present but LuxI is nonfunctional. After 48 hours, only the wild-type strain forms robust biofilms and expresses virulence genes. Which molecule is absent in the knockout strain and directly explains the lack of QS-mediated biofilm and virulence gene expression?",
+      "reasoning_steps": [
+        "Both strains have ShvR, but only wild-type has functional LuxI.",
+        "LuxI synthesizes N-acyl homoserine lactone (AHL) molecules.",
+        "AHLs are required for quorum sensing signaling.",
+        "QS regulates biofilm formation and virulence gene expression.",
+        "Knockout strain cannot produce AHL due to nonfunctional LuxI.",
+        "Absence of AHL prevents QS activation in knockout strain.",
+        "Lack of QS leads to no biofilm or virulence gene expression."
+      ],
+      "correct_answer": "N-acyl homoserine lactone (AHL)",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "N-ACYL HOMOSERINE LACTONE (AHL)",
+        "LUXI-TYPE SYNTHASE"
+      ],
+      "quality_score": 4.0,
+      "answer_word_count": 4,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "In Burkholderia cenocepacia, the LuxR-type regulator is expressed at similar levels in both wild-type and LuxI knockout strains, regardless of AHL presence. Previous studies show that LuxR-type regulator abundance remains constant during the first 48 hours of growth.",
+        "The LysR-type regulator ShvR binds to the promoter regions of both the luxI and bdsA genes, increasing their transcription rates by approximately 2-fold under standard laboratory conditions. However, ShvR activity can be modulated by the presence of PQS, which alters its DNA-binding affinity.",
+        "Quorum sensing activity in Burkholderia cenocepacia can be quantified by measuring AHL concentrations, which typically reach 2\u20135 \u03bcM in wild-type cultures after 48 hours. In mixed-species microcosms, quorum sensing can also influence the expression of secondary metabolite genes."
+      ],
+      "enrichment_entities": [
+        "LUXR-TYPE REGULATOR",
+        "LYSR-TYPE REGULATOR SHVR",
+        "QUORUM SENSING"
+      ]
+    },
+    {
+      "paper_id": "aem.01184-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i10_10_1128_aem_01184_23-20240609085801-8048634/source_files/.qa_output/aem.01184-23/ecology/contrastive_qa.json",
+      "question": "A soil microbe community contains Burkholderia cenocepacia, which regulates biofilm formation and virulence via quorum sensing. B. Expression of the cepI gene, which encodes the C8-HSL synthase in B. cenocepacia, is reduced by approximately 40% when cells are exposed to OMVs containing PQS from P. aeruginosa. However, this reduction does not alter the overall cell density in standard growth medium. cenocepacia produces cis-2-dodecenoic acid (BDSF), a fatty acid signal, through the action of the BCAM0581 enzyme. Expression of CEPR increases twofold during stationary phase, leading to enhanced transcription of QS-regulated genes in B. cenocepacia. However, CEPR activity is unaffected by exogenous fatty acid supplementation. BCAM0581 catalyzes the conversion of 3-hydroxydodecanoic acid (ACP-bound) to BDSF. Pseudomonas Quinolone Signal (PQS) is detected at concentrations of 2 \u03bcM in co-cultures with B. cenocepacia, where it modulates biofilm architecture without altering BDSF synthesis. PQS is primarily packaged in outer membrane vesicles during stationary phase. In a mutant strain lacking BCAM0581, biofilm formation and virulence are lost. Supplementing the mutant with purified BDSF restores these traits, but supplementing with 3-hydroxydodecanoic acid does not. Which molecule is the direct product of the BCAM0581-catalyzed reaction responsible for quorum sensing in B. cenocepacia?",
+      "original_question": "A soil microbe community contains Burkholderia cenocepacia, which regulates biofilm formation and virulence via quorum sensing. B. cenocepacia produces cis-2-dodecenoic acid (BDSF), a fatty acid signal, through the action of the BCAM0581 enzyme. BCAM0581 catalyzes the conversion of 3-hydroxydodecanoic acid (ACP-bound) to BDSF. In a mutant strain lacking BCAM0581, biofilm formation and virulence are lost. Supplementing the mutant with purified BDSF restores these traits, but supplementing with 3-hydroxydodecanoic acid does not. Which molecule is the direct product of the BCAM0581-catalyzed reaction responsible for quorum sensing in B. cenocepacia?",
+      "reasoning_steps": [
+        "B. cenocepacia uses quorum sensing to regulate biofilm and virulence.",
+        "BDSF is the signal molecule for quorum sensing.",
+        "BCAM0581 is the enzyme that synthesizes BDSF.",
+        "The substrate for BCAM0581 is 3-hydroxydodecanoic acid (ACP-bound).",
+        "The mutant lacking BCAM0581 cannot produce BDSF, losing biofilm/virulence.",
+        "Supplementing BDSF restores function; supplementing substrate does not.",
+        "Therefore, BCAM0581 directly produces BDSF from 3-hydroxydodecanoic acid."
+      ],
+      "correct_answer": "cis-2-dodecenoic acid (BDSF)",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "CIS-2-DODECENOIC ACID (BDSF)",
+        "BURKHOLDERIA CENOCEPACIA",
+        "B. CENOCEPACIA",
+        "RPFF",
+        "BCAM0581",
+        "3-HYDROXYDODECANOIC ACID"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 3,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Expression of the cepI gene, which encodes the C8-HSL synthase in B. cenocepacia, is reduced by approximately 40% when cells are exposed to OMVs containing PQS from P. aeruginosa. However, this reduction does not alter the overall cell density in standard growth medium.",
+        "Expression of CEPR increases twofold during stationary phase, leading to enhanced transcription of QS-regulated genes in B. cenocepacia. However, CEPR activity is unaffected by exogenous fatty acid supplementation.",
+        "Pseudomonas Quinolone Signal (PQS) is detected at concentrations of 2 \u03bcM in co-cultures with B. cenocepacia, where it modulates biofilm architecture without altering BDSF synthesis. PQS is primarily packaged in outer membrane vesicles during stationary phase."
+      ],
+      "enrichment_entities": [
+        "CEPI",
+        "CEPR",
+        "PQS"
+      ]
+    },
+    {
+      "paper_id": "aem.01187-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i10_10_1128_aem_01187_23-20240609085801-8048634/source_files/.qa_output/aem.01187-23/ecology/contrastive_qa.json",
+      "question": "Methylibium petroleiphilum PM1 is a bacterial strain capable of degrading methyl tert-butyl ether (MTBE) without accumulating tert-butyl alcohol (TBA). It contains the mdp gene cluster, including mdpA encoding MTBE monooxygenase. Propane monooxygenase, an inducible enzyme found in Mycobacterium vaccae JOB-5, can oxidize propane at rates exceeding 0.8 \u00b5mol/min/mg protein and is also capable of dehalogenating several halogenated hydrocarbons. In some strains, its expression increases twofold when exposed to short-chain alkanes. In laboratory tests, PM1 expresses SDIMOs, which are upregulated in the presence of MTBE and enable degradation of both MTBE and other hydrocarbons. TAME, a structural analog of MTBE, remains unaltered in PM1 cultures even after 48 hours of incubation, indicating that its degradation rate is less than 5% under identical conditions. When grown in media containing only MTBE, PM1 rapidly degrades MTBE and does not accumulate TBA. In parallel experiments, phenol hydroxylase activity in PM1 increased twofold when exposed to phenol, but remained unchanged in cultures containing only MTBE or benzene. This enzyme is commonly involved in the breakdown of aromatic pollutants in contaminated groundwater. In contrast, when grown in media containing both MTBE and benzene, PM1 degrades both compounds, but TBA transiently accumulates before being consumed. SDIMO expression is higher in the dual-substrate condition. Given these facts, which enzyme is most likely responsible for the initial oxidation of MTBE in both conditions?",
+      "original_question": "Methylibium petroleiphilum PM1 is a bacterial strain capable of degrading methyl tert-butyl ether (MTBE) without accumulating tert-butyl alcohol (TBA). It contains the mdp gene cluster, including mdpA encoding MTBE monooxygenase. In laboratory tests, PM1 expresses SDIMOs, which are upregulated in the presence of MTBE and enable degradation of both MTBE and other hydrocarbons. When grown in media containing only MTBE, PM1 rapidly degrades MTBE and does not accumulate TBA. In contrast, when grown in media containing both MTBE and benzene, PM1 degrades both compounds, but TBA transiently accumulates before being consumed. SDIMO expression is higher in the dual-substrate condition. Given these facts, which enzyme is most likely responsible for the initial oxidation of MTBE in both conditions?",
+      "reasoning_steps": [
+        "PM1 degrades MTBE efficiently, implicating a specific enzyme for initial oxidation.",
+        "The mdp gene cluster includes mdpA, which encodes MTBE monooxygenase.",
+        "SDIMOs are expressed and upregulated in the presence of MTBE, enabling hydrocarbon degradation.",
+        "In both single and dual-substrate conditions, MTBE is degraded, but TBA only transiently accumulates with benzene present.",
+        "SDIMO expression is higher when both MTBE and benzene are present, suggesting a role in hydrocarbon metabolism.",
+        "The initial oxidation of MTBE is a monooxygenase-catalyzed reaction.",
+        "The enzyme responsible must be present and active in both conditions."
+      ],
+      "correct_answer": "MTBE monooxygenase (mdpA)",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "M. PETROLEIPHILUM PM1",
+        "SDIMO"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 3,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Propane monooxygenase, an inducible enzyme found in Mycobacterium vaccae JOB-5, can oxidize propane at rates exceeding 0.8 \u00b5mol/min/mg protein and is also capable of dehalogenating several halogenated hydrocarbons. In some strains, its expression increases twofold when exposed to short-chain alkanes.",
+        "TAME, a structural analog of MTBE, remains unaltered in PM1 cultures even after 48 hours of incubation, indicating that its degradation rate is less than 5% under identical conditions.",
+        "In parallel experiments, phenol hydroxylase activity in PM1 increased twofold when exposed to phenol, but remained unchanged in cultures containing only MTBE or benzene. This enzyme is commonly involved in the breakdown of aromatic pollutants in contaminated groundwater."
+      ],
+      "enrichment_entities": [
+        "PROPANE MONOOXYGENASE",
+        "TAME",
+        "PHENOL HYDROXYLASE"
+      ]
+    },
+    {
+      "paper_id": "aem.01187-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i10_10_1128_aem_01187_23-20240609085801-8048634/source_files/.qa_output/aem.01187-23/ecology/contrastive_qa.json",
+      "question": "Mycobacterium vaccae JOB5 is found in groundwater contaminated with methyl tert-butyl ether (MTBE) and propane. It expresses the prmABCD gene cluster, encoding a multicomponent propane monooxygenase that initiates MTBE degradation. Propane monooxygenase activity in Mycobacterium vaccae JOB5 increases twofold when exposed to 10 mM propane, but this induction does not alter the expression levels of alkB2 or pmoCAB gene clusters. In addition, its genome contains three distinct monooxygenase gene clusters: alkB1FG (alkane monooxygenase enzymes for hydrocarbon metabolism), alkB2 (an isolated alkane monooxygenase for metabolic versatility), and pmoCAB (copper-dependent membrane monooxygenases enabling methane and alkane oxidation). Multicomponent propane monooxygenase (PRM) activity increases twofold in the presence of 1,4-dioxane, although this does not alter the overall rate of propane consumption. In similar microcosms, PRM expression remains stable regardless of copper availability. In a simulated groundwater microcosm, MTBE degradation is observed only when propane is present, and inhibition of copper uptake blocks both methane and alkane oxidation but does not affect MTBE degradation. The alkane-inducible monooxygenase in Mycobacterium vaccae JOB5 shows a 2-fold increase in expression when exposed to C5\u2013C8 alkanes, although its activity is partially suppressed by the presence of aromatic hydrocarbons. Which gene cluster is most likely responsible for MTBE degradation in this scenario?",
+      "original_question": "Mycobacterium vaccae JOB5 is found in groundwater contaminated with methyl tert-butyl ether (MTBE) and propane. It expresses the prmABCD gene cluster, encoding a multicomponent propane monooxygenase that initiates MTBE degradation. In addition, its genome contains three distinct monooxygenase gene clusters: alkB1FG (alkane monooxygenase enzymes for hydrocarbon metabolism), alkB2 (an isolated alkane monooxygenase for metabolic versatility), and pmoCAB (copper-dependent membrane monooxygenases enabling methane and alkane oxidation). In a simulated groundwater microcosm, MTBE degradation is observed only when propane is present, and inhibition of copper uptake blocks both methane and alkane oxidation but does not affect MTBE degradation. Which gene cluster is most likely responsible for MTBE degradation in this scenario?",
+      "reasoning_steps": [
+        "MTBE degradation requires propane presence, implicating propane monooxygenase activity.",
+        "The prmABCD gene cluster encodes propane monooxygenase, known to initiate MTBE degradation.",
+        "alkB1FG and alkB2 encode alkane monooxygenases, but no direct link to MTBE degradation is provided.",
+        "pmoCAB encodes copper-dependent monooxygenases for methane and alkane oxidation.",
+        "Copper uptake inhibition blocks pmoCAB activity, but MTBE degradation continues, ruling out pmoCAB involvement.",
+        "MTBE degradation is unaffected by copper inhibition, further supporting a copper-independent mechanism.",
+        "The only gene cluster directly linked to propane-dependent MTBE degradation is prmABCD."
+      ],
+      "correct_answer": "prmABCD gene cluster",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "MYCOBACTERIUM VACCAE JOB5",
+        "ALKB1FG",
+        "ALKB2",
+        "PMOCAB"
+      ],
+      "quality_score": 4.0,
+      "answer_word_count": 2,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Propane monooxygenase activity in Mycobacterium vaccae JOB5 increases twofold when exposed to 10 mM propane, but this induction does not alter the expression levels of alkB2 or pmoCAB gene clusters.",
+        "Multicomponent propane monooxygenase (PRM) activity increases twofold in the presence of 1,4-dioxane, although this does not alter the overall rate of propane consumption. In similar microcosms, PRM expression remains stable regardless of copper availability.",
+        "The alkane-inducible monooxygenase in Mycobacterium vaccae JOB5 shows a 2-fold increase in expression when exposed to C5\u2013C8 alkanes, although its activity is partially suppressed by the presence of aromatic hydrocarbons."
+      ],
+      "enrichment_entities": [
+        "PROPANE MONOOXYGENASE",
+        "MULTICOMPONENT PROPANE MONOOXYGENASE (PRM)",
+        "ALKANE-INDUCIBLE MONOOXYGENASE"
+      ]
+    },
+    {
+      "paper_id": "aem.01187-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i10_10_1128_aem_01187_23-20240609085801-8048634/source_files/.qa_output/aem.01187-23/ecology/contrastive_qa.json",
+      "question": "A contaminated aquifer contains 50 mg/L methyl tert-butyl ether (MTBE) and 10 mg/L 1,4-dioxane. Two bacterial strains are considered for bioremediation: Strain A (Mycobacterium vaccae JOB5) and Strain B (a mutant lacking the prmABCD gene cluster). Cometabolic oxidation of MTBE by M. vaccae JOB5 typically results in transient accumulation of tert-butyl alcohol (TBA) at concentrations up to 15 mg/L. This process can be inhibited by the presence of acetylene at levels above 10 \u00b5M. Strain A expresses the multicomponent propane monooxygenase (PRM) via the prmABCD gene cluster, enabling initial hydroxylation and degradation of both MTBE and 1,4-dioxane. Propane monooxygenase activity in Mycobacterium vaccae JOB5 increases twofold when exposed to propane concentrations above 20 mg/L, but this does not alter the organism\u2019s growth rate on glucose. Strain B cannot synthesize PRM. During MTBE degradation by Mycobacterium vaccae JOB5, tert-butyl formate (TBF) can transiently accumulate to concentrations up to 8 mg/L before being further hydrolyzed to tert-butyl alcohol (TBA). The detection of TBF in groundwater samples is often used to monitor intermediate steps in MTBE biodegradation. Both strains grow equally well on simple carbon sources but only Strain A can degrade MTBE and 1,4-dioxane. Which strain should be selected to maximize removal of both contaminants from the aquifer?",
+      "original_question": "A contaminated aquifer contains 50 mg/L methyl tert-butyl ether (MTBE) and 10 mg/L 1,4-dioxane. Two bacterial strains are considered for bioremediation: Strain A (Mycobacterium vaccae JOB5) and Strain B (a mutant lacking the prmABCD gene cluster). Strain A expresses the multicomponent propane monooxygenase (PRM) via the prmABCD gene cluster, enabling initial hydroxylation and degradation of both MTBE and 1,4-dioxane. Strain B cannot synthesize PRM. Both strains grow equally well on simple carbon sources but only Strain A can degrade MTBE and 1,4-dioxane. Which strain should be selected to maximize removal of both contaminants from the aquifer?",
+      "reasoning_steps": [
+        "MTBE and 1,4-dioxane are the target contaminants.",
+        "PRM catalyzes initial hydroxylation and degradation of both compounds.",
+        "PRM is encoded by the prmABCD gene cluster.",
+        "Strain A possesses prmABCD and synthesizes PRM.",
+        "Strain B lacks prmABCD and cannot synthesize PRM.",
+        "Only Strain A can degrade MTBE and 1,4-dioxane.",
+        "Strain A will maximize contaminant removal."
+      ],
+      "correct_answer": "Mycobacterium vaccae JOB5",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "MULTICOMPONENT PROPANE MONOOXYGENASE (PRM)",
+        "MYCOBACTERIUM VACCAE JOB5",
+        "PRMABCD GENE CLUSTER"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 3,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Cometabolic oxidation of MTBE by M. vaccae JOB5 typically results in transient accumulation of tert-butyl alcohol (TBA) at concentrations up to 15 mg/L. This process can be inhibited by the presence of acetylene at levels above 10 \u00b5M.",
+        "Propane monooxygenase activity in Mycobacterium vaccae JOB5 increases twofold when exposed to propane concentrations above 20 mg/L, but this does not alter the organism\u2019s growth rate on glucose.",
+        "During MTBE degradation by Mycobacterium vaccae JOB5, tert-butyl formate (TBF) can transiently accumulate to concentrations up to 8 mg/L before being further hydrolyzed to tert-butyl alcohol (TBA). The detection of TBF in groundwater samples is often used to monitor intermediate steps in MTBE biodegradation."
+      ],
+      "enrichment_entities": [
+        "COMETABOLIC OXIDATION OF MTBE",
+        "PROPANE MONOOXYGENASE",
+        "TBF"
+      ]
+    },
+    {
+      "paper_id": "aem.01187-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i10_10_1128_aem_01187_23-20240609085801-8048634/source_files/.qa_output/aem.01187-23/ecology/contrastive_qa.json",
+      "question": "A contaminated groundwater site contains high concentrations of methyl tert-butyl ether (MTBE) and 1,4-dioxane. Two bacterial strains are considered for bioremediation: Mycobacterium vaccae JOB5 and Mycobacterium dioxanotrophicus PH-06. Pseudonocardia sp. TY-7, isolated from soil, demonstrates a 60% increase in alkane monooxygenase activity when grown on n-hexane compared to propane. This strain contains two distinct gene clusters, P-prm1ABCD and P-prm2ABCD, responsible for alkane oxidation. JOB5 expresses an inducible propane monooxygenase enzyme system when grown on propane, enabling the initial hydroxylation of MTBE and degradation of cyclic ethers. Mycobacterium sp. PH-06 demonstrates a doubling time of approximately 18 hours when grown on propane as the sole carbon source. In mixed cultures, PH-06 maintains stable cell densities even in the presence of other hydrocarbon-degrading bacteria. PH-06 produces a novel propane monooxygenase enzyme, which is essential for initiating the degradation of 1,4-dioxane and can also oxidize propane. SDIMO activity in Mycobacterium species can increase up to 2-fold when exposed to elevated propane concentrations, although this does not alter the substrate specificity of the enzyme. In some strains, SDIMO expression is regulated independently of the prmABCD gene cluster. Both strains possess the prmABCD gene cluster encoding the propane monooxygenase enzyme complex. MTBE degradation requires initial hydroxylation by propane monooxygenase, while 1,4-dioxane breakdown is initiated by the same enzyme in PH-06. If the goal is to maximize simultaneous degradation of both MTBE and 1,4-dioxane, which strain should be prioritized for inoculation?",
+      "original_question": "A contaminated groundwater site contains high concentrations of methyl tert-butyl ether (MTBE) and 1,4-dioxane. Two bacterial strains are considered for bioremediation: Mycobacterium vaccae JOB5 and Mycobacterium dioxanotrophicus PH-06. JOB5 expresses an inducible propane monooxygenase enzyme system when grown on propane, enabling the initial hydroxylation of MTBE and degradation of cyclic ethers. PH-06 produces a novel propane monooxygenase enzyme, which is essential for initiating the degradation of 1,4-dioxane and can also oxidize propane. Both strains possess the prmABCD gene cluster encoding the propane monooxygenase enzyme complex. MTBE degradation requires initial hydroxylation by propane monooxygenase, while 1,4-dioxane breakdown is initiated by the same enzyme in PH-06. If the goal is to maximize simultaneous degradation of both MTBE and 1,4-dioxane, which strain should be prioritized for inoculation?",
+      "reasoning_steps": [
+        "MTBE degradation requires propane monooxygenase for initial hydroxylation.",
+        "JOB5 expresses propane monooxygenase and degrades MTBE and cyclic ethers.",
+        "PH-06 produces a novel propane monooxygenase essential for 1,4-dioxane degradation.",
+        "Both strains have the prmABCD gene cluster, so both can produce propane monooxygenase.",
+        "PH-06 can oxidize propane and co-metabolize dioxane.",
+        "JOB5 is specialized for MTBE and cyclic ether degradation, but not specifically for dioxane.",
+        "PH-06 is essential for 1,4-dioxane breakdown and can also degrade MTBE via propane monooxygenase."
+      ],
+      "correct_answer": "Mycobacterium dioxanotrophicus PH-06",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "PROPANE MONOOXYGENASE",
+        "MYCOBACTERIUM VACCAE JOB5",
+        "PRMABCD GENE CLUSTER",
+        "MTBE-DEGRADING GENE CLUSTER",
+        "M. PETROLEIPHILUM PM1",
+        "SDIMO",
+        "PRMA GENE",
+        "MYCOBACTERIUM DIOXANOTROPHICUS PH-06",
+        "M. VACCAE JOB5",
+        "PET-PRMABCD",
+        "E. COLI ROSETTA (DE3)",
+        "PH-06",
+        "RHODOCOCCUS SP. STRAIN AD45",
+        "RHA1",
+        "M-PRMABCD",
+        "GORDONIA SP. TY-5",
+        "GORDONIA SP. STRAIN TY-5"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 3,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Pseudonocardia sp. TY-7, isolated from soil, demonstrates a 60% increase in alkane monooxygenase activity when grown on n-hexane compared to propane. This strain contains two distinct gene clusters, P-prm1ABCD and P-prm2ABCD, responsible for alkane oxidation.",
+        "Mycobacterium sp. PH-06 demonstrates a doubling time of approximately 18 hours when grown on propane as the sole carbon source. In mixed cultures, PH-06 maintains stable cell densities even in the presence of other hydrocarbon-degrading bacteria.",
+        "SDIMO activity in Mycobacterium species can increase up to 2-fold when exposed to elevated propane concentrations, although this does not alter the substrate specificity of the enzyme. In some strains, SDIMO expression is regulated independently of the prmABCD gene cluster."
+      ],
+      "enrichment_entities": [
+        "PSEUDONOCARDIA SP. TY-7",
+        "MYCOBACTERIUM SP. PH-06",
+        "SDIMO (SOLUBLE DIIRON MONOOXYGENASE)"
+      ]
+    },
+    {
+      "paper_id": "aem.01187-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i10_10_1128_aem_01187_23-20240609085801-8048634/source_files/.qa_output/aem.01187-23/ecology/contrastive_qa.json",
+      "question": "A contaminated groundwater site contains 50 mg/L MTBE and 30 mg/L butane. Three bacterial strains are considered for bioremediation: (1) Strain JOB5, which expresses the prmABCD gene cluster only when exposed to both MTBE and butane; (2) M. Cometabolism rates for MTBE degradation can vary widely; in some systems, incidental transformation of MTBE during butane metabolism reaches up to 40% conversion after 48 hours. The efficiency of cometabolic processes often depends on the concentration and type of co-substrate present. vaccae JOB5, which constitutively expresses the prmABCD gene cluster, enabling PRM enzyme production regardless of substrate; (3) PH-06, which expresses the prmABCD gene cluster only in the presence of propane, dioxane, or THF, but not MTBE or butane. Tert-butyl alcohol (TBA) concentrations at similar MTBE-contaminated sites have been observed to reach up to 15 mg/L following initial bioremediation efforts. TBA can persist in groundwater unless further metabolized by specialized bacterial strains. The goal is to select the strain most likely to achieve rapid MTBE degradation at this site. Propane-grown cells of M. vaccae JOB5 display a 2-fold increase in monooxygenase activity compared to butane-grown cells, with MTBE oxidation rates reaching up to 120 nmol/min/mg protein. This enhanced activity is maintained for at least 48 hours after transfer to fresh medium. Which strain should be prioritized for inoculation?",
+      "original_question": "A contaminated groundwater site contains 50 mg/L MTBE and 30 mg/L butane. Three bacterial strains are considered for bioremediation: (1) Strain JOB5, which expresses the prmABCD gene cluster only when exposed to both MTBE and butane; (2) M. vaccae JOB5, which constitutively expresses the prmABCD gene cluster, enabling PRM enzyme production regardless of substrate; (3) PH-06, which expresses the prmABCD gene cluster only in the presence of propane, dioxane, or THF, but not MTBE or butane. The goal is to select the strain most likely to achieve rapid MTBE degradation at this site. Which strain should be prioritized for inoculation?",
+      "reasoning_steps": [
+        "MTBE is the main contaminant to be degraded.",
+        "Strain JOB5 expresses prmABCD only with both MTBE and butane present.",
+        "Both MTBE and butane are present at the site, so JOB5 can express prmABCD.",
+        "M. vaccae JOB5 expresses prmABCD constitutively, regardless of substrate.",
+        "Constitutive expression means PRM enzyme is always available for MTBE degradation.",
+        "PH-06 only expresses prmABCD with propane, dioxane, or THF, none of which are present.",
+        "PH-06 will not express PRM at this site, so cannot degrade MTBE.",
+        "Comparing JOB5 and M. vaccae JOB5: JOB5 requires both substrates, but M. vaccae JOB5 is always active.",
+        "Constitutive expression likely leads to faster and more reliable MTBE degradation."
+      ],
+      "correct_answer": "M. vaccae JOB5",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "PRMABCD GENE CLUSTER",
+        "STRAIN JOB5",
+        "M. VACCAE JOB5",
+        "PET-PRM EXPRESSION PLASMID",
+        "PH-06",
+        "E. COLI",
+        "RECOMBINANT PLASMID PET-PRMABCD",
+        "PTIPQT1-SMOABCD",
+        "PTNR-AA/PNITSMOABCD",
+        "PTIPQT1 PLASMID",
+        "PNITSMOABCD PLASMID"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 3,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Cometabolism rates for MTBE degradation can vary widely; in some systems, incidental transformation of MTBE during butane metabolism reaches up to 40% conversion after 48 hours. The efficiency of cometabolic processes often depends on the concentration and type of co-substrate present.",
+        "Tert-butyl alcohol (TBA) concentrations at similar MTBE-contaminated sites have been observed to reach up to 15 mg/L following initial bioremediation efforts. TBA can persist in groundwater unless further metabolized by specialized bacterial strains.",
+        "Propane-grown cells of M. vaccae JOB5 display a 2-fold increase in monooxygenase activity compared to butane-grown cells, with MTBE oxidation rates reaching up to 120 nmol/min/mg protein. This enhanced activity is maintained for at least 48 hours after transfer to fresh medium."
+      ],
+      "enrichment_entities": [
+        "COMETABOLISM",
+        "TBA",
+        "PROPANE-GROWN CELLS OF M. VACCAE JOB5"
+      ]
+    },
+    {
+      "paper_id": "aem.01187-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i10_10_1128_aem_01187_23-20240609085801-8048634/source_files/.qa_output/aem.01187-23/ecology/contrastive_qa.json",
+      "question": "A groundwater site is contaminated with both methyl tert-butyl ether (MTBE) and tetrahydrofuran (THF). Six candidate organisms/cultures are available for bioremediation: (1) Mycobacterium austroafricanum IFP 2012, which drives MTBE and other fuel oxygenate biodegradation; (2) Graphium sp. Pseudonocardia sp. strain ENV478 demonstrates a 60% increase in soluble diiron monooxygenase activity when exposed to mixed ether pollutants, although its biomass yield remains unchanged in batch cultures. In laboratory microcosms, this strain maintains stable degradation rates of THF even at low oxygen concentrations. , which metabolizes cyclic ethers; (3) Rhodococcus ruber isolate M2, which facilitates THF removal in membrane bioreactors; (4) Scedosporium sp. Mycobacterium austroafricanum JOB5 demonstrates a 40% increase in MTBE cometabolism rates when co-cultured with Pseudomonas species under aerobic conditions. However, its activity is unaffected by the presence of tetrahydrofuran (THF) at concentrations below 10 mg/L. ZYY, which metabolizes petroleum pollutants in oil-contaminated sediments; (5) an enriched bacterial culture that biodegrades MTBE; and (6) a generic group of microorganisms that enzymatically break down organic ethers. Pseudonocardia K1 expresses a monooxygenase enzyme that catalyzes the initial oxidation of 1,4-dioxane, achieving up to 70% transformation within 48 hours under laboratory conditions. However, its activity is sensitive to the presence of high nitrate concentrations in groundwater. You must select the single most effective organism or culture for simultaneous removal of both MTBE and THF from this groundwater site. Which option should be prioritized?",
+      "original_question": "A groundwater site is contaminated with both methyl tert-butyl ether (MTBE) and tetrahydrofuran (THF). Six candidate organisms/cultures are available for bioremediation: (1) Mycobacterium austroafricanum IFP 2012, which drives MTBE and other fuel oxygenate biodegradation; (2) Graphium sp., which metabolizes cyclic ethers; (3) Rhodococcus ruber isolate M2, which facilitates THF removal in membrane bioreactors; (4) Scedosporium sp. ZYY, which metabolizes petroleum pollutants in oil-contaminated sediments; (5) an enriched bacterial culture that biodegrades MTBE; and (6) a generic group of microorganisms that enzymatically break down organic ethers. You must select the single most effective organism or culture for simultaneous removal of both MTBE and THF from this groundwater site. Which option should be prioritized?",
+      "reasoning_steps": [
+        "MTBE and THF are both present and must be targeted.",
+        "Mycobacterium austroafricanum IFP 2012 degrades MTBE and other fuel oxygenates (may include THF).",
+        "Graphium sp. degrades cyclic ethers (THF is a cyclic ether), but no mention of MTBE.",
+        "Rhodococcus ruber isolate M2 removes THF, but no mention of MTBE.",
+        "Scedosporium sp. ZYY targets petroleum pollutants, not specifically MTBE or THF.",
+        "Enriched bacterial culture degrades MTBE, but no mention of THF.",
+        "Generic microorganisms break down organic ethers, but no specificity or proven efficacy for both contaminants.",
+        "Only Mycobacterium austroafricanum IFP 2012 is described as degrading both MTBE and other fuel oxygenates, which likely includes THF."
+      ],
+      "correct_answer": "Mycobacterium austroafricanum IFP 2012",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "BIODEGRADATION",
+        "MYCOBACTERIUM AUSTROAFRICANUM IFP 2012",
+        "MICROORGANISMS",
+        "GRAPHIUM SP.",
+        "RHODOCOCCUS RUBER ISOLATE M2",
+        "SCEDOSPORIUM SP. ZYY",
+        "ENRICHED BACTERIAL CULTURE"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 4,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Pseudonocardia sp. strain ENV478 demonstrates a 60% increase in soluble diiron monooxygenase activity when exposed to mixed ether pollutants, although its biomass yield remains unchanged in batch cultures. In laboratory microcosms, this strain maintains stable degradation rates of THF even at low oxygen concentrations.",
+        "Mycobacterium austroafricanum JOB5 demonstrates a 40% increase in MTBE cometabolism rates when co-cultured with Pseudomonas species under aerobic conditions. However, its activity is unaffected by the presence of tetrahydrofuran (THF) at concentrations below 10 mg/L.",
+        "Pseudonocardia K1 expresses a monooxygenase enzyme that catalyzes the initial oxidation of 1,4-dioxane, achieving up to 70% transformation within 48 hours under laboratory conditions. However, its activity is sensitive to the presence of high nitrate concentrations in groundwater."
+      ],
+      "enrichment_entities": [
+        "PSEUDONOCARDIA SP. STRAIN ENV478",
+        "MYCOBACTERIUM AUSTROAFRICANUM JOB5",
+        "PSEUDONOCARDIA K1"
+      ]
+    },
+    {
+      "paper_id": "aem.01904-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i10_10_1128_aem_01904_23-20240609085801-8048634/source_files/.qa_output/aem.01904-23/ecology/contrastive_qa.json",
+      "question": "An environmental microbiology lab is comparing two sequencing platforms for species-level identification of bacteria in soil samples using 16S rRNA amplicon sequences. Platform A generates partial 16S rRNA sequences covering only the V3-V4 regions, with a 2% error rate and 85% correct species assignment. Platform B (Oxford Nanopore Technologies R10. Classification tools such as Kraken2 and QIIME2 can process ONT sequencing data with an average runtime of 15 minutes per sample, depending on database size. Some tools report genus-level assignments for up to 10% of reads when reference sequences are incomplete. 4. 1) generates full-length 16S rRNA amplicon sequences with a 0. Databases used for species classification typically contain over 10,000 curated bacterial 16S rRNA sequences, but updates to include newly discovered taxa occur only twice per year. Variations in database completeness can influence the interpretation of ONT sequencing results. 5% error rate and 98% correct species assignment. Both platforms process 1000 samples per week. Accurate species-level identification is critical for tracking rare pathogenic bacteria present at <1% abundance. Which platform should be selected to maximize reliable detection of rare species?",
+      "original_question": "An environmental microbiology lab is comparing two sequencing platforms for species-level identification of bacteria in soil samples using 16S rRNA amplicon sequences. Platform A generates partial 16S rRNA sequences covering only the V3-V4 regions, with a 2% error rate and 85% correct species assignment. Platform B (Oxford Nanopore Technologies R10.4.1) generates full-length 16S rRNA amplicon sequences with a 0.5% error rate and 98% correct species assignment. Both platforms process 1000 samples per week. Accurate species-level identification is critical for tracking rare pathogenic bacteria present at <1% abundance. Which platform should be selected to maximize reliable detection of rare species?",
+      "reasoning_steps": [
+        "Full-length 16S rRNA sequences provide higher taxonomic resolution than partial sequences.",
+        "Platform B (ONT R10.4.1) generates full-length sequences, Platform A only partial.",
+        "Platform B has a lower error rate (0.5% vs 2%), reducing misclassification.",
+        "Platform B achieves higher correct species assignment (98% vs 85%).",
+        "Rare species (<1% abundance) require high accuracy to avoid false negatives.",
+        "Both platforms have equal throughput (1000 samples/week), so speed is not a differentiator.",
+        "Maximizing reliable detection of rare species depends on accuracy and resolution."
+      ],
+      "correct_answer": "Oxford Nanopore Technologies R10.4.1",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "16S RRNA AMPLICON SEQUENCES",
+        "OXFORD NANOPORE TECHNOLOGIES R10.4.1"
+      ],
+      "quality_score": 4.0,
+      "answer_word_count": 3,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Classification tools such as Kraken2 and QIIME2 can process ONT sequencing data with an average runtime of 15 minutes per sample, depending on database size. Some tools report genus-level assignments for up to 10% of reads when reference sequences are incomplete.",
+        "Databases used for species classification typically contain over 10,000 curated bacterial 16S rRNA sequences, but updates to include newly discovered taxa occur only twice per year. Variations in database completeness can influence the interpretation of ONT sequencing results."
+      ],
+      "enrichment_entities": [
+        "CLASSIFICATION TOOLS",
+        "DATABASES"
+      ]
+    },
+    {
+      "paper_id": "aem.01904-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i10_10_1128_aem_01904_23-20240609085801-8048634/source_files/.qa_output/aem.01904-23/ecology/contrastive_qa.json",
+      "question": "A coral species in a nutrient-poor reef secretes mucus containing carbohydrates and amino acids. This mucus attracts ciliates, which feed on the mucus and subsequently release ammonium as a metabolic byproduct. The coral can absorb ammonium directly for its nitrogen needs. In an experimental setup, corals without mucus secretion show 30% lower growth rates and 40% lower tissue nitrogen content compared to corals that secrete mucus and attract ciliates. If a mutation prevents mucus secretion, which ecological interaction is most disrupted, and what is the primary consequence for the coral?",
+      "original_question": "A coral species in a nutrient-poor reef secretes mucus containing carbohydrates and amino acids. This mucus attracts ciliates, which feed on the mucus and subsequently release ammonium as a metabolic byproduct. The coral can absorb ammonium directly for its nitrogen needs. In an experimental setup, corals without mucus secretion show 30% lower growth rates and 40% lower tissue nitrogen content compared to corals that secrete mucus and attract ciliates. If a mutation prevents mucus secretion, which ecological interaction is most disrupted, and what is the primary consequence for the coral?",
+      "reasoning_steps": [
+        "Mucus contains nutrients that attract ciliates",
+        "Ciliates consume mucus and release ammonium",
+        "Coral absorbs ammonium for nitrogen",
+        "Without mucus, ciliates are not attracted",
+        "No ciliates means less ammonium available",
+        "Coral cannot meet nitrogen needs",
+        "Results in lower growth and tissue nitrogen"
+      ],
+      "correct_answer": "Mutualism with ciliates; reduced nitrogen acquisition",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "MUCUS",
+        "CORALS"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 5,
+      "answer_format": "mechanism",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [],
+      "enrichment_entities": []
+    },
+    {
+      "paper_id": "aem.01904-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i10_10_1128_aem_01904_23-20240609085801-8048634/source_files/.qa_output/aem.01904-23/ecology/contrastive_qa.json",
+      "question": "In a controlled coral reef microcosm, two protist groups\u2014ciliates and flagellates\u2014are introduced at equal initial densities (10,000 cells/mL). The system contains coral fragments that release mucus, and an algal genus (including Rhodomonas) that produces dissolved organic carbon (DOC) at 5 mg/L/day. Marine bacteria in the microcosm exhibited a 25% increase in cell counts over 7 days, coinciding with elevated levels of dissolved organic carbon. Despite this growth, bacterial respiration rates remained unchanged compared to controls. Over 7 days, ciliates increase to 50,000 cells/mL, while flagellates reach only 15,000 cells/mL. Bacterial abundance in the microcosm remained stable at approximately 1.2 \u00d7 10^6 cells/mL throughout the experiment, with no significant changes observed following the removal of the algal genus. Additionally, bacteria accounted for over 60% of total microbial biomass in both control and experimental treatments. Nutrient cycling measurements show a 40% increase in ammonium and a 30% increase in phosphate compared to controls without protists. Rhodomonas cultures in similar microcosms have been shown to maintain stable chlorophyll concentrations over a 10-day period, with cell division rates averaging 1.2 divisions per day. In some trials, Rhodomonas also released trace amounts of vitamin B12 into the surrounding water. Removal of the algal genus reduces ciliate density by 80% but has no effect on flagellates. Significant positive correlations are observed between algal DOC production and ciliate abundance, but not with flagellates. Which protist group is most directly supported by the algal genus in this ecosystem?",
+      "original_question": "In a controlled coral reef microcosm, two protist groups\u2014ciliates and flagellates\u2014are introduced at equal initial densities (10,000 cells/mL). The system contains coral fragments that release mucus, and an algal genus (including Rhodomonas) that produces dissolved organic carbon (DOC) at 5 mg/L/day. Over 7 days, ciliates increase to 50,000 cells/mL, while flagellates reach only 15,000 cells/mL. Nutrient cycling measurements show a 40% increase in ammonium and a 30% increase in phosphate compared to controls without protists. Removal of the algal genus reduces ciliate density by 80% but has no effect on flagellates. Significant positive correlations are observed between algal DOC production and ciliate abundance, but not with flagellates. Which protist group is most directly supported by the algal genus in this ecosystem?",
+      "reasoning_steps": [
+        "Both ciliates and flagellates start at equal densities.",
+        "Algal genus produces DOC at a measurable rate.",
+        "Ciliates increase much more than flagellates over 7 days.",
+        "Removal of the algal genus causes a large drop in ciliate density, but not flagellates.",
+        "Positive correlation exists between algal DOC and ciliate abundance.",
+        "No correlation between algal DOC and flagellate abundance.",
+        "Therefore, ciliates are most directly supported by the algal genus."
+      ],
+      "correct_answer": "Ciliates",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "CILIATES",
+        "ALGAL GENUS"
+      ],
+      "quality_score": 4.0,
+      "answer_word_count": 1,
+      "answer_format": "entity_name",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "Marine bacteria in the microcosm exhibited a 25% increase in cell counts over 7 days, coinciding with elevated levels of dissolved organic carbon. Despite this growth, bacterial respiration rates remained unchanged compared to controls.",
+        "Bacterial abundance in the microcosm remained stable at approximately 1.2 \u00d7 10^6 cells/mL throughout the experiment, with no significant changes observed following the removal of the algal genus. Additionally, bacteria accounted for over 60% of total microbial biomass in both control and experimental treatments.",
+        "Rhodomonas cultures in similar microcosms have been shown to maintain stable chlorophyll concentrations over a 10-day period, with cell division rates averaging 1.2 divisions per day. In some trials, Rhodomonas also released trace amounts of vitamin B12 into the surrounding water."
+      ],
+      "enrichment_entities": [
+        "MARINE BACTERIA",
+        "BACTERIA",
+        "RHODOMONAS"
+      ]
+    },
+    {
+      "paper_id": "aem.00577-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i11_10_1128_aem_00577_23-20240609085743-5614820/source_files/.qa_output/aem.00577-23/ecology/contrastive_qa.json",
+      "question": "A coral species contains three distinct tissue types: epidermis, gastrodermis, and mesoglea. The epidermis has 8% protein, 2% lipid, and 1% carbohydrate by dry weight; the gastrodermis has 15% protein, 5% lipid, and 3% carbohydrate; the mesoglea has 3% protein, 1% lipid, and 0.5% carbohydrate. A microbial community specializing in carbohydrate fermentation, lipid hydrolysis, and protein degradation colonizes these tissues. Carbohydrate-fermenting microbes require \u22652% carbohydrate for optimal growth, lipid-hydrolyzing microbes require \u22653% lipid, and protein-degrading microbes require \u226510% protein. Which tissue will support the simultaneous optimal growth of all three microbial groups?",
+      "original_question": "A coral species contains three distinct tissue types: epidermis, gastrodermis, and mesoglea. The epidermis has 8% protein, 2% lipid, and 1% carbohydrate by dry weight; the gastrodermis has 15% protein, 5% lipid, and 3% carbohydrate; the mesoglea has 3% protein, 1% lipid, and 0.5% carbohydrate. A microbial community specializing in carbohydrate fermentation, lipid hydrolysis, and protein degradation colonizes these tissues. Carbohydrate-fermenting microbes require \u22652% carbohydrate for optimal growth, lipid-hydrolyzing microbes require \u22653% lipid, and protein-degrading microbes require \u226510% protein. Which tissue will support the simultaneous optimal growth of all three microbial groups?",
+      "reasoning_steps": [
+        "Identify carbohydrate content in each tissue; only gastrodermis (3%) meets \u22652% requirement.",
+        "Identify lipid content; only gastrodermis (5%) meets \u22653% requirement.",
+        "Identify protein content; only gastrodermis (15%) meets \u226510% requirement.",
+        "Epidermis and mesoglea fail to meet one or more nutrient thresholds.",
+        "All three microbial groups require their respective nutrient thresholds to be met.",
+        "Only gastrodermis meets all three thresholds simultaneously.",
+        "Therefore, only gastrodermis supports optimal growth of all three groups."
+      ],
+      "correct_answer": "Gastrodermis",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "TISSUE",
+        "RESOURCE"
+      ],
+      "quality_score": 4.0,
+      "answer_word_count": 1,
+      "answer_format": "term",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [],
+      "enrichment_entities": []
+    },
+    {
+      "paper_id": "aem.00577-23",
+      "domain": "ecology",
+      "source_file": "/Users/chia/Documents/ANL/BioData/Argonium.nosync/ASM_595/AEM/AEMv89i11_10_1128_aem_00577_23-20240609085743-5614820/source_files/.qa_output/aem.00577-23/ecology/contrastive_qa.json",
+      "question": "A coastal coral reef system experiences seasonal deoxygenation, with dissolved oxygen dropping from 7 mg/L to 2 mg/L for 3 months each year. During hypoxic periods, coral bleaching incidence rises from 10% to 60%, and fish biomass declines by 40%. During hypoxic periods, oxygen concentrations in reef water fall below 20% of atmospheric saturation, with minimum values recorded at 1.5 mg/L. Despite this, daytime oxygen spikes of up to 4 mg/L are observed near seagrass patches due to localized photosynthetic activity. Microbial analysis shows a shift from aerobic nitrifiers (Nitrosomonas, Nitrobacter) to anaerobic denitrifiers (Pseudomonas, Paracoccus), with nitrate concentrations falling from 15 \u03bcM to 3 \u03bcM and nitrite rising from 1 \u03bcM to 8 \u03bcM. During hypoxic periods, rates of anaerobic organic matter degradation in reef sediments increase by 80%, resulting in elevated hydrogen sulfide concentrations up to 120 \u03bcM. This process also leads to detectable methane emissions from the benthic zone. Coral tissue samples reveal a 70% reduction in symbiotic zooxanthellae density. Microbial communities associated with coral surfaces show a 25% increase in overall diversity during hypoxic periods, with several rare taxa becoming temporarily abundant. In parallel, total microbial biomass in reef sediments rises by approximately 15%. Which ecological process is most directly responsible for the observed decline in nitrate and rise in nitrite during hypoxia?",
+      "original_question": "A coastal coral reef system experiences seasonal deoxygenation, with dissolved oxygen dropping from 7 mg/L to 2 mg/L for 3 months each year. During hypoxic periods, coral bleaching incidence rises from 10% to 60%, and fish biomass declines by 40%. Microbial analysis shows a shift from aerobic nitrifiers (Nitrosomonas, Nitrobacter) to anaerobic denitrifiers (Pseudomonas, Paracoccus), with nitrate concentrations falling from 15 \u03bcM to 3 \u03bcM and nitrite rising from 1 \u03bcM to 8 \u03bcM. Coral tissue samples reveal a 70% reduction in symbiotic zooxanthellae density. Which ecological process is most directly responsible for the observed decline in nitrate and rise in nitrite during hypoxia?",
+      "reasoning_steps": [
+        "Seasonal deoxygenation causes hypoxia (low oxygen).",
+        "Aerobic nitrifiers require oxygen; their abundance drops.",
+        "Anaerobic denitrifiers increase under hypoxia.",
+        "Denitrifiers convert nitrate to nitrite and other reduced forms.",
+        "Nitrate falls, nitrite rises, matching denitrification activity.",
+        "Coral bleaching and zooxanthellae loss are consequences, but not directly linked to nitrate/nitrite changes.",
+        "The process most directly responsible is denitrification."
+      ],
+      "correct_answer": "Denitrification",
+      "analysis_type": "alternatives",
+      "source_entities": [
+        "MARINE HYPOXIA",
+        "DEOXYGENATION"
+      ],
+      "quality_score": 5.0,
+      "answer_word_count": 1,
+      "answer_format": "mechanism",
+      "is_self_contained": true,
+      "is_gradable": true,
+      "enrichment_pieces": [
+        "During hypoxic periods, oxygen concentrations in reef water fall below 20% of atmospheric saturation, with minimum values recorded at 1.5 mg/L. Despite this, daytime oxygen spikes of up to 4 mg/L are observed near seagrass patches due to localized photosynthetic activity.",
+        "During hypoxic periods, rates of anaerobic organic matter degradation in reef sediments increase by 80%, resulting in elevated hydrogen sulfide concentrations up to 120 \u03bcM. This process also leads to detectable methane emissions from the benthic zone.",
+        "Microbial communities associated with coral surfaces show a 25% increase in overall diversity during hypoxic periods, with several rare taxa becoming temporarily abundant. In parallel, total microbial biomass in reef sediments rises by approximately 15%."
+      ],
+      "enrichment_entities": [
+        "OXYGEN",
+        "ANAEROBIC ORGANIC MATTER DEGRADATION",
+        "MICROBIAL COMMUNITIES"
       ]
     }
   ],

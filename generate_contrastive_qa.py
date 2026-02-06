@@ -712,7 +712,8 @@ async def generate_questions_from_analyses(
     llm: ArgoBridgeLLM,
     max_questions: int = 20,
     enrich_info_pieces: int = 0,
-    enrich_graph_depth: int = 1
+    enrich_graph_depth: int = 1,
+    enrich_max_candidates: int = 50
 ) -> List[Dict]:
     """
     Generate contrastive questions from GASL analysis results with quality filtering.
@@ -730,13 +731,15 @@ async def generate_questions_from_analyses(
         graph=graph,
         llm=llm,
         num_info_pieces=enrich_info_pieces,
-        graph_depth=enrich_graph_depth
+        graph_depth=enrich_graph_depth,
+        max_candidates_to_score=enrich_max_candidates
     )
 
     if enricher.is_enabled():
         print(f"Question Enrichment: ENABLED")
         print(f"  - Info pieces per question: {enrich_info_pieces}")
-        print(f"  - Graph search depth: {enrich_graph_depth}\n")
+        print(f"  - Graph search depth: {enrich_graph_depth}")
+        print(f"  - Max candidates to score: {enrich_max_candidates}\n")
     else:
         print(f"Question Enrichment: DISABLED\n")
 

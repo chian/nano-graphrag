@@ -30,7 +30,8 @@ class QuestionEnricher:
         graph: nx.DiGraph,
         llm: ArgoBridgeLLM,
         num_info_pieces: int = 0,
-        graph_depth: int = 1
+        graph_depth: int = 1,
+        max_candidates_to_score: int = 50
     ):
         """
         Args:
@@ -38,11 +39,14 @@ class QuestionEnricher:
             llm: Language model for validation
             num_info_pieces: Number of distracting facts to add (0 = disabled)
             graph_depth: How many hops to search for candidates (1-3)
+            max_candidates_to_score: Maximum candidates to score with LLM (default: 50)
+                                     This prevents O(n) LLM calls on large graphs.
         """
         self.graph = graph
         self.llm = llm
         self.num_info_pieces = num_info_pieces
         self.graph_depth = graph_depth
+        self.max_candidates_to_score = max_candidates_to_score
 
     def is_enabled(self) -> bool:
         """Check if enrichment is enabled."""
@@ -87,9 +91,14 @@ class QuestionEnricher:
 
         print(f"    Found {len(candidates)} enrichment candidates")
 
-        # Step 2: Score candidates using LLM (always validate for quality)
+        # Step 2: Sample candidates to limit LLM calls
+        sampled_candidates = self._sample_candidates(candidates)
+        if len(sampled_candidates) < len(candidates):
+            print(f"    Sampled {len(sampled_candidates)} candidates for scoring (from {len(candidates)} total)")
+
+        # Step 3: Score sampled candidates using LLM
         scored_candidates = await self._score_candidates(
-            candidates, question, correct_answer, domain
+            sampled_candidates, question, correct_answer, domain
         )
 
         # Step 3: Select top N candidates
@@ -170,6 +179,87 @@ class QuestionEnricher:
             current_level = next_level
 
         return candidates
+
+    def _sample_candidates(self, candidates: List[Dict]) -> List[Dict]:
+        """
+        Sample candidates to limit the number of LLM scoring calls.
+
+        Strategy:
+        1. Prioritize closer candidates (lower depth)
+        2. Ensure diversity across entity types
+        3. Prefer candidates with descriptions (more info for LLM to evaluate)
+
+        Args:
+            candidates: All candidate entities from BFS traversal
+
+        Returns:
+            Sampled subset of candidates (max self.max_candidates_to_score)
+        """
+        if len(candidates) <= self.max_candidates_to_score:
+            return candidates
+
+        # Group by depth
+        by_depth = {}
+        for c in candidates:
+            depth = c.get('depth', 1)
+            if depth not in by_depth:
+                by_depth[depth] = []
+            by_depth[depth].append(c)
+
+        sampled = []
+        remaining_slots = self.max_candidates_to_score
+
+        # Allocate slots proportionally by depth, favoring closer nodes
+        # Depth 1 gets 50%, depth 2 gets 33%, depth 3 gets 17%
+        depth_weights = {1: 0.50, 2: 0.33, 3: 0.17}
+
+        for depth in sorted(by_depth.keys()):
+            if remaining_slots <= 0:
+                break
+
+            depth_candidates = by_depth[depth]
+            weight = depth_weights.get(depth, 0.1)
+            slots_for_depth = max(1, int(self.max_candidates_to_score * weight))
+            slots_for_depth = min(slots_for_depth, remaining_slots, len(depth_candidates))
+
+            # Within each depth, prefer candidates with descriptions
+            # Sort by description length (non-empty first, then longer)
+            depth_candidates_sorted = sorted(
+                depth_candidates,
+                key=lambda x: (len(x.get('description', '')) > 0, len(x.get('description', ''))),
+                reverse=True
+            )
+
+            # Take diverse entity types if possible
+            selected_types = set()
+            depth_sampled = []
+
+            # First pass: one of each entity type
+            for c in depth_candidates_sorted:
+                if len(depth_sampled) >= slots_for_depth:
+                    break
+                etype = c.get('entity_type', 'UNKNOWN')
+                if etype not in selected_types:
+                    depth_sampled.append(c)
+                    selected_types.add(etype)
+
+            # Second pass: fill remaining slots randomly
+            remaining_in_depth = [c for c in depth_candidates_sorted if c not in depth_sampled]
+            if remaining_in_depth and len(depth_sampled) < slots_for_depth:
+                additional = min(slots_for_depth - len(depth_sampled), len(remaining_in_depth))
+                depth_sampled.extend(random.sample(remaining_in_depth, additional))
+
+            sampled.extend(depth_sampled)
+            remaining_slots -= len(depth_sampled)
+
+        # If we still have slots, fill with random from any remaining
+        all_sampled_set = set(id(c) for c in sampled)
+        remaining_candidates = [c for c in candidates if id(c) not in all_sampled_set]
+        if remaining_slots > 0 and remaining_candidates:
+            additional = min(remaining_slots, len(remaining_candidates))
+            sampled.extend(random.sample(remaining_candidates, additional))
+
+        return sampled
 
     async def _score_candidates(
         self,
