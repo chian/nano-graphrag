@@ -11,24 +11,41 @@ from typing import Dict, List, Any, Optional, Tuple
 from dataclasses import dataclass, field
 
 
-# Color scheme for different entity types
-ENTITY_COLORS = {
-    'PATHOGEN': '#e74c3c',           # Red
-    'ANTIMICROBIAL': '#3498db',      # Blue
-    'RESISTANCE_MECHANISM': '#e67e22', # Orange
-    'DIAGNOSTIC_TEST': '#9b59b6',    # Purple
-    'BIOMARKER': '#1abc9c',          # Teal
-    'SPECIMEN': '#95a5a6',           # Gray
-    'METHOD': '#f39c12',             # Yellow
-    'DISEASE': '#c0392b',            # Dark red
-    'GENE': '#27ae60',               # Green
-    'PROTEIN': '#2980b9',            # Dark blue
-    'COMPOUND': '#8e44ad',           # Dark purple
-    'ORGANISM': '#d35400',           # Dark orange
-    'CLINICAL_OUTCOME': '#16a085',   # Dark teal
-    'TREATMENT': '#2ecc71',          # Light green
-    'DEFAULT': '#7f8c8d'             # Default gray
+# Colors pinned by hand for specific types that need a deliberate look.
+# Anything not listed here gets auto-assigned from _AUTO_PALETTE.
+PINNED_COLORS = {
+    'COGNITIVE_FUNCTION': '#00e5ff',  # Bright cyan – user-specified standout
+    'DEFAULT': '#7f8c8d',             # Fallback grey for truly unknown types
 }
+
+# Distinct palette used for auto-assignment (stable across runs via hashlib)
+_AUTO_PALETTE = [
+    '#e74c3c', '#3498db', '#e67e22', '#9b59b6', '#1abc9c',
+    '#f39c12', '#c0392b', '#27ae60', '#2980b9', '#8e44ad',
+    '#d35400', '#16a085', '#2ecc71', '#5c6bc0', '#ab47bc',
+    '#26a69a', '#78909c', '#ff7043', '#66bb6a', '#ffa726',
+    '#ec407a', '#8d6e63', '#ef5350', '#4dd0e1', '#d4e157',
+    '#7e57c2', '#f44336', '#ff5252', '#bdbdbd', '#95a5a6',
+]
+
+# Cache so colors are stable within a session
+_color_cache: dict = {}
+
+
+def get_entity_color(entity_type: str) -> str:
+    """Return a color for *entity_type*, auto-assigning one if needed."""
+    if entity_type in PINNED_COLORS:
+        return PINNED_COLORS[entity_type]
+    if entity_type not in _color_cache:
+        import hashlib
+        digest = int(hashlib.md5(entity_type.encode()).hexdigest(), 16)
+        _color_cache[entity_type] = _AUTO_PALETTE[digest % len(_AUTO_PALETTE)]
+    return _color_cache[entity_type]
+
+
+def build_color_map(entity_types: list) -> dict:
+    """Return {entity_type: hex_color} for every type in *entity_types*."""
+    return {et: get_entity_color(et) for et in entity_types}
 
 # Shape for different entity types
 ENTITY_SHAPES = {
@@ -163,7 +180,7 @@ class GraphLoader:
             included_nodes.add(node_id)
 
             # Get color and shape
-            color = ENTITY_COLORS.get(entity_type, ENTITY_COLORS['DEFAULT'])
+            color = get_entity_color(entity_type)
             shape = ENTITY_SHAPES.get(entity_type, ENTITY_SHAPES['DEFAULT'])
 
             # Calculate size based on importance
@@ -413,7 +430,7 @@ class GraphLoader:
         return f"""
         <div style="max-width: 300px; padding: 8px;">
             <strong>{node_id}</strong><br>
-            <span style="color: {ENTITY_COLORS.get(entity_type, '#666')};">
+            <span style="color: {get_entity_color(entity_type)};">
                 [{entity_type}]
             </span><br>
             <hr style="margin: 4px 0;">

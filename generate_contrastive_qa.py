@@ -539,141 +539,165 @@ Output ONLY a JSON object:
 
 
 
+class ContrastiveAnalyzer:
+    """Analyzes graph for contrastive patterns, sampling fresh nodes each time."""
+
+    def __init__(self, graph: nx.DiGraph, domain_name: str, sample_nodes: int = 20):
+        """Initialize the analyzer with GASL handlers.
+
+        Args:
+            graph: The knowledge graph to analyze
+            domain_name: Domain for contrastive analysis
+            sample_nodes: Number of nodes to randomly sample per analysis (default: 20)
+        """
+        self.graph = graph
+        self.domain_name = domain_name
+        self.sample_nodes = sample_nodes
+        self.all_nodes = list(graph.nodes())
+
+        # Initialize GASL components (reused across samples)
+        self.state_store = StateStore()
+        self.context_store = ContextStore()
+        self.adapter = NetworkXAdapter(graph)
+
+        # Initialize handlers
+        self.alternatives_handler = FindAlternativesHandler(
+            self.state_store, self.context_store, self.adapter, domain_name
+        )
+        self.opposing_handler = FindOpposingHandler(
+            self.state_store, self.context_store, self.adapter, domain_name
+        )
+        self.compare_handler = CompareMechanismsHandler(
+            self.state_store, self.context_store, self.adapter, domain_name
+        )
+        self.competing_handler = FindCompetingHandler(
+            self.state_store, self.context_store, self.adapter, domain_name
+        )
+
+    def sample_and_analyze(self, verbose: bool = False) -> Dict[str, List]:
+        """Sample fresh random nodes and run contrastive analysis.
+
+        Returns:
+            Dict with 'alternatives', 'opposing', 'comparisons', 'competing' lists
+        """
+        analyses = {
+            'alternatives': [],
+            'opposing': [],
+            'comparisons': [],
+            'competing': []
+        }
+
+        # Randomly sample nodes
+        if len(self.all_nodes) <= self.sample_nodes:
+            nodes = self.all_nodes
+        else:
+            nodes = random.sample(self.all_nodes, self.sample_nodes)
+
+        if verbose:
+            print(f"    Sampling {len(nodes)} random nodes for analysis...")
+
+        # Find alternatives
+        for node in nodes:
+            cmd = Command(
+                command_type="FIND_ALTERNATIVES",
+                raw_text=f"FIND_ALTERNATIVES {node} {self.domain_name}",
+                args={"target_entity": node, "result_var": f"alts_{node}"},
+                line_number=0
+            )
+            result = self.alternatives_handler.execute(cmd)
+            if result and result.data:
+                analyses['alternatives'].append({
+                    'target': node,
+                    'alternatives': result.data
+                })
+
+        # Find opposing entities
+        for node in nodes:
+            cmd = Command(
+                command_type="FIND_OPPOSING",
+                raw_text=f"FIND_OPPOSING {node} {self.domain_name}",
+                args={"entity": node, "result_var": f"opp_{node}"},
+                line_number=0
+            )
+            result = self.opposing_handler.execute(cmd)
+            if result and result.data:
+                analyses['opposing'].append({
+                    'entity': node,
+                    'opposing_pairs': result.data
+                })
+
+        # Compare mechanisms (for nodes with alternatives)
+        for alt_analysis in analyses['alternatives'][:10]:
+            target = alt_analysis['target']
+            alternatives = alt_analysis['alternatives']
+
+            if len(alternatives) >= 2:
+                mech1 = alternatives[0]['entity']
+                mech2 = alternatives[1]['entity']
+
+                cmd = Command(
+                    command_type="COMPARE_MECHANISMS",
+                    raw_text=f"COMPARE_MECHANISMS {mech1} {mech2} {target} {self.domain_name}",
+                    args={
+                        "mechanism1": mech1,
+                        "mechanism2": mech2,
+                        "target": target,
+                        "result_var": f"cmp_{mech1}_{mech2}"
+                    },
+                    line_number=0
+                )
+                result = self.compare_handler.execute(cmd)
+                if result and result.data:
+                    analyses['comparisons'].append({
+                        'mechanism1': mech1,
+                        'mechanism2': mech2,
+                        'target': target,
+                        'comparison': result.data
+                    })
+
+        # Find competing entities
+        for node in nodes:
+            cmd = Command(
+                command_type="FIND_COMPETING",
+                raw_text=f"FIND_COMPETING {node} {self.domain_name}",
+                args={"entity": node, "result_var": f"comp_{node}"},
+                line_number=0
+            )
+            result = self.competing_handler.execute(cmd)
+            if result and result.data:
+                analyses['competing'].append({
+                    'entity': node,
+                    'competing_entities': result.data
+                })
+
+        return analyses
+
+
 async def analyze_graph_with_gasl(
     graph: nx.DiGraph,
     domain_name: str,
-    llm: ArgoBridgeLLM
-) -> Dict[str, List]:
-    """Use GASL contrastive commands to analyze the graph."""
+    llm: ArgoBridgeLLM,
+    sample_nodes: int = 20
+) -> ContrastiveAnalyzer:
+    """Create a ContrastiveAnalyzer for the graph.
 
+    Args:
+        graph: The knowledge graph to analyze
+        domain_name: Domain for contrastive analysis
+        llm: Language model instance
+        sample_nodes: Number of nodes to randomly sample per question (default: 20)
+
+    Returns:
+        ContrastiveAnalyzer instance that can sample fresh nodes per question
+    """
     print(f"\n{'='*60}")
-    print(f"Running GASL Contrastive Analysis")
+    print(f"Initializing GASL Contrastive Analyzer")
     print(f"{'='*60}\n")
+    print(f"Graph: {graph.number_of_nodes()} nodes, {graph.number_of_edges()} edges")
+    print(f"Sample size per question: {sample_nodes} nodes")
+    print(f"Nodes will be randomly sampled for each question.\n")
 
-    # Initialize GASL components
-    state_store = StateStore()
-    context_store = ContextStore()
-    adapter = NetworkXAdapter(graph)
-
-    # Initialize handlers
-    alternatives_handler = FindAlternativesHandler(state_store, context_store, adapter, domain_name)
-    opposing_handler = FindOpposingHandler(state_store, context_store, adapter, domain_name)
-    compare_handler = CompareMechanismsHandler(state_store, context_store, adapter, domain_name)
-    competing_handler = FindCompetingHandler(state_store, context_store, adapter, domain_name)
-
-    analyses = {
-        'alternatives': [],
-        'opposing': [],
-        'comparisons': [],
-        'competing': []
-    }
-
-    # Get sample of nodes for analysis
-    nodes = list(graph.nodes())[:20]  # Analyze first 20 nodes
-
-    print(f"Analyzing {len(nodes)} nodes for contrastive patterns...\n")
-
-    # Find alternatives
-    print("1. Finding alternative mechanisms...")
-    for node in nodes:
-        cmd = Command(
-            command_type="FIND_ALTERNATIVES",
-            raw_text=f"FIND_ALTERNATIVES {node} {domain_name}",
-            args={"target_entity": node, "result_var": f"alts_{node}"},
-            line_number=0
-        )
-
-        result = alternatives_handler.execute(cmd)
-        if result and result.data:
-            analyses['alternatives'].append({
-                'target': node,
-                'alternatives': result.data
-            })
-
-    print(f"  Found {len(analyses['alternatives'])} nodes with alternatives\n")
-
-    # Find opposing entities
-    print("2. Finding opposing effects...")
-    for node in nodes:
-        cmd = Command(
-            command_type="FIND_OPPOSING",
-            raw_text=f"FIND_OPPOSING {node} {domain_name}",
-            args={"entity": node, "result_var": f"opp_{node}"},
-            line_number=0
-        )
-
-        result = opposing_handler.execute(cmd)
-        if result and result.data:
-            analyses['opposing'].append({
-                'entity': node,
-                'opposing_pairs': result.data
-            })
-
-    print(f"  Found {len(analyses['opposing'])} nodes with opposing effects\n")
-
-    # Compare mechanisms (for nodes with alternatives)
-    print("3. Comparing mechanisms...")
-    for alt_analysis in analyses['alternatives'][:10]:  # Limit to 10 comparisons
-        target = alt_analysis['target']
-        alternatives = alt_analysis['alternatives']
-
-        if len(alternatives) >= 2:
-            mech1 = alternatives[0]['entity']
-            mech2 = alternatives[1]['entity']
-
-            cmd = Command(
-                command_type="COMPARE_MECHANISMS",
-                raw_text=f"COMPARE_MECHANISMS {mech1} {mech2} {target} {domain_name}",
-                args={
-                    "mechanism1": mech1,
-                    "mechanism2": mech2,
-                    "target": target,
-                    "result_var": f"cmp_{mech1}_{mech2}"
-                },
-                line_number=0
-            )
-
-            result = compare_handler.execute(cmd)
-            if result and result.data:
-                analyses['comparisons'].append({
-                    'mechanism1': mech1,
-                    'mechanism2': mech2,
-                    'target': target,
-                    'comparison': result.data
-                })
-
-    print(f"  Generated {len(analyses['comparisons'])} mechanism comparisons\n")
-
-    # Find competing entities
-    print("4. Finding competing entities...")
-    for node in nodes:
-        cmd = Command(
-            command_type="FIND_COMPETING",
-            raw_text=f"FIND_COMPETING {node} {domain_name}",
-            args={"entity": node, "result_var": f"comp_{node}"},
-            line_number=0
-        )
-
-        result = competing_handler.execute(cmd)
-        if result and result.data:
-            analyses['competing'].append({
-                'entity': node,
-                'competing_entities': result.data
-            })
-
-    print(f"  Found {len(analyses['competing'])} nodes with competing entities\n")
-
-    print(f"{'='*60}")
-    print(f"GASL Analysis Complete")
-    print(f"{'='*60}\n")
-    print(f"Summary:")
-    print(f"  - Alternatives: {len(analyses['alternatives'])}")
-    print(f"  - Opposing: {len(analyses['opposing'])}")
-    print(f"  - Comparisons: {len(analyses['comparisons'])}")
-    print(f"  - Competing: {len(analyses['competing'])}")
-    print()
-
-    return analyses
+    return ContrastiveAnalyzer(graph, domain_name, sample_nodes)
 
 
 def get_entity_context(graph: nx.DiGraph, entity_name: str, max_length: int = 500) -> str:
@@ -706,7 +730,7 @@ def get_entity_context(graph: nx.DiGraph, entity_name: str, max_length: int = 50
 
 
 async def generate_questions_from_analyses(
-    analyses: Dict[str, List],
+    analyzer: ContrastiveAnalyzer,
     graph: nx.DiGraph,
     domain_name: str,
     llm: ArgoBridgeLLM,
@@ -716,10 +740,10 @@ async def generate_questions_from_analyses(
     enrich_max_candidates: int = 50
 ) -> List[Dict]:
     """
-    Generate contrastive questions from GASL analysis results with quality filtering.
+    Generate contrastive questions with fresh random node sampling per question.
 
-    Uses random selection for diversity and retries to get enough high-quality questions.
-    Similar pattern to generate_reasoning_qa_gasl.py.
+    For each question attempt, samples fresh random nodes from the graph,
+    runs GASL contrastive analysis, and generates a question from the results.
     """
 
     print(f"\n{'='*60}")
@@ -750,29 +774,29 @@ async def generate_questions_from_analyses(
     attempts = 0
     max_attempts = max_questions * 3  # Try up to 3x to get enough good questions
 
-    # Combine all analyses into a pool for random selection
-    analysis_pool = []
-
-    for analysis in analyses["alternatives"]:
-        analysis_pool.append(("alternatives", analysis))
-
-    for analysis in analyses["comparisons"]:
-        analysis_pool.append(("comparison", analysis))
-
-    for analysis in analyses["competing"]:
-        analysis_pool.append(("competing", analysis))
-
-    if not analysis_pool:
-        print("No contrastive patterns found to generate questions from.\n")
-        return questions
-
-    print(f"Total analysis pool size: {len(analysis_pool)}")
-    print(f"Target: {max_questions} high-quality questions\n")
+    print(f"Target: {max_questions} high-quality questions")
+    print(f"Sampling {analyzer.sample_nodes} fresh random nodes per question attempt\n")
 
     while len(questions) < max_questions and attempts < max_attempts:
         attempts += 1
 
-        # Random selection for diversity (same as generate_reasoning_qa_gasl.py)
+        # Sample fresh random nodes and run analysis for this question
+        analyses = analyzer.sample_and_analyze(verbose=False)
+
+        # Build analysis pool from fresh sample
+        analysis_pool = []
+        for analysis in analyses["alternatives"]:
+            analysis_pool.append(("alternatives", analysis))
+        for analysis in analyses["comparisons"]:
+            analysis_pool.append(("comparison", analysis))
+        for analysis in analyses["competing"]:
+            analysis_pool.append(("competing", analysis))
+
+        if not analysis_pool:
+            print(f"Attempt {attempts}/{max_attempts}: No contrastive patterns in sample, resampling...")
+            continue
+
+        # Random selection from this sample's pool
         analysis_type, analysis = random.choice(analysis_pool)
 
         # Get entity context
@@ -931,18 +955,19 @@ async def main(args):
     # Initialize LLM
     llm = ArgoBridgeLLM()
 
-    # Run GASL contrastive analysis
-    analyses = await analyze_graph_with_gasl(graph, args.domain, llm)
+    # Create contrastive analyzer (samples fresh nodes per question)
+    analyzer = await analyze_graph_with_gasl(graph, args.domain, llm, sample_nodes=args.sample_nodes)
 
     # Generate questions (with optional enrichment)
     questions = await generate_questions_from_analyses(
-        analyses=analyses,
+        analyzer=analyzer,
         graph=graph,
         domain_name=args.domain,
         llm=llm,
         max_questions=args.max_questions,
         enrich_info_pieces=args.enrich_info_pieces,
-        enrich_graph_depth=args.enrich_graph_depth
+        enrich_graph_depth=args.enrich_graph_depth,
+        enrich_max_candidates=args.enrich_max_candidates
     )
 
     # Save output
@@ -953,11 +978,11 @@ async def main(args):
         'domain': args.domain,
         'graph_file': str(graph_path),
         'num_questions': len(questions),
-        'enrichment_settings': {
-            'enabled': args.enrich_info_pieces > 0,
-            'info_pieces': args.enrich_info_pieces,
-            'graph_depth': args.enrich_graph_depth
-        },
+        'sample_nodes': args.sample_nodes,
+        'enrich_info_pieces': args.enrich_info_pieces,
+        'enrich_graph_depth': args.enrich_graph_depth,
+        'enrich_max_candidates': args.enrich_max_candidates,
+        'max_questions': args.max_questions,
         'questions': questions
     }
 
@@ -1005,7 +1030,19 @@ if __name__ == "__main__":
         "--enrich-graph-depth",
         type=int,
         default=1,
-        help="Graph traversal depth for finding enrichment candidates (1-3, default: 1)"
+        help="Graph traversal depth for finding enrichment candidates (default: 1)"
+    )
+    parser.add_argument(
+        "--enrich-max-candidates",
+        type=int,
+        default=50,
+        help="Max candidates to score per question for enrichment (default: 50)"
+    )
+    parser.add_argument(
+        "--sample-nodes",
+        type=int,
+        default=20,
+        help="Number of nodes to randomly sample for contrastive analysis (default: 20)"
     )
 
     args = parser.parse_args()

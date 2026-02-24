@@ -29,34 +29,62 @@ class ArgoBridgeLLM:
 
         # Control debug output
         self.debug = os.getenv("LLM_DEBUG", "false").lower() == "true"
-    
+
+        # Optional streaming callback: callable(token: str) -> None
+        # When set, call() streams tokens via this function AND returns the full text.
+        self.stream_callback: Optional[callable] = None
+
     async def call_async(self, prompt: str) -> str:
-        """Make async LLM call."""
+        """Make async LLM call, streaming tokens if stream_callback is set."""
         if self.debug:
             print(f"DEBUG: LLM PROMPT SENT:\n{prompt}\n")
             print("="*80)
         try:
-            response = await self.client.chat.completions.create(
-                model=self.model,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=self.temperature,
-                max_tokens=self.max_tokens,
-                user="chia"
-            )
-            result = response.choices[0].message.content
-            if self.debug:
-                print(f"DEBUG: LLM RESPONSE RECEIVED:\n{result}\n")
-                print("="*80)
-            return result
+            if self.stream_callback is not None:
+                # Streaming path
+                stream = await self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=self.temperature,
+                    max_tokens=self.max_tokens,
+                    user="chia",
+                    stream=True,
+                )
+                full_text = ""
+                async for chunk in stream:
+                    token = (chunk.choices[0].delta.content or "") if chunk.choices else ""
+                    if token:
+                        full_text += token
+                        try:
+                            self.stream_callback(token)
+                        except Exception:
+                            pass
+                if self.debug:
+                    print(f"DEBUG: LLM RESPONSE (streamed):\n{full_text}\n")
+                    print("="*80)
+                return full_text
+            else:
+                # Non-streaming path (original behaviour)
+                response = await self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=self.temperature,
+                    max_tokens=self.max_tokens,
+                    user="chia"
+                )
+                result = response.choices[0].message.content
+                if self.debug:
+                    print(f"DEBUG: LLM RESPONSE RECEIVED:\n{result}\n")
+                    print("="*80)
+                return result
         except Exception as e:
             raise LLMError(f"LLM call failed: {e}", "argo_bridge", self.model)
-    
+
     def call(self, prompt: str) -> str:
-        """Make synchronous LLM call."""
+        """Make synchronous LLM call (streams if stream_callback is set)."""
         try:
             # Check if we're in an async context
             loop = asyncio.get_running_loop()
-            # If we're in an async context, we need to use a different approach
             import concurrent.futures
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 future = executor.submit(asyncio.run, self.call_async(prompt))

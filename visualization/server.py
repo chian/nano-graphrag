@@ -9,16 +9,21 @@ Provides:
 
 import json
 import os
+import threading
+import uuid
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 from flask import Flask, render_template, jsonify, request, send_from_directory
 from flask_socketio import SocketIO, emit
 
-from .graph_loader import GraphLoader, find_graphs_in_directory
+from .graph_loader import GraphLoader, find_graphs_in_directory, build_color_map
+from .query_engine import RagQueryEngine, GaslQueryEngine
 
 
 # Global state
 _current_loader: Optional[GraphLoader] = None
+_rag_engine: Optional[RagQueryEngine] = None
+_gasl_engine: Optional[GaslQueryEngine] = None
 _gasl_state: Dict[str, Any] = {
     'active': False,
     'current_command': None,
@@ -53,6 +58,8 @@ def create_app(graph_path: Optional[str] = None) -> Flask:
     # Load initial graph if provided
     if graph_path:
         _current_loader = GraphLoader(graph_path)
+        _rag_engine = RagQueryEngine(_current_loader)
+        _gasl_engine = GaslQueryEngine(_current_loader, socketio)
 
     # ============== Routes ==============
 
@@ -84,7 +91,7 @@ def create_app(graph_path: Optional[str] = None) -> Flask:
     @app.route('/api/graph/load', methods=['POST'])
     def load_graph():
         """Load a new graph from a file path."""
-        global _current_loader
+        global _current_loader, _rag_engine, _gasl_engine
 
         data = request.json
         path = data.get('path')
@@ -94,6 +101,8 @@ def create_app(graph_path: Optional[str] = None) -> Flask:
 
         try:
             _current_loader = GraphLoader(path)
+            _rag_engine = RagQueryEngine(_current_loader)
+            _gasl_engine = GaslQueryEngine(_current_loader, socketio)
             return jsonify({
                 'success': True,
                 'stats': {
@@ -105,6 +114,49 @@ def create_app(graph_path: Optional[str] = None) -> Flask:
             })
         except Exception as e:
             return jsonify({'error': str(e)}), 400
+
+    @app.route('/api/query', methods=['POST'])
+    def run_query():
+        """Answer a question using RAG (Mode 1) or GASL (Mode 2)."""
+        global _rag_engine, _gasl_engine
+
+        if _current_loader is None or _current_loader.graph is None:
+            return jsonify({'error': 'No graph loaded'}), 404
+
+        data = request.json or {}
+        question = data.get('question', '').strip()
+        mode = data.get('mode', 'rag').lower()
+
+        if not question:
+            return jsonify({'error': 'No question provided'}), 400
+
+        if mode == 'rag':
+            if _rag_engine is None:
+                _rag_engine = RagQueryEngine(_current_loader)
+            result = _rag_engine.query(question)
+            answer = _rag_engine.generate_answer(question, result['context'])
+            return jsonify({
+                'mode': 'rag',
+                'nodes': result['nodes'],
+                'neighbor_nodes': result['neighbor_nodes'],
+                'edges': result['edges'],
+                'answer': answer,
+            })
+
+        elif mode == 'gasl':
+            if _gasl_engine is None:
+                _gasl_engine = GaslQueryEngine(_current_loader, socketio)
+            job_id = str(uuid.uuid4())
+            t = threading.Thread(
+                target=_gasl_engine.run,
+                args=(question, job_id),
+                daemon=True,
+            )
+            t.start()
+            return jsonify({'mode': 'gasl', 'job_id': job_id})
+
+        else:
+            return jsonify({'error': f'Unknown mode: {mode}'}), 400
 
     @app.route('/api/graph/subgraph/<node_id>')
     def get_subgraph(node_id: str):
@@ -170,6 +222,14 @@ def create_app(graph_path: Optional[str] = None) -> Flask:
             'avg_importance': _current_loader.stats.avg_importance,
             'connected_components': _current_loader.stats.connected_components
         })
+
+    @app.route('/api/colors')
+    def get_colors():
+        """Return the color map for all entity types in the loaded graph."""
+        if _current_loader is None or _current_loader.stats is None:
+            return jsonify({})
+        entity_types = list(_current_loader.stats.entity_types.keys())
+        return jsonify(build_color_map(entity_types))
 
     @app.route('/api/gasl/state')
     def get_gasl_state():

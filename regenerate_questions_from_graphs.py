@@ -85,6 +85,7 @@ class QuestionRegenerator:
         enrich_graph_depth: int = 3,
         enrich_max_candidates: int = 50,
         max_questions_per_paper: int = 20,
+        sample_nodes: int = 20,
         output_suffix: str = "_v2"
     ):
         """
@@ -97,6 +98,7 @@ class QuestionRegenerator:
             enrich_graph_depth: Graph traversal depth for distractors (default: 3)
             enrich_max_candidates: Max candidates to score per question (default: 50)
             max_questions_per_paper: Max questions to generate per paper (default: 20)
+            sample_nodes: Number of nodes to randomly sample for analysis (default: 20)
             output_suffix: Suffix for output files (default: '_v2')
         """
         self.base_directory = Path(base_directory)
@@ -105,6 +107,7 @@ class QuestionRegenerator:
         self.enrich_graph_depth = enrich_graph_depth
         self.enrich_max_candidates = enrich_max_candidates
         self.max_questions_per_paper = max_questions_per_paper
+        self.sample_nodes = sample_nodes
         self.output_suffix = output_suffix
         self.interrupted = False
         self.llm = None
@@ -202,20 +205,14 @@ class QuestionRegenerator:
             # Load domain schema
             schema = load_domain_schema(self.domain)
 
-            # Run GASL contrastive analysis
-            print(f"  Running GASL contrastive analysis...")
-            analyses = await analyze_graph_with_gasl(graph, self.domain, self.llm)
-
-            if not analyses:
-                print(f"  ⚠ No analyses generated, skipping")
-                return None
-
-            print(f"  ✓ Generated {len(analyses)} analyses")
+            # Create contrastive analyzer (samples fresh nodes per question)
+            print(f"  Initializing GASL contrastive analyzer (sample_nodes={self.sample_nodes})...")
+            analyzer = await analyze_graph_with_gasl(graph, self.domain, self.llm, sample_nodes=self.sample_nodes)
 
             # Generate questions with new enrichment settings
             print(f"  Generating questions (distractors={self.enrich_info_pieces}, depth={self.enrich_graph_depth}, max_candidates={self.enrich_max_candidates})...")
             questions = await generate_questions_from_analyses(
-                analyses=analyses,
+                analyzer=analyzer,
                 graph=graph,
                 domain_name=self.domain,
                 llm=self.llm,
@@ -429,6 +426,13 @@ async def main():
     )
 
     parser.add_argument(
+        "--sample-nodes",
+        type=int,
+        default=20,
+        help="Number of nodes to randomly sample for contrastive analysis (default: 20)"
+    )
+
+    parser.add_argument(
         "--output-suffix",
         type=str,
         default="_v2",
@@ -469,6 +473,7 @@ async def main():
         enrich_graph_depth=args.enrich_graph_depth,
         enrich_max_candidates=args.enrich_max_candidates,
         max_questions_per_paper=args.max_questions,
+        sample_nodes=args.sample_nodes,
         output_suffix=args.output_suffix
     )
 

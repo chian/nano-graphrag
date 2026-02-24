@@ -349,6 +349,9 @@ Return refined extraction as JSON:
         Normalize a type value to match schema, handling case differences.
         Returns the normalized type if found, otherwise returns original.
         """
+        if type_value is None:
+            return None
+
         if type_value in valid_types:
             return type_value
 
@@ -387,7 +390,10 @@ Return refined extraction as JSON:
                 if isinstance(e, dict):
                     # Normalize entity_type to match schema
                     if 'entity_type' in e:
-                        e['entity_type'] = self._normalize_type(e['entity_type'], self.entity_types)
+                        normalized_type = self._normalize_type(e['entity_type'], self.entity_types)
+                        if normalized_type is None:
+                            continue  # Skip entities with null type
+                        e['entity_type'] = normalized_type
                     normalized_entities.append(e)
             entities = normalized_entities
         else:

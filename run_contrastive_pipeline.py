@@ -256,7 +256,9 @@ async def main(args):
         "--output", str(qa_output),
         "--max-questions", str(args.num_questions),
         "--enrich-info-pieces", str(args.enrich_info_pieces),
-        "--enrich-graph-depth", str(args.enrich_graph_depth)
+        "--enrich-graph-depth", str(args.enrich_graph_depth),
+        "--enrich-max-candidates", str(args.enrich_max_candidates),
+        "--sample-nodes", str(args.sample_nodes)
     ]
 
     run_command(cmd, "STAGE 6: Generate Contrastive Questions")
@@ -382,7 +384,19 @@ if __name__ == "__main__":
         "--enrich-graph-depth",
         type=int,
         default=1,
-        help="Graph traversal depth for finding enrichment candidates (1-3, default: 1)"
+        help="Graph traversal depth for finding enrichment candidates (default: 1)"
+    )
+    parser.add_argument(
+        "--enrich-max-candidates",
+        type=int,
+        default=50,
+        help="Max candidates to score per question for enrichment (default: 50)"
+    )
+    parser.add_argument(
+        "--sample-nodes",
+        type=int,
+        default=20,
+        help="Number of nodes to randomly sample for contrastive analysis (default: 20)"
     )
 
     args = parser.parse_args()

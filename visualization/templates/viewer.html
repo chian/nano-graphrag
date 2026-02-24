@@ -389,6 +389,149 @@
             height: 12px;
             border-radius: 3px;
         }
+
+        /* Question Panel */
+        .question-panel {
+            margin-top: 16px;
+            padding: 12px;
+            background: #1a1a2e;
+            border-radius: 8px;
+            border: 1px solid #0f3460;
+        }
+
+        .question-panel h3 {
+            font-size: 12px;
+            color: #888;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+        }
+
+        .question-textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #0f3460;
+            border-radius: 4px;
+            background: #16213e;
+            color: #eee;
+            font-size: 12px;
+            resize: vertical;
+            min-height: 64px;
+            font-family: inherit;
+            box-sizing: border-box;
+        }
+
+        .question-textarea:focus {
+            outline: none;
+            border-color: #e94560;
+        }
+
+        .mode-row {
+            display: flex;
+            gap: 6px;
+            margin-top: 8px;
+            align-items: center;
+        }
+
+        .mode-btn {
+            flex: 1;
+            padding: 6px 0;
+            border-radius: 4px;
+            border: 1px solid #0f3460;
+            background: #16213e;
+            color: #eee;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .mode-btn.active {
+            background: #0f3460;
+            border-color: #e94560;
+            color: #e94560;
+        }
+
+        .ask-btn {
+            padding: 6px 14px;
+            background: #e94560;
+            border: none;
+            border-radius: 4px;
+            color: white;
+            font-size: 12px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .ask-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .ask-btn:hover:not(:disabled) {
+            background: #c73e54;
+        }
+
+        .query-status {
+            margin-top: 8px;
+            font-size: 11px;
+            color: #ffa726;
+            min-height: 16px;
+        }
+
+        .gasl-log {
+            margin-top: 6px;
+            max-height: 80px;
+            overflow-y: auto;
+            font-size: 10px;
+            font-family: monospace;
+            color: #888;
+            background: #0f1728;
+            border-radius: 4px;
+            padding: 4px 6px;
+            display: none;
+        }
+
+        .answer-box {
+            margin-top: 8px;
+            max-height: 180px;
+            overflow-y: auto;
+            font-size: 12px;
+            line-height: 1.5;
+            color: #eee;
+            background: #0f1728;
+            border-radius: 4px;
+            padding: 8px;
+            display: none;
+            border-left: 3px solid #e94560;
+        }
+
+        .answer-clear {
+            margin-top: 6px;
+            font-size: 11px;
+            color: #888;
+            cursor: pointer;
+            text-decoration: underline;
+            display: none;
+        }
+
+        .answer-clear:hover { color: #eee; }
+
+        /* Back-to-full-graph button – shown only while in subgraph mode */
+        .back-btn {
+            padding: 8px 16px;
+            background: #0f3460;
+            border: 1px solid #e94560;
+            border-radius: 6px;
+            color: #e94560;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            transition: all 0.2s;
+            display: none;   /* hidden by default */
+        }
+        .back-btn:hover {
+            background: #e94560;
+            color: #fff;
+        }
     </style>
 </head>
 <body>
@@ -444,6 +587,24 @@
                 <div id="legendItems"></div>
             </div>
 
+            <!-- Question Panel -->
+            <div class="question-panel">
+                <h3>Ask a Question</h3>
+                <textarea class="question-textarea" id="questionInput"
+                          placeholder="e.g. What cognitive functions are impaired by respiratory disease?"></textarea>
+                <div class="mode-row">
+                    <button class="mode-btn active" id="modeRag" onclick="setMode('rag')">RAG</button>
+                    <button class="mode-btn" id="modeGasl" onclick="setMode('gasl')">GASL</button>
+                    <button class="ask-btn" id="askBtn" onclick="askQuestion()">Ask ▶</button>
+                </div>
+                <div class="query-status" id="queryStatus"></div>
+                <div class="gasl-log" id="gaslLog"></div>
+                <div class="answer-box" id="answerBox"></div>
+                <span class="answer-clear" id="answerClear" onclick="clearQueryHighlights()">
+                    Clear highlights &amp; answer
+                </span>
+            </div>
+
             <!-- Node Details -->
             <div class="node-details" id="nodeDetails">
                 <h3>Node Details</h3>
@@ -459,6 +620,7 @@
 
             <!-- Controls -->
             <div class="controls">
+                <button class="back-btn" id="backToFullBtn" onclick="backToFullGraph()">&#8592; Full Graph</button>
                 <button class="control-btn" onclick="fitGraph()">Fit View</button>
                 <button class="control-btn" onclick="togglePhysics()" id="physicsBtn">Physics: ON</button>
                 <button class="control-btn" onclick="resetFilters()">Reset Filters</button>
@@ -485,24 +647,19 @@
         let activeFilters = new Set();
         let currentGraphData = null;
 
-        // Entity colors (must match server)
-        const ENTITY_COLORS = {
-            'PATHOGEN': '#e74c3c',
-            'ANTIMICROBIAL': '#3498db',
-            'RESISTANCE_MECHANISM': '#e67e22',
-            'DIAGNOSTIC_TEST': '#9b59b6',
-            'BIOMARKER': '#1abc9c',
-            'SPECIMEN': '#95a5a6',
-            'METHOD': '#f39c12',
-            'DISEASE': '#c0392b',
-            'GENE': '#27ae60',
-            'PROTEIN': '#2980b9',
-            'COMPOUND': '#8e44ad',
-            'ORGANISM': '#d35400',
-            'CLINICAL_OUTCOME': '#16a085',
-            'TREATMENT': '#2ecc71',
-            'DEFAULT': '#7f8c8d'
-        };
+        // Entity colors – populated at runtime from /api/colors (auto-assigned on server)
+        let ENTITY_COLORS = {};
+
+        async function fetchColors() {
+            try {
+                const response = await fetch('/api/colors');
+                if (response.ok) {
+                    ENTITY_COLORS = await response.json();
+                }
+            } catch (e) {
+                console.error('Could not fetch color map:', e);
+            }
+        }
 
         // Initialize Socket.IO
         const socket = io();
@@ -524,8 +681,9 @@
         });
 
         // Initialize on load
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', async () => {
             initializeNetwork();
+            await fetchColors();
             fetchGraph();
             setupEventListeners();
         });
@@ -684,6 +842,7 @@
                 if (result.error) {
                     alert('Error: ' + result.error);
                 } else {
+                    await fetchColors();
                     await fetchGraph();
                 }
             } catch (error) {
@@ -721,7 +880,7 @@
                     <div class="node-detail-value"><strong>${details.id}</strong></div>
 
                     <div class="node-detail-label">Type</div>
-                    <div class="node-detail-value" style="color: ${ENTITY_COLORS[details.entity_type] || '#888'}">
+                    <div class="node-detail-value" style="color: ${ENTITY_COLORS[details.entity_type] || ENTITY_COLORS['DEFAULT'] || '#888'}">
                         ${details.entity_type}
                     </div>
 
@@ -846,7 +1005,7 @@
                     div.className = 'search-result';
                     div.innerHTML = `
                         <div class="search-result-name">${result.id}</div>
-                        <div class="search-result-type" style="color: ${ENTITY_COLORS[result.entity_type] || '#888'}">
+                        <div class="search-result-type" style="color: ${ENTITY_COLORS[result.entity_type] || ENTITY_COLORS['DEFAULT'] || '#888'}">
                             ${result.entity_type}
                         </div>
                     `;
@@ -877,7 +1036,330 @@
             document.getElementById('loadingOverlay').classList.toggle('hidden', !show);
         }
 
-        // GASL Visualization
+        // ── Question Panel ─────────────────────────────────────────────────────
+        let _queryMode = 'rag';
+        let _activeJobId = null;
+        let _originalNodeColors = {};   // nodeId → original color object
+        let _originalEdgeColors = {};   // edgeId → original color object
+        let _subgraphMode = false;      // true while showing query subgraph
+        let _lastQueryNodes = [];       // node IDs from last query (for back button)
+        let _lastQueryColor = '#f1c40f';
+        let _gaslNodeSet = new Set();   // accumulated GASL nodes (for progressive build)
+
+        function setMode(mode) {
+            _queryMode = mode;
+            document.getElementById('modeRag').classList.toggle('active', mode === 'rag');
+            document.getElementById('modeGasl').classList.toggle('active', mode === 'gasl');
+            document.getElementById('gaslLog').style.display = 'none';
+        }
+
+        async function askQuestion() {
+            const question = document.getElementById('questionInput').value.trim();
+            if (!question) return;
+
+            // Reset UI
+            clearQueryHighlights();
+            document.getElementById('queryStatus').textContent =
+                _queryMode === 'rag' ? 'Searching…' : 'Starting GASL traversal…';
+            document.getElementById('answerBox').style.display = 'none';
+            document.getElementById('answerClear').style.display = 'none';
+            document.getElementById('askBtn').disabled = true;
+
+            if (_queryMode === 'gasl') {
+                document.getElementById('gaslLog').style.display = 'block';
+                document.getElementById('gaslLog').innerHTML = '';
+            }
+
+            try {
+                const resp = await fetch('/api/query', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({question, mode: _queryMode}),
+                });
+                const data = await resp.json();
+
+                if (data.error) {
+                    document.getElementById('queryStatus').textContent = 'Error: ' + data.error;
+                    document.getElementById('askBtn').disabled = false;
+                    return;
+                }
+
+                if (data.mode === 'rag') {
+                    // Show only the relevant subgraph, highlighted in gold
+                    showSubgraph(data.nodes, data.edges, '#f1c40f');
+                    showAnswer(data.answer);
+                    document.getElementById('queryStatus').textContent =
+                        `Found ${data.nodes.length} relevant nodes`;
+                    document.getElementById('askBtn').disabled = false;
+                } else {
+                    // GASL: wait for SocketIO events
+                    _activeJobId = data.job_id;
+                    document.getElementById('queryStatus').textContent =
+                        'GASL running… (this may take a minute)';
+                    // askBtn re-enabled in query_complete handler
+                }
+            } catch (e) {
+                document.getElementById('queryStatus').textContent = 'Request failed: ' + e.message;
+                document.getElementById('askBtn').disabled = false;
+            }
+        }
+
+        function highlightQueryNodes(nodeIds, color, opacity) {
+            if (!nodeIds || nodeIds.length === 0) return;
+            const updates = nodeIds.map(id => {
+                const existing = nodesDataset.get(id);
+                if (!existing) return null;
+                // Save original colors (only once)
+                if (!_originalNodeColors[id]) {
+                    _originalNodeColors[id] = existing.color || {};
+                }
+                return {
+                    id,
+                    color: {
+                        background: color,
+                        border: '#ffffff',
+                        highlight: {background: color, border: '#ffffff'},
+                    },
+                    opacity: opacity !== undefined ? opacity : 1.0,
+                    borderWidth: 3,
+                };
+            }).filter(Boolean);
+            if (updates.length) nodesDataset.update(updates);
+        }
+
+        function highlightQueryEdges(edges, color) {
+            if (!edges || edges.length === 0) return;
+            const updates = [];
+            edges.forEach(([src, tgt]) => {
+                const matches = edgesDataset.get({
+                    filter: e => e.from === src && e.to === tgt
+                });
+                matches.forEach(edge => {
+                    if (!_originalEdgeColors[edge.id]) {
+                        _originalEdgeColors[edge.id] = edge.color || {};
+                    }
+                    updates.push({
+                        id: edge.id,
+                        color: {color, highlight: color, opacity: 1.0},
+                        width: 3,
+                    });
+                });
+            });
+            if (updates.length) edgesDataset.update(updates);
+        }
+
+        function clearQueryHighlights() {
+            // If in subgraph mode, restore full graph first
+            if (_subgraphMode) {
+                _subgraphMode = false;
+                document.getElementById('backToFullBtn').style.display = 'none';
+                // Reload full graph from cached data (no server round-trip)
+                if (currentGraphData) updateGraph(currentGraphData);
+                _originalNodeColors = {};
+                _originalEdgeColors = {};
+            } else {
+                // Just restore colors in place
+                const nodeUpdates = Object.entries(_originalNodeColors).map(([id, color]) => ({
+                    id, color, opacity: 1.0, borderWidth: 2,
+                }));
+                if (nodeUpdates.length) nodesDataset.update(nodeUpdates);
+
+                const edgeUpdates = Object.entries(_originalEdgeColors).map(([id, color]) => ({
+                    id, color,
+                }));
+                if (edgeUpdates.length) edgesDataset.update(edgeUpdates);
+
+                _originalNodeColors = {};
+                _originalEdgeColors = {};
+            }
+
+            _activeJobId = null;
+            _lastQueryNodes = [];
+            _gaslNodeSet.clear();
+
+            document.getElementById('answerBox').style.display = 'none';
+            document.getElementById('answerClear').style.display = 'none';
+            document.getElementById('queryStatus').textContent = '';
+            document.getElementById('gaslLog').style.display = 'none';
+            document.getElementById('gaslLog').innerHTML = '';
+        }
+
+        /**
+         * Filter the vis.js display to only the queried nodes and their
+         * interconnecting edges, then highlight them.  The full graph data
+         * stays in currentGraphData so backToFullGraph() can restore it.
+         */
+        function showSubgraph(nodeIds, queryEdges, color) {
+            if (!currentGraphData || nodeIds.length === 0) {
+                // Fallback: just highlight in place
+                highlightQueryNodes(nodeIds, color);
+                highlightQueryEdges(queryEdges, color);
+                return;
+            }
+
+            _lastQueryNodes = nodeIds;
+            _lastQueryColor = color;
+
+            const nodeIdSet = new Set(nodeIds);
+
+            // Pull matching node objects from the full cached graph
+            const subNodes = currentGraphData.nodes
+                .filter(n => nodeIdSet.has(n.id))
+                .map(n => ({
+                    ...n,
+                    color: {
+                        background: color,
+                        border: '#ffffff',
+                        highlight: {background: color, border: '#ffffff'},
+                    },
+                    borderWidth: 3,
+                    opacity: 1.0,
+                }));
+
+            // Include edges where both endpoints are in the result set
+            const subEdges = currentGraphData.edges.filter(
+                e => nodeIdSet.has(e.from) && nodeIdSet.has(e.to)
+            );
+
+            // Swap dataset contents to the filtered view
+            nodesDataset.clear();
+            edgesDataset.clear();
+            nodesDataset.add(subNodes);
+            edgesDataset.add(subEdges);
+
+            _subgraphMode = true;
+            document.getElementById('backToFullBtn').style.display = 'inline-block';
+
+            // Reset colour maps – nothing to restore inside subgraph
+            _originalNodeColors = {};
+            _originalEdgeColors = {};
+
+            setTimeout(() => network.fit({animation: true}), 300);
+        }
+
+        /**
+         * Restore the full graph display (with the last query highlights
+         * still applied so the user can see which nodes were relevant).
+         */
+        function backToFullGraph() {
+            if (!currentGraphData) return;
+
+            // Rebuild datasets from the full cached graph
+            updateGraph(currentGraphData);
+
+            // Re-apply the last query highlights on top of the full graph
+            if (_lastQueryNodes.length) {
+                // Give updateGraph a tick to finish, then highlight
+                setTimeout(() => highlightQueryNodes(_lastQueryNodes, _lastQueryColor), 100);
+            }
+
+            _subgraphMode = false;
+            document.getElementById('backToFullBtn').style.display = 'none';
+        }
+
+        function showAnswer(text) {
+            const box = document.getElementById('answerBox');
+            box.textContent = text;
+            box.style.display = 'block';
+            document.getElementById('answerClear').style.display = 'block';
+        }
+
+        /**
+         * Incrementally add newly-discovered GASL nodes to the live subgraph view.
+         * Called on each gasl_highlight event so the graph builds up in real time.
+         */
+        function addNodesToLiveSubgraph(newNodeIds, color) {
+            if (!currentGraphData || !newNodeIds.length) return;
+
+            // Filter to nodes not already displayed
+            const truly_new = newNodeIds.filter(id => !_gaslNodeSet.has(id));
+            if (!truly_new.length) return;
+
+            truly_new.forEach(id => _gaslNodeSet.add(id));
+            _lastQueryNodes = [..._gaslNodeSet];
+
+            // Fetch node objects from cached full graph
+            const nodeMap = new Map(currentGraphData.nodes.map(n => [n.id, n]));
+            const nodesToAdd = truly_new
+                .filter(id => nodeMap.has(id) && !nodesDataset.get(id))
+                .map(id => ({
+                    ...nodeMap.get(id),
+                    color: {background: color, border: '#ffffff',
+                            highlight: {background: color, border: '#ffffff'}},
+                    borderWidth: 3,
+                    opacity: 1.0,
+                }));
+
+            if (nodesToAdd.length) nodesDataset.add(nodesToAdd);
+
+            // Add any edges that now have both endpoints in the view
+            const edgesToAdd = currentGraphData.edges.filter(
+                e => _gaslNodeSet.has(e.from) && _gaslNodeSet.has(e.to)
+                     && !edgesDataset.get(e.id)
+            );
+            if (edgesToAdd.length) edgesDataset.add(edgesToAdd);
+
+            // Enter subgraph mode on first hit
+            if (!_subgraphMode) {
+                nodesDataset.clear();
+                edgesDataset.clear();
+                nodesDataset.add(nodesToAdd);
+                _subgraphMode = true;
+                _lastQueryColor = color;
+                document.getElementById('backToFullBtn').style.display = 'inline-block';
+            }
+        }
+
+        // SocketIO handlers for GASL streaming
+        socket.on('gasl_step', (data) => {
+            if (data.job_id !== _activeJobId) return;
+            document.getElementById('queryStatus').textContent =
+                `GASL: ${data.command_type} – ${data.status}`;
+            const log = document.getElementById('gaslLog');
+            log.innerHTML += `<div>${data.command}</div>`;
+            log.scrollTop = log.scrollHeight;
+        });
+
+        socket.on('gasl_highlight', (data) => {
+            if (data.job_id !== _activeJobId) return;
+            if (data.nodes && data.nodes.length) {
+                // Build subgraph incrementally – orange while GASL is walking
+                addNodesToLiveSubgraph(data.nodes, '#ff9800');
+            }
+        });
+
+        socket.on('query_complete', (data) => {
+            if (data.job_id !== _activeJobId) return;
+            // Re-colour all touched nodes green (final answer)
+            if (data.nodes && data.nodes.length) {
+                // If subgraph is already visible, just recolour in place
+                if (_subgraphMode) {
+                    const updates = data.nodes.map(id => {
+                        if (!nodesDataset.get(id)) return null;
+                        return {
+                            id,
+                            color: {background: '#4caf50', border: '#ffffff',
+                                    highlight: {background: '#66bb6a', border: '#ffffff'}},
+                            borderWidth: 3,
+                        };
+                    }).filter(Boolean);
+                    if (updates.length) nodesDataset.update(updates);
+                    _lastQueryColor = '#4caf50';
+                } else {
+                    showSubgraph(data.nodes, [], '#4caf50');
+                }
+            }
+            const iters = data.iterations || 0;
+            document.getElementById('queryStatus').textContent =
+                `Done in ${iters} iteration${iters !== 1 ? 's' : ''} · ${data.nodes ? data.nodes.length : 0} nodes touched`;
+            // Show final answer (replaces any streamed partial)
+            showAnswer(data.answer);
+            document.getElementById('askBtn').disabled = false;
+            _activeJobId = null;
+            _gaslNodeSet.clear();
+        });
+
+        // ── GASL Visualization (existing system highlight) ─────────────────────
         function updateGaslVisualization(state) {
             const statusEl = document.getElementById('gaslStatus');
             const textEl = document.getElementById('gaslStatusText');
