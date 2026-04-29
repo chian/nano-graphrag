@@ -1,0 +1,95 @@
+# HAIQU Q2: Exposure
+# Question: What pathogens are present in hospital air, at what concentrations,
+# and under what environmental conditions?
+
+domain_name: "HAIQU Aerosol Exposure"
+domain_description: "Entities and relationships needed to characterize what pathogens exist in hospital air, their concentrations, particle sizes, viability, and the environmental conditions that modulate them."
+
+entity_types:
+  AIRBORNE_PATHOGEN:
+    description: "A pathogen in its aerosolized or airborne form, as detected in a sample"
+    examples: ["SARS-CoV-2", "M. tuberculosis", "influenza A H3N2", "Aspergillus fumigatus", "RSV", "MRSA"]
+
+  AEROSOL_SAMPLE:
+    description: "A single air-sampling event at a specific location and time"
+    examples: ["ICU return-air 30-min cyclone collection 2026-04-12 14:00", "OR exhaust impactor run"]
+
+  CONCENTRATION_MEASURE:
+    description: "A quantitative airborne concentration for a pathogen in a sample"
+    examples: ["12 copies/m³", "300 CFU/m³", "below LOD (<5 copies/m³)", "0.4 PFU/m³"]
+
+  PARTICLE_SIZE:
+    description: "The aerodynamic particle size class carrying the pathogen"
+    examples: ["<1 µm (fine aerosol)", "1-5 µm (respirable)", "5-10 µm (inspirable)", ">10 µm (droplet)"]
+
+  VIABILITY:
+    description: "Whether sampled organisms retain infectivity"
+    examples: ["culturable viable", "RNA-positive / viability unknown", "UV-inactivated", "heat-inactivated"]
+
+  ENVIRONMENTAL_CONDITION:
+    description: "An environmental parameter measured at the time and place of sampling"
+    examples: ["RH 28%", "RH 65%", "T 22°C", "CO₂ 1200 ppm", "effective ACH 4.2"]
+
+  SAMPLING_METHOD:
+    description: "The air-sampling instrument or technique used"
+    examples: ["BioSpot-VIVAS", "SKC cyclone", "Andersen impactor", "electrostatic precipitator", "gelatin filter"]
+
+  HOSPITAL_SETTING:
+    description: "The clinical area where sampling took place"
+    examples: ["ICU", "emergency department triage", "operating room", "negative-pressure isolation room", "general ward"]
+
+  DECAY_RATE:
+    description: "Rate of airborne concentration loss over time (biological or physical)"
+    examples: ["t½ = 18 min at RH 65%", "k = 0.04 min⁻¹", "1.5-log reduction per hour"]
+
+relationship_types:
+  CONTAINS:
+    description: "An aerosol sample contains detectable quantities of a pathogen"
+    inverse: "FOUND_IN"
+    examples: ["Aerosol sample CONTAINS SARS-CoV-2 at 12 copies/m³"]
+
+  HAS_CONCENTRATION:
+    description: "A sample has a measured concentration for a specific pathogen"
+    inverse: "CONCENTRATION_IN"
+    examples: ["Aerosol sample HAS_CONCENTRATION 12 copies/m³ for SARS-CoV-2"]
+
+  HAS_SIZE:
+    description: "An airborne pathogen is predominantly associated with a particle size class"
+    inverse: "SIZE_FOR"
+    examples: ["M. tuberculosis HAS_SIZE 1-5 µm (respirable fraction)"]
+
+  HAS_VIABILITY:
+    description: "A sampled pathogen has a characterized viability state"
+    inverse: "VIABILITY_OF"
+    examples: ["SARS-CoV-2 in sample HAS_VIABILITY culturable viable"]
+
+  COLLECTED_IN:
+    description: "An aerosol sample was collected in a specific hospital setting"
+    inverse: "SETTING_FOR"
+    examples: ["Aerosol sample COLLECTED_IN ICU"]
+
+  COLLECTED_BY:
+    description: "A sample was collected using a specific sampling method"
+    inverse: "METHOD_FOR"
+    examples: ["Aerosol sample COLLECTED_BY SKC cyclone"]
+
+  MEASURED_UNDER:
+    description: "A sample was taken under specific environmental conditions"
+    inverse: "CONDITIONS_FOR"
+    examples: ["Aerosol sample MEASURED_UNDER RH 28%, T 22°C"]
+
+  AFFECTS_VIABILITY:
+    description: "An environmental condition modulates pathogen viability"
+    inverse: "VIABILITY_AFFECTED_BY"
+    examples: ["RH 80% AFFECTS_VIABILITY SARS-CoV-2 (increased decay)"]
+
+  HAS_DECAY_RATE:
+    description: "A pathogen under specific conditions has a measured airborne decay rate"
+    inverse: "DECAY_RATE_OF"
+    examples: ["SARS-CoV-2 at RH 65% HAS_DECAY_RATE t½ = 18 min"]
+
+  CO_DETECTED_WITH:
+    description: "Two pathogens were detected simultaneously in the same sample"
+    inverse: "CO_DETECTED_WITH"
+    symmetric: true
+    examples: ["Influenza A CO_DETECTED_WITH SARS-CoV-2 in ward sample"]

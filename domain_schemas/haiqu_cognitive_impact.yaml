@@ -1,0 +1,98 @@
+# HAIQU Q6: Cognition
+# Question: How do respiratory infections affect cognitive function in
+# healthcare workers?
+
+domain_name: "HAIQU Cognitive Impact"
+domain_description: "Entities and relationships needed to characterize how respiratory infections — including acute illness and long-term sequelae — affect cognitive function in healthcare workers, drawing on neuropsychological, epidemiological, and mechanistic evidence."
+
+entity_types:
+  RESPIRATORY_INFECTION:
+    description: "The infectious disease causing or associated with cognitive effects"
+    examples: ["COVID-19", "influenza A H3N2", "SARS", "MERS", "RSV", "M. tuberculosis (CNS)"]
+
+  DISEASE_SEVERITY:
+    description: "Clinical severity category of the infection"
+    examples: ["mild (not hospitalized)", "moderate (hospitalized, no ICU)", "severe (ICU)", "critical (ventilated)", "long COVID"]
+
+  HEALTHCARE_WORKER_COHORT:
+    description: "The study population of healthcare workers"
+    examples: ["ICU nurses n=200", "ED physicians n=150", "hospital-wide HCW cohort n=5000", "frontline COVID workers"]
+
+  COGNITIVE_DOMAIN:
+    description: "A specific cognitive function assessed"
+    examples: ["executive function", "working memory", "processing speed", "sustained attention", "verbal fluency", "episodic memory"]
+
+  NEUROPSYCH_TEST:
+    description: "A validated instrument measuring a cognitive domain"
+    examples: ["Trail Making Test B", "Digit Span Backward", "Stroop Color-Word", "MoCA", "CogState battery", "N-back task"]
+
+  EFFECT_SIZE:
+    description: "A quantitative measure of cognitive change attributed to infection"
+    examples: ["d = -0.42 on processing speed vs controls", "8-point IQ-equivalent decline", "OR 1.84 for cognitive complaints at 6 months"]
+
+  FOLLOW_UP_TIMEPOINT:
+    description: "The time after infection at which cognition is assessed"
+    examples: ["acute (during illness)", "1 month post-infection", "3 months", "6 months", "12 months", "2 years"]
+
+  CONFOUNDING_FACTOR:
+    description: "A variable that may explain cognitive change independently of infection"
+    examples: ["pre-existing depression", "sleep deprivation / shift work", "prior head injury", "baseline cognitive reserve", "ICU-acquired weakness"]
+
+  BIOLOGICAL_MECHANISM:
+    description: "A proposed mechanistic pathway linking infection to cognitive deficit"
+    examples: ["neuroinflammation (IL-6, TNF-α)", "hypoxia during acute illness", "microclotting / cerebrovascular", "direct viral neuroinvasion", "persistent immune activation"]
+
+  OCCUPATIONAL_EXPOSURE:
+    description: "A work-related factor that modulates infection risk or cognitive impact"
+    examples: ["ICU assignment", "night shifts >3 per week", "PPE availability", "cumulative COVID exposures"]
+
+relationship_types:
+  AFFECTS:
+    description: "A respiratory infection affects a specific cognitive domain in a cohort"
+    inverse: "AFFECTED_BY"
+    examples: ["COVID-19 AFFECTS executive function in ICU nurse cohort"]
+
+  MEASURED_BY:
+    description: "A cognitive domain is measured using a specific neuropsychological test"
+    inverse: "MEASURES"
+    examples: ["Processing speed MEASURED_BY Trail Making Test A"]
+
+  HAS_EFFECT_SIZE:
+    description: "A cognitive change has a quantified effect size in a study"
+    inverse: "EFFECT_SIZE_FOR"
+    examples: ["COVID-19 effect on working memory HAS_EFFECT_SIZE d = -0.42"]
+
+  OBSERVED_AT:
+    description: "An effect is measured at a specific follow-up timepoint"
+    inverse: "TIMEPOINT_FOR"
+    examples: ["Cognitive decline OBSERVED_AT 6 months post-infection"]
+
+  VARIES_WITH_SEVERITY:
+    description: "An effect size differs by disease severity category"
+    inverse: "SEVERITY_MODULATES"
+    examples: ["Processing speed deficit VARIES_WITH_SEVERITY (greater in ICU vs mild COVID)"]
+
+  CONFOUNDED_BY:
+    description: "A cognitive effect may be partially explained by a confounding factor"
+    inverse: "CONFOUNDS"
+    examples: ["Cognitive complaint CONFOUNDED_BY shift-work sleep deprivation"]
+
+  MEDIATED_BY:
+    description: "A biological mechanism mediates the infection-cognition relationship"
+    inverse: "MEDIATES"
+    examples: ["COVID-19 cognitive impact MEDIATED_BY neuroinflammation (IL-6)"]
+
+  MODULATED_BY_EXPOSURE:
+    description: "An occupational exposure modulates the severity or likelihood of cognitive impact"
+    inverse: "EXPOSURE_MODULATES"
+    examples: ["Cognitive deficit MODULATED_BY_EXPOSURE cumulative ICU COVID exposure"]
+
+  COMPARED_TO:
+    description: "A cognitive outcome in an infected cohort is compared to a control cohort"
+    inverse: "COMPARISON_FOR"
+    examples: ["HCW COVID cohort cognitive scores COMPARED_TO matched unexposed HCWs"]
+
+  PERSISTS_AT:
+    description: "A cognitive deficit that was present acutely persists at a later timepoint"
+    inverse: "PERSISTENCE_TIMEPOINT"
+    examples: ["Working memory deficit PERSISTS_AT 12 months"]

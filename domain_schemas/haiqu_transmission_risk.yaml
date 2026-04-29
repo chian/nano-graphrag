@@ -1,0 +1,107 @@
+# HAIQU Q5: Risk
+# Question: What models predict real-time disease transmission risk from
+# environmental measurements?
+
+domain_name: "HAIQU Transmission Risk"
+domain_description: "Entities and relationships needed to evaluate transmission risk models that take environmental measurements as inputs and produce actionable risk estimates, including their parameters, validation, and connections to biosensor outputs and engineering controls."
+
+entity_types:
+  TRANSMISSION_MODEL:
+    description: "A model or framework that predicts airborne infection risk"
+    examples: ["Wells-Riley", "modified Wells-Riley (Rudnick-Milton)", "QMRA dose-response", "agent-based hospital model", "CFD-coupled digital twin"]
+
+  MODEL_PARAMETER:
+    description: "A named input parameter with a value, unit, and source"
+    examples: ["quanta generation rate q = 1.0 quanta/h (Skagit choir)", "breathing rate p = 10 m³/h", "exposure duration = 45 min", "dose-response slope k = 1.5×10⁻³"]
+
+  ENVIRONMENTAL_INPUT:
+    description: "A real-time or measured environmental variable fed into the model"
+    examples: ["CO₂ as rebreathed-air proxy", "airborne pathogen concentration from biosensor", "ACH from HVAC telemetry", "occupancy from badge reader"]
+
+  RISK_SCORE:
+    description: "A model output quantifying transmission probability or expected cases"
+    examples: ["P(infection) = 0.04 over 30 min", "expected secondary cases 0.6 per shift", "risk index 7.2 (scale 0-10)"]
+
+  CLINICAL_OUTCOME:
+    description: "An observed infection event used to validate model predictions"
+    examples: ["HAI attributed to ICU-12 ward cluster", "secondary case in healthcare worker cohort", "outbreak attack rate 18% in ED"]
+
+  HOSPITAL_ZONE:
+    description: "The spatial context where risk is calculated"
+    examples: ["ICU room 12", "ED waiting area", "OR during AGP", "ward bay C"]
+
+  AIRBORNE_PATHOGEN:
+    description: "The infectious agent whose transmission risk is being modeled"
+    examples: ["SARS-CoV-2", "M. tuberculosis", "influenza A"]
+
+  ENGINEERING_CONTROL:
+    description: "An intervention whose effect the model evaluates"
+    examples: ["UV-C active", "HEPA on high", "ACH doubled", "N95 masking"]
+
+  SCENARIO:
+    description: "A defined set of conditions for a model run, often counterfactual"
+    examples: ["baseline no controls", "UV-C active in ICU", "AGP with N95", "doubled ACH during outbreak"]
+
+  VALIDATION_RESULT:
+    description: "A quantitative comparison of model predictions to observed outcomes"
+    examples: ["AUC 0.81 vs HAI events Q1 2026", "calibration slope 0.92", "predicted vs observed attack rate: 19% vs 18%"]
+
+  ALERT:
+    description: "A triggered warning when risk exceeds a threshold"
+    examples: ["HIGH-RISK alert ICU-12 at 14:32", "AMBER alert ED waiting 18:00"]
+
+relationship_types:
+  USES_PARAMETER:
+    description: "A model uses a named input parameter"
+    inverse: "PARAMETER_OF"
+    examples: ["Wells-Riley USES_PARAMETER quanta generation rate q"]
+
+  TAKES_INPUT:
+    description: "A model takes an environmental measurement as a real-time input"
+    inverse: "INPUT_FOR"
+    examples: ["Wells-Riley TAKES_INPUT CO₂ proxy for rebreathed fraction"]
+
+  PRODUCES:
+    description: "A model run produces a risk score"
+    inverse: "PRODUCED_BY"
+    examples: ["Wells-Riley run PRODUCES P(infection) = 0.04"]
+
+  TRIGGERS:
+    description: "A risk score above a threshold triggers an alert"
+    inverse: "TRIGGERED_BY"
+    examples: ["P(infection) > 0.05 TRIGGERS AMBER alert"]
+
+  APPLIED_TO:
+    description: "A model is applied to a specific hospital zone"
+    inverse: "MODELED_BY"
+    examples: ["Wells-Riley APPLIED_TO ICU room 12"]
+
+  MODELS_PATHOGEN:
+    description: "A model estimates risk for a specific pathogen"
+    inverse: "RISK_MODELED_BY"
+    examples: ["Wells-Riley MODELS_PATHOGEN M. tuberculosis"]
+
+  EVALUATES_CONTROL:
+    description: "A model scenario evaluates the risk impact of an engineering control"
+    inverse: "EVALUATED_IN"
+    examples: ["Scenario UV-C-active EVALUATES_CONTROL upper-room UV-C"]
+
+  VALIDATED_AGAINST:
+    description: "A model is validated against observed clinical outcomes"
+    inverse: "VALIDATES"
+    examples: ["Wells-Riley VALIDATED_AGAINST HAI cluster Q1 2026"]
+
+  HAS_VALIDATION:
+    description: "A model has a validation result with quantitative metrics"
+    inverse: "VALIDATION_OF"
+    examples: ["Wells-Riley HAS_VALIDATION AUC 0.81"]
+
+  PARAMETER_SOURCED_FROM:
+    description: "A parameter value is derived from a published study or dataset"
+    inverse: "INFORMS_PARAMETER"
+    examples: ["q = 1.0 quanta/h PARAMETER_SOURCED_FROM Skagit choir outbreak analysis"]
+
+  OUTPERFORMS:
+    description: "One model achieves better predictive accuracy than another on the same data"
+    inverse: "OUTPERFORMED_BY"
+    examples: ["CFD model OUTPERFORMS well-mixed Wells-Riley for zonal prediction"]

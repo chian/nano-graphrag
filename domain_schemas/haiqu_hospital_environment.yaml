@@ -1,0 +1,95 @@
+# HAIQU Q3: Environment
+# Question: How does hospital room configuration and HVAC design affect
+# airborne pathogen distribution?
+
+domain_name: "HAIQU Hospital Environment"
+domain_description: "Entities and relationships needed to understand how hospital physical layout and air-handling infrastructure create the conditions for airborne pathogen movement and accumulation."
+
+entity_types:
+  HOSPITAL_ZONE:
+    description: "A functional clinical area with defined air-handling characteristics"
+    examples: ["ICU", "emergency department", "operating room", "airborne infection isolation room (AIIR)", "corridor", "anteroom"]
+
+  HVAC_UNIT:
+    description: "An air-handling unit serving one or more clinical zones"
+    examples: ["AHU-1 serving ED", "dedicated OR exhaust system", "recirculating FCU"]
+
+  AIR_PATH:
+    description: "A duct or flow path connecting HVAC units and zones"
+    examples: ["supply duct to OR-3", "return main from ICU", "toilet exhaust stack"]
+
+  ACH_RATE:
+    description: "Air changes per hour attributed to a zone"
+    examples: ["6 ACH outdoor air", "12 ACH total recirculated", "20 ACH (AIIR requirement)"]
+
+  PRESSURE_RELATIONSHIP:
+    description: "Static-pressure differential between a zone and its surroundings"
+    examples: ["negative pressure (-2.5 Pa vs corridor)", "positive pressure (OR)", "neutral"]
+
+  AIR_DISTRIBUTION_PATTERN:
+    description: "How air moves within a room as characterized by tracer gas or CFD"
+    examples: ["displacement ventilation", "mixing ventilation", "short-circuit", "dead zone", "recirculation loop"]
+
+  TRACER_GAS:
+    description: "An inert gas used to characterize air movement in studies"
+    examples: ["SF6", "CO2 pulse", "N2O"]
+
+  AIRBORNE_PATHOGEN:
+    description: "A pathogen whose spatial distribution is shaped by the built environment"
+    examples: ["SARS-CoV-2", "M. tuberculosis", "Aspergillus spores"]
+
+  OCCUPANCY_LOAD:
+    description: "Number and type of occupants in a zone, affecting CO2 and pathogen shedding"
+    examples: ["2 ICU nurses + 1 patient continuous", "ED peak 40 patients + 20 staff 18:00-22:00"]
+
+relationship_types:
+  SERVES:
+    description: "An HVAC unit supplies/returns air to a zone"
+    inverse: "SERVED_BY"
+    examples: ["AHU-1 SERVES emergency department"]
+
+  HAS_ACH:
+    description: "A zone has a specified ACH rate"
+    inverse: "ACH_FOR"
+    examples: ["AIIR HAS_ACH 12 ACH total"]
+
+  HAS_PRESSURE:
+    description: "A zone has a defined pressure relationship to adjacent spaces"
+    inverse: "PRESSURE_FOR"
+    examples: ["AIIR HAS_PRESSURE negative pressure -2.5 Pa"]
+
+  ADJACENT_TO:
+    description: "Two zones share a physical boundary with potential for air transfer"
+    inverse: "ADJACENT_TO"
+    symmetric: true
+    examples: ["AIIR ADJACENT_TO anteroom"]
+
+  CONNECTS_TO:
+    description: "An air path connects two zones or units"
+    inverse: "CONNECTED_BY"
+    examples: ["Return duct CONNECTS_TO AHU-1 and ICU"]
+
+  HAS_DISTRIBUTION_PATTERN:
+    description: "A zone has a characterized air distribution pattern"
+    inverse: "PATTERN_FOR"
+    examples: ["OR-3 HAS_DISTRIBUTION_PATTERN mixing ventilation"]
+
+  PATTERN_MEASURED_BY:
+    description: "An air distribution pattern was characterized using a tracer gas"
+    inverse: "USED_TO_MEASURE"
+    examples: ["Short-circuit pattern PATTERN_MEASURED_BY SF6 tracer"]
+
+  ACH_AFFECTS:
+    description: "ACH rate affects pathogen concentration in a zone"
+    inverse: "AFFECTED_BY_ACH"
+    examples: ["12 ACH ACH_AFFECTS M. tuberculosis concentration (reduces)"]
+
+  PRESSURE_CONTAINS:
+    description: "A pressure relationship contains pathogen spread from one zone to another"
+    inverse: "CONTAINED_BY_PRESSURE"
+    examples: ["Negative pressure PRESSURE_CONTAINS M. tuberculosis in AIIR"]
+
+  OCCUPANCY_INCREASES:
+    description: "Occupancy load increases pathogen shedding or CO2 in a zone"
+    inverse: "INCREASED_BY_OCCUPANCY"
+    examples: ["Peak ED occupancy OCCUPANCY_INCREASES airborne viral load"]

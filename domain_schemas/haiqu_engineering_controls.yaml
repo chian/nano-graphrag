@@ -1,0 +1,95 @@
+# HAIQU Q4: Control
+# Question: Which engineering controls reduce airborne pathogen exposure
+# and by how much?
+
+domain_name: "HAIQU Engineering Controls"
+domain_description: "Entities and relationships needed to evaluate which engineering and operational interventions reduce airborne pathogen burden in hospital settings, and the evidence for their effectiveness."
+
+entity_types:
+  ENGINEERING_CONTROL:
+    description: "An engineering or operational measure to reduce airborne pathogen exposure"
+    examples: ["upper-room UV-C", "in-duct UV-C", "HEPA portable air cleaner", "MERV-13 filter upgrade", "increased outdoor-air ACH", "negative-pressure isolation", "source-control masking", "AGP procedural delay"]
+
+  DOSE_OR_RATE:
+    description: "Quantitative operating parameter of a control"
+    examples: ["17 mJ/cm² UV-C", "12 ACH outdoor air", "HEPA CADR 350 cfm", "MERV-13 (85% efficiency at 1-3 µm)"]
+
+  AIRBORNE_PATHOGEN:
+    description: "The pathogen or pathogen class the control targets"
+    examples: ["M. tuberculosis", "SARS-CoV-2", "influenza A", "Aspergillus spores", "airborne Gram-positive bacteria"]
+
+  EFFECTIVENESS_MEASURE:
+    description: "Quantified reduction in pathogen concentration or infection risk"
+    examples: ["1.5-log reduction viable M. tuberculosis", "80% reduction airborne SARS-CoV-2 within 30 min", "67% reduction HAI rate"]
+
+  HOSPITAL_ZONE:
+    description: "The clinical area where the control is deployed"
+    examples: ["ICU", "emergency department waiting", "AIIR", "operating room", "entire ward"]
+
+  VALIDATION_STUDY:
+    description: "A study providing evidence for control effectiveness"
+    examples: ["Nardell 2008 UV-C TB RCT", "Lindsley 2021 HEPA COVID ward", "Blachere 2022 UV-C aerosol chamber"]
+
+  COST_PROXY:
+    description: "Capital or operating cost associated with a control"
+    examples: ["~$3,000 per UV-C fixture installed", "$0.50 per N95 respirator", "15% HVAC energy increase"]
+
+  COMPLIANCE_RATE:
+    description: "Observed adherence to an operational control or protocol"
+    examples: ["91% N95 use during AGPs", "78% hand hygiene compliance"]
+
+  ADVERSE_EFFECT:
+    description: "An unintended negative consequence of a control"
+    examples: ["UV-C eye/skin exposure risk if misaligned", "increased HVAC energy cost", "N95 discomfort causing removal"]
+
+relationship_types:
+  APPLIED_TO:
+    description: "A control is deployed in a specific hospital zone"
+    inverse: "HAS_CONTROL"
+    examples: ["Upper-room UV-C APPLIED_TO ICU"]
+
+  TARGETS:
+    description: "A control is specifically aimed at reducing a pathogen or class"
+    inverse: "TARGETED_BY"
+    examples: ["UV-C TARGETS M. tuberculosis aerosols"]
+
+  HAS_DOSE:
+    description: "A control operates at a specific dose or rate"
+    inverse: "DOSE_OF"
+    examples: ["UV-C fixture HAS_DOSE 17 mJ/cm²"]
+
+  REDUCES:
+    description: "A control reduces pathogen concentration or infection risk by a measured amount"
+    inverse: "REDUCED_BY"
+    examples: ["HEPA REDUCES SARS-CoV-2 airborne by 80% within 30 min"]
+
+  VALIDATED_BY:
+    description: "A control's effectiveness is established by a study"
+    inverse: "VALIDATES"
+    examples: ["UV-C efficacy VALIDATED_BY Nardell 2008"]
+
+  INCURS_COST:
+    description: "A control has an associated cost"
+    inverse: "COST_OF"
+    examples: ["UV-C installation INCURS_COST ~$3,000 per fixture"]
+
+  HAS_COMPLIANCE:
+    description: "An operational control has an observed compliance rate"
+    inverse: "COMPLIANCE_FOR"
+    examples: ["N95 policy HAS_COMPLIANCE 91% during AGPs"]
+
+  HAS_ADVERSE_EFFECT:
+    description: "A control has a documented adverse or unintended consequence"
+    inverse: "ADVERSE_EFFECT_OF"
+    examples: ["UV-C HAS_ADVERSE_EFFECT eye/skin exposure risk"]
+
+  OUTPERFORMS:
+    description: "One control achieves greater reduction than another against the same target"
+    inverse: "OUTPERFORMED_BY"
+    examples: ["HEPA OUTPERFORMS MERV-13 for sub-micron Aspergillus spores"]
+
+  COMPLEMENTS:
+    description: "Two controls together provide greater reduction than either alone"
+    inverse: "COMPLEMENTS"
+    symmetric: true
+    examples: ["UV-C COMPLEMENTS increased ACH for TB control"]

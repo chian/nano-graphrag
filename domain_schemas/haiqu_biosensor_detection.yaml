@@ -1,0 +1,102 @@
+# HAIQU Q1: Detection
+# Question: Can microfluidic droplet CRISPR biosensors detect pathogenic agents
+# in hospital air, and at what limits?
+
+domain_name: "HAIQU Biosensor Detection"
+domain_description: "Entities and relationships needed to answer whether CRISPR-based microfluidic biosensors can detect airborne pathogens in hospital settings, including the detection chemistry, target pathogens, performance limits, and validation evidence."
+
+entity_types:
+  BIOSENSOR_PLATFORM:
+    description: "A biosensor device or system designed to detect pathogens in air samples"
+    examples: ["microfluidic droplet CRISPR biosensor", "digital droplet PCR air sampler", "lateral-flow LAMP cartridge"]
+
+  CAS_VARIANT:
+    description: "A CRISPR effector enzyme used as the detection mechanism"
+    examples: ["Cas13a (LwaCas13a)", "Cas12a (LbCas12a)", "Cas13b"]
+
+  GUIDE_RNA:
+    description: "A targeting guide RNA designed against a specific pathogen sequence"
+    examples: ["SARS-CoV-2 N-gene crRNA", "M. tuberculosis IS6110 crRNA", "influenza A PB2 crRNA"]
+
+  AMPLIFICATION_METHOD:
+    description: "Isothermal or thermal amplification step used before or coupled to CRISPR detection"
+    examples: ["RPA (recombinase polymerase amplification)", "RT-LAMP", "PCR", "NASBA", "no amplification (direct)"]
+
+  AIRBORNE_PATHOGEN:
+    description: "A pathogen being detected in its airborne form"
+    examples: ["SARS-CoV-2", "Mycobacterium tuberculosis", "influenza A", "Aspergillus fumigatus", "RSV"]
+
+  LIMIT_OF_DETECTION:
+    description: "The minimum detectable quantity with statistical confidence"
+    examples: ["10 copies/m³", "50 CFU/m³", "1 PFU/reaction", "100 aM"]
+
+  SPECIFICITY_PROFILE:
+    description: "Cross-reactivity and false-positive characterization against a panel"
+    examples: ["no cross-reactivity with SARS-CoV-1", "weak signal on related coronaviruses", "99.8% specificity vs 50-pathogen panel"]
+
+  SAMPLE_PREP_STEP:
+    description: "A processing step applied to air sample before detection"
+    examples: ["cyclone impaction", "RNA extraction", "protein denaturation", "elution into buffer", "no prep (direct to assay)"]
+
+  ASSAY_VALIDATION:
+    description: "A validation study establishing performance characteristics"
+    examples: ["bench validation with spiked aerosols", "field validation in hospital ED", "clinical specimen comparison study"]
+
+  ASSAY_RUN:
+    description: "A single execution of the detection assay on a specific sample"
+    examples: ["cartridge run on ICU air sample 2026-04-12", "ddPCR plate run 007"]
+
+  REPORTER_SIGNAL:
+    description: "The measurable signal produced when the assay detects its target"
+    examples: ["fluorescent cleavage signal", "colorimetric readout", "electrochemical signal", "lateral flow band"]
+
+relationship_types:
+  DETECTS:
+    description: "A biosensor platform detects a specific airborne pathogen"
+    inverse: "DETECTED_BY"
+    examples: ["Microfluidic CRISPR biosensor DETECTS SARS-CoV-2", "ddPCR DETECTS M. tuberculosis"]
+
+  USES_VARIANT:
+    description: "A platform uses a specific Cas variant as its detection enzyme"
+    inverse: "USED_IN"
+    examples: ["CRISPR biosensor USES_VARIANT Cas13a"]
+
+  USES_GUIDE:
+    description: "A platform targets a pathogen via a specific guide RNA"
+    inverse: "GUIDE_FOR"
+    examples: ["CRISPR biosensor USES_GUIDE SARS-CoV-2 N-gene crRNA"]
+
+  USES_AMPLIFICATION:
+    description: "A platform uses an amplification method before or during detection"
+    inverse: "AMPLIFICATION_FOR"
+    examples: ["CRISPR biosensor USES_AMPLIFICATION RPA"]
+
+  REQUIRES_PREP:
+    description: "A platform requires a sample preparation step before the assay"
+    inverse: "PREP_FOR"
+    examples: ["Biosensor REQUIRES_PREP RNA extraction"]
+
+  HAS_LOD:
+    description: "A platform has a measured or claimed limit of detection for a pathogen"
+    inverse: "LOD_OF"
+    examples: ["CRISPR biosensor HAS_LOD 10 copies/m³ for SARS-CoV-2"]
+
+  HAS_SPECIFICITY:
+    description: "A platform has a specificity profile against a defined reference panel"
+    inverse: "SPECIFICITY_OF"
+    examples: ["CRISPR biosensor HAS_SPECIFICITY no cross-reactivity with SARS-CoV-1"]
+
+  VALIDATED_BY:
+    description: "A platform's performance is established by a validation study"
+    inverse: "VALIDATES"
+    examples: ["CRISPR biosensor VALIDATED_BY field study at Phoenix ED"]
+
+  PRODUCES_SIGNAL:
+    description: "A platform produces a specific type of reporter signal on positive detection"
+    inverse: "SIGNAL_OF"
+    examples: ["Cas13a assay PRODUCES_SIGNAL fluorescent cleavage"]
+
+  OUTPERFORMS:
+    description: "One platform achieves better detection performance than another on the same target"
+    inverse: "OUTPERFORMED_BY"
+    examples: ["CRISPR-RPA OUTPERFORMS PCR on speed for field deployment"]

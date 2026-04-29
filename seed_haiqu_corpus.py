@@ -72,10 +72,10 @@ class SearchQuery:
 
 @dataclass
 class PaperGroup:
-    """A topic-cohesive group of queries + a destination folder name."""
-    name: str                           # folder-safe slug
-    description: str
-    schema_alignment: List[str]         # which domain_schemas/* this feeds
+    """One HAIQU grant question class + its search queries + its schema."""
+    name: str                    # folder-safe slug (also the schema name)
+    question: str                # the specific HAIQU question this answers
+    schema: str                  # exactly one domain_schema name
     queries: List[SearchQuery] = field(default_factory=list)
 
 
@@ -90,126 +90,155 @@ class PaperGroup:
 
 GROUPS: List[PaperGroup] = [
     PaperGroup(
-        name="bioaerosols_and_air_sampling",
-        description=(
-            "Bioaerosol sampling instrumentation, airborne pathogen detection in "
-            "indoor / hospital air, particle size + viability biology."
+        name="haiqu_biosensor_detection",
+        question=(
+            "Can microfluidic droplet CRISPR biosensors detect pathogenic agents "
+            "in hospital air, and at what limits?"
         ),
-        schema_alignment=["air_quality_exposure", "infectious_disease"],
+        schema="haiqu_biosensor_detection",
         queries=[
             SearchQuery(
-                "bioaerosol sampler hospital airborne pathogen detection "
-                "site:pubmed.ncbi.nlm.nih.gov OR site:ncbi.nlm.nih.gov/pmc "
-                "OR site:nature.com"
+                "microfluidic droplet CRISPR Cas13 airborne pathogen detection "
+                "limit of detection site:pubmed.ncbi.nlm.nih.gov OR site:nature.com OR site:cell.com"
             ),
             SearchQuery(
-                "cyclone impactor air sampling SARS-CoV-2 hospital "
-                "site:biorxiv.org OR site:medrxiv.org "
-                "OR site:pubmed.ncbi.nlm.nih.gov",
-                tbs="qdr:y",
-                notes="time-windowed past-year preprints+pubs",
-            ),
-            SearchQuery(
-                "aerosol viability respiratory virus relative humidity decay "
-                "site:pubmed.ncbi.nlm.nih.gov OR site:nature.com OR site:cell.com"
-            ),
-            SearchQuery(
-                "particle size distribution respiratory droplets aerosol indoor "
-                "site:pubmed.ncbi.nlm.nih.gov OR site:nature.com"
-            ),
-            SearchQuery(
-                "airborne tuberculosis Mycobacterium tuberculosis aerosol detection "
-                "site:pubmed.ncbi.nlm.nih.gov OR site:plos.org"
-            ),
-            SearchQuery(
-                "Aspergillus airborne hospital sampling environmental "
-                "site:pubmed.ncbi.nlm.nih.gov OR site:nature.com"
-            ),
-        ],
-    ),
-    PaperGroup(
-        name="crispr_microfluidic_diagnostics",
-        description=(
-            "CRISPR-based pathogen detection (Cas13/Cas12, SHERLOCK, DETECTR), "
-            "microfluidic droplet platforms, isothermal amplification."
-        ),
-        schema_alignment=[
-            "biosensor_measurement", "molecular_biology", "clinical_microbiology",
-        ],
-        queries=[
-            SearchQuery(
-                "microfluidic droplet CRISPR Cas13 pathogen detection "
-                "site:pubmed.ncbi.nlm.nih.gov OR site:nature.com OR site:cell.com"
-            ),
-            SearchQuery(
-                "SHERLOCK DETECTR isothermal amplification airborne virus "
+                "SHERLOCK DETECTR CRISPR biosensor aerosol pathogen hospital "
                 "site:pubmed.ncbi.nlm.nih.gov OR site:biorxiv.org",
                 tbs="qdr:y",
             ),
             SearchQuery(
-                "Cas12a Cas13a pathogen diagnostic limit of detection clinical "
+                "Cas13a Cas12a airborne virus detection sensitivity specificity "
                 "site:pubmed.ncbi.nlm.nih.gov OR site:nature.com"
             ),
             SearchQuery(
-                "digital droplet PCR ddPCR airborne respiratory virus quantification "
-                "site:pubmed.ncbi.nlm.nih.gov OR site:nature.com OR site:plos.org"
+                "digital droplet PCR airborne respiratory pathogen quantification "
+                "hospital site:pubmed.ncbi.nlm.nih.gov OR site:plos.org"
             ),
             SearchQuery(
-                "point-of-care rapid pathogen detection microfluidic clinical validation "
-                "site:pubmed.ncbi.nlm.nih.gov OR site:cell.com"
+                "isothermal amplification RPA LAMP airborne pathogen point-of-care "
+                "site:pubmed.ncbi.nlm.nih.gov OR site:biorxiv.org"
             ),
             SearchQuery(
-                "droplet microfluidics single-molecule pathogen amplification "
-                "site:pubmed.ncbi.nlm.nih.gov OR site:nature.com"
+                "biosensor validation aerosol spiked chamber clinical specimen "
+                "respiratory pathogen site:pubmed.ncbi.nlm.nih.gov"
             ),
         ],
     ),
     PaperGroup(
-        name="hvac_engineering_controls",
-        description=(
-            "HVAC, ventilation rates (ACH), HEPA filtration, upper-room UV-C, "
-            "isolation pressure, and other engineering controls in healthcare "
-            "facilities."
+        name="haiqu_aerosol_exposure",
+        question=(
+            "What pathogens are present in hospital air, at what concentrations, "
+            "and under what environmental conditions?"
         ),
-        schema_alignment=["built_environment", "engineering_control"],
+        schema="haiqu_aerosol_exposure",
         queries=[
             SearchQuery(
-                "hospital ventilation airborne infection control air changes per hour "
+                "bioaerosol sampling hospital airborne pathogen concentration "
+                "site:pubmed.ncbi.nlm.nih.gov OR site:ncbi.nlm.nih.gov/pmc"
+            ),
+            SearchQuery(
+                "SARS-CoV-2 airborne concentration hospital sampling impactor cyclone "
+                "site:pubmed.ncbi.nlm.nih.gov OR site:medrxiv.org OR site:biorxiv.org",
+                tbs="qdr:y",
+            ),
+            SearchQuery(
+                "aerosol viability respiratory pathogen relative humidity temperature "
+                "site:pubmed.ncbi.nlm.nih.gov OR site:nature.com"
+            ),
+            SearchQuery(
+                "particle size distribution respiratory aerosol droplet nucleus "
+                "hospital infection site:pubmed.ncbi.nlm.nih.gov"
+            ),
+            SearchQuery(
+                "Mycobacterium tuberculosis Aspergillus airborne hospital sampling "
+                "concentration CFU copies site:pubmed.ncbi.nlm.nih.gov"
+            ),
+            SearchQuery(
+                "influenza RSV MRSA airborne hospital environmental sampling "
+                "site:pubmed.ncbi.nlm.nih.gov OR site:cdc.gov"
+            ),
+        ],
+    ),
+    PaperGroup(
+        name="haiqu_hospital_environment",
+        question=(
+            "How does hospital room configuration and HVAC design affect "
+            "airborne pathogen distribution?"
+        ),
+        schema="haiqu_hospital_environment",
+        queries=[
+            SearchQuery(
+                "hospital HVAC design airborne pathogen distribution air changes "
                 "site:pubmed.ncbi.nlm.nih.gov OR site:ashrae.org"
             ),
             SearchQuery(
-                "upper room UV-C tuberculosis disinfection healthcare clinical "
+                "negative pressure isolation room AIIR airborne infection control "
+                "site:pubmed.ncbi.nlm.nih.gov OR site:cdc.gov"
+            ),
+            SearchQuery(
+                "operating room ventilation airflow pathogen contamination "
                 "site:pubmed.ncbi.nlm.nih.gov"
             ),
             SearchQuery(
-                "HEPA filtration portable air cleaner hospital SARS-CoV-2 "
+                "tracer gas air distribution hospital ward CFD airflow "
+                "site:pubmed.ncbi.nlm.nih.gov OR site:nature.com"
+            ),
+            SearchQuery(
+                "hospital room configuration recirculation dead zone infection "
+                "site:pubmed.ncbi.nlm.nih.gov",
+                tbs="qdr:y",
+            ),
+            SearchQuery(
+                "ASHRAE 170 ventilation healthcare facility infection control "
+                "site:ashrae.org OR site:pubmed.ncbi.nlm.nih.gov"
+            ),
+        ],
+    ),
+    PaperGroup(
+        name="haiqu_engineering_controls",
+        question=(
+            "Which engineering controls reduce airborne pathogen exposure "
+            "and by how much?"
+        ),
+        schema="haiqu_engineering_controls",
+        queries=[
+            SearchQuery(
+                "upper room UV-C UVGI airborne tuberculosis disinfection efficacy "
+                "site:pubmed.ncbi.nlm.nih.gov"
+            ),
+            SearchQuery(
+                "HEPA portable air cleaner hospital airborne pathogen reduction "
                 "site:pubmed.ncbi.nlm.nih.gov OR site:biorxiv.org",
                 tbs="qdr:y",
             ),
             SearchQuery(
-                "negative pressure airborne infection isolation room AIIR ventilation "
+                "engineering control airborne infection reduction hospital "
+                "log reduction effectiveness site:pubmed.ncbi.nlm.nih.gov"
+            ),
+            SearchQuery(
+                "increased ventilation ACH airborne infection risk reduction "
+                "site:pubmed.ncbi.nlm.nih.gov OR site:plos.org"
+            ),
+            SearchQuery(
+                "source control masking N95 respirator airborne hospital "
                 "site:pubmed.ncbi.nlm.nih.gov OR site:cdc.gov"
             ),
             SearchQuery(
-                "ASHRAE 170 healthcare ventilation infection control standard "
-                "site:ashrae.org OR site:cdc.gov OR site:pubmed.ncbi.nlm.nih.gov"
-            ),
-            SearchQuery(
-                "operating room ventilation surgical site infection airflow "
+                "UV-C HEPA ventilation combined effectiveness hospital "
                 "site:pubmed.ncbi.nlm.nih.gov"
             ),
         ],
     ),
     PaperGroup(
-        name="transmission_modeling",
-        description=(
-            "Risk models for airborne transmission in healthcare: Wells-Riley + "
-            "extensions, QMRA, agent-based hospital simulations, digital twins."
+        name="haiqu_transmission_risk",
+        question=(
+            "What models predict real-time disease transmission risk from "
+            "environmental measurements?"
         ),
-        schema_alignment=["transmission_risk_model", "epidemiology"],
+        schema="haiqu_transmission_risk",
         queries=[
             SearchQuery(
-                "Wells-Riley airborne infection risk hospital indoor "
+                "Wells-Riley airborne infection risk model hospital real-time "
                 "site:pubmed.ncbi.nlm.nih.gov OR site:plos.org"
             ),
             SearchQuery(
@@ -217,88 +246,51 @@ GROUPS: List[PaperGroup] = [
                 "site:pubmed.ncbi.nlm.nih.gov"
             ),
             SearchQuery(
-                "agent-based model nosocomial transmission hospital simulation "
-                "site:pubmed.ncbi.nlm.nih.gov OR site:plos.org OR site:nature.com"
+                "agent-based model nosocomial airborne transmission hospital simulation "
+                "site:pubmed.ncbi.nlm.nih.gov OR site:nature.com"
             ),
             SearchQuery(
-                "digital twin hospital indoor air transmission CFD "
+                "digital twin hospital airborne transmission risk prediction "
                 "site:pubmed.ncbi.nlm.nih.gov OR site:nature.com",
                 tbs="qdr:y",
             ),
             SearchQuery(
-                "rebreathed fraction CO2 indoor airborne infection Rudnick Milton "
+                "CO2 rebreathed air fraction proxy infection risk indoor "
                 "site:pubmed.ncbi.nlm.nih.gov"
             ),
             SearchQuery(
-                "compartmental SEIR hospital nosocomial outbreak healthcare workers "
+                "dose-response model airborne pathogen infection probability "
                 "site:pubmed.ncbi.nlm.nih.gov OR site:plos.org"
             ),
         ],
     ),
     PaperGroup(
-        name="hospital_acquired_infections",
-        description=(
-            "Nosocomial / hospital-acquired airborne infections, transmission "
-            "outbreaks, healthcare-associated infection epidemiology."
+        name="haiqu_cognitive_impact",
+        question=(
+            "How do respiratory infections affect cognitive function in "
+            "healthcare workers?"
         ),
-        schema_alignment=[
-            "epidemiology", "infectious_disease", "clinical_microbiology",
-        ],
+        schema="haiqu_cognitive_impact",
         queries=[
             SearchQuery(
-                "nosocomial airborne SARS-CoV-2 transmission hospital outbreak "
-                "site:pubmed.ncbi.nlm.nih.gov OR site:cdc.gov",
+                "post-COVID cognitive impairment healthcare worker "
+                "neuropsychological assessment site:pubmed.ncbi.nlm.nih.gov OR site:nature.com"
+            ),
+            SearchQuery(
+                "long COVID cognitive function executive memory processing speed "
+                "longitudinal site:pubmed.ncbi.nlm.nih.gov OR site:medrxiv.org",
                 tbs="qdr:y",
             ),
             SearchQuery(
-                "healthcare-associated infection HAI airborne pathogen outbreak "
-                "site:pubmed.ncbi.nlm.nih.gov OR site:cdc.gov"
-            ),
-            SearchQuery(
-                "Aspergillus hospital airborne nosocomial transplant patient "
+                "respiratory infection cognitive deficit attention working memory "
                 "site:pubmed.ncbi.nlm.nih.gov"
             ),
             SearchQuery(
-                "MRSA airborne dispersion hospital ward shedding "
-                "site:pubmed.ncbi.nlm.nih.gov"
+                "neuropsychological test healthcare worker respiratory infection "
+                "cognitive outcome site:pubmed.ncbi.nlm.nih.gov"
             ),
             SearchQuery(
-                "tuberculosis healthcare worker exposure hospital transmission "
-                "site:pubmed.ncbi.nlm.nih.gov OR site:cdc.gov"
-            ),
-            SearchQuery(
-                "RSV influenza nosocomial transmission ward outbreak "
-                "site:pubmed.ncbi.nlm.nih.gov"
-            ),
-        ],
-    ),
-    PaperGroup(
-        name="cognitive_effects_respiratory",
-        description=(
-            "Cognitive effects of respiratory infections in healthcare workers "
-            "and patients (the HAIQU project's Cognitive-Tests-for-HAIQU angle)."
-        ),
-        schema_alignment=["respiratory_disease_cognition", "disease_study"],
-        queries=[
-            SearchQuery(
-                "post-COVID cognitive impairment healthcare worker neuropsychological "
-                "site:pubmed.ncbi.nlm.nih.gov OR site:nature.com OR site:cell.com"
-            ),
-            SearchQuery(
-                "long COVID cognitive function executive memory longitudinal cohort "
-                "site:pubmed.ncbi.nlm.nih.gov OR site:medrxiv.org",
-                tbs="qdr:y",
-            ),
-            SearchQuery(
-                "respiratory infection cognitive dysfunction processing speed attention "
-                "site:pubmed.ncbi.nlm.nih.gov"
-            ),
-            SearchQuery(
-                "neuropsychological test battery healthcare worker respiratory infection "
-                "site:pubmed.ncbi.nlm.nih.gov"
-            ),
-            SearchQuery(
-                "ICU delirium cognitive sequelae critical illness "
+                "ICU healthcare worker cognitive sequelae occupational exposure "
                 "site:pubmed.ncbi.nlm.nih.gov"
             ),
         ],
@@ -368,8 +360,8 @@ def save_paper(result: dict, dest_dir: Path,
 def run_group(g: PaperGroup, api_key: Optional[str], root: Path,
               max_per_query: int, dry_run: bool) -> dict:
     print(f"\n=== {g.name} ===")
-    print(f"  {g.description}")
-    print(f"  schemas: {', '.join(g.schema_alignment)}")
+    print(f"  Q: {g.question}")
+    print(f"  schema: {g.schema}")
     print(f"  queries: {len(g.queries)}")
 
     if dry_run:
@@ -411,8 +403,8 @@ def run_group(g: PaperGroup, api_key: Optional[str], root: Path,
 
     metadata = {
         "group": g.name,
-        "description": g.description,
-        "schema_alignment": g.schema_alignment,
+        "question": g.question,
+        "schema": g.schema,
         "ran_at": datetime.utcnow().isoformat() + "Z",
         "max_per_query": max_per_query,
         "queries": queries_log,
@@ -446,8 +438,8 @@ def main():
 
     if args.list_groups:
         for g in GROUPS:
-            print(f"{g.name:<36} {len(g.queries)} queries  "
-                  f"-> schemas: {', '.join(g.schema_alignment)}")
+            print(f"{g.name:<32} schema: {g.schema:<32} {len(g.queries)} queries")
+            print(f"  Q: {g.question}")
         return
 
     if not args.dry_run and not args.api_key:
