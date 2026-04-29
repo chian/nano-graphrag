@@ -1,0 +1,126 @@
+# Built Environment (Hospital) Domain Schema
+# Focus: Physical infrastructure of healthcare facilities at the resolution
+# needed to attribute biosensor measurements to specific air paths and
+# occupancy zones.
+
+domain_name: "Built Environment"
+domain_description: "Physical layout, air-handling configuration, and occupancy structure of healthcare facilities. Provides the spatial substrate that air-quality samples, biosensor deployments, and engineering controls are attached to."
+
+entity_types:
+  BUILDING_ZONE:
+    description: "Top-level functional area of a facility"
+    examples: ["emergency department", "ICU", "operating room", "general medical ward", "isolation suite", "negative-pressure room", "lobby"]
+    aliases: ["zone", "ward", "department", "functional area"]
+
+  ROOM:
+    description: "Individual room within a zone"
+    examples: ["ED bay 4", "ICU room 12", "OR-3", "patient room 207", "anteroom", "donning area"]
+    aliases: ["space", "bay"]
+
+  BED:
+    description: "A bed or treatment station within a room"
+    examples: ["ICU bed 12A", "ED treatment chair 4", "OR table"]
+    aliases: ["station", "patient location"]
+
+  HVAC_UNIT:
+    description: "An air-handling unit, RTU, AHU, VAV box, or fan-coil unit"
+    examples: ["AHU-1 serving ED", "VAV box room 207", "RTU-North"]
+    aliases: ["air handler", "AHU", "RTU", "VAV"]
+
+  AIR_HANDLING_PATH:
+    description: "A duct path connecting a unit to one or more zones, or a return/exhaust path"
+    examples: ["ED supply duct branch A", "ICU return main", "OR exhaust to roof"]
+    aliases: ["duct", "duct run", "air path"]
+
+  SUPPLY_DIFFUSER:
+    description: "A ceiling diffuser or terminal feeding clean air into a room"
+    examples: ["4-way ceiling diffuser", "linear slot diffuser", "swirl diffuser"]
+    aliases: ["diffuser", "supply terminal"]
+
+  RETURN_GRILLE:
+    description: "A grille or register that pulls air out of a room (return or exhaust)"
+    examples: ["ceiling return", "low-wall exhaust", "transfer grille"]
+    aliases: ["return", "exhaust grille", "register"]
+
+  FILTER:
+    description: "A filtration element installed in an air-handling path"
+    examples: ["MERV-13 prefilter", "HEPA H13", "HEPA H14", "carbon filter"]
+    aliases: ["filtration element", "MERV filter", "HEPA filter"]
+
+  UV_DEVICE:
+    description: "An installed UV-C device for upper-room disinfection or in-duct application"
+    examples: ["upper-room UV-C fixture", "in-duct UV-C array", "mobile UV-C tower"]
+    aliases: ["UVGI device", "UV-C lamp"]
+
+  ACH_RATE:
+    description: "Air-changes-per-hour rating attributed to a zone or room"
+    examples: ["6 ACH outdoor air", "12 ACH total", "20 ACH (AIIR)"]
+    aliases: ["air changes per hour", "ventilation rate"]
+
+  PRESSURE_RELATIONSHIP:
+    description: "Static-pressure relationship of a zone to its surroundings"
+    examples: ["positive pressure (OR)", "negative pressure (AIIR)", "neutral pressure (corridor)"]
+    aliases: ["pressurization", "directional airflow"]
+
+  OCCUPANCY_PATTERN:
+    description: "Typical or measured occupancy schedule for a zone or room"
+    examples: ["24/7 staffed ICU", "9-5 outpatient clinic", "transient ED visitor"]
+    aliases: ["staffing pattern", "occupancy schedule"]
+
+  FACILITY:
+    description: "A whole hospital or campus, the top of the spatial hierarchy"
+    examples: ["Mayo Clinic Rochester", "Mayo Clinic Phoenix", "Mayo Clinic Jacksonville"]
+    aliases: ["site", "campus", "hospital"]
+
+relationship_types:
+  CONTAINS:
+    description: "A larger spatial unit contains a smaller one"
+    inverse: "PART_OF"
+    examples: ["FACILITY CONTAINS BUILDING_ZONE", "BUILDING_ZONE CONTAINS ROOM", "ROOM CONTAINS BED"]
+
+  SERVES:
+    description: "An HVAC unit or air path serves a downstream zone or room"
+    inverse: "SERVED_BY"
+    examples: ["AHU-1 SERVES ED", "Supply duct branch A SERVES Rooms 201-208"]
+
+  EXHAUSTS_TO:
+    description: "A zone or room exhausts air to a downstream return/exhaust path"
+    inverse: "EXHAUSTS_FROM"
+    examples: ["AIIR EXHAUSTS_TO Roof exhaust stack", "OR EXHAUSTS_TO Dedicated exhaust riser"]
+
+  FILTERS:
+    description: "A filter is installed in and filters an air-handling path"
+    inverse: "FILTERED_BY"
+    examples: ["HEPA H14 FILTERS OR supply duct"]
+
+  IRRADIATES:
+    description: "A UV-C device irradiates a zone or air path"
+    inverse: "IRRADIATED_BY"
+    examples: ["Upper-room UV-C fixture IRRADIATES ICU room 12"]
+
+  ADJACENT_TO:
+    description: "Two rooms share a wall, door, or transfer path"
+    inverse: "ADJACENT_TO"
+    symmetric: true
+    examples: ["Anteroom ADJACENT_TO AIIR"]
+
+  HAS_PRESSURE:
+    description: "A zone or room has a given pressure relationship to its surroundings"
+    inverse: "PRESSURE_OF"
+    examples: ["AIIR HAS_PRESSURE negative pressure"]
+
+  HAS_ACH:
+    description: "A zone or room has a given ACH rate"
+    inverse: "ACH_OF"
+    examples: ["OR HAS_ACH 20 ACH total"]
+
+  RECIRCULATES_WITH:
+    description: "Air recirculates between paths/zones rather than being once-through"
+    inverse: "RECIRCULATES_WITH"
+    symmetric: true
+    examples: ["Return main RECIRCULATES_WITH AHU-1"]
+
+  HAS_OCCUPANCY:
+    description: "A zone or room has a typical/measured occupancy pattern"
+    inverse: "OCCUPANCY_OF"
+    examples: ["ED waiting area HAS_OCCUPANCY peak 18:00-22:00"]

@@ -1,0 +1,140 @@
+# Transmission Risk Model Domain Schema
+# Focus: Predictive models linking environmental measurements and
+# infrastructure state to disease-transmission risk and infection-prevention
+# recommendations -- Wells-Riley / QMRA equations, agent-based simulations,
+# digital twins, their parameters, validation data, and outputs.
+
+domain_name: "Transmission Risk Model"
+domain_description: "Models that take air-quality and infrastructure inputs and produce transmission-risk estimates, alerts, and recommended actions. Encodes models as nodes (rather than equations baked into code) so different formulations can be compared, parameterised differently, validated against the same outcomes, and selected per zone."
+
+entity_types:
+  MODEL:
+    description: "A named transmission-risk model or simulation framework"
+    examples: ["Wells-Riley", "rebreathed-fraction Wells-Riley (Rudnick-Milton)", "QMRA dose-response", "agent-based hospital model", "digital-twin CFD coupling"]
+    aliases: ["risk model", "transmission model", "simulator"]
+
+  MODEL_PARAMETER:
+    description: "A named parameter of a model with a value, unit, and provenance"
+    examples: ["quanta generation rate q (1.0 quanta/h, COVID Skagit)", "breathing rate p (10 m³/h, light activity)", "ACH (12, ASHRAE 170 ICU)", "exposure duration (45 min)", "dose-response slope k"]
+    aliases: ["parameter", "input variable"]
+
+  SIMULATION_RUN:
+    description: "A single execution of a model with bound inputs and a recorded output"
+    examples: ["sim_2026-04-12T14:00_ICU-12 baseline", "sim_2026-04-12T14:30_ICU-12 with UV-C on"]
+    aliases: ["run", "scenario run"]
+
+  INPUT_BINDING:
+    description: "A binding from a sensor / zone / control state to a model input"
+    examples: ["AEROSOL_SAMPLE.concentration → quanta proxy", "BUILDING_ZONE.ACH → model ACH input", "CONTROL.UV_C state → effective ACH adjustment"]
+    aliases: ["data binding", "input mapping"]
+
+  RISK_SCORE:
+    description: "An instantaneous or cumulative risk output produced by a simulation run"
+    examples: ["P(infection) = 0.04 over 30 min", "expected secondary cases 0.6 over shift", "risk index 7.2 (high)"]
+    aliases: ["risk", "infection-probability output"]
+
+  CONFIDENCE_INTERVAL:
+    description: "Uncertainty around a risk score"
+    examples: ["95% CI [0.02, 0.07]", "p10/p90 bounds 0.5–4.5 expected secondary cases"]
+    aliases: ["uncertainty bound", "credible interval"]
+
+  ALERT:
+    description: "A triggered event when a risk score crosses a threshold"
+    examples: ["HIGH-RISK alert ICU-12 14:32", "AMBER alert ED waiting 18:00"]
+    aliases: ["risk alert", "threshold trigger"]
+
+  THRESHOLD:
+    description: "A risk threshold used to trigger alerts"
+    examples: ["P(infection) > 0.05 → AMBER", "P(infection) > 0.10 → RED"]
+    aliases: ["alert threshold", "trigger level"]
+
+  RECOMMENDED_ACTION:
+    description: "An action recommended in response to an alert"
+    examples: ["increase ACH to 18", "activate portable HEPA", "delay AGP", "evacuate zone"]
+    aliases: ["action recommendation", "intervention recommendation"]
+
+  CLINICAL_OUTCOME:
+    description: "An observed outcome used to validate model predictions; cross-graph link to epidemiology / infectious_disease"
+    examples: ["HAI event ICU-12 attributed to bay 12A", "exposure event for HCW-072", "secondary case count by ward Q1 2026"]
+    aliases: ["outcome", "observed event"]
+
+  VALIDATION_RESULT:
+    description: "A comparison of model predictions against clinical outcomes"
+    examples: ["AUC 0.81 vs observed HAIs Q1 2026 (Phoenix ED)", "calibration slope 0.92, intercept 0.03"]
+    aliases: ["validation", "model performance"]
+
+  MODEL_ASSUMPTION:
+    description: "An explicit assumption a model makes; lets reviewers see when an assumption is violated"
+    examples: ["well-mixed-room assumption", "constant breathing rate", "no recirculation between zones", "homogeneous occupancy"]
+    aliases: ["assumption", "modelling caveat"]
+
+  SCENARIO:
+    description: "A counterfactual / what-if scenario varying inputs"
+    examples: ["baseline (controls off)", "UV-C on", "ACH doubled", "shift overlap reduced 50%"]
+    aliases: ["counterfactual", "what-if"]
+
+relationship_types:
+  USES_PARAMETER:
+    description: "A model uses a named parameter"
+    inverse: "PARAMETER_OF"
+    examples: ["Wells-Riley USES_PARAMETER quanta generation rate q"]
+
+  HAS_ASSUMPTION:
+    description: "A model encodes an explicit assumption"
+    inverse: "ASSUMPTION_OF"
+    examples: ["Wells-Riley HAS_ASSUMPTION well-mixed-room"]
+
+  RUNS_WITH:
+    description: "A simulation run binds specific input values and parameter settings"
+    inverse: "RAN_IN"
+    examples: ["sim_2026-04-12T14:00 RUNS_WITH ICU-12 ACH=12"]
+
+  BOUND_TO:
+    description: "An input binding maps a real-world data source (sensor / zone / control) to a model input"
+    inverse: "RECEIVES_FROM"
+    examples: ["INPUT_BINDING BOUND_TO AEROSOL_SAMPLE.concentration"]
+
+  PRODUCES:
+    description: "A simulation run produces a risk score"
+    inverse: "PRODUCED_BY"
+    examples: ["SIMULATION_RUN PRODUCES P(infection)=0.04"]
+
+  HAS_CONFIDENCE:
+    description: "A risk score has a confidence interval"
+    inverse: "CONFIDENCE_OF"
+    examples: ["RISK_SCORE HAS_CONFIDENCE 95% CI [0.02, 0.07]"]
+
+  EXCEEDS_THRESHOLD:
+    description: "A risk score exceeds an alert threshold"
+    inverse: "EXCEEDED_BY"
+    examples: ["P(infection)=0.04 EXCEEDS_THRESHOLD AMBER 0.05? false"]
+
+  TRIGGERS:
+    description: "A risk-score threshold-crossing triggers an alert"
+    inverse: "TRIGGERED_BY"
+    examples: ["RISK_SCORE TRIGGERS HIGH-RISK alert ICU-12 14:32"]
+
+  RECOMMENDS:
+    description: "An alert recommends an action"
+    inverse: "RECOMMENDED_BY"
+    examples: ["HIGH-RISK alert RECOMMENDS increase ACH to 18"]
+
+  COMPARES_TO_BASELINE:
+    description: "A scenario is a counterfactual relative to a baseline"
+    inverse: "BASELINE_FOR"
+    examples: ["UV-C-on scenario COMPARES_TO_BASELINE controls-off baseline"]
+
+  VALIDATED_AGAINST:
+    description: "A model is validated against observed clinical outcomes"
+    inverse: "VALIDATES"
+    examples: ["Wells-Riley VALIDATED_AGAINST HAI events Q1 2026"]
+
+  HAS_VALIDATION:
+    description: "A model has a validation result with reported metrics"
+    inverse: "VALIDATION_OF"
+    examples: ["Wells-Riley HAS_VALIDATION AUC 0.81 vs HAIs Q1 2026"]
+
+  DERIVED_FROM_LITERATURE:
+    description: "A parameter value is sourced from a published study (cross-graph to literature)"
+    inverse: "INFORMS"
+    examples: ["q=1.0 quanta/h DERIVED_FROM_LITERATURE Skagit choir COVID outbreak study"]

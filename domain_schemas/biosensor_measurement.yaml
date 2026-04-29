@@ -1,0 +1,129 @@
+# Biosensor and Measurement Instrument Domain Schema
+# Focus: Biosensors, microfluidic platforms, CRISPR detection assays,
+# deployment configurations, calibration data, and detection performance
+# characteristics. The HAIQU device-and-deployment layer.
+
+domain_name: "Biosensor Measurement"
+domain_description: "Air-monitoring biosensors as deployable, calibrated, characterised instruments. Captures device, assay chemistry, deployment context, and detection performance separately so the same platform can be tracked across pathogens, sites, and revisions."
+
+entity_types:
+  BIOSENSOR_PLATFORM:
+    description: "A biosensor device or system, including its physical and assay configuration"
+    examples: ["microfluidic droplet CRISPR biosensor", "lateral-flow LAMP cartridge", "digital droplet PCR air sampler"]
+    aliases: ["sensor platform", "biosensor", "detector system"]
+
+  CAS_VARIANT:
+    description: "A CRISPR effector enzyme used for detection"
+    examples: ["Cas13a (LwaCas13a)", "Cas12a (LbCas12a)", "Cas9-dCas9", "Cas13b"]
+    aliases: ["Cas enzyme", "CRISPR effector"]
+
+  GUIDE_RNA:
+    description: "A targeting guide RNA designed against a pathogen sequence"
+    examples: ["SARS-CoV-2 N-gene crRNA", "M. tuberculosis IS6110 crRNA", "Aspergillus 18S crRNA"]
+    aliases: ["crRNA", "sgRNA", "targeting guide"]
+
+  REAGENT:
+    description: "A non-enzymatic reagent used in the assay"
+    examples: ["RPA primers", "fluorescent reporter probe", "lysis buffer", "RNase inhibitor"]
+    aliases: ["consumable", "assay reagent"]
+
+  SAMPLE_PREP_STEP:
+    description: "A pre-detection processing step applied to an aerosol sample"
+    examples: ["impactor capture", "elution into buffer", "RNA extraction", "RT-RPA pre-amplification"]
+    aliases: ["pre-processing step", "sample handling"]
+
+  ASSAY_RUN:
+    description: "A single run of the assay against one (or batched) input"
+    examples: ["cartridge run 2026-04-12_001", "ddPCR run plate-7"]
+    aliases: ["measurement run", "detection run"]
+
+  DEPLOYMENT:
+    description: "A deployment record binding a platform to a location and a time window"
+    examples: ["unit S03 deployed in ICU-12 return 2026-04-01 to 2026-05-01", "unit S07 deployed in ED waiting Apr–Jun 2026"]
+    aliases: ["sensor deployment", "field placement"]
+
+  LIMIT_OF_DETECTION:
+    description: "A measured or specified LOD for a target pathogen on a platform"
+    examples: ["10 copies/m³ for SARS-CoV-2", "50 CFU/m³ for M. tuberculosis", "<1 PFU/m³ for influenza A"]
+    aliases: ["LOD", "detection threshold"]
+
+  SPECIFICITY_PROFILE:
+    description: "Cross-reactivity and false-positive characterisation"
+    examples: ["no cross-reactivity with SARS-CoV-1 or HKU1", "weak signal on related Mycobacterium spp."]
+    aliases: ["cross-reactivity", "selectivity"]
+
+  CALIBRATION_EVENT:
+    description: "A calibration run against a known input"
+    examples: ["spike-in calibration with 10⁴ copies SARS-CoV-2 N-gene", "negative-control buffer baseline"]
+    aliases: ["calibration", "spike-in"]
+
+  ASSAY_VALIDATION:
+    description: "A validation study or report establishing performance characteristics"
+    examples: ["bench validation v1.2 (Mayo lab)", "field validation Phoenix ED Q2 2026"]
+    aliases: ["validation study", "performance evaluation"]
+
+  PLATFORM_VERSION:
+    description: "A revision/version label of the platform; lets us track changes over time"
+    examples: ["S-platform v1.0", "S-platform v1.2 (improved RT step)"]
+    aliases: ["device version", "hardware revision"]
+
+relationship_types:
+  USES_VARIANT:
+    description: "A platform uses a Cas variant"
+    inverse: "USED_IN"
+    examples: ["Microfluidic droplet biosensor USES_VARIANT Cas13a"]
+
+  USES_GUIDE:
+    description: "A platform (or an assay run) uses a guide RNA targeting a specific pathogen sequence"
+    inverse: "USED_IN"
+    examples: ["Platform USES_GUIDE SARS-CoV-2 N-gene crRNA"]
+
+  USES_REAGENT:
+    description: "A platform / assay run uses a reagent"
+    inverse: "USED_IN"
+    examples: ["Assay run USES_REAGENT RPA primers"]
+
+  HAS_PREP_STEP:
+    description: "A platform requires a sample-prep step before detection"
+    inverse: "PREP_FOR"
+    examples: ["Platform HAS_PREP_STEP RNA extraction"]
+
+  DETECTS:
+    description: "A platform detects a pathogen taxon (cross-graph link to clinical_microbiology / infectious_disease)"
+    inverse: "DETECTED_BY"
+    examples: ["Platform DETECTS SARS-CoV-2"]
+
+  HAS_LOD:
+    description: "A platform has a measured LOD for a specific pathogen"
+    inverse: "LOD_OF"
+    examples: ["Platform HAS_LOD 10 copies/m³ for SARS-CoV-2"]
+
+  HAS_SPECIFICITY:
+    description: "A platform has a specificity / cross-reactivity profile against a reference panel"
+    inverse: "SPECIFICITY_OF"
+    examples: ["Platform HAS_SPECIFICITY no cross-reactivity with SARS-CoV-1"]
+
+  DEPLOYED_AT:
+    description: "A deployment is anchored at a built-environment location (cross-graph)"
+    inverse: "HAS_DEPLOYMENT"
+    examples: ["DEPLOYMENT DEPLOYED_AT ICU return main"]
+
+  CALIBRATED_BY:
+    description: "A platform was calibrated by a calibration event"
+    inverse: "CALIBRATES"
+    examples: ["Platform CALIBRATED_BY spike-in calibration"]
+
+  VALIDATED_BY:
+    description: "A platform was validated in a study"
+    inverse: "VALIDATES"
+    examples: ["Platform VALIDATED_BY field validation Phoenix ED Q2 2026"]
+
+  PRODUCES:
+    description: "An assay run produces an aerosol-sample-derived measurement (cross-graph link to air_quality_exposure)"
+    inverse: "DERIVED_FROM_RUN"
+    examples: ["ASSAY_RUN PRODUCES AEROSOL_SAMPLE concentration measurement"]
+
+  IS_VERSION_OF:
+    description: "A platform-version is a revision of a base platform"
+    inverse: "HAS_VERSION"
+    examples: ["S-platform v1.2 IS_VERSION_OF S-platform"]

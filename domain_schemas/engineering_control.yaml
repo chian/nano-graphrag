@@ -1,0 +1,120 @@
+# Engineering Controls and Interventions Domain Schema
+# Focus: Engineering / non-pharmaceutical interventions to reduce airborne
+# pathogen transmission in healthcare settings -- UV-C, HEPA, ventilation,
+# isolation pressure, masking, source control -- with their dosing,
+# deployment context, and measured effectiveness.
+
+domain_name: "Engineering Control"
+domain_description: "Engineering and operational interventions intended to reduce airborne pathogen exposure in healthcare facilities. Each control is tracked with its dose / rate / setting, the zones it is applied to, the pathogens it targets, and its measured effectiveness."
+
+entity_types:
+  ENGINEERING_CONTROL:
+    description: "An engineering or operational control that reduces airborne exposure"
+    examples: ["upper-room UV-C", "HEPA portable air cleaner", "MERV-13 upgrade", "increased outdoor-air ACH", "negative-pressure isolation", "source-control masking", "AGP procedural delay"]
+    aliases: ["control", "intervention", "non-pharmaceutical intervention", "NPI"]
+
+  CONTROL_STATE:
+    description: "Operating state or configuration of a deployed control"
+    examples: ["UV-C active 24/7", "UV-C duty-cycled 50%", "HEPA cleaner on high", "MERV-13 installed since 2023-08", "AIIR pressure verified -2.5 Pa"]
+    aliases: ["operating state", "configured setting"]
+
+  DOSE_OR_RATE:
+    description: "Quantitative dose, rate, or setting of a control"
+    examples: ["UV-C 17 mJ/cm²", "ACH 12 outdoor air", "HEPA CADR 350 cfm", "MERV-13", "filtration efficiency 99.97% at 0.3 µm"]
+    aliases: ["dose", "intensity", "rate"]
+
+  OPERATIONAL_PROTOCOL:
+    description: "An operational policy or protocol component"
+    examples: ["universal masking in patient-care areas", "respirator use during AGPs", "post-AGP air-clearance wait of 30 min", "visitor restriction during outbreak", "terminal cleaning protocol"]
+    aliases: ["protocol", "policy", "SOP"]
+
+  EFFECTIVENESS_MEASURE:
+    description: "A quantitative measure of how much a control reduces pathogen burden / risk"
+    examples: ["1.5-log reduction airborne MTB viability", "67% reduction in HAI rate", "82% reduction in detectable SARS-CoV-2 within 30 min"]
+    aliases: ["effect size", "reduction factor", "log reduction"]
+
+  IMPLEMENTATION_CONTEXT:
+    description: "Where / when a control is implemented; cross-references built-environment zones"
+    examples: ["AIIRs only", "ED waiting + triage", "all OR suites during AGPs", "ICU during outbreak"]
+    aliases: ["application context"]
+
+  COST_PROXY:
+    description: "Capital, operating, or per-unit cost proxy for a control"
+    examples: ["~$3k per upper-room UV-C fixture", "operating cost <$50/yr per unit", "$0.50 per N95 respirator"]
+    aliases: ["cost", "expense"]
+
+  COMPLIANCE_RATE:
+    description: "Observed or audited compliance with a protocol"
+    examples: ["respirator compliance 91% (Q1 2026 audit)", "hand hygiene compliance 64%"]
+    aliases: ["adherence rate", "compliance"]
+
+  CO_BENEFIT:
+    description: "Beneficial side-effect outside the primary target"
+    examples: ["MERV-13 reduces particulate symptoms in asthmatic patients", "increased ACH lowers CO₂ and reported drowsiness"]
+    aliases: ["secondary benefit"]
+
+  ADVERSE_EFFECT:
+    description: "Adverse or unintended consequence of a control"
+    examples: ["upper-room UV-C eye/skin exposure if reflectance off", "increased ACH energy cost", "respirator fit-test failure rate 12%"]
+    aliases: ["adverse outcome", "side effect"]
+
+relationship_types:
+  APPLIED_TO:
+    description: "A control is applied to a built-environment zone or room (cross-graph)"
+    inverse: "RECEIVES"
+    examples: ["Upper-room UV-C APPLIED_TO ICU room 12"]
+
+  TARGETS:
+    description: "A control targets a pathogen or pathogen category (cross-graph link to taxa)"
+    inverse: "TARGETED_BY"
+    examples: ["UV-C TARGETS airborne MTB", "HEPA TARGETS respirable bioaerosols"]
+
+  HAS_DOSE:
+    description: "A control has a specified dose or rate"
+    inverse: "DOSE_OF"
+    examples: ["Upper-room UV-C HAS_DOSE 17 mJ/cm²"]
+
+  IN_STATE:
+    description: "A control is currently in a given state"
+    inverse: "STATE_OF"
+    examples: ["AHU ACH IN_STATE 12 ACH outdoor air"]
+
+  IMPLEMENTED_IN:
+    description: "A control is implemented in a given context"
+    inverse: "INCLUDES_CONTROL"
+    examples: ["Universal masking IMPLEMENTED_IN all patient-care areas during outbreak"]
+
+  REDUCES:
+    description: "A control reduces pathogen concentration or transmission by a measured effect"
+    inverse: "REDUCED_BY"
+    examples: ["HEPA portable air cleaner REDUCES detectable SARS-CoV-2 by 82%"]
+
+  VALIDATED_BY:
+    description: "Control effectiveness validated by a study (cross-graph to literature)"
+    inverse: "VALIDATES"
+    examples: ["UV-C TARGETS_TB VALIDATED_BY Nardell et al. 2008"]
+
+  HAS_EFFECTIVENESS:
+    description: "A control has a quantitative effectiveness measure for a given target"
+    inverse: "EFFECTIVENESS_OF"
+    examples: ["UV-C HAS_EFFECTIVENESS 1.5-log MTB reduction"]
+
+  INCURS_COST:
+    description: "A control incurs a cost"
+    inverse: "COST_OF"
+    examples: ["Upper-room UV-C INCURS_COST ~$3k per fixture"]
+
+  COMPLIANCE_OBSERVED:
+    description: "An operational protocol has an observed compliance rate"
+    inverse: "COMPLIANCE_FOR"
+    examples: ["Respirator policy COMPLIANCE_OBSERVED 91%"]
+
+  HAS_CO_BENEFIT:
+    description: "A control has a documented co-benefit"
+    inverse: "CO_BENEFIT_OF"
+    examples: ["MERV-13 HAS_CO_BENEFIT reduced particulate symptoms"]
+
+  HAS_ADVERSE_EFFECT:
+    description: "A control has a documented adverse effect"
+    inverse: "ADVERSE_EFFECT_OF"
+    examples: ["Increased ACH HAS_ADVERSE_EFFECT increased energy cost"]

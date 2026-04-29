@@ -1,0 +1,111 @@
+# Air Quality and Exposure Domain Schema
+# Focus: Time- and space-resolved air-content measurements -- aerosol samples,
+# airborne pathogen instances, particle size distributions, environmental
+# conditions. Sits between the built-environment substrate and the biosensor
+# instrument schemas.
+
+domain_name: "Air Quality and Exposure"
+domain_description: "What is in the air, where, and when. Each measurement is anchored to a sampling event tied to a location and a timestamp; airborne pathogens are sampled instances rather than abstract taxa."
+
+entity_types:
+  AEROSOL_SAMPLE:
+    description: "A single sampling event collected at a specific location and time"
+    examples: ["ICU-12 cyclone-sampler run 2026-04-12 14:00", "OR-3 impactor 30-min collection"]
+    aliases: ["air sample", "sampling event", "bioaerosol sample"]
+
+  AIRBORNE_PATHOGEN_INSTANCE:
+    description: "A specific detected pathogen occurrence in a sample (NOT an abstract taxon -- link to a PATHOGEN node in clinical_microbiology / infectious_disease for taxonomy)"
+    examples: ["SARS-CoV-2 detection in ICU-12 sample @ 14:00", "M. tuberculosis instance, ED bay 4, RH 35%"]
+    aliases: ["detected airborne pathogen", "pathogen detection event"]
+
+  PARTICLE_SIZE_BIN:
+    description: "A binned particle-size class for size-resolved measurements"
+    examples: ["<1 µm", "1-2.5 µm", "2.5-5 µm", "5-10 µm", ">10 µm"]
+    aliases: ["size class", "PM bin", "size fraction"]
+
+  CONCENTRATION_MEASURE:
+    description: "A quantitative airborne concentration with units"
+    examples: ["12 copies/m³", "300 CFU/m³", "0.4 PFU/m³", "below LOD"]
+    aliases: ["airborne concentration", "load measurement"]
+
+  VIABILITY_STATE:
+    description: "Whether a sampled organism is viable, inactivated, or unknown"
+    examples: ["culturable viable", "RNA-positive viability unknown", "UV-inactivated"]
+    aliases: ["viability", "infectivity status"]
+
+  ENVIRONMENTAL_CONDITION:
+    description: "Co-measured environmental variable affecting aerosol fate"
+    examples: ["RH 28%", "RH 65%", "T 22 °C", "CO₂ 1200 ppm", "ACH effective 4.2"]
+    aliases: ["IAQ parameter", "environmental covariate"]
+
+  SAMPLING_TIMESTAMP:
+    description: "Timestamp or time window of a sampling event"
+    examples: ["2026-04-12T14:00Z", "2026-04-12 14:00-14:30 (30-min integrated)"]
+    aliases: ["timestamp", "sampling window"]
+
+  SAMPLING_LOCATION:
+    description: "Spatial anchor for a sample; cross-references built_environment.ROOM/ZONE/BED"
+    examples: ["ICU room 12", "OR-3 supply diffuser", "ED triage waiting"]
+    aliases: ["sample location"]
+
+  COLOCATED_BIOAEROSOL:
+    description: "Non-target biological material co-detected in the same sample"
+    examples: ["bacterial 16S signal", "fungal spores", "human shedding"]
+    aliases: ["background bioaerosol"]
+
+  EXPOSURE_EVENT:
+    description: "A characterized exposure window for a person or group, derived from samples and occupancy"
+    examples: ["HCW exposed in ICU-12 14:00-15:30", "patient cohort exposure during AGP"]
+    aliases: ["exposure window"]
+
+relationship_types:
+  SAMPLED_AT:
+    description: "A sample was taken at a given location"
+    inverse: "LOCATION_OF"
+    examples: ["AEROSOL_SAMPLE SAMPLED_AT ROOM"]
+
+  SAMPLED_DURING:
+    description: "A sample was collected during a given time window"
+    inverse: "TIME_OF"
+    examples: ["AEROSOL_SAMPLE SAMPLED_DURING 2026-04-12 14:00-14:30"]
+
+  CONTAINS:
+    description: "A sample contains a specific airborne pathogen instance"
+    inverse: "FOUND_IN"
+    examples: ["AEROSOL_SAMPLE CONTAINS AIRBORNE_PATHOGEN_INSTANCE"]
+
+  HAS_SIZE:
+    description: "An airborne pathogen instance is associated with a particle-size bin"
+    inverse: "SIZE_OF"
+    examples: ["AIRBORNE_PATHOGEN_INSTANCE HAS_SIZE 1-2.5 µm"]
+
+  HAS_CONCENTRATION:
+    description: "A sample has a measured concentration for a target pathogen"
+    inverse: "CONCENTRATION_FOR"
+    examples: ["AEROSOL_SAMPLE HAS_CONCENTRATION 12 copies/m³ for SARS-CoV-2"]
+
+  HAS_VIABILITY:
+    description: "A pathogen instance has a viability state"
+    inverse: "VIABILITY_FOR"
+    examples: ["AIRBORNE_PATHOGEN_INSTANCE HAS_VIABILITY culturable viable"]
+
+  CO_OCCURS_WITH:
+    description: "Two pathogen instances were detected in the same sample"
+    inverse: "CO_OCCURS_WITH"
+    symmetric: true
+    examples: ["SARS-CoV-2 instance CO_OCCURS_WITH influenza A instance"]
+
+  MEASURED_UNDER:
+    description: "A sample was taken under given environmental conditions"
+    inverse: "MEASURED_DURING"
+    examples: ["AEROSOL_SAMPLE MEASURED_UNDER RH 28%"]
+
+  ATTRIBUTED_TO_TAXON:
+    description: "An airborne pathogen instance maps to a taxon in clinical_microbiology / infectious_disease (cross-graph)"
+    inverse: "TAXON_OF"
+    examples: ["AIRBORNE_PATHOGEN_INSTANCE ATTRIBUTED_TO_TAXON SARS-CoV-2"]
+
+  CONTRIBUTES_TO_EXPOSURE:
+    description: "A sample contributes to a characterized exposure window"
+    inverse: "DERIVED_FROM"
+    examples: ["AEROSOL_SAMPLE CONTRIBUTES_TO_EXPOSURE HCW exposure window"]
