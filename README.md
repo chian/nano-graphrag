@@ -122,198 +122,170 @@ Output is a GraphML file that drops straight into `launch_viz.sh`.
 
 ## Literature-search strategy for *seeding* the HAIQU knowledge graph
 
-The goal of this section is **systematic discovery of every paper worth
-ingesting** so the resulting graph represents the field, not just the
-papers that happen to mention a few keywords. This is upstream of any
-querying — without comprehensive seeding, GASL/RAG can only answer about
-the literature we happened to feed it.
+This is upstream of any querying — without comprehensive seeding,
+GASL/RAG can only answer about the literature we happened to feed it.
+The whole point of the strategy is to **let Firecrawl do the heavy
+lifting**. Don't roll your own PRISMA review across PubMed + Web of
+Science + Scopus + Crossref + Semantic Scholar; aim a few well-shaped
+Firecrawl calls at the open web and let it scrape, render, follow
+links, and return clean markdown.
 
-A PRISMA-flavoured pipeline, adapted to feed the iterative ingestion
-engine.
+### What Firecrawl gives us (the four primitives we actually use)
 
-### 1. Lock down inclusion / exclusion criteria first
+| Endpoint | What it does | When to use it for HAIQU seeding |
+|---|---|---|
+| **`/search`** (already wired in `firecrawl_client.search_papers`) | Web search + content fetch in one call. Each result comes back already scraped to markdown. Supports `tbs` time filters (`qdr:m`, `qdr:y`) and standard Google operators (`site:`, `intitle:`, `OR`). | Topic searches per subdomain, time-bounded preprint passes, site-scoped queries. |
+| **`/scrape`** (already wired in `firecrawl_client.download_paper_content`) | One URL → clean markdown / HTML / structured JSON. Renders JS, optionally only-main-content. | Pull a known paper's full text from a DOI or PubMed URL when /search returned only metadata. |
+| **`/crawl`** | Recursively fetch every page reachable from a starting URL, with include/exclude path patterns and depth caps. | Scrape an author's institutional publications page, a journal's TOC archive, a funder's awardee list, or a preprint server's subject feed — without writing a custom scraper for each. |
+| **`/extract`** | URL(s) + JSON schema → structured data extracted by an LLM. Returns title/authors/DOI/abstract/key-claims as a typed object. | Skip writing per-publisher HTML parsers; feed paper landing pages and a paper-metadata schema and let Firecrawl + the LLM populate it. |
+| **`/batch-scrape`** | A list of URLs scraped in one job. | Forward citation chasing — feed in a list of DOI URLs, get markdown back en masse. |
 
-Write these *before* running any searches; both the LLM inclusion gate
-(step 7) and reviewers will need them. Suggested starting point — refine
-with the HAIQU team's domain experts:
+The repo currently uses only `/search` and `/scrape`. The other three
+endpoints unlock the rest of this strategy without writing more
+infrastructure.
 
-- **Topic:** indoor or hospital airborne pathogen detection, transmission
-  modelling, or engineering controls. Include droplet/aerosol biology,
-  bioaerosol sampling instrumentation, CRISPR-based diagnostics applied
-  to aerosolised pathogens, HVAC/UV/filtration controls in healthcare,
-  agent-based/digital-twin transmission models, QMRA/Wells-Riley risk
-  frameworks.
-- **Exclude** outdoor air pollution, occupational dust, non-airborne
-  HAIs (catheter, surgical site), purely device-engineering papers with
-  no biological readout, animal-only studies unless the model is
-  explicitly translational.
-- **Date window:** ≥2010 for primary research, ≥2020 for surveys; allow
-  earlier for foundational methods cited from the seed.
-- **Document types:** peer-reviewed primary research, peer-reviewed
-  reviews, preprints (bioRxiv/medRxiv) flagged as such, agency guidance
-  documents (ASHRAE/CDC/WHO/OSHA).
-- **Languages:** English-language for now; flag others for translation.
+### Quick mechanics
 
-### 2. Identify anchor reviews and seminal primary papers per subdomain
+- `FIRECRAWL_API_KEY` env var, or `--firecrawl-api-key` flag to
+  `run_haiqu_iterative_pipeline.py`.
+- `paper_fetching/firecrawl_client.py` already filters results to a
+  scientific-domain allowlist (PubMed, PMC, bioRxiv, medRxiv, Nature,
+  Science, Cell, PLOS, Frontiers, Springer, Wiley, ACS, arXiv) and
+  blocks news/blog noise (Wikipedia, Medscape, WebMD, Reddit, etc.).
+  Edit those two lists when a domain you trust is being filtered out.
+- All Firecrawl calls return tokens of usage in their JSON; track for
+  cost.
 
-For each subdomain in the inclusion criteria, pick 3–5 recent (≤5 yr)
-high-quality reviews and 3–5 most-cited primary papers. These become the
-starting nodes for citation chasing in step 4 and provide the
-*vocabulary* (MeSH terms, named methods, named instruments) that step 3
-uses for Boolean searches. Ingest these manually, not via search.
+### Patterns for HAIQU seeding, ordered roughly by laziness
 
-### 3. Run reproducible Boolean searches against the major databases
+#### Pattern 1 — `/search` topic queries (lazy default)
 
-Each search is recorded (database + query + date + result count) so the
-corpus is reproducible. Concrete starter strings — adapt to the
-HAIQU-specific framing:
+The cheapest pass. Aim each query at one HAIQU subdomain. Firecrawl's
+search supports Google operators, so use `site:` to restrict to the
+publishers you trust:
 
-**PubMed / Europe PMC (biomedical)**
 ```
-("aerosol*"[Title/Abstract] OR "bioaerosol*"[Title/Abstract])
-  AND ("hospital*"[Title/Abstract] OR "healthcare facilit*"[Title/Abstract])
-  AND ("detection"[Title/Abstract] OR "sampling"[Title/Abstract]
-        OR "monitoring"[Title/Abstract])
-  AND ("2015/01/01"[PDAT] : "3000"[PDAT])
-```
-```
-("CRISPR"[MeSH] OR "Cas13" OR "Cas12" OR "SHERLOCK" OR "DETECTR")
-  AND ("droplet*"[Title/Abstract] OR "microfluidic*"[Title/Abstract])
-  AND ("diagnostic*"[Title/Abstract] OR "detection"[Title/Abstract])
-```
-```
-("nosocomial"[Title/Abstract] OR "healthcare-associated"[Title/Abstract])
-  AND ("airborne"[Title/Abstract] OR "respiratory transmission"[Title/Abstract])
-  AND ("model*"[Title/Abstract] OR "simulation"[Title/Abstract])
+microfluidic droplet CRISPR airborne pathogen detection
+  site:pubmed.ncbi.nlm.nih.gov OR site:biorxiv.org OR site:medrxiv.org
+
+bioaerosol sampler hospital ICU
+  site:ncbi.nlm.nih.gov OR site:nature.com OR site:cell.com
+
+agent-based model nosocomial transmission
+  site:plos.org OR site:springer.com OR site:nature.com
+
+ASHRAE 170 healthcare ventilation infection control
+  site:cdc.gov OR site:ashrae.org OR site:who.int
 ```
 
-**Web of Science / Scopus** for cross-disciplinary work that PubMed
-misses — specifically engineering-side papers on HVAC, UV-C disinfection,
-aerosol physics, and digital-twin building modelling (try `WC=("Public,
-Environmental & Occupational Health" OR "Construction & Building
-Technology" OR "Engineering, Environmental")` plus the topical terms).
+The iterative pipeline already runs queries in this shape; the upgrade
+is to *write better queries*, not to add infrastructure.
 
-**arXiv** for the modelling side, esp. `q-bio.PE` (population +
-ecology / epidemiology) and `eess.SY` (systems and control); search
-`agent-based AND (hospital OR healthcare) AND (transmission OR
-infection)`.
+#### Pattern 2 — time-bounded `/search` for the live frontier
 
-**bioRxiv + medRxiv** as the live frontier — query the same Boolean
-strings as PubMed; many results show up there 6–18 months before
-publication.
+Firecrawl's search accepts `tbs` (Google's `qdr:` time filter). Pass
+`tbs=qdr:m` to restrict results to the last month, `qdr:y` for the last
+year. Run the same topic queries from Pattern 1 with `qdr:m` on a
+weekly cron — that's your "living review" continuous feed, no RSS
+plumbing required.
 
-### 4. Citation chasing on every anchor
+#### Pattern 3 — `/crawl` author / funder / journal pages
 
-For each anchor (step 2) and each first-round Boolean hit (step 3),
-expand both directions:
+Instead of "find the right paper one query at a time," point Firecrawl
+at a page that *lists* papers and let it follow:
 
-- **Backward** (references): pull cited papers via Crossref or
-  the OpenCitations COCI dataset.
-- **Forward** (citations): pull citing papers via the Semantic Scholar
-  API (free, programmatic) or OpenAlex. Forward-citation chasing is
-  where most novel-recent material comes from.
+- Author publications: `/crawl https://pubmed.ncbi.nlm.nih.gov/?term=Chang+CC+Mayo+Clinic` with `includePaths: ["/article/.*"]` and `maxDepth: 2` pulls every paper page that user clicks through to.
+- Funder awardees: `/crawl https://arpa-h.gov/explore-funding/programs/breathe`.
+- Journal subject feed: `/crawl https://www.biorxiv.org/collection/microbiology` with `tbs=qdr:y` semantics implemented via include patterns on date.
+- A specific bibliography: pass an HTML reference list URL with
+  `includePaths` matching DOI patterns.
 
-Iterate to depth 2 (anchor → its refs → their refs) before pruning;
-hard-cap at depth 3.
+This is the lazy substitute for "build a per-publisher scraper to chase
+citations and author corpora." You define the *starting page* and the
+*url-pattern filter*; Firecrawl handles the rest.
 
-### 5. Author-tracked corpora
+#### Pattern 4 — `/extract` with a schema for structured ingestion
 
-Identify the most-active labs in each subdomain and ingest each PI's
-full PubMed corpus filtered to relevant publications. A starter list to
-*verify* with the HAIQU team rather than trust blindly:
+For each paper landing page, ask Firecrawl + an LLM to populate a
+schema like:
 
-- **Mayo Clinic / HAIQU PI lab**: Connie Chang — droplet microfluidics
-  and pathogen detection.
-- **Aerosol biology & transmission**: Linsey Marr (Virginia Tech),
-  Don Milton (UMD), Lidia Morawska (QUT), Yuguo Li (HKU).
-- **Hospital ventilation / engineering controls**: Edward Nardell
-  (Harvard, upper-room UV-C), William Bahnfleth (Penn State, ASHRAE).
-- **CRISPR diagnostics**: Pardis Sabeti (Broad, SHERLOCK lineage),
-  Cameron Myhrvold (Princeton), Feng Zhang (Broad), Jennifer Doudna
-  (UC Berkeley).
-- **Bioaerosol sampling instrumentation**: groups associated with the
-  AIHA, AAAR, and ISIAQ communities.
+```json
+{
+  "title": "string",
+  "authors": ["string"],
+  "doi": "string",
+  "abstract": "string",
+  "publication_date": "string",
+  "journal": "string",
+  "key_entities": [
+    {"type": "PATHOGEN|METHOD|DEVICE|MODEL", "name": "string"}
+  ],
+  "cited_dois": ["string"]
+}
+```
 
-The HAIQU team should add and remove names. Ingest the *full* PubMed
-output for each chosen PI — relevance is enforced at step 7, not here.
+This collapses three steps (scrape → parse HTML → entity-extract) into
+one Firecrawl call. The `cited_dois` field then feeds Pattern 5.
 
-### 6. Funder-, conference-, and grey-literature passes
+#### Pattern 5 — `/batch-scrape` for forward/backward citation chasing
 
-Sources that keyword search misses but that are highly enriched for
-HAIQU-relevant content:
+Once Pattern 4 has a list of cited DOIs, fire them all into
+`/batch-scrape` with the same paper-metadata schema. That's
+citation-chasing in two API calls per round, no Crossref / OpenCitations
+/ Semantic Scholar account required.
 
-- **Funder programs**: ARPA-H BREATHE awardees and their pubs, NIH
-  RADx-rad, NIH NIBIB, BARDA diagnostics contracts, CDC outbreak
-  investigation reports. Track via NIH RePORTER, BARDA's portfolio page,
-  and ARPA-H funded-projects pages.
-- **Conferences**: Indoor Air (ISIAQ, biennial), AAAR Annual Meeting,
-  ASHRAE Annual + Winter, IDWeek, SHEA Spring, APIC, AIHce. Many of
-  these publish proceedings that PubMed doesn't index.
-- **Standards & guidance**: ASHRAE Standard 170 (*Ventilation of Health
-  Care Facilities*); CDC's *Guidelines for Environmental Infection
-  Control in Health-Care Facilities* (HICPAC); WHO IPC technical
-  guidance; OSHA respirator standards. These are PDFs — feed them into
-  `extract_pdfs_to_text.py` directly.
+For *forward* citation chasing (papers that cite a given paper), the
+laziest move is `/search "intitle:<paper title>"` with `tbs=qdr:y` and
+let Google's index find later citing work; or `/crawl` the paper's
+Semantic Scholar page directly.
 
-### 7. LLM-gated inclusion before entity extraction
+#### Pattern 6 — grey-lit PDFs as direct `/scrape` calls
 
-For every candidate paper from steps 3–6, run a small LLM call over
-title + abstract that returns a yes/no plus a one-sentence reason
-against the inclusion criteria from step 1. Reject before paying for
-full-text entity extraction. Log the reasons so reviewers can audit
-exclusions.
+ASHRAE 170, CDC HICPAC guidelines, WHO IPC, OSHA standards: most are
+PDFs at known URLs. `/scrape` returns clean markdown from a PDF with
+`formats: ["markdown"]`. No special PDF handling on our side.
 
-### 8. Continuous feeds (a "living review")
+### Quality gates (these stay regardless of source)
 
-The HAIQU corpus is moving — bake in re-ingestion:
+These aren't Firecrawl features; they're the part you have to keep
+discipline on:
 
-- bioRxiv + medRxiv RSS for the relevant subject areas, polled weekly.
-- PubMed saved searches with email alerts for the step-3 strings.
-- New publications by tracked authors (PubMed alerts per author).
-- ARPA-H, NIH RePORTER, BARDA RSS / scrape for new awards and
-  publications from funded teams.
+1. **Inclusion / exclusion criteria, written down before searching.**
+   For HAIQU, a starting point: indoor/hospital airborne pathogen
+   detection, transmission modelling, engineering controls. Exclude
+   outdoor air, occupational dust, non-airborne HAIs, animal-only
+   work without translational claims. Date ≥2010 (≥2020 for surveys).
+2. **LLM inclusion gate before entity extraction.** For every
+   `/search` result and every paper from a `/crawl`, run a small LLM
+   call over title + abstract: `does this match the criteria, yes/no,
+   one-sentence reason`. Reject before paying full-text entity
+   extraction. Log decisions for audit.
+3. **Convergence + rebalancing.** `iterative_search/convergence.py`
+   already tracks novel entities per round. Every ~100 papers
+   ingested, eyeball the entity-type distribution against
+   `domain_schemas/`. If one subdomain is 90% of nodes, queue a
+   fresh `/search` pass focused on the under-represented one.
+4. **Provenance.** Log every Firecrawl call: endpoint, query / URL /
+   schema, result count, the gate decisions, the graph snapshot. When
+   a reviewer asks why an answer changed, diff corpus versions and
+   point at the new papers.
 
-Each new paper goes through the same inclusion gate (step 7) before
-ingestion.
+### Operational notes
 
-### 9. Convergence and rebalancing
-
-After each ingestion round, the iterative pipeline already tracks novel
-entities added (`iterative_search/convergence.py`). Layer in a manual
-review every ~100 papers:
-
-- Is one subdomain over-represented (e.g., CRISPR diagnostics is
-  90% of nodes, HVAC controls is 2%)? Re-seed the underrepresented
-  subdomain with a fresh round of searches focused on it.
-- Are entity types balanced relative to the typed vocabulary in
-  `domain_schemas/`? Sparse types usually mean sparse coverage.
-- Are recent (last 12 mo) papers represented proportionally? If not,
-  the corpus is aging; pull a fresh preprint pass.
-
-### 10. Reproducibility and provenance
-
-Every ingestion writes:
-- The exact search strings, databases, date, and result counts.
-- The inclusion-gate decisions per paper.
-- A graph snapshot (`.graphml`) tagged with the corpus version.
-
-So when a reviewer asks *"why does the GASL answer change between last
-month and this month?"*, you can diff corpus versions and point at the
-specific papers that joined the graph.
-
-### Operational notes for running this
-
-1. **Run inference on the high-bandwidth host.** Iterative graph build
-   is LLM-heavy. Run it where Argo access is fast; ship the `.graphml`
-   to the UI host.
-2. **Use `domain_schemas/` to constrain entity types.** Tighter types
-   make GASL plans dramatically more precise — and make step 9's
-   imbalance check meaningful.
-3. **Snapshot between iterations.** `gasl/graph_versioning.py` already
-   supports this.
-4. **Don't let the seed PDF dominate.** Treat the HAIQU project PDF as
-   one anchor, not the centre of the universe. The graph should know
-   about each anchor's neighbourhood independently.
+1. **Run on the high-bandwidth host.** Firecrawl calls are network-
+   bound, the entity-extraction LLM calls are compute-bound; both want
+   the Argo-bandwidth machine. Ship the resulting `.graphml` to the UI
+   host.
+2. **`domain_schemas/` to constrain types.** Tighter typed vocab makes
+   GASL plans dramatically more precise and makes the rebalancing
+   check meaningful.
+3. **Snapshot between iterations** via `gasl/graph_versioning.py`.
+4. **Don't let the HAIQU PDF dominate.** Treat it as one anchor, not
+   the centre of the universe. Each Pattern-1 query should pull from a
+   neighbourhood the seed PDF doesn't cover.
+5. **Edit the domain allow/block lists in `firecrawl_client.py`** when
+   you need to ingest from a new publisher — they're at the top of the
+   file (`SCIENTIFIC_DOMAINS`, `EXCLUDED_DOMAINS`).
 
 ---
 
