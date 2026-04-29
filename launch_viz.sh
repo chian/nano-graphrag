@@ -1,23 +1,37 @@
 #!/bin/bash
-# Launch the graph visualization server
-# Usage: ./launch_viz.sh [optional_graph_path]
+# Launch the GASL/RAG visualization server.
+#
+# Usage:
+#   ./launch_viz.sh                    # auto-detect a sample graph, bind to localhost
+#   ./launch_viz.sh <graph.graphml>    # load a specific graph
+#
+# Environment overrides:
+#   HOST=0.0.0.0   bind to all interfaces (e.g. for Tailscale access)
+#   PORT=5050      change the port
+#   PYTHON=...     pin a specific interpreter; defaults to .venv if present
 
+set -e
 cd "$(dirname "$0")"
 
-PYTHON="/Users/chia/miniconda3/bin/python"
-PORT=5050
-URL="http://127.0.0.1:$PORT"
+# Pick a Python: prefer .venv, fall back to system python3
+if [ -z "$PYTHON" ]; then
+    if [ -x ".venv/bin/python" ]; then
+        PYTHON=".venv/bin/python"
+    else
+        PYTHON="$(command -v python3)"
+    fi
+fi
 
-# Open browser after a short delay (in background)
-(sleep 2 && open "$URL") &
+HOST="${HOST:-127.0.0.1}"
+PORT="${PORT:-5050}"
 
-# Check if a graph path was provided
+echo "Python:   $PYTHON"
+echo "Bind:     $HOST:$PORT"
+
 if [ -n "$1" ]; then
-    echo "Starting visualization with: $1"
-    echo "Opening browser at $URL"
-    $PYTHON -m visualization.examples.demo --port $PORT "$1"
+    echo "Graph:    $1"
+    exec "$PYTHON" -m visualization.examples.demo --host "$HOST" --port "$PORT" "$1"
 else
-    echo "Starting visualization (auto-detecting sample graph)..."
-    echo "Opening browser at $URL"
-    $PYTHON -m visualization.examples.demo --port $PORT
+    echo "Graph:    auto-detect"
+    exec "$PYTHON" -m visualization.examples.demo --host "$HOST" --port "$PORT"
 fi
