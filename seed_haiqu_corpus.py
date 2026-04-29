@@ -343,50 +343,23 @@ def run_search(api_key: str, q: SearchQuery, max_results: int) -> List[dict]:
     return out
 
 
-def save_paper(result: dict, dest_dir: Path, source_query: str,
-               tbs: Optional[str], group_name: str,
-               schema_alignment: List[str]) -> dict:
-    """Save the paper's markdown body with a provenance frontmatter header.
-
-    The frontmatter makes each .md file self-describing: the KG pipeline
-    sees the group, schema(s), and origin URL without opening metadata.json.
-    """
+def save_paper(result: dict, dest_dir: Path,
+               source_query: str, tbs: Optional[str]) -> dict:
+    """Save the paper's markdown body; return its metadata record."""
     paper_uuid = str(uuid.uuid4())
     body = extract_text_from_result(result, format="markdown")
-    md = result.get("metadata") or {}
-    title = md.get("title") or result.get("title", "(unknown)")
-    url = result.get("url", "")
-    downloaded_at = datetime.utcnow().isoformat() + "Z"
-
-    # Build a YAML-style frontmatter block so the file is self-describing.
-    schemas_yaml = ", ".join(schema_alignment)
-    frontmatter = (
-        "---\n"
-        f"uuid: {paper_uuid}\n"
-        f"group: {group_name}\n"
-        f"schema_alignment: [{schemas_yaml}]\n"
-        f"title: {json.dumps(title)}\n"
-        f"url: {url}\n"
-        f"source_query: {json.dumps(source_query)}\n"
-        f"tbs: {tbs or 'null'}\n"
-        f"downloaded_at: {downloaded_at}\n"
-        "---\n\n"
-    )
-
     out_path = dest_dir / f"{paper_uuid}.md"
-    out_path.write_text(frontmatter + body, encoding="utf-8")
-
+    out_path.write_text(body, encoding="utf-8")
+    md = result.get("metadata") or {}
     return {
         "uuid": paper_uuid,
-        "title": title,
-        "url": url,
-        "group": group_name,
-        "schema_alignment": schema_alignment,
+        "title": md.get("title") or result.get("title", "(unknown)"),
+        "url": result.get("url", ""),
         "description": md.get("description", ""),
         "language": md.get("language", ""),
         "source_query": source_query,
         "tbs": tbs,
-        "downloaded_at": downloaded_at,
+        "downloaded_at": datetime.utcnow().isoformat() + "Z",
         "content_file": out_path.name,
         "content_chars": len(body),
     }
@@ -423,8 +396,7 @@ def run_group(g: PaperGroup, api_key: Optional[str], root: Path,
             if not u or u in seen_urls:
                 continue
             seen_urls.add(u)
-            saved.append(save_paper(h, papers_dir, q.query, q.tbs,
-                                     g.name, g.schema_alignment))
+            saved.append(save_paper(h, papers_dir, q.query, q.tbs))
             kept += 1
         queries_log.append({
             "query": q.query,
@@ -450,7 +422,7 @@ def run_group(g: PaperGroup, api_key: Optional[str], root: Path,
     (group_dir / "metadata.json").write_text(
         json.dumps(metadata, indent=2), encoding="utf-8")
     print(f"  -> {group_dir/'metadata.json'} ({len(saved)} unique papers)")
-    return {"group": g.name, "paper_count": len(saved), "saved_papers": saved}
+    return {"group": g.name, "paper_count": len(saved)}
 
 
 def main():
@@ -498,52 +470,20 @@ def main():
     print(f"max/query: {args.max_per_query}")
     print(f"dry-run:   {args.dry_run}")
 
-    # run_group now returns the list of saved-paper dicts so we can build
-    # a global registry; non-dry-run groups return {"group", "saved_papers"}
-    all_saved: List[dict] = []
-    summaries = []
-    for g in selected:
-        result = run_group(g, args.api_key, root,
+    summaries = [run_group(g, args.api_key, root,
                            args.max_per_query, args.dry_run)
-        summaries.append(result)
-        if not args.dry_run:
-            all_saved.extend(result.get("saved_papers", []))
+                 for g in selected]
 
     if not args.dry_run:
-        # Global cross-group registry: url → list of entries (shows overlap)
-        registry: dict = {}
-        for entry in all_saved:
-            url = entry.get("url", "")
-            if not url:
-                continue
-            registry.setdefault(url, []).append({
-                "group": entry["group"],
-                "uuid": entry["uuid"],
-                "title": entry["title"],
-                "source_query": entry["source_query"],
-                "content_file": f"{entry['group']}/papers/{entry['content_file']}",
-            })
-
-        cross_group = {url: entries for url, entries in registry.items()
-                       if len(entries) > 1}
-
         index = {
             "ran_at": datetime.utcnow().isoformat() + "Z",
             "output_dir": str(root),
             "max_per_query": args.max_per_query,
             "groups": summaries,
-            "total_papers_across_groups": len(all_saved),
-            "unique_urls": len(registry),
-            "cross_group_overlap_count": len(cross_group),
         }
         (root / "corpus_index.json").write_text(
             json.dumps(index, indent=2), encoding="utf-8")
-        (root / "paper_registry.json").write_text(
-            json.dumps(registry, indent=2), encoding="utf-8")
-
-        print(f"\n-> corpus_index.json: {root/'corpus_index.json'}")
-        print(f"-> paper_registry.json ({len(registry)} unique URLs, "
-              f"{len(cross_group)} appear in >1 group)")
+        print(f"\n-> top-level index: {root/'corpus_index.json'}")
 
 
 if __name__ == "__main__":
