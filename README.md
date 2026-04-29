@@ -120,55 +120,200 @@ Output is a GraphML file that drops straight into `launch_viz.sh`.
 
 ---
 
-## Suggested literature-search strategy for HAIQU
+## Literature-search strategy for *seeding* the HAIQU knowledge graph
 
-The iterative pipeline's quality is gated by how well-seeded its search
-terms are. For HAIQU specifically, here's what's worth feeding in beyond
-the seed PDF:
+The goal of this section is **systematic discovery of every paper worth
+ingesting** so the resulting graph represents the field, not just the
+papers that happen to mention a few keywords. This is upstream of any
+querying — without comprehensive seeding, GASL/RAG can only answer about
+the literature we happened to feed it.
 
-### Domains to search
+A PRISMA-flavoured pipeline, adapted to feed the iterative ingestion
+engine.
 
-| Topic | Why it matters for HAIQU | Example seed terms |
-|---|---|---|
-| **CRISPR-based pathogen detection** | Core biosensor mechanism | SHERLOCK, DETECTR, Cas13a, Cas12a, isothermal amplification, microfluidic CRISPR |
-| **Microfluidic droplet platforms** | The biosensor substrate | digital droplet PCR, droplet microfluidics, droplet biosensor, single-cell partitioning |
-| **Bioaerosol sampling & detection** | Getting pathogens *into* the biosensor | bioaerosol sampler, impactor, cyclone sampler, electrostatic precipitation, BioSpot, BC-251 |
-| **Airborne pathogen viability** | What the signal means clinically | viral aerosol decay, Wells-Riley, RH effects on aerosol, particle size distribution of respiratory droplets |
-| **Hospital-acquired infections** | Outcomes the project intervenes on | nosocomial transmission, HAI, healthcare-associated infections, *M. tuberculosis*, MRSA, VRE, *C. difficile*, SARS-CoV-2 nosocomial, RSV, *Aspergillus* |
-| **HVAC & engineering controls** | The deployment environment | hospital ventilation, ACH, HEPA, UV-C upper-room, isolation room negative pressure, ASHRAE 170 |
-| **Agent-based & digital-twin models** | Project's modelling deliverable | agent-based hospital models, digital twin healthcare, FRED, COMOKIT, indoor microbiome dispersion |
-| **Risk-assessment frameworks** | How to compose detections into a risk score | quantitative microbial risk assessment (QMRA), Wells-Riley, real-time exposure modelling |
+### 1. Lock down inclusion / exclusion criteria first
 
-### Where to point the fetchers
+Write these *before* running any searches; both the LLM inclusion gate
+(step 7) and reviewers will need them. Suggested starting point — refine
+with the HAIQU team's domain experts:
 
-- **PubMed / Europe PMC** for the biology and clinical literature
-  (`paper_fetching` already supports PMID-based lookups).
-- **bioRxiv + medRxiv** for current-year preprints — HAIQU's frontier is
-  preprint-heavy, especially on aerosol biology and CRISPR diagnostics.
-- **arXiv `cs.LG` / `q-bio.PE`** for the agent-based-model side.
-- **CDC, WHO, ASHRAE** publications for guideline anchors (these often
-  serve as nucleation points whose neighbours in the graph then point at
-  the primary literature).
-- **Mayo Clinic faculty publications**, including Connie Chang's prior
-  work on droplet CRISPR — often the most context-rich entry points.
+- **Topic:** indoor or hospital airborne pathogen detection, transmission
+  modelling, or engineering controls. Include droplet/aerosol biology,
+  bioaerosol sampling instrumentation, CRISPR-based diagnostics applied
+  to aerosolised pathogens, HVAC/UV/filtration controls in healthcare,
+  agent-based/digital-twin transmission models, QMRA/Wells-Riley risk
+  frameworks.
+- **Exclude** outdoor air pollution, occupational dust, non-airborne
+  HAIs (catheter, surgical site), purely device-engineering papers with
+  no biological readout, animal-only studies unless the model is
+  explicitly translational.
+- **Date window:** ≥2010 for primary research, ≥2020 for surveys; allow
+  earlier for foundational methods cited from the seed.
+- **Document types:** peer-reviewed primary research, peer-reviewed
+  reviews, preprints (bioRxiv/medRxiv) flagged as such, agency guidance
+  documents (ASHRAE/CDC/WHO/OSHA).
+- **Languages:** English-language for now; flag others for translation.
 
-### Practical tips
+### 2. Identify anchor reviews and seminal primary papers per subdomain
 
-1. **Start narrow, expand**. Run the pipeline first with a tight set
-   of biosensor-CRISPR seeds, build a small graph, look at it in the UI,
-   then re-seed with whatever entity types are sparsest.
-2. **Use domain schemas**. `domain_schemas/` lets you constrain
-   extraction to a typed vocabulary (PATHOGEN, BIOSENSOR_METHOD,
-   HVAC_CONTROL, …). Tighter types make GASL queries dramatically more
-   precise.
-3. **Run inference on the bigger pipe**. Iterative graph build is LLM-
-   heavy. Run that on a host with Argo access (high bandwidth, low cost)
-   and copy the resulting `.graphml` to the UI host.
-4. **Snapshot and version**. The pipeline writes intermediate GraphML
-   files between iterations; commit those snapshots somewhere (or use
-   `gasl/graph_versioning.py`) so you can compare "what did the graph
-   know last week vs today" — useful when reviewers ask why an answer
-   changed.
+For each subdomain in the inclusion criteria, pick 3–5 recent (≤5 yr)
+high-quality reviews and 3–5 most-cited primary papers. These become the
+starting nodes for citation chasing in step 4 and provide the
+*vocabulary* (MeSH terms, named methods, named instruments) that step 3
+uses for Boolean searches. Ingest these manually, not via search.
+
+### 3. Run reproducible Boolean searches against the major databases
+
+Each search is recorded (database + query + date + result count) so the
+corpus is reproducible. Concrete starter strings — adapt to the
+HAIQU-specific framing:
+
+**PubMed / Europe PMC (biomedical)**
+```
+("aerosol*"[Title/Abstract] OR "bioaerosol*"[Title/Abstract])
+  AND ("hospital*"[Title/Abstract] OR "healthcare facilit*"[Title/Abstract])
+  AND ("detection"[Title/Abstract] OR "sampling"[Title/Abstract]
+        OR "monitoring"[Title/Abstract])
+  AND ("2015/01/01"[PDAT] : "3000"[PDAT])
+```
+```
+("CRISPR"[MeSH] OR "Cas13" OR "Cas12" OR "SHERLOCK" OR "DETECTR")
+  AND ("droplet*"[Title/Abstract] OR "microfluidic*"[Title/Abstract])
+  AND ("diagnostic*"[Title/Abstract] OR "detection"[Title/Abstract])
+```
+```
+("nosocomial"[Title/Abstract] OR "healthcare-associated"[Title/Abstract])
+  AND ("airborne"[Title/Abstract] OR "respiratory transmission"[Title/Abstract])
+  AND ("model*"[Title/Abstract] OR "simulation"[Title/Abstract])
+```
+
+**Web of Science / Scopus** for cross-disciplinary work that PubMed
+misses — specifically engineering-side papers on HVAC, UV-C disinfection,
+aerosol physics, and digital-twin building modelling (try `WC=("Public,
+Environmental & Occupational Health" OR "Construction & Building
+Technology" OR "Engineering, Environmental")` plus the topical terms).
+
+**arXiv** for the modelling side, esp. `q-bio.PE` (population +
+ecology / epidemiology) and `eess.SY` (systems and control); search
+`agent-based AND (hospital OR healthcare) AND (transmission OR
+infection)`.
+
+**bioRxiv + medRxiv** as the live frontier — query the same Boolean
+strings as PubMed; many results show up there 6–18 months before
+publication.
+
+### 4. Citation chasing on every anchor
+
+For each anchor (step 2) and each first-round Boolean hit (step 3),
+expand both directions:
+
+- **Backward** (references): pull cited papers via Crossref or
+  the OpenCitations COCI dataset.
+- **Forward** (citations): pull citing papers via the Semantic Scholar
+  API (free, programmatic) or OpenAlex. Forward-citation chasing is
+  where most novel-recent material comes from.
+
+Iterate to depth 2 (anchor → its refs → their refs) before pruning;
+hard-cap at depth 3.
+
+### 5. Author-tracked corpora
+
+Identify the most-active labs in each subdomain and ingest each PI's
+full PubMed corpus filtered to relevant publications. A starter list to
+*verify* with the HAIQU team rather than trust blindly:
+
+- **Mayo Clinic / HAIQU PI lab**: Connie Chang — droplet microfluidics
+  and pathogen detection.
+- **Aerosol biology & transmission**: Linsey Marr (Virginia Tech),
+  Don Milton (UMD), Lidia Morawska (QUT), Yuguo Li (HKU).
+- **Hospital ventilation / engineering controls**: Edward Nardell
+  (Harvard, upper-room UV-C), William Bahnfleth (Penn State, ASHRAE).
+- **CRISPR diagnostics**: Pardis Sabeti (Broad, SHERLOCK lineage),
+  Cameron Myhrvold (Princeton), Feng Zhang (Broad), Jennifer Doudna
+  (UC Berkeley).
+- **Bioaerosol sampling instrumentation**: groups associated with the
+  AIHA, AAAR, and ISIAQ communities.
+
+The HAIQU team should add and remove names. Ingest the *full* PubMed
+output for each chosen PI — relevance is enforced at step 7, not here.
+
+### 6. Funder-, conference-, and grey-literature passes
+
+Sources that keyword search misses but that are highly enriched for
+HAIQU-relevant content:
+
+- **Funder programs**: ARPA-H BREATHE awardees and their pubs, NIH
+  RADx-rad, NIH NIBIB, BARDA diagnostics contracts, CDC outbreak
+  investigation reports. Track via NIH RePORTER, BARDA's portfolio page,
+  and ARPA-H funded-projects pages.
+- **Conferences**: Indoor Air (ISIAQ, biennial), AAAR Annual Meeting,
+  ASHRAE Annual + Winter, IDWeek, SHEA Spring, APIC, AIHce. Many of
+  these publish proceedings that PubMed doesn't index.
+- **Standards & guidance**: ASHRAE Standard 170 (*Ventilation of Health
+  Care Facilities*); CDC's *Guidelines for Environmental Infection
+  Control in Health-Care Facilities* (HICPAC); WHO IPC technical
+  guidance; OSHA respirator standards. These are PDFs — feed them into
+  `extract_pdfs_to_text.py` directly.
+
+### 7. LLM-gated inclusion before entity extraction
+
+For every candidate paper from steps 3–6, run a small LLM call over
+title + abstract that returns a yes/no plus a one-sentence reason
+against the inclusion criteria from step 1. Reject before paying for
+full-text entity extraction. Log the reasons so reviewers can audit
+exclusions.
+
+### 8. Continuous feeds (a "living review")
+
+The HAIQU corpus is moving — bake in re-ingestion:
+
+- bioRxiv + medRxiv RSS for the relevant subject areas, polled weekly.
+- PubMed saved searches with email alerts for the step-3 strings.
+- New publications by tracked authors (PubMed alerts per author).
+- ARPA-H, NIH RePORTER, BARDA RSS / scrape for new awards and
+  publications from funded teams.
+
+Each new paper goes through the same inclusion gate (step 7) before
+ingestion.
+
+### 9. Convergence and rebalancing
+
+After each ingestion round, the iterative pipeline already tracks novel
+entities added (`iterative_search/convergence.py`). Layer in a manual
+review every ~100 papers:
+
+- Is one subdomain over-represented (e.g., CRISPR diagnostics is
+  90% of nodes, HVAC controls is 2%)? Re-seed the underrepresented
+  subdomain with a fresh round of searches focused on it.
+- Are entity types balanced relative to the typed vocabulary in
+  `domain_schemas/`? Sparse types usually mean sparse coverage.
+- Are recent (last 12 mo) papers represented proportionally? If not,
+  the corpus is aging; pull a fresh preprint pass.
+
+### 10. Reproducibility and provenance
+
+Every ingestion writes:
+- The exact search strings, databases, date, and result counts.
+- The inclusion-gate decisions per paper.
+- A graph snapshot (`.graphml`) tagged with the corpus version.
+
+So when a reviewer asks *"why does the GASL answer change between last
+month and this month?"*, you can diff corpus versions and point at the
+specific papers that joined the graph.
+
+### Operational notes for running this
+
+1. **Run inference on the high-bandwidth host.** Iterative graph build
+   is LLM-heavy. Run it where Argo access is fast; ship the `.graphml`
+   to the UI host.
+2. **Use `domain_schemas/` to constrain entity types.** Tighter types
+   make GASL plans dramatically more precise — and make step 9's
+   imbalance check meaningful.
+3. **Snapshot between iterations.** `gasl/graph_versioning.py` already
+   supports this.
+4. **Don't let the seed PDF dominate.** Treat the HAIQU project PDF as
+   one anchor, not the centre of the universe. The graph should know
+   about each anchor's neighbourhood independently.
 
 ---
 
