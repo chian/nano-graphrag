@@ -117,15 +117,28 @@ def create_app(graph_path: Optional[str] = None) -> Flask:
 
     @app.route('/api/query', methods=['POST'])
     def run_query():
-        """Answer a question using RAG (Mode 1) or GASL (Mode 2)."""
+        """Answer a question using RAG (Mode 1) or GASL (Mode 2).
+
+        Requires a user-supplied OpenAI-compatible API key in the
+        Authorization header: `Authorization: Bearer <key>`.
+        The key is used per-request and never persisted server-side.
+        """
         global _rag_engine, _gasl_engine
 
         if _current_loader is None or _current_loader.graph is None:
             return jsonify({'error': 'No graph loaded'}), 404
 
+        auth = request.headers.get('Authorization', '')
+        api_key = auth[7:].strip() if auth.lower().startswith('bearer ') else ''
+        if not api_key:
+            return jsonify({
+                'error': 'API key required. Send Authorization: Bearer <key>.'
+            }), 401
+
         data = request.json or {}
         question = data.get('question', '').strip()
         mode = data.get('mode', 'rag').lower()
+        model = (data.get('model') or 'gpt-5.4-mini').strip()
 
         if not question:
             return jsonify({'error': 'No question provided'}), 400
@@ -134,13 +147,16 @@ def create_app(graph_path: Optional[str] = None) -> Flask:
             if _rag_engine is None:
                 _rag_engine = RagQueryEngine(_current_loader)
             result = _rag_engine.query(question)
-            answer = _rag_engine.generate_answer(question, result['context'])
+            answer_obj = _rag_engine.generate_answer(
+                question, result['context'], api_key=api_key, model=model)
             return jsonify({
                 'mode': 'rag',
                 'nodes': result['nodes'],
                 'neighbor_nodes': result['neighbor_nodes'],
                 'edges': result['edges'],
-                'answer': answer,
+                'answer': answer_obj['text'],
+                'usage': answer_obj['usage'],
+                'model': model,
             })
 
         elif mode == 'gasl':
@@ -150,6 +166,7 @@ def create_app(graph_path: Optional[str] = None) -> Flask:
             t = threading.Thread(
                 target=_gasl_engine.run,
                 args=(question, job_id),
+                kwargs={'api_key': api_key, 'model': model},
                 daemon=True,
             )
             t.start()

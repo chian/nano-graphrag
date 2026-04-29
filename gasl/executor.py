@@ -8,6 +8,29 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 from pathlib import Path
 
+
+def _extract_json(text: str) -> str:
+    """Extract a JSON object/array from LLM output, tolerating markdown fences
+    and any prose before/after. OpenAI models (notably gpt-4o-mini) often wrap
+    JSON in ```json ... ``` blocks; the original Argo gpt41 typically did not."""
+    s = text.strip()
+    # Strip a leading ``` or ```json fence (any language tag)
+    if s.startswith('```'):
+        nl = s.find('\n')
+        if nl >= 0:
+            s = s[nl + 1:]
+        end = s.rfind('```')
+        if end >= 0:
+            s = s[:end]
+        s = s.strip()
+    # If there's still prose before the JSON, jump to the first { or [
+    if s and s[0] not in '{[':
+        starts = [i for i in (s.find('{'), s.find('[')) if i >= 0]
+        if starts:
+            s = s[min(starts):]
+    return s
+
+
 from .types import PlanObject, Command, ExecutionResult, HistoryEntry, StateSnapshot
 from .parser import GASLParser
 from .state import StateStore, ContextStore
@@ -221,8 +244,8 @@ class GASLExecutor:
             print(f"DEBUG: LLM Response:\n{plan_response}\n")
             
             try:
-                # Parse JSON response
-                plan_json = json.loads(plan_response)
+                # Parse JSON response — tolerant of markdown fences / prose
+                plan_json = json.loads(_extract_json(plan_response))
                 plan_json["query"] = query  # Ensure query is set
                 
                 # Execute plan

@@ -590,6 +590,50 @@
             <!-- Question Panel -->
             <div class="question-panel">
                 <h3>Ask a Question</h3>
+                <!-- BYOK: API key + model picker -->
+                <div class="byok-row" style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px;">
+                    <input type="password" id="apiKeyInput" class="byok-input"
+                           placeholder="OpenAI API key (sk-...)"
+                           style="flex: 1 1 180px; padding: 6px 8px; background: #2a2a2a; color: #eee; border: 1px solid #444; border-radius: 4px; font-family: inherit; font-size: 12px;">
+                    <button class="control-btn" type="button" onclick="toggleShowKey()" id="showKeyBtn" title="Show/hide key">👁</button>
+                    <button class="control-btn" type="button" onclick="saveApiKey()">Save</button>
+                    <button class="control-btn" type="button" onclick="clearApiKey()">Clear</button>
+                </div>
+                <div class="byok-row" style="display: flex; gap: 6px; align-items: center; margin-bottom: 6px; font-size: 12px;">
+                    <label for="modelSelect" style="color: #aaa;">Model:</label>
+                    <select id="modelSelect" onchange="onModelChange()"
+                            style="flex: 1; padding: 4px 6px; background: #2a2a2a; color: #eee; border: 1px solid #444; border-radius: 4px;">
+                        <optgroup label="GPT-5 (non-reasoning)">
+                            <option value="gpt-5.4-mini">gpt-5.4-mini  (default — fastest correct on test graph)</option>
+                            <option value="gpt-5.4">gpt-5.4</option>
+                            <option value="gpt-5.4-nano">gpt-5.4-nano</option>
+                            <option value="gpt-5.2">gpt-5.2</option>
+                        </optgroup>
+                        <optgroup label="GPT-5 (reasoning)">
+                            <option value="gpt-5.5">gpt-5.5  (flagship reasoning)</option>
+                            <option value="gpt-5.3-chat-latest">gpt-5.3-chat-latest</option>
+                            <option value="gpt-5.1">gpt-5.1</option>
+                            <option value="gpt-5-mini">gpt-5-mini</option>
+                            <option value="gpt-5-nano">gpt-5-nano</option>
+                        </optgroup>
+                        <optgroup label="GPT-4.1">
+                            <option value="gpt-4.1">gpt-4.1</option>
+                            <option value="gpt-4.1-mini">gpt-4.1-mini</option>
+                            <option value="gpt-4.1-nano">gpt-4.1-nano  (cheap; sometimes bails early)</option>
+                        </optgroup>
+                        <optgroup label="o-series reasoning (slower)">
+                            <option value="o3-mini">o3-mini</option>
+                            <option value="o4-mini">o4-mini</option>
+                            <option value="o1">o1</option>
+                            <option value="o3">o3</option>
+                        </optgroup>
+                        <option value="__custom__">Custom…</option>
+                    </select>
+                    <input type="text" id="customModelInput" placeholder="Custom model id"
+                           oninput="saveCustomModel()"
+                           style="display: none; flex: 1; padding: 4px 6px; background: #2a2a2a; color: #eee; border: 1px solid #444; border-radius: 4px;">
+                </div>
+                <div id="apiKeyStatus" style="font-size: 11px; margin-bottom: 8px;">⚠ No API key — queries disabled</div>
                 <textarea class="question-textarea" id="questionInput"
                           placeholder="e.g. What cognitive functions are impaired by respiratory disease?"></textarea>
                 <div class="mode-row">
@@ -600,6 +644,7 @@
                 <div class="query-status" id="queryStatus"></div>
                 <div class="gasl-log" id="gaslLog"></div>
                 <div class="answer-box" id="answerBox"></div>
+                <div id="usageBox" style="display:none; margin-top:6px; font-size:11px; color:#888; padding:4px 6px; background:#1f1f1f; border-radius:4px;"></div>
                 <span class="answer-clear" id="answerClear" onclick="clearQueryHighlights()">
                     Clear highlights &amp; answer
                 </span>
@@ -1053,6 +1098,83 @@
             document.getElementById('gaslLog').style.display = 'none';
         }
 
+        // ── BYOK (Bring Your Own API Key) ──────────────────────────────────────
+        const _LS_KEY_API = 'nano_graphrag_api_key';
+        const _LS_KEY_MODEL = 'nano_graphrag_model';
+        const _LS_KEY_CUSTOM_MODEL = 'nano_graphrag_custom_model';
+
+        function getApiKey() {
+            return (localStorage.getItem(_LS_KEY_API) || '').trim();
+        }
+        function getModel() {
+            const sel = document.getElementById('modelSelect').value;
+            if (sel === '__custom__') {
+                return (document.getElementById('customModelInput').value || '').trim();
+            }
+            return sel;
+        }
+        function saveApiKey() {
+            const v = document.getElementById('apiKeyInput').value.trim();
+            if (!v) { return clearApiKey(); }
+            localStorage.setItem(_LS_KEY_API, v);
+            updateApiKeyUI();
+        }
+        function clearApiKey() {
+            localStorage.removeItem(_LS_KEY_API);
+            document.getElementById('apiKeyInput').value = '';
+            updateApiKeyUI();
+        }
+        function toggleShowKey() {
+            const i = document.getElementById('apiKeyInput');
+            i.type = (i.type === 'password') ? 'text' : 'password';
+        }
+        function onModelChange() {
+            const sel = document.getElementById('modelSelect').value;
+            document.getElementById('customModelInput').style.display =
+                (sel === '__custom__') ? 'block' : 'none';
+            localStorage.setItem(_LS_KEY_MODEL, sel);
+            updateApiKeyUI();
+        }
+        function saveCustomModel() {
+            localStorage.setItem(_LS_KEY_CUSTOM_MODEL,
+                document.getElementById('customModelInput').value.trim());
+            updateApiKeyUI();
+        }
+        function updateApiKeyUI() {
+            const key = getApiKey();
+            const model = getModel();
+            const status = document.getElementById('apiKeyStatus');
+            const askBtn = document.getElementById('askBtn');
+            if (key && model) {
+                status.textContent = '✅ Key saved · model: ' + model;
+                status.style.color = '#27ae60';
+                askBtn.disabled = false;
+            } else if (!key) {
+                status.textContent = '⚠ No API key — queries disabled';
+                status.style.color = '#e67e22';
+                askBtn.disabled = true;
+            } else {
+                status.textContent = '⚠ Pick a model';
+                status.style.color = '#e67e22';
+                askBtn.disabled = true;
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const savedKey = localStorage.getItem(_LS_KEY_API) || '';
+            if (savedKey) document.getElementById('apiKeyInput').value = savedKey;
+            const savedModel = localStorage.getItem(_LS_KEY_MODEL) || 'gpt-5.4-mini';
+            const sel = document.getElementById('modelSelect');
+            const known = Array.from(sel.options).map(o => o.value);
+            sel.value = known.includes(savedModel) ? savedModel : 'gpt-5.4-mini';
+            if (sel.value === '__custom__') {
+                document.getElementById('customModelInput').style.display = 'block';
+                document.getElementById('customModelInput').value =
+                    localStorage.getItem(_LS_KEY_CUSTOM_MODEL) || '';
+            }
+            updateApiKeyUI();
+        });
+
         async function askQuestion() {
             const question = document.getElementById('questionInput').value.trim();
             if (!question) return;
@@ -1073,9 +1195,20 @@
             try {
                 const resp = await fetch('/api/query', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({question, mode: _queryMode}),
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + getApiKey(),
+                    },
+                    body: JSON.stringify({question, mode: _queryMode, model: getModel()}),
                 });
+
+                if (resp.status === 401) {
+                    document.getElementById('queryStatus').textContent =
+                        'API key missing or rejected — set it above and try again.';
+                    document.getElementById('askBtn').disabled = false;
+                    updateApiKeyUI();
+                    return;
+                }
                 const data = await resp.json();
 
                 if (data.error) {
@@ -1088,6 +1221,7 @@
                     // Show only the relevant subgraph, highlighted in gold
                     showSubgraph(data.nodes, data.edges, '#f1c40f');
                     showAnswer(data.answer);
+                    showUsage(data.usage, data.model);
                     document.getElementById('queryStatus').textContent =
                         `Found ${data.nodes.length} relevant nodes`;
                     document.getElementById('askBtn').disabled = false;
@@ -1179,6 +1313,7 @@
 
             document.getElementById('answerBox').style.display = 'none';
             document.getElementById('answerClear').style.display = 'none';
+            document.getElementById('usageBox').style.display = 'none';
             document.getElementById('queryStatus').textContent = '';
             document.getElementById('gaslLog').style.display = 'none';
             document.getElementById('gaslLog').innerHTML = '';
@@ -1262,6 +1397,25 @@
             box.textContent = text;
             box.style.display = 'block';
             document.getElementById('answerClear').style.display = 'block';
+        }
+
+        function showUsage(usage, model) {
+            const box = document.getElementById('usageBox');
+            if (!usage || !usage.calls) {
+                box.style.display = 'none';
+                return;
+            }
+            const fmt = n => (n || 0).toLocaleString();
+            const m = model || getModel();
+            box.innerHTML =
+                '<strong>tokens:</strong> ' +
+                fmt(usage.prompt_tokens) + ' prompt + ' +
+                fmt(usage.completion_tokens) + ' completion = ' +
+                fmt(usage.total_tokens) + ' total ' +
+                '<span style="color:#666;">(' + usage.calls +
+                ' LLM call' + (usage.calls !== 1 ? 's' : '') +
+                (m ? ' · ' + m : '') + ')</span>';
+            box.style.display = 'block';
         }
 
         /**
@@ -1354,6 +1508,7 @@
                 `Done in ${iters} iteration${iters !== 1 ? 's' : ''} · ${data.nodes ? data.nodes.length : 0} nodes touched`;
             // Show final answer (replaces any streamed partial)
             showAnswer(data.answer);
+            showUsage(data.usage);
             document.getElementById('askBtn').disabled = false;
             _activeJobId = null;
             _gaslNodeSet.clear();

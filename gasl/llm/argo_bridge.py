@@ -7,25 +7,47 @@ import asyncio
 from typing import Any, Dict, List, Optional
 from openai import AsyncOpenAI
 from ..errors import LLMError
-from nano_graphrag.prompt_system import QueryAwarePromptSystem
+# `nano_graphrag.prompt_system` is imported lazily (see prompt_system property
+# below) — pulling it eagerly here drags in the entire nano_graphrag dep tree
+# (transformers, hnswlib, neo4j, etc.) which the RAG-only callers don't need.
 
 
 class ArgoBridgeLLM:
     """Wrapper around existing argo_bridge_llm function."""
     
-    def __init__(self, model: str = None, temperature: float = 0.0, max_tokens: int = 4000):
+    def __init__(self, model: str = None, temperature: float = 0.0, max_tokens: int = 4000,
+                 api_key: Optional[str] = None, base_url: Optional[str] = None):
         self.model = model or os.getenv("LLM_MODEL", "gpt41")
         self.temperature = temperature
         self.max_tokens = max_tokens
 
-        # Initialize OpenAI client (Argo is now OpenAI-native)
-        self.client = AsyncOpenAI(
-            api_key=os.getenv("LLM_API_KEY", "api+key"),
-            base_url=os.getenv("LLM_ENDPOINT", "https://apps-dev.inside.anl.gov/argoapi/v1")
-        )
+        # If an api_key is supplied at construction time (e.g. user-supplied via UI),
+        # default to OpenAI's public endpoint unless base_url is also overridden.
+        # Otherwise fall back to env vars (legacy Argo path).
+        if api_key is not None:
+            client_kwargs = {"api_key": api_key}
+            if base_url is not None:
+                client_kwargs["base_url"] = base_url
+        else:
+            client_kwargs = {
+                "api_key": os.getenv("LLM_API_KEY", "api+key"),
+                "base_url": base_url or os.getenv(
+                    "LLM_ENDPOINT", "https://apps-dev.inside.anl.gov/argoapi/v1"),
+            }
+        self.client = AsyncOpenAI(**client_kwargs)
 
-        # Initialize prompt system
-        self.prompt_system = QueryAwarePromptSystem()
+        # prompt_system is lazy — only constructed on first access via the
+        # property below. Saves an expensive import for the RAG-only path.
+        self._prompt_system = None
+
+        # Per-instance token usage accumulator across all .call() invocations.
+        # Server can read this after a query to report cost to the UI.
+        self.usage = {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0,
+            "calls": 0,
+        }
 
         # Control debug output
         self.debug = os.getenv("LLM_DEBUG", "false").lower() == "true"
@@ -33,6 +55,62 @@ class ArgoBridgeLLM:
         # Optional streaming callback: callable(token: str) -> None
         # When set, call() streams tokens via this function AND returns the full text.
         self.stream_callback: Optional[callable] = None
+
+    @property
+    def prompt_system(self):
+        if self._prompt_system is None:
+            from nano_graphrag.prompt_system import QueryAwarePromptSystem
+            self._prompt_system = QueryAwarePromptSystem()
+        return self._prompt_system
+
+    def _is_reasoning_model(self) -> bool:
+        """Models that reject custom temperature / require defaults.
+
+        o-series are reasoning models; some GPT-5 variants behave the same way:
+          - gpt-5 / gpt-5-mini / gpt-5-nano (the "reasoning" base line)
+          - gpt-5.5 family (current flagship reasoning)
+          - any *-chat-latest alias (points at the current ChatGPT default,
+            which is a reasoning model)
+        Whereas gpt-5.4, gpt-5.2, gpt-5.1 are non-reasoning and DO accept custom
+        temperature, so we only return True for the specific patterns above."""
+        m = (self.model or "").lower()
+        if m.startswith(("o1", "o3", "o4", "o5")):
+            return True
+        if m in ("gpt-5", "gpt-5-mini", "gpt-5-nano"):
+            return True
+        if m.startswith("gpt-5.5"):
+            return True
+        if "chat-latest" in m:
+            return True
+        return False
+
+    def _uses_max_completion_tokens(self) -> bool:
+        """GPT-5 family and o-series reject max_tokens; need max_completion_tokens.
+        GPT-4.x and earlier still take max_tokens."""
+        m = (self.model or "").lower()
+        return self._is_reasoning_model() or m.startswith("gpt-5")
+
+    def _build_create_kwargs(self, prompt: str, *, stream: bool) -> dict:
+        kwargs = {
+            "model": self.model,
+            "messages": [{"role": "user", "content": prompt}],
+            "user": "chia",
+        }
+        if stream:
+            kwargs["stream"] = True
+        # token cap: reasoning models include reasoning tokens in this budget,
+        # so give them more headroom.
+        token_cap = self.max_tokens
+        if self._is_reasoning_model() and token_cap < 8000:
+            token_cap = 8000
+        if self._uses_max_completion_tokens():
+            kwargs["max_completion_tokens"] = token_cap
+        else:
+            kwargs["max_tokens"] = token_cap
+        # reasoning models reject custom temperature (must be default 1.0)
+        if not self._is_reasoning_model():
+            kwargs["temperature"] = self.temperature
+        return kwargs
 
     async def call_async(self, prompt: str) -> str:
         """Make async LLM call, streaming tokens if stream_callback is set."""
@@ -42,14 +120,8 @@ class ArgoBridgeLLM:
         try:
             if self.stream_callback is not None:
                 # Streaming path
-                stream = await self.client.chat.completions.create(
-                    model=self.model,
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=self.temperature,
-                    max_tokens=self.max_tokens,
-                    user="chia",
-                    stream=True,
-                )
+                kwargs = self._build_create_kwargs(prompt, stream=True)
+                stream = await self.client.chat.completions.create(**kwargs)
                 full_text = ""
                 async for chunk in stream:
                     token = (chunk.choices[0].delta.content or "") if chunk.choices else ""
@@ -65,14 +137,16 @@ class ArgoBridgeLLM:
                 return full_text
             else:
                 # Non-streaming path (original behaviour)
-                response = await self.client.chat.completions.create(
-                    model=self.model,
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=self.temperature,
-                    max_tokens=self.max_tokens,
-                    user="chia"
-                )
+                kwargs = self._build_create_kwargs(prompt, stream=False)
+                response = await self.client.chat.completions.create(**kwargs)
                 result = response.choices[0].message.content
+                # Accumulate usage across calls (non-streaming exposes it directly).
+                u = getattr(response, "usage", None)
+                if u is not None:
+                    self.usage["prompt_tokens"] += getattr(u, "prompt_tokens", 0) or 0
+                    self.usage["completion_tokens"] += getattr(u, "completion_tokens", 0) or 0
+                    self.usage["total_tokens"] += getattr(u, "total_tokens", 0) or 0
+                self.usage["calls"] += 1
                 if self.debug:
                     print(f"DEBUG: LLM RESPONSE RECEIVED:\n{result}\n")
                     print("="*80)

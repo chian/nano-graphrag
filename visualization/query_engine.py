@@ -9,7 +9,7 @@ Mode 2 – GaslQueryEngine: GASL hypothesis-driven graph traversal with live
 import sys
 import threading
 from pathlib import Path
-from typing import Dict, List, Any, Tuple
+from typing import Dict, List, Any, Tuple, Optional
 
 # Ensure the project root is on sys.path so gasl/ can be imported.
 _project_root = str(Path(__file__).parent.parent)
@@ -140,13 +140,21 @@ class RagQueryEngine:
         }
 
     # ------------------------------------------------------------------
-    def generate_answer(self, question: str, context: str) -> str:
-        """Generate a natural-language answer using ArgoBridgeLLM."""
+    def generate_answer(self, question: str, context: str,
+                        api_key: Optional[str] = None,
+                        model: Optional[str] = None) -> Dict[str, Any]:
+        """Generate a natural-language answer using ArgoBridgeLLM.
+
+        Returns a dict {'text': str, 'usage': {prompt_tokens, completion_tokens,
+        total_tokens, calls}} so the server can surface usage to the UI."""
+        empty_usage = {"prompt_tokens": 0, "completion_tokens": 0,
+                       "total_tokens": 0, "calls": 0}
         if not context:
-            return "(No relevant nodes found in the graph for this question.)"
+            return {"text": "(No relevant nodes found in the graph for this question.)",
+                    "usage": empty_usage}
         try:
             from gasl.llm.argo_bridge import ArgoBridgeLLM
-            llm = ArgoBridgeLLM()
+            llm = ArgoBridgeLLM(model=model, api_key=api_key)
             prompt = (
                 "You are answering questions about a biomedical knowledge graph "
                 "focused on respiratory disease and cognitive function.\n\n"
@@ -154,11 +162,13 @@ class RagQueryEngine:
                 f"Question: {question}\n\n"
                 "Provide a concise, evidence-based answer using only the nodes above:"
             )
-            return llm.call(prompt)
+            text = llm.call(prompt)
+            return {"text": text, "usage": dict(llm.usage)}
         except Exception as e:
-            return (
-                f"(LLM answer unavailable: {e} – see highlighted nodes in the graph)"
-            )
+            return {
+                "text": f"(LLM answer unavailable: {e} – see highlighted nodes in the graph)",
+                "usage": empty_usage,
+            }
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -274,7 +284,9 @@ class GaslQueryEngine:
         self.socketio = socketio
 
     # ------------------------------------------------------------------
-    def run(self, question: str, job_id: str):
+    def run(self, question: str, job_id: str,
+            api_key: Optional[str] = None,
+            model: Optional[str] = None):
         """Execute GASL traversal in a background thread."""
         patch = None
         try:
@@ -283,7 +295,7 @@ class GaslQueryEngine:
             from gasl.llm.argo_bridge import ArgoBridgeLLM
 
             adapter = NetworkXAdapter(self.loader.graph)
-            llm = ArgoBridgeLLM()
+            llm = ArgoBridgeLLM(model=model, api_key=api_key)
             executor = GASLExecutor(adapter, llm)
 
             # Attach visualization patch
@@ -298,7 +310,7 @@ class GaslQueryEngine:
             })
 
             result = executor.run_hypothesis_driven_traversal(
-                question, max_iterations=5
+                question, max_iterations=8
             )
 
             self.socketio.emit('query_complete', {
@@ -308,9 +320,14 @@ class GaslQueryEngine:
                 'edges': [],
                 'iterations': result.get('iterations', 0),
                 'query_answered': result.get('query_answered', False),
+                'usage': dict(llm.usage),
             })
 
         except Exception as e:
+            usage = dict(llm.usage) if 'llm' in locals() else {
+                "prompt_tokens": 0, "completion_tokens": 0,
+                "total_tokens": 0, "calls": 0,
+            }
             self.socketio.emit('query_complete', {
                 'job_id': job_id,
                 'answer': f"GASL error: {e}",
@@ -318,4 +335,5 @@ class GaslQueryEngine:
                 'edges': [],
                 'iterations': 0,
                 'query_answered': False,
+                'usage': usage,
             })
