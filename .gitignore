@@ -201,5 +201,4 @@ kv_store_*.json
 vdb_*.json
 
 
-# Downloaded paper corpus (seed_haiqu_corpus.py output)
-data/
+# data/ is tracked (paper corpus committed to repo)

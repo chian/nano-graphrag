@@ -1,0 +1,31 @@
+{
+  "ran_at": "2026-04-29T02:44:07.110426Z",
+  "output_dir": "data/haiqu_corpus",
+  "max_per_query": 100,
+  "groups": [
+    {
+      "group": "haiqu_biosensor_detection",
+      "paper_count": 50
+    },
+    {
+      "group": "haiqu_aerosol_exposure",
+      "paper_count": 115
+    },
+    {
+      "group": "haiqu_hospital_environment",
+      "paper_count": 36
+    },
+    {
+      "group": "haiqu_engineering_controls",
+      "paper_count": 74
+    },
+    {
+      "group": "haiqu_transmission_risk",
+      "paper_count": 241
+    },
+    {
+      "group": "haiqu_cognitive_impact",
+      "paper_count": 138
+    }
+  ]
+}
