@@ -1,0 +1,18 @@
+{
+  "model": "gpt41mini",
+  "corpus_dir": "data/haiqu_corpus",
+  "results": [
+    {
+      "group": "haiqu_engineering_controls",
+      "schema": "haiqu_engineering_controls",
+      "papers_attempted": 2,
+      "papers_succeeded": 2,
+      "papers_skipped_short": 0,
+      "papers_failed": 0,
+      "nodes": 38,
+      "edges": 30,
+      "output_path": "haiqu_graphs/haiqu_engineering_controls_graph.graphml",
+      "elapsed_sec": 166.64037489891052
+    }
+  ]
+}

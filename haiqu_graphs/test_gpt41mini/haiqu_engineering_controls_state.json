@@ -1,0 +1,13 @@
+{
+  "completed_uuids": [
+    "3fc1e87d-c54a-447e-9229-2850cf6a1b9b",
+    "acd1f3b8-58df-4f9c-b442-fddccc439222",
+    "e45568c3-e22e-4830-92f5-64de955e8aee"
+  ],
+  "model": "gpt41mini",
+  "schema": "haiqu_engineering_controls",
+  "completed": true,
+  "papers_succeeded": 3,
+  "papers_failed": 0,
+  "papers_skipped_short": 0
+}

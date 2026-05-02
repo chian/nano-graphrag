@@ -76,9 +76,12 @@ class ArgoBridgeLLM:
         m = (self.model or "").lower()
         if m.startswith(("o1", "o3", "o4", "o5")):
             return True
-        if m in ("gpt-5", "gpt-5-mini", "gpt-5-nano"):
+        # Hyphenated public names (gpt-5, gpt-5-mini, ...) and Argo internal IDs
+        # (gpt5, gpt5mini, gpt5nano) — all three are reasoning baseline models
+        if m in ("gpt-5", "gpt-5-mini", "gpt-5-nano", "gpt5", "gpt5mini", "gpt5nano"):
             return True
-        if m.startswith("gpt-5.5"):
+        # gpt-5.5 / gpt55 are reasoning flagship models
+        if m.startswith("gpt-5.5") or m.startswith("gpt55"):
             return True
         if "chat-latest" in m:
             return True
@@ -88,7 +91,7 @@ class ArgoBridgeLLM:
         """GPT-5 family and o-series reject max_tokens; need max_completion_tokens.
         GPT-4.x and earlier still take max_tokens."""
         m = (self.model or "").lower()
-        return self._is_reasoning_model() or m.startswith("gpt-5")
+        return self._is_reasoning_model() or m.startswith("gpt-5") or m.startswith("gpt5")
 
     def _build_create_kwargs(self, prompt: str, *, stream: bool) -> dict:
         kwargs = {

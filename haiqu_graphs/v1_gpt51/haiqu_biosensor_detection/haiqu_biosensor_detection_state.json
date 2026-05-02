@@ -1,0 +1,18 @@
+{
+  "completed_uuids": [
+    "11afeea8-e169-4ec4-b576-ba8c5437c9ea",
+    "20688a00-6f67-4143-82be-97c8891c204b",
+    "4b595dc6-a258-44ed-89fc-c349fc64a77f",
+    "4dc306e7-3b4b-4f0b-9c14-b13bbd895a99",
+    "4f48bc36-62e9-46b3-bffe-cddc7d3947fe",
+    "6f94756d-fd42-4a77-b6b1-d9dc6901591d",
+    "8b626067-a7f3-4d8f-bbf1-8f50269e849c",
+    "8cd80207-0825-48ce-af82-eed721eee13b",
+    "de3c3a3b-6855-4b40-bff9-eef9df2e0d4b",
+    "ed45ef2f-ad29-4058-8b09-5fed00b411a1",
+    "f2b3cfad-751c-4e9d-a9ef-77be12b8fc1a"
+  ],
+  "model": "gpt51",
+  "schema": "haiqu_biosensor_detection",
+  "last_checkpoint_paper": "4b595dc6-a258-44ed-89fc-c349fc64a77f"
+}

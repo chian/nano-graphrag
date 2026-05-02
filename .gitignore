@@ -194,6 +194,9 @@ graphrag_cache/
 graph_versions/
 *.pkl
 *.graphml
+# Allow HAIQU output graphs
+!haiqu_graphs/**/*.graphml
+!haiqu_graphs/*.graphml
 
 # State and cache files
 gasl_state.json

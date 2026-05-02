@@ -1,0 +1,18 @@
+{
+  "model": "gpt54",
+  "corpus_dir": "data/haiqu_corpus",
+  "results": [
+    {
+      "group": "haiqu_engineering_controls",
+      "schema": "haiqu_engineering_controls",
+      "papers_attempted": 3,
+      "papers_succeeded": 3,
+      "papers_skipped_short": 0,
+      "papers_failed": 0,
+      "nodes": 93,
+      "edges": 123,
+      "output_path": "haiqu_graphs/test_gpt54/haiqu_engineering_controls_graph.graphml",
+      "elapsed_sec": 1255.6472511291504
+    }
+  ]
+}

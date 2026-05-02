@@ -1,0 +1,28 @@
+{
+  "completed_uuids": [
+    "11afeea8-e169-4ec4-b576-ba8c5437c9ea",
+    "12c860ef-d560-49a7-90e9-ce0a51efc734",
+    "20688a00-6f67-4143-82be-97c8891c204b",
+    "21b78c34-798c-4645-ab94-b2f13cd808ca",
+    "33cd13fd-32dd-454d-870b-05e530eec1cc",
+    "4b595dc6-a258-44ed-89fc-c349fc64a77f",
+    "4dc306e7-3b4b-4f0b-9c14-b13bbd895a99",
+    "4f48bc36-62e9-46b3-bffe-cddc7d3947fe",
+    "630fdc37-efe3-4c03-9238-679bbabfc159",
+    "6f94756d-fd42-4a77-b6b1-d9dc6901591d",
+    "8b626067-a7f3-4d8f-bbf1-8f50269e849c",
+    "8cd80207-0825-48ce-af82-eed721eee13b",
+    "94ab8001-1107-4ca0-b141-fbc443275c7e",
+    "99c4f10c-a6e5-468d-ae1a-51e2165c985b",
+    "aa043faa-3848-4418-8257-95f857979b78",
+    "ad9b453d-c2a1-46d8-8d21-c583213b4c4e",
+    "b78b7720-857e-411f-a2e7-a50bbd19e9a9",
+    "be5b8846-9e05-408c-b419-1952b83fdcd4",
+    "de3c3a3b-6855-4b40-bff9-eef9df2e0d4b",
+    "ed45ef2f-ad29-4058-8b09-5fed00b411a1",
+    "f2b3cfad-751c-4e9d-a9ef-77be12b8fc1a"
+  ],
+  "model": "gpt55",
+  "schema": "haiqu_biosensor_detection",
+  "last_checkpoint_paper": "33cd13fd-32dd-454d-870b-05e530eec1cc"
+}

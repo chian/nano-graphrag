@@ -1,0 +1,2333 @@
+<?xml version='1.0' encoding='utf-8'?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd">
+  <key id="d14" for="edge" attr.name="source_papers" attr.type="string" />
+  <key id="d13" for="edge" attr.name="source_chunk" attr.type="string" />
+  <key id="d12" for="edge" attr.name="order" attr.type="long" />
+  <key id="d11" for="edge" attr.name="weight" attr.type="double" />
+  <key id="d10" for="edge" attr.name="description" attr.type="string" />
+  <key id="d9" for="edge" attr.name="relation_type" attr.type="string" />
+  <key id="d8" for="edge" attr.name="tgt_id" attr.type="string" />
+  <key id="d7" for="edge" attr.name="src_id" attr.type="string" />
+  <key id="d6" for="node" attr.name="alternative_names" attr.type="string" />
+  <key id="d5" for="node" attr.name="source_papers" attr.type="string" />
+  <key id="d4" for="node" attr.name="source_chunks" attr.type="string" />
+  <key id="d3" for="node" attr.name="importance_score" attr.type="double" />
+  <key id="d2" for="node" attr.name="description" attr.type="string" />
+  <key id="d1" for="node" attr.name="entity_type" attr.type="string" />
+  <key id="d0" for="node" attr.name="entity_name" attr.type="string" />
+  <graph edgedefault="directed">
+    <node id="VENTILATION SYSTEM DESIGN">
+      <data key="d0">VENTILATION SYSTEM DESIGN</data>
+      <data key="d1">ENGINEERING_CONTROL</data>
+      <data key="d2">Engineering configuration of room ventilation that prioritizes directing contaminant-laden air from the source to exhaust to enhance removal; can reduce infection risk without necessarily increasing airflow.</data>
+      <data key="d3">0.9</data>
+      <data key="d4">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_2</data>
+      <data key="d5">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </node>
+    <node id="CONTROL STRATEGY">
+      <data key="d0">CONTROL STRATEGY</data>
+      <data key="d1">ENGINEERING_CONTROL</data>
+      <data key="d2">An operational/engineering approach informed by CFD that manages transport mechanisms and particle paths to keep flow from source to exhaust uninterrupted, thereby limiting exposure.</data>
+      <data key="d3">0.82</data>
+      <data key="d4">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_2</data>
+      <data key="d5">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </node>
+    <node id="INCREASING VENTILATION AIRFLOW RATE">
+      <data key="d0">INCREASING VENTILATION AIRFLOW RATE</data>
+      <data key="d1">ENGINEERING_CONTROL</data>
+      <data key="d2">A dilution-based control action that raises airflow to increase air changes per hour; improves dilution when emissions are constant but may not improve ventilation effectiveness if flow paths are suboptimal.</data>
+      <data key="d3">0.74</data>
+      <data key="d4">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_2</data>
+      <data key="d5">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </node>
+    <node id="AIR CHANGES PER HOUR (ACH)">
+      <data key="d0">AIR CHANGES PER HOUR (ACH)</data>
+      <data key="d1">DOSE_OR_RATE</data>
+      <data key="d2">Ventilation rate metric indicating the number of times room air is replaced per hour; commonly used as a dilution indicator for airborne contaminants.</data>
+      <data key="d3">0.82</data>
+      <data key="d4">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_2,3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_4</data>
+      <data key="d5">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </node>
+    <node id="VENTILATION AIRFLOW RATE">
+      <data key="d0">VENTILATION AIRFLOW RATE</data>
+      <data key="d1">DOSE_OR_RATE</data>
+      <data key="d2">Quantitative airflow supplied/exhausted by the ventilation system; increasing this raises ACH but does not necessarily improve contaminant removal effectiveness.</data>
+      <data key="d3">0.62</data>
+      <data key="d4">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_2</data>
+      <data key="d5">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </node>
+    <node id="AIRBORNE INFECTIOUS DISEASE AGENTS">
+      <data key="d0">AIRBORNE INFECTIOUS DISEASE AGENTS</data>
+      <data key="d1">AIRBORNE_PATHOGEN</data>
+      <data key="d2">Pathogenic particles/aerosols capable of airborne transmission in indoor environments that the ventilation design and control strategy aim to remove.</data>
+      <data key="d3">0.84</data>
+      <data key="d4">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_2</data>
+      <data key="d5">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </node>
+    <node id="ISOLATION ROOM">
+      <data key="d0">ISOLATION ROOM</data>
+      <data key="d1">HOSPITAL_ZONE</data>
+      <data key="d2">An enclosed, mechanically ventilated hospital room used to isolate infectious patients; setting for the optimization of ventilation design and controls.</data>
+      <data key="d3">0.86</data>
+      <data key="d4">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_2</data>
+      <data key="d5">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </node>
+    <node id="COMPUTATIONAL FLUID DYNAMICS (CFD) ANALYSIS">
+      <data key="d0">COMPUTATIONAL FLUID DYNAMICS (CFD) ANALYSIS</data>
+      <data key="d1">VALIDATION_STUDY</data>
+      <data key="d2">Simulation-based analysis used to examine airflow, transport mechanisms, and particle trajectories to evaluate and inform ventilation control strategies.</data>
+      <data key="d3">0.79</data>
+      <data key="d4">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_2</data>
+      <data key="d5">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </node>
+    <node id="EXTENSIVE LITERATURE REVIEW">
+      <data key="d0">EXTENSIVE LITERATURE REVIEW</data>
+      <data key="d1">VALIDATION_STUDY</data>
+      <data key="d2">Synthesis of prior evidence indicating that exposure does not always result in infection, supporting emphasis on flow-path control in addition to dilution.</data>
+      <data key="d3">0.46</data>
+      <data key="d4">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_2</data>
+      <data key="d5">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </node>
+    <node id="SOURCE-TO-EXHAUST FLOW PATH INTEGRITY">
+      <data key="d0">SOURCE-TO-EXHAUST FLOW PATH INTEGRITY</data>
+      <data key="d1">EFFECTIVENESS_MEASURE</data>
+      <data key="d2">A measure of how direct and uninterrupted the airflow path is between the contaminant source and the exhaust; hypothesized as the dominant factor in contaminant control in enclosed, mechanically ventilated rooms.</data>
+      <data key="d3">0.87</data>
+      <data key="d4">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_2</data>
+      <data key="d5">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </node>
+    <node id="VENTILATION EFFECTIVENESS">
+      <data key="d0">VENTILATION EFFECTIVENESS</data>
+      <data key="d1">EFFECTIVENESS_MEASURE</data>
+      <data key="d2">The efficiency of a ventilation system in removing contaminants from occupied zones, influenced by flow path configuration and source/exhaust placement beyond simple dilution.</data>
+      <data key="d3">0.76</data>
+      <data key="d4">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_2</data>
+      <data key="d5">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </node>
+    <node id="NOSOCOMIAL INFECTIONS ANNUAL COST (US$4–5B, U.S.)">
+      <data key="d0">NOSOCOMIAL INFECTIONS ANNUAL COST (US$4–5B, U.S.)</data>
+      <data key="d1">COST_PROXY</data>
+      <data key="d2">Economic burden associated with hospital-acquired infections in the United States, cited as approximately $4–$5 billion per year; serves as a motivation for optimizing ventilation controls.</data>
+      <data key="d3">0.7</data>
+      <data key="d4">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_2</data>
+      <data key="d5">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </node>
+    <node id="PATH-CONFORMING VENTILATION DESIGN (DIRECT SOURCE-TO-EXHAUST AIRFLOW)">
+      <data key="d0">PATH-CONFORMING VENTILATION DESIGN (DIRECT SOURCE-TO-EXHAUST AIRFLOW)</data>
+      <data key="d1">ENGINEERING_CONTROL</data>
+      <data key="d2">Ventilation system layout that maintains an uninterrupted airflow path from the contaminant source (e.g., patient) directly to the exhaust, minimizing cross-flow interference per the hypothesized path principle.</data>
+      <data key="d3">0.9</data>
+      <data key="d4">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_3</data>
+      <data key="d5">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </node>
+    <node id="AIR CHANGE RATE (ACH)">
+      <data key="d0">AIR CHANGE RATE (ACH)</data>
+      <data key="d1">DOSE_OR_RATE</data>
+      <data key="d2">Ventilation flow rate expressed as air changes per hour; higher ACH generally increases removal of airborne contaminants. | The rate of air exchange with outdoor or cleaned air (per hour), a key dose parameter determining dilution of indoor aerosols under different ventilation strategies.</data>
+      <data key="d3">0.82</data>
+      <data key="d4">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_3</data>
+      <data key="d5">3fc1e87d-c54a-447e-9229-2850cf6a1b9b,e45568c3-e22e-4830-92f5-64de955e8aee</data>
+      <data key="d6">AIR CHANGE RATE (ACH)</data>
+    </node>
+    <node id="PATIENT ROOM">
+      <data key="d0">PATIENT ROOM</data>
+      <data key="d1">HOSPITAL_ZONE</data>
+      <data key="d2">Healthcare indoor environment where patient care occurs and ventilation strategies are applied.</data>
+      <data key="d3">0.8</data>
+      <data key="d4">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_3</data>
+      <data key="d5">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </node>
+    <node id="COUGH-GENERATED BIOAEROSOLS">
+      <data key="d0">COUGH-GENERATED BIOAEROSOLS</data>
+      <data key="d1">AIRBORNE_PATHOGEN</data>
+      <data key="d2">Transient respiratory particles produced by coughing that can carry infectious organisms and drive short-term exposure events.</data>
+      <data key="d3">0.6</data>
+      <data key="d4">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_3</data>
+      <data key="d5">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </node>
+    <node id="INFECTION RISK DURING TRANSIENT COUGHING EXPOSURE">
+      <data key="d0">INFECTION RISK DURING TRANSIENT COUGHING EXPOSURE</data>
+      <data key="d1">EFFECTIVENESS_MEASURE</data>
+      <data key="d2">Probability of infection to nearby occupants during short-duration coughing events in a patient room.</data>
+      <data key="d3">0.85</data>
+      <data key="d4">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_3</data>
+      <data key="d5">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </node>
+    <node id="INCREASED SOURCE-TO-RECEPTOR DISTANCE">
+      <data key="d0">INCREASED SOURCE-TO-RECEPTOR DISTANCE</data>
+      <data key="d1">ENGINEERING_CONTROL</data>
+      <data key="d2">Spatial separation strategy that increases distance between the contaminant source (patient) and susceptible individuals to reduce exposure.</data>
+      <data key="d3">0.65</data>
+      <data key="d4">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_3</data>
+      <data key="d5">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </node>
+    <node id="CFD-BASED PATIENT ROOM VENTILATION EFFECTIVENESS STUDY (2011)">
+      <data key="d0">CFD-BASED PATIENT ROOM VENTILATION EFFECTIVENESS STUDY (2011)</data>
+      <data key="d1">VALIDATION_STUDY</data>
+      <data key="d2">Computational Fluid Dynamics analysis demonstrating that a direct source-to-exhaust airflow path is a dominant factor for contaminant control, showing that distancing reduces risk and that the effect is more pronounced at higher ACH.</data>
+      <data key="d3">0.75</data>
+      <data key="d4">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_3</data>
+      <data key="d5">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </node>
+    <node id="CONTAMINANT TRANSMISSION">
+      <data key="d0">CONTAMINANT TRANSMISSION</data>
+      <data key="d1">EFFECTIVENESS_MEASURE</data>
+      <data key="d2">Undesired movement of airborne contaminants from source to room occupants before removal by the exhaust.</data>
+      <data key="d3">0.6</data>
+      <data key="d4">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_3</data>
+      <data key="d5">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </node>
+    <node id="NEGATIVE-PRESSURE ISOLATION ROOM">
+      <data key="d0">NEGATIVE-PRESSURE ISOLATION ROOM</data>
+      <data key="d1">ENGINEERING_CONTROL</data>
+      <data key="d2">A specialized isolation room designed to maintain lower air pressure than adjacent spaces, driving inward airflow and exhausting contaminated air to contain and remove infectious aerosols in healthcare settings such as emergency departments.</data>
+      <data key="d3">0.96</data>
+      <data key="d4">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_4</data>
+      <data key="d5">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </node>
+    <node id="VENTILATION CONFIGURATION">
+      <data key="d0">VENTILATION CONFIGURATION</data>
+      <data key="d1">ENGINEERING_CONTROL</data>
+      <data key="d2">The arrangement and operation of supply and exhaust terminals, airflow rates, and flow patterns in a room; variations are used to influence aerosol dispersion, dilution, removal, and containment in isolation rooms.</data>
+      <data key="d3">0.8</data>
+      <data key="d4">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_4</data>
+      <data key="d5">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </node>
+    <node id="EMERGENCY DEPARTMENTS">
+      <data key="d0">EMERGENCY DEPARTMENTS</data>
+      <data key="d1">HOSPITAL_ZONE</data>
+      <data key="d2">High-acuity hospital areas with rapid patient turnover and potential aerosol-generating procedures where negative-pressure isolation rooms are deployed to limit airborne transmission.</data>
+      <data key="d3">0.7</data>
+      <data key="d4">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_4</data>
+      <data key="d5">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </node>
+    <node id="HOSPITAL ISOLATION ROOM">
+      <data key="d0">HOSPITAL ISOLATION ROOM</data>
+      <data key="d1">HOSPITAL_ZONE</data>
+      <data key="d2">Dedicated rooms within hospitals used to house and isolate infectious patients; ventilation configurations within these rooms determine aerosol dispersion and removal performance.</data>
+      <data key="d3">0.82</data>
+      <data key="d4">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_4</data>
+      <data key="d5">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </node>
+    <node id="SARS-COV-2">
+      <data key="d0">SARS-COV-2</data>
+      <data key="d1">AIRBORNE_PATHOGEN</data>
+      <data key="d2">The respiratory virus responsible for COVID-19; aerosol and droplet emissions from infected patients can be mitigated by optimized ventilation and negative-pressure isolation strategies. | Respiratory virus causing COVID-19; risk assessed for airborne transmission within a route bus environment.</data>
+      <data key="d3">0.95</data>
+      <data key="d4">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_4,3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_5</data>
+      <data key="d5">3fc1e87d-c54a-447e-9229-2850cf6a1b9b,e45568c3-e22e-4830-92f5-64de955e8aee</data>
+      <data key="d6">SARS-COV-2</data>
+    </node>
+    <node id="RESPIRATORY VIRUSES">
+      <data key="d0">RESPIRATORY VIRUSES</data>
+      <data key="d1">AIRBORNE_PATHOGEN</data>
+      <data key="d2">A group of pathogens transmitted via respiratory droplets and aerosols (e.g., influenza viruses, coronaviruses); engineering controls aim to reduce airborne spread in healthcare environments.</data>
+      <data key="d3">0.78</data>
+      <data key="d4">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_4</data>
+      <data key="d5">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </node>
+    <node id="VENTILATION PERFORMANCE EVALUATION OF A NEGATIVE-PRESSURIZED ISOLATION ROOM FOR EMERGENCY DEPARTMENTS">
+      <data key="d0">VENTILATION PERFORMANCE EVALUATION OF A NEGATIVE-PRESSURIZED ISOLATION ROOM FOR EMERGENCY DEPARTMENTS</data>
+      <data key="d1">VALIDATION_STUDY</data>
+      <data key="d2">A 2022 study (Healthcare (Basel)) evaluating ventilation performance of a negative-pressurized isolation room in emergency departments, examining airflow behavior, pressure differentials, and containment relevant to exposure control.</data>
+      <data key="d3">0.86</data>
+      <data key="d4">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_4</data>
+      <data key="d5">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </node>
+    <node id="BEHAVIOR OF COUGH DROPLETS EMITTED FROM COVID-19 PATIENT IN HOSPITAL ISOLATION ROOM WITH DIFFERENT VENTILATION CONFIGURATIONS">
+      <data key="d0">BEHAVIOR OF COUGH DROPLETS EMITTED FROM COVID-19 PATIENT IN HOSPITAL ISOLATION ROOM WITH DIFFERENT VENTILATION CONFIGURATIONS</data>
+      <data key="d1">VALIDATION_STUDY</data>
+      <data key="d2">A 2022 study (Building and Environment) analyzing how varying ventilation configurations in a hospital isolation room affect the transport and fate of cough droplets from a COVID-19 patient, informing control effectiveness.</data>
+      <data key="d3">0.86</data>
+      <data key="d4">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_4</data>
+      <data key="d5">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </node>
+    <node id="SUMMARY OF HUMAN RESPONSES TO VENTILATION">
+      <data key="d0">SUMMARY OF HUMAN RESPONSES TO VENTILATION</data>
+      <data key="d1">VALIDATION_STUDY</data>
+      <data key="d2">A 2004 review (Indoor Air) summarizing how ventilation rates and patterns influence human exposures and health-related responses, supporting the rationale for optimized ventilation in isolation settings.</data>
+      <data key="d3">0.62</data>
+      <data key="d4">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_4</data>
+      <data key="d5">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </node>
+    <node id="TRANSMISSIBILITY AND TRANSMISSION OF RESPIRATORY VIRUSES">
+      <data key="d0">TRANSMISSIBILITY AND TRANSMISSION OF RESPIRATORY VIRUSES</data>
+      <data key="d1">VALIDATION_STUDY</data>
+      <data key="d2">A 2021 review (Nature Reviews Microbiology) on mechanisms and determinants of respiratory virus transmission, emphasizing the role of airborne pathways and the importance of airflow management.</data>
+      <data key="d3">0.64</data>
+      <data key="d4">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_4</data>
+      <data key="d5">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </node>
+    <node id="ROOM PRESSURE DIFFERENTIAL">
+      <data key="d0">ROOM PRESSURE DIFFERENTIAL</data>
+      <data key="d1">DOSE_OR_RATE</data>
+      <data key="d2">The negative pressure magnitude (e.g., Pascals) maintained between an isolation room and adjacent spaces; determines the inward airflow that limits aerosol escape.</data>
+      <data key="d3">0.8</data>
+      <data key="d4">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_4</data>
+      <data key="d5">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </node>
+    <node id="AEROSOL CLEARANCE TIME (99% REMOVAL)">
+      <data key="d0">AEROSOL CLEARANCE TIME (99% REMOVAL)</data>
+      <data key="d1">EFFECTIVENESS_MEASURE</data>
+      <data key="d2">Time required to remove 99% of airborne particles from a room, reflecting how quickly ventilation and airflow patterns clear infectious aerosols.</data>
+      <data key="d3">0.76</data>
+      <data key="d4">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_4</data>
+      <data key="d5">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </node>
+    <node id="CONTAINMENT LEAKAGE FRACTION">
+      <data key="d0">CONTAINMENT LEAKAGE FRACTION</data>
+      <data key="d1">EFFECTIVENESS_MEASURE</data>
+      <data key="d2">The fraction of contaminants escaping from an isolation room to adjacent areas, indicating the containment performance of pressure and airflow controls.</data>
+      <data key="d3">0.75</data>
+      <data key="d4">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_4</data>
+      <data key="d5">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </node>
+    <node id="AIRBORNE INFECTIOUS AEROSOL CONCENTRATION">
+      <data key="d0">AIRBORNE INFECTIOUS AEROSOL CONCENTRATION</data>
+      <data key="d1">EFFECTIVENESS_MEASURE</data>
+      <data key="d2">The concentration of pathogen-laden aerosols in room air; a direct indicator of exposure risk influenced by ventilation rates and flow patterns.</data>
+      <data key="d3">0.78</data>
+      <data key="d4">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_4</data>
+      <data key="d5">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </node>
+    <node id="VENTILATION STRATEGIES IN INPATIENT WARDS">
+      <data key="d0">VENTILATION STRATEGIES IN INPATIENT WARDS</data>
+      <data key="d1">ENGINEERING_CONTROL</data>
+      <data key="d2">Room- and ward-level ventilation configurations and strategies intended to mitigate airborne dispersion of infectious aerosols in hospital inpatient wards.</data>
+      <data key="d3">0.86</data>
+      <data key="d4">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_5</data>
+      <data key="d5">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </node>
+    <node id="MERS-COV">
+      <data key="d0">MERS-COV</data>
+      <data key="d1">AIRBORNE_PATHOGEN</data>
+      <data key="d2">Middle East respiratory syndrome coronavirus; capable of aerosol transmission in healthcare settings under certain conditions.</data>
+      <data key="d3">0.8</data>
+      <data key="d4">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_5</data>
+      <data key="d5">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </node>
+    <node id="INPATIENT WARDS">
+      <data key="d0">INPATIENT WARDS</data>
+      <data key="d1">HOSPITAL_ZONE</data>
+      <data key="d2">General hospital inpatient care areas where multiple patients and staff share air, relevant for airborne infection control.</data>
+      <data key="d3">0.75</data>
+      <data key="d4">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_5</data>
+      <data key="d5">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </node>
+    <node id="REDUCTION IN AIRBORNE DISPERSION OF MERS-COV">
+      <data key="d0">REDUCTION IN AIRBORNE DISPERSION OF MERS-COV</data>
+      <data key="d1">EFFECTIVENESS_MEASURE</data>
+      <data key="d2">Decreased spread and concentration of MERS-CoV-laden aerosols within ward airspace as estimated by numerical simulation.</data>
+      <data key="d3">0.7</data>
+      <data key="d4">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_5</data>
+      <data key="d5">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </node>
+    <node id="HELIYON 2024 NUMERICAL INVESTIGATION (SATHEESAN ET AL., PMID: 38404798)">
+      <data key="d0">HELIYON 2024 NUMERICAL INVESTIGATION (SATHEESAN ET AL., PMID: 38404798)</data>
+      <data key="d1">VALIDATION_STUDY</data>
+      <data key="d2">Numerical simulation study evaluating inpatient-ward ventilation strategies to mitigate airborne dispersion of MERS-CoV.</data>
+      <data key="d3">0.6</data>
+      <data key="d4">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_5</data>
+      <data key="d5">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </node>
+    <node id="LEUNG 2021 REVIEW (NAT REV MICROBIOL, PMID: 33753932)">
+      <data key="d0">LEUNG 2021 REVIEW (NAT REV MICROBIOL, PMID: 33753932)</data>
+      <data key="d1">VALIDATION_STUDY</data>
+      <data key="d2">Narrative review on exhaled air and airborne transmission mechanisms with implications for ventilation and other mitigation strategies.</data>
+      <data key="d3">0.55</data>
+      <data key="d4">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_5</data>
+      <data key="d5">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </node>
+    <node id="AIRBORNE FUNGI IN HOSPITALS">
+      <data key="d0">AIRBORNE FUNGI IN HOSPITALS</data>
+      <data key="d1">AIRBORNE_PATHOGEN</data>
+      <data key="d2">Fungal spores and fragments present in hospital indoor air that can pose risks, particularly in high-risk clinical areas.</data>
+      <data key="d3">0.5</data>
+      <data key="d4">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_5</data>
+      <data key="d5">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </node>
+    <node id="CRITICAL HOSPITAL AREAS">
+      <data key="d0">CRITICAL HOSPITAL AREAS</data>
+      <data key="d1">HOSPITAL_ZONE</data>
+      <data key="d2">High-risk hospital environments (e.g., ICUs, transplant or oncology units) where strict airborne contamination control is required.</data>
+      <data key="d3">0.5</data>
+      <data key="d4">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_5</data>
+      <data key="d5">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </node>
+    <node id="BELIZARIO 2021 REVIEW (AEROBIOLOGIA, PMID: 34007098)">
+      <data key="d0">BELIZARIO 2021 REVIEW (AEROBIOLOGIA, PMID: 34007098)</data>
+      <data key="d1">VALIDATION_STUDY</data>
+      <data key="d2">Review summarizing evidence on the presence and implications of fungi in indoor air of critical hospital areas.</data>
+      <data key="d3">0.48</data>
+      <data key="d4">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_5</data>
+      <data key="d5">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </node>
+    <node id="SURGICAL SETTINGS">
+      <data key="d0">SURGICAL SETTINGS</data>
+      <data key="d1">HOSPITAL_ZONE</data>
+      <data key="d2">Perioperative clinical environments where surgeons and staff operate, with specific airborne risk considerations.</data>
+      <data key="d3">0.45</data>
+      <data key="d4">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_5</data>
+      <data key="d5">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </node>
+    <node id="STEWART 2020 REVIEW FOR SURGEONS (ANN SURG, PMID: 32675516)">
+      <data key="d0">STEWART 2020 REVIEW FOR SURGEONS (ANN SURG, PMID: 32675516)</data>
+      <data key="d1">VALIDATION_STUDY</data>
+      <data key="d2">Review focusing on personal protective equipment considerations for surgeons during COVID-19.</data>
+      <data key="d3">0.44</data>
+      <data key="d4">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_5</data>
+      <data key="d5">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </node>
+    <node id="VENTILATION OF HEALTH CARE FACILITIES (ASHRAE/ASHE STANDARD 170-2008)">
+      <data key="d0">VENTILATION OF HEALTH CARE FACILITIES (ASHRAE/ASHE STANDARD 170-2008)</data>
+      <data key="d1">ENGINEERING_CONTROL</data>
+      <data key="d2">A standards-based engineering control specifying ventilation requirements for healthcare settings to manage indoor air quality and support infection control. The citation indicates the ASHRAE/ASHE Standard 170-2008 as the reference framework for design and operation of ventilation in clinical environments.</data>
+      <data key="d3">0.8</data>
+      <data key="d4">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_6</data>
+      <data key="d5">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </node>
+    <node id="HEALTH CARE FACILITIES">
+      <data key="d0">HEALTH CARE FACILITIES</data>
+      <data key="d1">HOSPITAL_ZONE</data>
+      <data key="d2">The deployment context for the ventilation standard, encompassing hospitals, clinics, and other clinical environments where HVAC requirements are applied to protect patients and staff.</data>
+      <data key="d3">0.5</data>
+      <data key="d4">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_6</data>
+      <data key="d5">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </node>
+    <node id="ASHRAE HANDBOOK—FUNDAMENTALS (2005)">
+      <data key="d0">ASHRAE HANDBOOK—FUNDAMENTALS (2005)</data>
+      <data key="d1">VALIDATION_STUDY</data>
+      <data key="d2">A foundational ASHRAE reference cited alongside the standard that provides HVAC principles and methodologies underpinning ventilation design in healthcare applications.</data>
+      <data key="d3">0.45</data>
+      <data key="d4">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_6</data>
+      <data key="d5">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </node>
+    <node id="RISK MANAGEMENT GUIDANCE FOR HEALTH, SAFETY AND ENVIRONMENTAL SECURITY UNDER EXTRAORDINARY INCIDENTS (ASHRAE, 2003)">
+      <data key="d0">RISK MANAGEMENT GUIDANCE FOR HEALTH, SAFETY AND ENVIRONMENTAL SECURITY UNDER EXTRAORDINARY INCIDENTS (ASHRAE, 2003)</data>
+      <data key="d1">VALIDATION_STUDY</data>
+      <data key="d2">ASHRAE guidance cited with the standard that addresses risk management for health, safety, and environmental security during extraordinary incidents, informing facility engineering and operational decisions relevant to ventilation controls.</data>
+      <data key="d3">0.35</data>
+      <data key="d4">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_6</data>
+      <data key="d5">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </node>
+    <node id="WINDOW OPENING (BUS IN MOTION)">
+      <data key="d0">WINDOW OPENING (BUS IN MOTION)</data>
+      <data key="d1">ENGINEERING_CONTROL</data>
+      <data key="d2">Opening bus windows to enhance natural ventilation and increase air changes per hour (ACH) while the bus is moving.</data>
+      <data key="d3">0.9</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_2</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="VENTILATION FANS SET TO EXHAUST MODE">
+      <data key="d0">VENTILATION FANS SET TO EXHAUST MODE</data>
+      <data key="d1">ENGINEERING_CONTROL</data>
+      <data key="d2">Configuring both front and rear bus ventilation fans to exhaust air, which increases ACH compared with supply mode.</data>
+      <data key="d3">0.8</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_2</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="VENTILATION FANS SET TO SUPPLY MODE">
+      <data key="d0">VENTILATION FANS SET TO SUPPLY MODE</data>
+      <data key="d1">ENGINEERING_CONTROL</data>
+      <data key="d2">Configuring both front and rear bus ventilation fans to supply air; associated with lower ACH than exhaust mode.</data>
+      <data key="d3">0.5</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_2</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="FRONT AND REAR WINDOW PAIR OPEN">
+      <data key="d0">FRONT AND REAR WINDOW PAIR OPEN</data>
+      <data key="d1">ENGINEERING_CONTROL</data>
+      <data key="d2">Opening one front and one rear window simultaneously; yields higher ACH than opening two rear windows.</data>
+      <data key="d3">0.6</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_2</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="TWO REAR WINDOWS OPEN">
+      <data key="d0">TWO REAR WINDOWS OPEN</data>
+      <data key="d1">ENGINEERING_CONTROL</data>
+      <data key="d2">Opening two windows located at the rear of the bus; produces lower ACH than a front-rear window pair.</data>
+      <data key="d3">0.5</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_2</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="AC UNIT EQUIPPED WITH APPROPRIATE PREFILTER">
+      <data key="d0">AC UNIT EQUIPPED WITH APPROPRIATE PREFILTER</data>
+      <data key="d1">ENGINEERING_CONTROL</data>
+      <data key="d2">Adding a suitable prefilter to the bus air conditioning unit to trap aerosol particles and reduce their spread.</data>
+      <data key="d3">0.8</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_2</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="AIR CHANGES PER HOUR (ACH) IN ROUTE BUS">
+      <data key="d0">AIR CHANGES PER HOUR (ACH) IN ROUTE BUS</data>
+      <data key="d1">DOSE_OR_RATE</data>
+      <data key="d2">Ventilation rate metric measured in the bus; increases with vehicle speed and number/location of open windows, and is higher with fans in exhaust mode.</data>
+      <data key="d3">0.8</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_2</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="92% REDUCTION IN AVERAGE INFECTION RISK WITH WINDOWS OPEN (MOVING BUS)">
+      <data key="d0">92% REDUCTION IN AVERAGE INFECTION RISK WITH WINDOWS OPEN (MOVING BUS)</data>
+      <data key="d1">EFFECTIVENESS_MEASURE</data>
+      <data key="d2">Average infection risk reduced by 92% when the bus is moving with windows open compared to windows closed, per modified Wells–Riley calculations.</data>
+      <data key="d3">0.9</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_2</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="35% REDUCTION IN AVERAGE INFECTION RISK WITH EXHAUST FAN OPERATION (WINDOWS CLOSED, MOVING BUS)">
+      <data key="d0">35% REDUCTION IN AVERAGE INFECTION RISK WITH EXHAUST FAN OPERATION (WINDOWS CLOSED, MOVING BUS)</data>
+      <data key="d1">EFFECTIVENESS_MEASURE</data>
+      <data key="d2">Average infection risk reduced by 35% when the bus is moving with windows closed and both ventilation fans set to exhaust.</data>
+      <data key="d3">0.8</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_2</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="PARTICLES SPREAD AT ~50% OF CO2 RATE WITH AC ON (PREFILTER EFFECT)">
+      <data key="d0">PARTICLES SPREAD AT ~50% OF CO2 RATE WITH AC ON (PREFILTER EFFECT)</data>
+      <data key="d1">EFFECTIVENESS_MEASURE</data>
+      <data key="d2">With the air conditioning on, particle spread rate is about half that of CO2, consistent with particle capture by an AC prefilter.</data>
+      <data key="d3">0.6</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_2</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="ROUTE BUS FIELD MEASUREMENTS AND MODIFIED WELLS–RILEY MODELING">
+      <data key="d0">ROUTE BUS FIELD MEASUREMENTS AND MODIFIED WELLS–RILEY MODELING</data>
+      <data key="d1">VALIDATION_STUDY</data>
+      <data key="d2">Study determining ACH and advection–diffusion of CO2 and particles in a route bus and estimating infection risk using a modified Wells–Riley equation.</data>
+      <data key="d3">0.7</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_2</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="OPEN WINDOWS">
+      <data key="d0">OPEN WINDOWS</data>
+      <data key="d1">ENGINEERING_CONTROL</data>
+      <data key="d2">Opening bus windows is a ventilation control that increases exchange with outdoor air, raising air changes per hour (ACH) and diluting airborne contaminants in the cabin.</data>
+      <data key="d3">0.86</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_4</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="RIGHT FRONT AND LEFT REAR WINDOWS OPEN">
+      <data key="d0">RIGHT FRONT AND LEFT REAR WINDOWS OPEN</data>
+      <data key="d1">ENGINEERING_CONTROL</data>
+      <data key="d2">A cross-ventilation window configuration (right-front and left-rear open) used to enhance airflow through the bus and influence resulting ACH. | A rear-focused cross-ventilation configuration (right-rear and left-rear open) that primarily ventilates the aft section and yields a measurable ACH.</data>
+      <data key="d3">0.74</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_4</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+      <data key="d6">RIGHT REAR AND LEFT REAR WINDOWS OPEN</data>
+    </node>
+    <node id="VENTILATION FAN OPERATION">
+      <data key="d0">VENTILATION FAN OPERATION</data>
+      <data key="d1">ENGINEERING_CONTROL</data>
+      <data key="d2">Operating the bus’s ventilation fans increases airflow and mixing, affecting cabin ACH and distribution of aerosols.</data>
+      <data key="d3">0.87</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_4</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="FRONT VENTILATION FAN">
+      <data key="d0">FRONT VENTILATION FAN</data>
+      <data key="d1">ENGINEERING_CONTROL</data>
+      <data key="d2">The front-mounted ventilation fan subsystem that drives airflow from the front of the bus, contributing to overall ACH.</data>
+      <data key="d3">0.61</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_4</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="REAR VENTILATION FAN">
+      <data key="d0">REAR VENTILATION FAN</data>
+      <data key="d1">ENGINEERING_CONTROL</data>
+      <data key="d2">The rear-mounted ventilation fan subsystem that drives airflow from the rear of the bus, contributing to overall ACH.</data>
+      <data key="d3">0.61</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_4</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="ACH">
+      <data key="d0">ACH</data>
+      <data key="d1">DOSE_OR_RATE</data>
+      <data key="d2">Air changes per hour (ACH), the ventilation rate metric indicating how frequently cabin air is replaced. Higher ACH generally provides greater dilution of airborne contaminants.</data>
+      <data key="d3">0.93</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_4</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="INHALATION VOLUME OF CO2 RELATIVE TO THE VOLUME EMITTED (P_CO2)">
+      <data key="d0">INHALATION VOLUME OF CO2 RELATIVE TO THE VOLUME EMITTED (P_CO2)</data>
+      <data key="d1">EFFECTIVENESS_MEASURE</data>
+      <data key="d2">A tracer-based exposure metric: the fraction of emitted CO2 that is inhaled at different cabin locations. Used to infer relative exposure to rebreathed air in mannequin-based tests.</data>
+      <data key="d3">0.68</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_4</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="STATIONARY TESTS IN THE CAR BARN AT THE FUJISAWA PLANT">
+      <data key="d0">STATIONARY TESTS IN THE CAR BARN AT THE FUJISAWA PLANT</data>
+      <data key="d1">VALIDATION_STUDY</data>
+      <data key="d2">Controlled stationary experiments conducted in a car barn at the Fujisawa plant assessing bus ACH under different window configurations without mannequins.</data>
+      <data key="d3">0.72</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_4</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="MOVING TESTS OUTDOORS AT TSUKUBA">
+      <data key="d0">MOVING TESTS OUTDOORS AT TSUKUBA</data>
+      <data key="d1">VALIDATION_STUDY</data>
+      <data key="d2">Outdoor moving experiments at Tsukuba evaluating bus ACH under different window configurations without mannequins.</data>
+      <data key="d3">0.7</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_4</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="EFFECTS OF VENTILATION FAN OPERATION ON THE ACH IN THE BUS WITHOUT MANNEQUINS">
+      <data key="d0">EFFECTS OF VENTILATION FAN OPERATION ON THE ACH IN THE BUS WITHOUT MANNEQUINS</data>
+      <data key="d1">VALIDATION_STUDY</data>
+      <data key="d2">Experiments quantifying how front (F) and rear (R) ventilation fan operation changes ACH in the bus cabin without mannequins.</data>
+      <data key="d3">0.75</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_4</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="STATIONARY TESTS WITH MANNEQUINS">
+      <data key="d0">STATIONARY TESTS WITH MANNEQUINS</data>
+      <data key="d1">VALIDATION_STUDY</data>
+      <data key="d2">Stationary mannequin experiments measuring inhalation volume of CO2 relative to emitted CO2 (P_CO2) to characterize spatial exposure patterns. Missing data points were imputed using the average of surrounding data.</data>
+      <data key="d3">0.64</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_4</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="ACH IN THE BUS WITHOUT MANNEQUINS WITH DIFFERENT NUMBERS OF OPEN WINDOWS">
+      <data key="d0">ACH IN THE BUS WITHOUT MANNEQUINS WITH DIFFERENT NUMBERS OF OPEN WINDOWS</data>
+      <data key="d1">VALIDATION_STUDY</data>
+      <data key="d2">A figure-referenced study assessing how varying the number and placement of open windows affects ACH in a bus without mannequins, including stationary (Fujisawa) and moving (Tsukuba) conditions.</data>
+      <data key="d3">0.71</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_4</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="STATIONARY TESTS WITH MANNEQUINS — EMISSION AT RIGHT REARMOST PART OF BUS">
+      <data key="d0">STATIONARY TESTS WITH MANNEQUINS — EMISSION AT RIGHT REARMOST PART OF BUS</data>
+      <data key="d1">VALIDATION_STUDY</data>
+      <data key="d2">Mannequin-based stationary tests where CO2 was emitted from the right rearmost part of the bus, and inhalation (P_CO2) was measured at passenger positions. Some missing points were replaced by averages of surrounding data.</data>
+      <data key="d3">0.62</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_4</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="STATIONARY TESTS WITH MANNEQUINS — EMISSION AT FRONT CENTER (STANDING)">
+      <data key="d0">STATIONARY TESTS WITH MANNEQUINS — EMISSION AT FRONT CENTER (STANDING)</data>
+      <data key="d1">VALIDATION_STUDY</data>
+      <data key="d2">Mannequin-based stationary tests where CO2 was emitted from the front center (standing) position, and inhalation (P_CO2) was measured at passenger positions. Missing data for one point was replaced by the average of surrounding data.</data>
+      <data key="d3">0.62</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_4</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="WINDOWS OPEN">
+      <data key="d0">WINDOWS OPEN</data>
+      <data key="d1">ENGINEERING_CONTROL</data>
+      <data key="d2">Opening bus windows to enable natural ventilation and dilution of rebreathed air and aerosols; explicitly tested as the condition 'windows open, AC off, fan off' in the stationary city bus exposure comparisons.</data>
+      <data key="d3">0.9</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_5</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="WINDOWS CLOSED, AC OFF, FAN OFF">
+      <data key="d0">WINDOWS CLOSED, AC OFF, FAN OFF</data>
+      <data key="d1">ENGINEERING_CONTROL</data>
+      <data key="d2">A sealed baseline configuration in the stationary bus: windows closed, air conditioning off, and auxiliary fans off; used as a reference condition in normalized exposure comparisons.</data>
+      <data key="d3">0.75</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_5</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="AC ON">
+      <data key="d0">AC ON</data>
+      <data key="d1">ENGINEERING_CONTROL</data>
+      <data key="d2">Operation of the bus air conditioning system in the 'on' state, altering airflow patterns and mixing; evaluated in the study of relationships between normalized CO2 and particle exposure at multiple positions.</data>
+      <data key="d3">0.65</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_5</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="AC OFF">
+      <data key="d0">AC OFF</data>
+      <data key="d1">ENGINEERING_CONTROL</data>
+      <data key="d2">Air conditioning in the 'off' state, used as a comparative condition to assess how the absence of AC-driven airflow affects the coupling between CO2 and particle exposure in the bus.</data>
+      <data key="d3">0.6</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_5</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="FAN SUPPLY (FRONT) &amp; EXHAUST (REAR)">
+      <data key="d0">FAN SUPPLY (FRONT) &amp; EXHAUST (REAR)</data>
+      <data key="d1">ENGINEERING_CONTROL</data>
+      <data key="d2">Mechanical ventilation configuration that supplies air at the front and exhausts at the rear to create a front-to-rear airflow path intended to transport and remove airborne contaminants in a stationary bus.</data>
+      <data key="d3">0.75</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_5</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="FAN SUPPLY (FRONT) &amp; SUPPLY (REAR)">
+      <data key="d0">FAN SUPPLY (FRONT) &amp; SUPPLY (REAR)</data>
+      <data key="d1">ENGINEERING_CONTROL</data>
+      <data key="d2">Mechanical ventilation configuration with supply fans at both the front and rear of the stationary bus, promoting mixing without a dedicated exhaust path; included in normalized exposure comparisons.</data>
+      <data key="d3">0.65</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_5</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="P_CO2 (NORMALIZED INHALATION OF CO2)">
+      <data key="d0">P_CO2 (NORMALIZED INHALATION OF CO2)</data>
+      <data key="d1">EFFECTIVENESS_MEASURE</data>
+      <data key="d2">A dimensionless metric defined as inhalation volume of CO2 relative to the volume emitted at specified release positions (indicated by arrows), used to quantify transport and exposure in bus tests.</data>
+      <data key="d3">0.8</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_5</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="P_PARTICLES (NORMALIZED PARTICLE EXPOSURE)">
+      <data key="d0">P_PARTICLES (NORMALIZED PARTICLE EXPOSURE)</data>
+      <data key="d1">EFFECTIVENESS_MEASURE</data>
+      <data key="d2">A dimensionless metric representing normalized particle exposure at bus measurement positions, used alongside P_CO2 to examine coupling between rebreathed tracer gas and particulates.</data>
+      <data key="d3">0.7</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_5</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="NORMALIZED EXPOSURE (P) IN BUS">
+      <data key="d0">NORMALIZED EXPOSURE (P) IN BUS</data>
+      <data key="d1">EFFECTIVENESS_MEASURE</data>
+      <data key="d2">A dimensionless normalized exposure metric reported across configurations in a stationary city bus, enabling comparison of inhaled tracer exposure under differing ventilation states.</data>
+      <data key="d3">0.75</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_5</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="INHALATION VOLUME OF CO2 IN MOVING TESTS WITH MANNEQUINS">
+      <data key="d0">INHALATION VOLUME OF CO2 IN MOVING TESTS WITH MANNEQUINS</data>
+      <data key="d1">VALIDATION_STUDY</data>
+      <data key="d2">Figure 7: Measurements of inhalation volume of CO2 relative to emitted volume at specified positions in a moving bus with mannequins, characterizing motion-induced airflow and exposure patterns.</data>
+      <data key="d3">0.65</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_5</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="RELATIONSHIPS BETWEEN P CO2 AND P PARTICLES IN THE BUS">
+      <data key="d0">RELATIONSHIPS BETWEEN P CO2 AND P PARTICLES IN THE BUS</data>
+      <data key="d1">VALIDATION_STUDY</data>
+      <data key="d2">Figure 8: Analysis of relationships between P_CO2 and P_PARTICLES at five measurement positions with AC on versus off, assessing how AC operation modulates coupling between rebreathed tracer gas and particulate exposure.</data>
+      <data key="d3">0.7</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_5</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="NORMALIZED EXPOSURE DATA IN THE STATIONARY CITY BUS">
+      <data key="d0">NORMALIZED EXPOSURE DATA IN THE STATIONARY CITY BUS</data>
+      <data key="d1">VALIDATION_STUDY</data>
+      <data key="d2">Figure 9: Dataset comparing normalized exposure under four configurations: (A) windows closed, AC off, fan off; (B) windows open, AC off, fan off; (C) windows closed, AC off, front supply &amp; rear exhaust; (D) windows closed, AC off, front supply &amp; rear supply.</data>
+      <data key="d3">0.75</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_5</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="INFLUENCE OF NATURAL VENTILATION DESIGN ON THE DISPERSION OF PATHOGEN-LADEN DROPLETS IN A COACH BUS.">
+      <data key="d0">INFLUENCE OF NATURAL VENTILATION DESIGN ON THE DISPERSION OF PATHOGEN-LADEN DROPLETS IN A COACH BUS.</data>
+      <data key="d1">VALIDATION_STUDY</data>
+      <data key="d2">Luo et al., Sci Total Environ (2023): Assesses how natural ventilation design affects dispersion of pathogen-laden droplets in a coach bus, providing external corroboration for window-opening strategies in buses.</data>
+      <data key="d3">0.6</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_5</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="NATURAL VENTILATION STRATEGY">
+      <data key="d0">NATURAL VENTILATION STRATEGY</data>
+      <data key="d1">ENGINEERING_CONTROL</data>
+      <data key="d2">An engineering control using wind and buoyancy-driven airflows (e.g., opening windows and doors) to increase outdoor air exchange, diluting and removing infectious aerosols in occupied spaces.</data>
+      <data key="d3">0.88</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_6</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="DIFFERENT VENTILATION STRATEGIES">
+      <data key="d0">DIFFERENT VENTILATION STRATEGIES</data>
+      <data key="d1">ENGINEERING_CONTROL</data>
+      <data key="d2">A set of alternative ventilation approaches (e.g., varying air exchange, supply/exhaust configurations) that change airflow and dilution, assessed for effects on indoor contaminant dynamics in confined spaces.</data>
+      <data key="d3">0.8</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_6</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="HOSPITAL LIFT">
+      <data key="d0">HOSPITAL LIFT</data>
+      <data key="d1">HOSPITAL_ZONE</data>
+      <data key="d2">An elevator within a hospital, a small, enclosed, and frequently occupied zone where aerosol accumulation and short-range dispersion are critical for infection control.</data>
+      <data key="d3">0.75</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_6,e45568c3-e22e-4830-92f5-64de955e8aee_chunk_7</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="INDOOR CO2 CONCENTRATION">
+      <data key="d0">INDOOR CO2 CONCENTRATION</data>
+      <data key="d1">EFFECTIVENESS_MEASURE</data>
+      <data key="d2">Carbon dioxide levels used as a proxy for rebreathed air fraction and ventilation effectiveness; lower concentrations generally indicate better dilution in occupied spaces.</data>
+      <data key="d3">0.72</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_6</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="COUGH DROPLET DISPERSION">
+      <data key="d0">COUGH DROPLET DISPERSION</data>
+      <data key="d1">EFFECTIVENESS_MEASURE</data>
+      <data key="d2">Spatial and temporal spread of cough-generated droplets/aerosols in indoor air, used to evaluate how ventilation strategies influence near-field and room-scale exposure.</data>
+      <data key="d3">0.7</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_6</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="NATURAL VENTILATION STRATEGY AND RELATED ISSUES TO PREVENT CORONAVIRUS DISEASE 2019 (COVID-19) AIRBORNE TRANSMISSION IN A SCHOOL BUILDING.">
+      <data key="d0">NATURAL VENTILATION STRATEGY AND RELATED ISSUES TO PREVENT CORONAVIRUS DISEASE 2019 (COVID-19) AIRBORNE TRANSMISSION IN A SCHOOL BUILDING.</data>
+      <data key="d1">VALIDATION_STUDY</data>
+      <data key="d2">Park et al., 2021 (Sci Total Environ) study examining application and practical considerations of natural ventilation in a school setting for mitigating COVID-19 airborne transmission.</data>
+      <data key="d3">0.74</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_6</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="[VENTILATION CONCEPTS IN SCHOOLS FOR THE PREVENTION OF TRANSMISSION OF HIGHLY INFECTIOUS VIRUSES (SARS-COV-2) BY AEROSOLS IN INDOOR AIR].">
+      <data key="d0">[VENTILATION CONCEPTS IN SCHOOLS FOR THE PREVENTION OF TRANSMISSION OF HIGHLY INFECTIOUS VIRUSES (SARS-COV-2) BY AEROSOLS IN INDOOR AIR].</data>
+      <data key="d1">VALIDATION_STUDY</data>
+      <data key="d2">Birmili et al., 2021 review outlining ventilation approaches in schools aimed at preventing aerosol transmission of highly infectious viruses, including SARS-CoV-2.</data>
+      <data key="d3">0.72</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_6</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="INDOOR AEROSOL SCIENCE ASPECTS OF SARS-COV-2 TRANSMISSION.">
+      <data key="d0">INDOOR AEROSOL SCIENCE ASPECTS OF SARS-COV-2 TRANSMISSION.</data>
+      <data key="d1">VALIDATION_STUDY</data>
+      <data key="d2">Nazaroff, 2022 review synthesizing aerosol science mechanisms for SARS-CoV-2 transmission and the role of ventilation in reducing airborne risk.</data>
+      <data key="d3">0.76</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_6</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="NUMERICAL PERFORMANCE OF CO2 ACCUMULATION AND DROPLET DISPERSION FROM A COUGH INSIDE A HOSPITAL LIFT UNDER DIFFERENT VENTILATION STRATEGIES.">
+      <data key="d0">NUMERICAL PERFORMANCE OF CO2 ACCUMULATION AND DROPLET DISPERSION FROM A COUGH INSIDE A HOSPITAL LIFT UNDER DIFFERENT VENTILATION STRATEGIES.</data>
+      <data key="d1">VALIDATION_STUDY</data>
+      <data key="d2">Chillón et al., numerical study evaluating how varying ventilation strategies affect CO2 buildup and cough droplet dispersion in a hospital elevator.</data>
+      <data key="d3">0.8</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_6</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="AIR CHANGE RATES OF MOTOR VEHICLES AND IN-VEHICLE POLLUTANT CONCENTRATIONS FROM SECONDHAND SMOKE.">
+      <data key="d0">AIR CHANGE RATES OF MOTOR VEHICLES AND IN-VEHICLE POLLUTANT CONCENTRATIONS FROM SECONDHAND SMOKE.</data>
+      <data key="d1">VALIDATION_STUDY</data>
+      <data key="d2">Ott et al., 2008 study quantifying air change rates in motor vehicles and associated changes in in-vehicle pollutant levels from secondhand smoke, illustrating how ventilation rate influences contaminant dilution.</data>
+      <data key="d3">0.63</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_6</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="VENTILATION STRATEGIES">
+      <data key="d0">VENTILATION STRATEGIES</data>
+      <data key="d1">ENGINEERING_CONTROL</data>
+      <data key="d2">Operational approaches that adjust outdoor air exchange, airflow paths, mixing, and extraction to dilute and remove exhaled CO2 and cough-generated droplets in enclosed spaces. In the cited context, they are evaluated inside a hospital lift to mitigate short-duration airborne exposure.</data>
+      <data key="d3">0.86</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_7</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="PERFORMANCE OF CO2 ACCUMULATION AND DROPLET DISPERSION FROM A COUGH INSIDE A HOSPITAL LIFT UNDER DIFFERENT VENTILATION STRATEGIES.">
+      <data key="d0">PERFORMANCE OF CO2 ACCUMULATION AND DROPLET DISPERSION FROM A COUGH INSIDE A HOSPITAL LIFT UNDER DIFFERENT VENTILATION STRATEGIES.</data>
+      <data key="d1">VALIDATION_STUDY</data>
+      <data key="d2">Scientific Reports (2024; PMID: 38514758). Evaluates CO2 buildup and cough droplet dispersion in a hospital elevator under varying ventilation strategies, quantifying how engineering ventilation measures alter exposure proxies in this micro-environment.</data>
+      <data key="d3">0.88</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_7</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="MULTI-SCALE RISK ASSESSMENT AND MITIGATIONS COMPARISON FOR COVID-19 IN URBAN PUBLIC TRANSPORT: A COMBINED FIELD MEASUREMENT AND MODELING APPROACH.">
+      <data key="d0">MULTI-SCALE RISK ASSESSMENT AND MITIGATIONS COMPARISON FOR COVID-19 IN URBAN PUBLIC TRANSPORT: A COMBINED FIELD MEASUREMENT AND MODELING APPROACH.</data>
+      <data key="d1">VALIDATION_STUDY</data>
+      <data key="d2">Building and Environment (2023; PMID: 37333517). Combines field measurements and modeling to compare COVID-19 mitigations in public transport, providing transferable evidence on how ventilation and related controls influence airborne risk.</data>
+      <data key="d3">0.62</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_7</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="SPATIAL DISTRIBUTIONS OF AIRBORNE TRANSMISSION RISK ON COMMUTER BUSES: NUMERICAL CASE STUDY USING COMPUTATIONAL FLUID AND PARTICLE DYNAMICS WITH COMPUTER-SIMULATED PERSONS.">
+      <data key="d0">SPATIAL DISTRIBUTIONS OF AIRBORNE TRANSMISSION RISK ON COMMUTER BUSES: NUMERICAL CASE STUDY USING COMPUTATIONAL FLUID AND PARTICLE DYNAMICS WITH COMPUTER-SIMULATED PERSONS.</data>
+      <data key="d1">VALIDATION_STUDY</data>
+      <data key="d2">Experimental and Computational Multiphase Flow (2023; PMID: 36788805). Uses CFD and particle dynamics with virtual occupants to resolve spatial risk patterns in buses, informing ventilation and airflow control principles relevant to enclosed shared spaces.</data>
+      <data key="d3">0.53</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_7</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="COVID-19 TRANSMISSION AND CONTROL IN LAND PUBLIC TRANSPORT: A LITERATURE REVIEW.">
+      <data key="d0">COVID-19 TRANSMISSION AND CONTROL IN LAND PUBLIC TRANSPORT: A LITERATURE REVIEW.</data>
+      <data key="d1">VALIDATION_STUDY</data>
+      <data key="d2">Fundamental Research (2023; PMID: 38933205). Review synthesizing evidence on SARS-CoV-2 transmission and engineering/operational controls in land public transport, supporting generalizable ventilation-based mitigation concepts.</data>
+      <data key="d3">0.55</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_7</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="WIND VELOCITY AND DISPERSION/ADVECTION-DIFFUSION OF ARTIFICIAL DROPLETS AND DROPLET NUCLEI IN A DOMED ALL-WEATHER MULTI-PURPOSE STADIUM.">
+      <data key="d0">WIND VELOCITY AND DISPERSION/ADVECTION-DIFFUSION OF ARTIFICIAL DROPLETS AND DROPLET NUCLEI IN A DOMED ALL-WEATHER MULTI-PURPOSE STADIUM.</data>
+      <data key="d1">VALIDATION_STUDY</data>
+      <data key="d2">Scientific Reports (2024; PMID: 39496673). Examines airflow-driven transport of droplets and droplet nuclei in a large indoor stadium, elucidating dispersion mechanisms relevant to environmental control strategies.</data>
+      <data key="d3">0.47</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_7</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="AIR CHANGES PER HOUR (ACH) IN ELEVATOR CABIN">
+      <data key="d0">AIR CHANGES PER HOUR (ACH) IN ELEVATOR CABIN</data>
+      <data key="d1">DOSE_OR_RATE</data>
+      <data key="d2">Ventilation rate metric describing how many times per hour the cabin’s air volume is replaced. Key controllable parameter for dilution of exhaled CO2 and respiratory aerosols in elevators.</data>
+      <data key="d3">0.8</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_7</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="CO2 CONCENTRATION IN CABIN AIR">
+      <data key="d0">CO2 CONCENTRATION IN CABIN AIR</data>
+      <data key="d1">DOSE_OR_RATE</data>
+      <data key="d2">Measured indoor CO2 (e.g., ppm) used as a proxy for rebreathed air fraction and occupant-generated aerosol accumulation within the elevator cabin.</data>
+      <data key="d3">0.82</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_7</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="DROPLET AND DROPLET NUCLEI CONCENTRATION IN CABIN AIR">
+      <data key="d0">DROPLET AND DROPLET NUCLEI CONCENTRATION IN CABIN AIR</data>
+      <data key="d1">DOSE_OR_RATE</data>
+      <data key="d2">Concentration of cough-generated respiratory droplets and droplet nuclei suspended in the elevator cabin air, reflecting short-range emission and room-scale dispersion.</data>
+      <data key="d3">0.78</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_7</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="AIRBORNE TRANSMISSION RISK SCORE">
+      <data key="d0">AIRBORNE TRANSMISSION RISK SCORE</data>
+      <data key="d1">EFFECTIVENESS_MEASURE</data>
+      <data key="d2">An integrated risk metric (model- or measurement-derived) estimating likelihood of airborne infection under given ventilation and occupancy conditions.</data>
+      <data key="d3">0.72</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_7</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="SARS-COV-2 (COVID-19)">
+      <data key="d0">SARS-COV-2 (COVID-19)</data>
+      <data key="d1">AIRBORNE_PATHOGEN</data>
+      <data key="d2">The coronavirus responsible for COVID-19, transmissible via inhalation of infectious aerosols; serves as the primary pathogen of concern in the cited transport and indoor air studies.</data>
+      <data key="d3">0.79</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_7</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="SARS-COV-2 (NOVEL CORONAVIRUS)">
+      <data key="d0">SARS-COV-2 (NOVEL CORONAVIRUS)</data>
+      <data key="d1">AIRBORNE_PATHOGEN</data>
+      <data key="d2">The virus that causes COVID-19; a predominantly airborne respiratory pathogen transmitted via aerosols and droplets in community and healthcare settings.</data>
+      <data key="d3">0.9</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_8</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="WHO COVID-19 DASHBOARD METRICS">
+      <data key="d0">WHO COVID-19 DASHBOARD METRICS</data>
+      <data key="d1">EFFECTIVENESS_MEASURE</data>
+      <data key="d2">Global COVID-19 surveillance indicators (e.g., cases, deaths, testing) reported by the World Health Organization dashboard (accessed January 31, 2021), commonly used to track epidemiological trends and assess intervention impact.</data>
+      <data key="d3">0.62</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_8</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="SCIENTIFIC REPORTS ARTICLE (PMID: 39496673; 2024)">
+      <data key="d0">SCIENTIFIC REPORTS ARTICLE (PMID: 39496673; 2024)</data>
+      <data key="d1">VALIDATION_STUDY</data>
+      <data key="d2">A 2024 Scientific Reports paper cited in the text (PMID: 39496673; DOI: 10.1038/s41598-024-76806-y). The excerpt provides bibliographic details and COVID-19 context but not specific methods or interventions.</data>
+      <data key="d3">0.48</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_8</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="CDC SCIENTIFIC BRIEF: SARS-COV-2 TRANSMISSION (UPDATED MAY 7, 2021)">
+      <data key="d0">CDC SCIENTIFIC BRIEF: SARS-COV-2 TRANSMISSION (UPDATED MAY 7, 2021)</data>
+      <data key="d1">VALIDATION_STUDY</data>
+      <data key="d2">U.S. CDC synthesis of evidence on SARS-CoV-2 transmission pathways, emphasizing the role of aerosols in indoor spread. It underpins the use of aerosol metrics and ventilation proxies when evaluating airborne transmission risk.</data>
+      <data key="d3">0.7</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_9</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="AEROSOL CONCENTRATION IN INDOOR AIR">
+      <data key="d0">AEROSOL CONCENTRATION IN INDOOR AIR</data>
+      <data key="d1">EFFECTIVENESS_MEASURE</data>
+      <data key="d2">Level of respirable aerosol particles suspended in indoor air, used to assess potential airborne exposure and to evaluate the effectiveness of ventilation and other air management strategies for pathogens like SARS-CoV-2.</data>
+      <data key="d3">0.6</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_9</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="INDOOR CO2 CONCENTRATION (PPM)">
+      <data key="d0">INDOOR CO2 CONCENTRATION (PPM)</data>
+      <data key="d1">DOSE_OR_RATE</data>
+      <data key="d2">Carbon dioxide level measured in parts per million in occupied indoor spaces, commonly used as a proxy for rebreathed air fraction and ventilation adequacy; higher values indicate poorer dilution of exhaled aerosols.</data>
+      <data key="d3">0.65</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_9</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="VENTILATION (INDOOR AIR DILUTION VIA HVAC)">
+      <data key="d0">VENTILATION (INDOOR AIR DILUTION VIA HVAC)</data>
+      <data key="d1">ENGINEERING_CONTROL</data>
+      <data key="d2">An engineering control that reduces airborne exposure by bringing in outdoor air, exhausting indoor air, and using filtration/directional airflow within HVAC systems. In the provided record, it appears as a MeSH term indicating its relevance to controlling indoor airborne particles.</data>
+      <data key="d3">0.85</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_10</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="RESPIRATORY AEROSOL CONCENTRATION (INDOOR AIR)">
+      <data key="d0">RESPIRATORY AEROSOL CONCENTRATION (INDOOR AIR)</data>
+      <data key="d1">EFFECTIVENESS_MEASURE</data>
+      <data key="d2">Level of airborne particles (aerosols) suspended in indoor air that can carry infectious agents. Listed as a MeSH substance (Aerosols) in the record and commonly used as an outcome measure for the impact of ventilation.</data>
+      <data key="d3">0.75</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_10</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="INDOOR CARBON DIOXIDE CONCENTRATION (CO2)">
+      <data key="d0">INDOOR CARBON DIOXIDE CONCENTRATION (CO2)</data>
+      <data key="d1">COST_PROXY</data>
+      <data key="d2">CO2 concentration measured indoors, used as a low-cost proxy for ventilation adequacy and accumulation of exhaled breath. Appears as a MeSH substance (Carbon Dioxide) in the record and is often monitored to infer ventilation performance.</data>
+      <data key="d3">0.7</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_10</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="PEER-REVIEWED STUDY INDEXED IN PUBMED (PMID: 35347782)">
+      <data key="d0">PEER-REVIEWED STUDY INDEXED IN PUBMED (PMID: 35347782)</data>
+      <data key="d1">VALIDATION_STUDY</data>
+      <data key="d2">A PubMed-indexed study (links include PubMed Central and Wiley DOI 10.1111/ina.13019) with MeSH terms including Humans, Ventilation, Aerosols, and Carbon Dioxide, indicating an empirical context where ventilation and related measures were examined.</data>
+      <data key="d3">0.6</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_10</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="INDOOR AIR PEER-REVIEWED ARTICLE (PMID: 35347782; DOI: 10.1111/INA.13019)">
+      <data key="d0">INDOOR AIR PEER-REVIEWED ARTICLE (PMID: 35347782; DOI: 10.1111/INA.13019)</data>
+      <data key="d1">VALIDATION_STUDY</data>
+      <data key="d2">A peer-reviewed research article indexed in PubMed and available via PubMed Central, published by Wiley in the journal Indoor Air (PMID: 35347782; DOI: 10.1111/ina.13019). Specific study details are not provided in the snippet.</data>
+      <data key="d3">0.6</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_11</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <node id="SARS-COV-2 (VIRUS CAUSING COVID-19)">
+      <data key="d0">SARS-COV-2 (VIRUS CAUSING COVID-19)</data>
+      <data key="d1">AIRBORNE_PATHOGEN</data>
+      <data key="d2">An airborne respiratory virus associated with COVID-19, referenced indirectly via a link to MedlinePlus COVID-19 health information.</data>
+      <data key="d3">0.4</data>
+      <data key="d4">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_11</data>
+      <data key="d5">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </node>
+    <edge source="VENTILATION SYSTEM DESIGN" target="ISOLATION ROOM">
+      <data key="d7">VENTILATION SYSTEM DESIGN</data>
+      <data key="d8">ISOLATION ROOM</data>
+      <data key="d9">APPLIED_TO</data>
+      <data key="d10">Optimized ventilation configuration is intended for implementation in isolation rooms to manage contaminant transport and removal.</data>
+      <data key="d11">0.87</data>
+      <data key="d12">1</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_2</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="VENTILATION SYSTEM DESIGN" target="AIRBORNE INFECTIOUS DISEASE AGENTS">
+      <data key="d7">VENTILATION SYSTEM DESIGN</data>
+      <data key="d8">AIRBORNE INFECTIOUS DISEASE AGENTS</data>
+      <data key="d9">TARGETS</data>
+      <data key="d10">Design focuses on reducing airborne pathogen concentrations by guiding contaminated air directly to exhaust. | Optimized source-to-exhaust flow paths lower airborne pathogen buildup by improving ventilation effectiveness without necessarily increasing ACH.</data>
+      <data key="d11">0.78</data>
+      <data key="d12">1</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_2</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="VENTILATION SYSTEM DESIGN" target="COMPUTATIONAL FLUID DYNAMICS (CFD) ANALYSIS">
+      <data key="d7">VENTILATION SYSTEM DESIGN</data>
+      <data key="d8">COMPUTATIONAL FLUID DYNAMICS (CFD) ANALYSIS</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">CFD simulations evaluate design alternatives and support the hypothesis that exhaust-directed flow paths enhance control effectiveness.</data>
+      <data key="d11">0.81</data>
+      <data key="d12">1</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_2</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="VENTILATION SYSTEM DESIGN" target="INCREASING VENTILATION AIRFLOW RATE">
+      <data key="d7">VENTILATION SYSTEM DESIGN</data>
+      <data key="d8">INCREASING VENTILATION AIRFLOW RATE</data>
+      <data key="d9">OUTPERFORMS</data>
+      <data key="d10">Hypothesized that optimizing source-to-exhaust flow paths can be more effective than merely increasing airflow in enclosed isolation rooms.</data>
+      <data key="d11">0.55</data>
+      <data key="d12">2</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_2</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="VENTILATION SYSTEM DESIGN" target="SOURCE-TO-EXHAUST FLOW PATH INTEGRITY">
+      <data key="d7">VENTILATION SYSTEM DESIGN</data>
+      <data key="d8">SOURCE-TO-EXHAUST FLOW PATH INTEGRITY</data>
+      <data key="d9">TARGETS</data>
+      <data key="d10">Design explicitly seeks to maximize the directness and continuity of flow from contaminant source to exhaust.</data>
+      <data key="d11">0.82</data>
+      <data key="d12">1</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_2</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="VENTILATION SYSTEM DESIGN" target="VENTILATION EFFECTIVENESS">
+      <data key="d7">VENTILATION SYSTEM DESIGN</data>
+      <data key="d8">VENTILATION EFFECTIVENESS</data>
+      <data key="d9">TARGETS</data>
+      <data key="d10">The design aims to increase ventilation effectiveness by optimizing airflow patterns and source/exhaust placement.</data>
+      <data key="d11">0.76</data>
+      <data key="d12">2</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_2</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="CONTROL STRATEGY" target="ISOLATION ROOM">
+      <data key="d7">CONTROL STRATEGY</data>
+      <data key="d8">ISOLATION ROOM</data>
+      <data key="d9">APPLIED_TO</data>
+      <data key="d10">Operational strategy is designed for use in isolation rooms to reduce occupant exposure to airborne contaminants.</data>
+      <data key="d11">0.82</data>
+      <data key="d12">1</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_2</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="CONTROL STRATEGY" target="AIRBORNE INFECTIOUS DISEASE AGENTS">
+      <data key="d7">CONTROL STRATEGY</data>
+      <data key="d8">AIRBORNE INFECTIOUS DISEASE AGENTS</data>
+      <data key="d9">TARGETS</data>
+      <data key="d10">Strategy aims to limit airborne pathogen presence by managing transport mechanisms and particle paths. | By keeping the source-to-exhaust path uninterrupted, the strategy reduces airborne pathogen concentrations and exposure.</data>
+      <data key="d11">0.8</data>
+      <data key="d12">1</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_2</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="CONTROL STRATEGY" target="COMPUTATIONAL FLUID DYNAMICS (CFD) ANALYSIS">
+      <data key="d7">CONTROL STRATEGY</data>
+      <data key="d8">COMPUTATIONAL FLUID DYNAMICS (CFD) ANALYSIS</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">CFD modeling provides mechanistic evidence for the proposed strategy by simulating contaminant transport and particle trajectories.</data>
+      <data key="d11">0.86</data>
+      <data key="d12">1</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_2</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="CONTROL STRATEGY" target="EXTENSIVE LITERATURE REVIEW">
+      <data key="d7">CONTROL STRATEGY</data>
+      <data key="d8">EXTENSIVE LITERATURE REVIEW</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">Evidence synthesis supports focusing on exposure-reduction mechanisms beyond simple dilution.</data>
+      <data key="d11">0.48</data>
+      <data key="d12">2</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_2</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="CONTROL STRATEGY" target="SOURCE-TO-EXHAUST FLOW PATH INTEGRITY">
+      <data key="d7">CONTROL STRATEGY</data>
+      <data key="d8">SOURCE-TO-EXHAUST FLOW PATH INTEGRITY</data>
+      <data key="d9">TARGETS</data>
+      <data key="d10">Control actions are aimed at preserving an uninterrupted source-to-exhaust airflow path.</data>
+      <data key="d11">0.8</data>
+      <data key="d12">1</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_2</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="CONTROL STRATEGY" target="INCREASING VENTILATION AIRFLOW RATE">
+      <data key="d7">CONTROL STRATEGY</data>
+      <data key="d8">INCREASING VENTILATION AIRFLOW RATE</data>
+      <data key="d9">COMPLEMENTS</data>
+      <data key="d10">Path-focused controls can work alongside increased airflow to achieve both dilution and effective removal.</data>
+      <data key="d11">0.66</data>
+      <data key="d12">3</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_2</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="INCREASING VENTILATION AIRFLOW RATE" target="AIR CHANGES PER HOUR (ACH)">
+      <data key="d7">INCREASING VENTILATION AIRFLOW RATE</data>
+      <data key="d8">AIR CHANGES PER HOUR (ACH)</data>
+      <data key="d9">HAS_DOSE</data>
+      <data key="d10">Raising airflow increases ACH, the standard dilution metric.</data>
+      <data key="d11">0.85</data>
+      <data key="d12">1</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_2</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="INCREASING VENTILATION AIRFLOW RATE" target="VENTILATION AIRFLOW RATE">
+      <data key="d7">INCREASING VENTILATION AIRFLOW RATE</data>
+      <data key="d8">VENTILATION AIRFLOW RATE</data>
+      <data key="d9">HAS_DOSE</data>
+      <data key="d10">The control action is quantified by the magnitude of the ventilation airflow rate supplied/exhausted.</data>
+      <data key="d11">0.74</data>
+      <data key="d12">2</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_2</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="INCREASING VENTILATION AIRFLOW RATE" target="AIRBORNE INFECTIOUS DISEASE AGENTS">
+      <data key="d7">INCREASING VENTILATION AIRFLOW RATE</data>
+      <data key="d8">AIRBORNE INFECTIOUS DISEASE AGENTS</data>
+      <data key="d9">REDUCES</data>
+      <data key="d10">Higher airflow (and ACH) dilutes airborne pathogen concentrations when the emission source is constant.</data>
+      <data key="d11">0.62</data>
+      <data key="d12">1</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_2</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="AIR CHANGES PER HOUR (ACH)" target="VENTILATION PERFORMANCE EVALUATION OF A NEGATIVE-PRESSURIZED ISOLATION ROOM FOR EMERGENCY DEPARTMENTS">
+      <data key="d7">AIR CHANGES PER HOUR (ACH)</data>
+      <data key="d8">VENTILATION PERFORMANCE EVALUATION OF A NEGATIVE-PRESSURIZED ISOLATION ROOM FOR EMERGENCY DEPARTMENTS</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">ACH as a key operational parameter is assessed within the NPIR performance evaluation for its impact on dilution and clearance.</data>
+      <data key="d11">0.88</data>
+      <data key="d12">1</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_4</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="AIRBORNE INFECTIOUS DISEASE AGENTS" target="NOSOCOMIAL INFECTIONS ANNUAL COST (US$4–5B, U.S.)">
+      <data key="d7">AIRBORNE INFECTIOUS DISEASE AGENTS</data>
+      <data key="d8">NOSOCOMIAL INFECTIONS ANNUAL COST (US$4–5B, U.S.)</data>
+      <data key="d9">INCURS_COST</data>
+      <data key="d10">Airborne agents contributing to hospital-acquired infections are associated with substantial annual economic burden in the U.S.</data>
+      <data key="d11">0.5</data>
+      <data key="d12">3</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_2</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="SOURCE-TO-EXHAUST FLOW PATH INTEGRITY" target="AIR CHANGES PER HOUR (ACH)">
+      <data key="d7">SOURCE-TO-EXHAUST FLOW PATH INTEGRITY</data>
+      <data key="d8">AIR CHANGES PER HOUR (ACH)</data>
+      <data key="d9">COMPLEMENTS</data>
+      <data key="d10">Maintaining a direct flow path complements dilution (ACH) by improving removal efficiency independent of airflow magnitude.</data>
+      <data key="d11">0.78</data>
+      <data key="d12">2</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_2</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="VENTILATION EFFECTIVENESS" target="AIR CHANGES PER HOUR (ACH)">
+      <data key="d7">VENTILATION EFFECTIVENESS</data>
+      <data key="d8">AIR CHANGES PER HOUR (ACH)</data>
+      <data key="d9">COMPLEMENTS</data>
+      <data key="d10">Ventilation effectiveness and ACH are complementary: ACH governs dilution while effectiveness depends on flow path configuration.</data>
+      <data key="d11">0.7</data>
+      <data key="d12">2</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_2</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="PATH-CONFORMING VENTILATION DESIGN (DIRECT SOURCE-TO-EXHAUST AIRFLOW)" target="PATIENT ROOM">
+      <data key="d7">PATH-CONFORMING VENTILATION DESIGN (DIRECT SOURCE-TO-EXHAUST AIRFLOW)</data>
+      <data key="d8">PATIENT ROOM</data>
+      <data key="d9">APPLIED_TO</data>
+      <data key="d10">Implemented as a ventilation strategy within patient rooms.</data>
+      <data key="d11">0.9</data>
+      <data key="d12">1</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_3</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="PATH-CONFORMING VENTILATION DESIGN (DIRECT SOURCE-TO-EXHAUST AIRFLOW)" target="COUGH-GENERATED BIOAEROSOLS">
+      <data key="d7">PATH-CONFORMING VENTILATION DESIGN (DIRECT SOURCE-TO-EXHAUST AIRFLOW)</data>
+      <data key="d8">COUGH-GENERATED BIOAEROSOLS</data>
+      <data key="d9">TARGETS</data>
+      <data key="d10">Aims to rapidly capture and exhaust cough-generated aerosols along a direct path.</data>
+      <data key="d11">0.7</data>
+      <data key="d12">2</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_3</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="PATH-CONFORMING VENTILATION DESIGN (DIRECT SOURCE-TO-EXHAUST AIRFLOW)" target="INFECTION RISK DURING TRANSIENT COUGHING EXPOSURE">
+      <data key="d7">PATH-CONFORMING VENTILATION DESIGN (DIRECT SOURCE-TO-EXHAUST AIRFLOW)</data>
+      <data key="d8">INFECTION RISK DURING TRANSIENT COUGHING EXPOSURE</data>
+      <data key="d9">REDUCES</data>
+      <data key="d10">Maintaining a direct source-to-exhaust path reduces infection risk from transient coughing events.</data>
+      <data key="d11">0.85</data>
+      <data key="d12">1</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_3</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="PATH-CONFORMING VENTILATION DESIGN (DIRECT SOURCE-TO-EXHAUST AIRFLOW)" target="CONTAMINANT TRANSMISSION">
+      <data key="d7">PATH-CONFORMING VENTILATION DESIGN (DIRECT SOURCE-TO-EXHAUST AIRFLOW)</data>
+      <data key="d8">CONTAMINANT TRANSMISSION</data>
+      <data key="d9">REDUCES</data>
+      <data key="d10">A direct airflow path decreases contaminant transport through the room before exhaust.</data>
+      <data key="d11">0.8</data>
+      <data key="d12">1</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_3</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="PATH-CONFORMING VENTILATION DESIGN (DIRECT SOURCE-TO-EXHAUST AIRFLOW)" target="AIR CHANGE RATE (ACH)">
+      <data key="d7">PATH-CONFORMING VENTILATION DESIGN (DIRECT SOURCE-TO-EXHAUST AIRFLOW)</data>
+      <data key="d8">AIR CHANGE RATE (ACH)</data>
+      <data key="d9">OUTPERFORMS</data>
+      <data key="d10">Designing for a direct source-to-exhaust path is more influential than simply increasing ACH for reducing transmission risk in the scenario studied.</data>
+      <data key="d11">0.7</data>
+      <data key="d12">1</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_3</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="PATH-CONFORMING VENTILATION DESIGN (DIRECT SOURCE-TO-EXHAUST AIRFLOW)" target="CFD-BASED PATIENT ROOM VENTILATION EFFECTIVENESS STUDY (2011)">
+      <data key="d7">PATH-CONFORMING VENTILATION DESIGN (DIRECT SOURCE-TO-EXHAUST AIRFLOW)</data>
+      <data key="d8">CFD-BASED PATIENT ROOM VENTILATION EFFECTIVENESS STUDY (2011)</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">CFD analysis provides evidence supporting the dominance of the direct source-to-exhaust path principle.</data>
+      <data key="d11">0.8</data>
+      <data key="d12">1</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_3</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="AIR CHANGE RATE (ACH)" target="INFECTION RISK DURING TRANSIENT COUGHING EXPOSURE">
+      <data key="d7">AIR CHANGE RATE (ACH)</data>
+      <data key="d8">INFECTION RISK DURING TRANSIENT COUGHING EXPOSURE</data>
+      <data key="d9">REDUCES</data>
+      <data key="d10">Higher ACH enhances removal of cough-generated aerosols, reducing infection risk; effect depends on airflow pathways.</data>
+      <data key="d11">0.6</data>
+      <data key="d12">2</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_3</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="AIR CHANGE RATE (ACH)" target="AIR CHANGE RATES OF MOTOR VEHICLES AND IN-VEHICLE POLLUTANT CONCENTRATIONS FROM SECONDHAND SMOKE.">
+      <data key="d7">AIR CHANGE RATE (ACH)</data>
+      <data key="d8">AIR CHANGE RATES OF MOTOR VEHICLES AND IN-VEHICLE POLLUTANT CONCENTRATIONS FROM SECONDHAND SMOKE.</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">Study provides empirical ACH measurements and links them to contaminant dilution, illustrating how ventilation rate affects pollutant levels.</data>
+      <data key="d11">0.72</data>
+      <data key="d12">2</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_6</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="PATIENT ROOM" target="AIR CHANGE RATE (ACH)">
+      <data key="d7">PATIENT ROOM</data>
+      <data key="d8">AIR CHANGE RATE (ACH)</data>
+      <data key="d9">HAS_DOSE</data>
+      <data key="d10">Patient rooms are characterized by a defined air change rate.</data>
+      <data key="d11">0.6</data>
+      <data key="d12">2</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_3</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="INCREASED SOURCE-TO-RECEPTOR DISTANCE" target="INFECTION RISK DURING TRANSIENT COUGHING EXPOSURE">
+      <data key="d7">INCREASED SOURCE-TO-RECEPTOR DISTANCE</data>
+      <data key="d8">INFECTION RISK DURING TRANSIENT COUGHING EXPOSURE</data>
+      <data key="d9">REDUCES</data>
+      <data key="d10">Moving away from the patient generally reduces infection risk during coughing exposures, with stronger benefit at higher ACH.</data>
+      <data key="d11">0.7</data>
+      <data key="d12">2</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_3</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="INCREASED SOURCE-TO-RECEPTOR DISTANCE" target="CFD-BASED PATIENT ROOM VENTILATION EFFECTIVENESS STUDY (2011)">
+      <data key="d7">INCREASED SOURCE-TO-RECEPTOR DISTANCE</data>
+      <data key="d8">CFD-BASED PATIENT ROOM VENTILATION EFFECTIVENESS STUDY (2011)</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">The study corroborates that increasing distance from the patient reduces risk, especially at higher ACH.</data>
+      <data key="d11">0.7</data>
+      <data key="d12">2</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_3</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="INCREASED SOURCE-TO-RECEPTOR DISTANCE" target="AIR CHANGE RATE (ACH)">
+      <data key="d7">INCREASED SOURCE-TO-RECEPTOR DISTANCE</data>
+      <data key="d8">AIR CHANGE RATE (ACH)</data>
+      <data key="d9">COMPLEMENTS</data>
+      <data key="d10">The protective effect of distancing is more pronounced when ACH is higher, indicating a synergistic interaction.</data>
+      <data key="d11">0.6</data>
+      <data key="d12">3</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_3</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="NEGATIVE-PRESSURE ISOLATION ROOM" target="EMERGENCY DEPARTMENTS">
+      <data key="d7">NEGATIVE-PRESSURE ISOLATION ROOM</data>
+      <data key="d8">EMERGENCY DEPARTMENTS</data>
+      <data key="d9">APPLIED_TO</data>
+      <data key="d10">Negative-pressure isolation rooms are implemented within emergency departments to contain airborne pathogens via directed inward airflow and dedicated exhaust.</data>
+      <data key="d11">0.9</data>
+      <data key="d12">1</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_4</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="NEGATIVE-PRESSURE ISOLATION ROOM" target="HOSPITAL ISOLATION ROOM">
+      <data key="d7">NEGATIVE-PRESSURE ISOLATION ROOM</data>
+      <data key="d8">HOSPITAL ISOLATION ROOM</data>
+      <data key="d9">APPLIED_TO</data>
+      <data key="d10">Negative-pressure isolation is applied in hospital isolation rooms to prevent aerosol escape to adjacent spaces and protect staff and other patients.</data>
+      <data key="d11">0.88</data>
+      <data key="d12">1</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_4</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="NEGATIVE-PRESSURE ISOLATION ROOM" target="AIR CHANGES PER HOUR (ACH)">
+      <data key="d7">NEGATIVE-PRESSURE ISOLATION ROOM</data>
+      <data key="d8">AIR CHANGES PER HOUR (ACH)</data>
+      <data key="d9">HAS_DOSE</data>
+      <data key="d10">Operation of negative-pressure rooms includes specified ACH levels to achieve adequate dilution and clearance of airborne contaminants.</data>
+      <data key="d11">0.86</data>
+      <data key="d12">1</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_4</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="NEGATIVE-PRESSURE ISOLATION ROOM" target="ROOM PRESSURE DIFFERENTIAL">
+      <data key="d7">NEGATIVE-PRESSURE ISOLATION ROOM</data>
+      <data key="d8">ROOM PRESSURE DIFFERENTIAL</data>
+      <data key="d9">HAS_DOSE</data>
+      <data key="d10">Negative-pressure rooms maintain a defined pressure differential relative to adjacent spaces to ensure inward airflow and containment.</data>
+      <data key="d11">0.9</data>
+      <data key="d12">1</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_4</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="NEGATIVE-PRESSURE ISOLATION ROOM" target="AIRBORNE INFECTIOUS AEROSOL CONCENTRATION">
+      <data key="d7">NEGATIVE-PRESSURE ISOLATION ROOM</data>
+      <data key="d8">AIRBORNE INFECTIOUS AEROSOL CONCENTRATION</data>
+      <data key="d9">REDUCES</data>
+      <data key="d10">By maintaining inward airflow and adequate exhaust, negative-pressure rooms lower the concentration of infectious aerosols in adjacent areas and within the room.</data>
+      <data key="d11">0.82</data>
+      <data key="d12">1</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_4</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="NEGATIVE-PRESSURE ISOLATION ROOM" target="CONTAINMENT LEAKAGE FRACTION">
+      <data key="d7">NEGATIVE-PRESSURE ISOLATION ROOM</data>
+      <data key="d8">CONTAINMENT LEAKAGE FRACTION</data>
+      <data key="d9">REDUCES</data>
+      <data key="d10">Properly maintained pressure differentials reduce the fraction of contaminants escaping to adjacent spaces.</data>
+      <data key="d11">0.8</data>
+      <data key="d12">1</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_4</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="NEGATIVE-PRESSURE ISOLATION ROOM" target="RESPIRATORY VIRUSES">
+      <data key="d7">NEGATIVE-PRESSURE ISOLATION ROOM</data>
+      <data key="d8">RESPIRATORY VIRUSES</data>
+      <data key="d9">TARGETS</data>
+      <data key="d10">Negative-pressure isolation is intended to contain aerosols that may carry respiratory viruses and reduce their spread.</data>
+      <data key="d11">0.75</data>
+      <data key="d12">2</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_4</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="NEGATIVE-PRESSURE ISOLATION ROOM" target="VENTILATION PERFORMANCE EVALUATION OF A NEGATIVE-PRESSURIZED ISOLATION ROOM FOR EMERGENCY DEPARTMENTS">
+      <data key="d7">NEGATIVE-PRESSURE ISOLATION ROOM</data>
+      <data key="d8">VENTILATION PERFORMANCE EVALUATION OF A NEGATIVE-PRESSURIZED ISOLATION ROOM FOR EMERGENCY DEPARTMENTS</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">This study empirically evaluates airflow, pressure, and containment performance of negative-pressure isolation rooms in emergency department contexts.</data>
+      <data key="d11">0.95</data>
+      <data key="d12">1</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_4</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="NEGATIVE-PRESSURE ISOLATION ROOM" target="SUMMARY OF HUMAN RESPONSES TO VENTILATION">
+      <data key="d7">NEGATIVE-PRESSURE ISOLATION ROOM</data>
+      <data key="d8">SUMMARY OF HUMAN RESPONSES TO VENTILATION</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">Broad evidence that ventilation affects exposure and health supports the use of negative-pressure ventilation strategies to mitigate airborne risk.</data>
+      <data key="d11">0.6</data>
+      <data key="d12">2</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_4</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="NEGATIVE-PRESSURE ISOLATION ROOM" target="TRANSMISSIBILITY AND TRANSMISSION OF RESPIRATORY VIRUSES">
+      <data key="d7">NEGATIVE-PRESSURE ISOLATION ROOM</data>
+      <data key="d8">TRANSMISSIBILITY AND TRANSMISSION OF RESPIRATORY VIRUSES</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">Understanding transmission pathways supports negative-pressure containment as a key hospital strategy.</data>
+      <data key="d11">0.55</data>
+      <data key="d12">2</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_4</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="NEGATIVE-PRESSURE ISOLATION ROOM" target="VENTILATION CONFIGURATION">
+      <data key="d7">NEGATIVE-PRESSURE ISOLATION ROOM</data>
+      <data key="d8">VENTILATION CONFIGURATION</data>
+      <data key="d9">COMPLEMENTS</data>
+      <data key="d10">Effective containment combines negative pressure with optimized ventilation layouts and flow rates for enhanced performance.</data>
+      <data key="d11">0.72</data>
+      <data key="d12">2</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_4</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="VENTILATION CONFIGURATION" target="HOSPITAL ISOLATION ROOM">
+      <data key="d7">VENTILATION CONFIGURATION</data>
+      <data key="d8">HOSPITAL ISOLATION ROOM</data>
+      <data key="d9">APPLIED_TO</data>
+      <data key="d10">Supply and exhaust layout and airflow rates are configured within hospital isolation rooms to shape aerosol dispersion and removal.</data>
+      <data key="d11">0.9</data>
+      <data key="d12">1</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_4</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="VENTILATION CONFIGURATION" target="AIR CHANGES PER HOUR (ACH)">
+      <data key="d7">VENTILATION CONFIGURATION</data>
+      <data key="d8">AIR CHANGES PER HOUR (ACH)</data>
+      <data key="d9">HAS_DOSE</data>
+      <data key="d10">Ventilation configurations set and distribute flow to achieve target ACH, influencing dilution and clearance performance.</data>
+      <data key="d11">0.84</data>
+      <data key="d12">1</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_4</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="VENTILATION CONFIGURATION" target="AIRBORNE INFECTIOUS AEROSOL CONCENTRATION">
+      <data key="d7">VENTILATION CONFIGURATION</data>
+      <data key="d8">AIRBORNE INFECTIOUS AEROSOL CONCENTRATION</data>
+      <data key="d9">REDUCES</data>
+      <data key="d10">Optimized supply/exhaust placement and flow rates reduce airborne infectious aerosol concentrations via improved dilution and capture.</data>
+      <data key="d11">0.83</data>
+      <data key="d12">1</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_4</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="VENTILATION CONFIGURATION" target="AEROSOL CLEARANCE TIME (99% REMOVAL)">
+      <data key="d7">VENTILATION CONFIGURATION</data>
+      <data key="d8">AEROSOL CLEARANCE TIME (99% REMOVAL)</data>
+      <data key="d9">REDUCES</data>
+      <data key="d10">Effective ventilation configurations shorten the time required to clear airborne particles from the isolation room.</data>
+      <data key="d11">0.82</data>
+      <data key="d12">1</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_4</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="VENTILATION CONFIGURATION" target="SARS-COV-2">
+      <data key="d7">VENTILATION CONFIGURATION</data>
+      <data key="d8">SARS-COV-2</data>
+      <data key="d9">TARGETS</data>
+      <data key="d10">Ventilation strategies in isolation rooms are designed to limit dispersion and exposure to aerosols carrying SARS-CoV-2.</data>
+      <data key="d11">0.85</data>
+      <data key="d12">1</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_4</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="VENTILATION CONFIGURATION" target="RESPIRATORY VIRUSES">
+      <data key="d7">VENTILATION CONFIGURATION</data>
+      <data key="d8">RESPIRATORY VIRUSES</data>
+      <data key="d9">TARGETS</data>
+      <data key="d10">Optimized airflow patterns and rates aim to reduce airborne transmission potential of diverse respiratory viruses.</data>
+      <data key="d11">0.7</data>
+      <data key="d12">2</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_4</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="VENTILATION CONFIGURATION" target="BEHAVIOR OF COUGH DROPLETS EMITTED FROM COVID-19 PATIENT IN HOSPITAL ISOLATION ROOM WITH DIFFERENT VENTILATION CONFIGURATIONS">
+      <data key="d7">VENTILATION CONFIGURATION</data>
+      <data key="d8">BEHAVIOR OF COUGH DROPLETS EMITTED FROM COVID-19 PATIENT IN HOSPITAL ISOLATION ROOM WITH DIFFERENT VENTILATION CONFIGURATIONS</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">This study demonstrates that alternative ventilation configurations alter cough droplet transport and fate in isolation rooms, confirming configuration-dependent performance.</data>
+      <data key="d11">0.95</data>
+      <data key="d12">1</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_4</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="VENTILATION CONFIGURATION" target="SUMMARY OF HUMAN RESPONSES TO VENTILATION">
+      <data key="d7">VENTILATION CONFIGURATION</data>
+      <data key="d8">SUMMARY OF HUMAN RESPONSES TO VENTILATION</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">The review supports that ventilation rates and patterns influence human exposure, underpinning the importance of configuration optimization.</data>
+      <data key="d11">0.6</data>
+      <data key="d12">2</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_4</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="VENTILATION CONFIGURATION" target="TRANSMISSIBILITY AND TRANSMISSION OF RESPIRATORY VIRUSES">
+      <data key="d7">VENTILATION CONFIGURATION</data>
+      <data key="d8">TRANSMISSIBILITY AND TRANSMISSION OF RESPIRATORY VIRUSES</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">Review evidence on airborne transmission mechanisms provides rationale for airflow management to limit viral spread.</data>
+      <data key="d11">0.55</data>
+      <data key="d12">2</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_4</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="SARS-COV-2" target="CDC SCIENTIFIC BRIEF: SARS-COV-2 TRANSMISSION (UPDATED MAY 7, 2021)">
+      <data key="d7">SARS-COV-2</data>
+      <data key="d8">CDC SCIENTIFIC BRIEF: SARS-COV-2 TRANSMISSION (UPDATED MAY 7, 2021)</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">The CDC brief consolidates evidence supporting aerosol transmission of SARS-CoV-2 in indoor environments.</data>
+      <data key="d11">0.9</data>
+      <data key="d12">1</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_9</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="ROOM PRESSURE DIFFERENTIAL" target="VENTILATION PERFORMANCE EVALUATION OF A NEGATIVE-PRESSURIZED ISOLATION ROOM FOR EMERGENCY DEPARTMENTS">
+      <data key="d7">ROOM PRESSURE DIFFERENTIAL</data>
+      <data key="d8">VENTILATION PERFORMANCE EVALUATION OF A NEGATIVE-PRESSURIZED ISOLATION ROOM FOR EMERGENCY DEPARTMENTS</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">Pressure differentials are measured and evaluated as part of NPIR performance and containment effectiveness.</data>
+      <data key="d11">0.9</data>
+      <data key="d12">1</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_4</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="AEROSOL CLEARANCE TIME (99% REMOVAL)" target="BEHAVIOR OF COUGH DROPLETS EMITTED FROM COVID-19 PATIENT IN HOSPITAL ISOLATION ROOM WITH DIFFERENT VENTILATION CONFIGURATIONS">
+      <data key="d7">AEROSOL CLEARANCE TIME (99% REMOVAL)</data>
+      <data key="d8">BEHAVIOR OF COUGH DROPLETS EMITTED FROM COVID-19 PATIENT IN HOSPITAL ISOLATION ROOM WITH DIFFERENT VENTILATION CONFIGURATIONS</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">Clearance times are characterized under different ventilation configurations, linking airflow design to particle removal speed.</data>
+      <data key="d11">0.86</data>
+      <data key="d12">1</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_4</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="VENTILATION STRATEGIES IN INPATIENT WARDS" target="INPATIENT WARDS">
+      <data key="d7">VENTILATION STRATEGIES IN INPATIENT WARDS</data>
+      <data key="d8">INPATIENT WARDS</data>
+      <data key="d9">APPLIED_TO</data>
+      <data key="d10">Ventilation configurations are implemented in inpatient wards to manage airborne risks.</data>
+      <data key="d11">0.88</data>
+      <data key="d12">1</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_5</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="VENTILATION STRATEGIES IN INPATIENT WARDS" target="MERS-COV">
+      <data key="d7">VENTILATION STRATEGIES IN INPATIENT WARDS</data>
+      <data key="d8">MERS-COV</data>
+      <data key="d9">TARGETS</data>
+      <data key="d10">Mitigation focuses on limiting airborne dispersion of MERS-CoV aerosols.</data>
+      <data key="d11">0.8</data>
+      <data key="d12">1</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_5</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="VENTILATION STRATEGIES IN INPATIENT WARDS" target="REDUCTION IN AIRBORNE DISPERSION OF MERS-COV">
+      <data key="d7">VENTILATION STRATEGIES IN INPATIENT WARDS</data>
+      <data key="d8">REDUCTION IN AIRBORNE DISPERSION OF MERS-COV</data>
+      <data key="d9">REDUCES</data>
+      <data key="d10">Optimized ventilation reduces ward-level dispersion of MERS-CoV-laden aerosols in simulations.</data>
+      <data key="d11">0.82</data>
+      <data key="d12">1</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_5</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="VENTILATION STRATEGIES IN INPATIENT WARDS" target="HELIYON 2024 NUMERICAL INVESTIGATION (SATHEESAN ET AL., PMID: 38404798)">
+      <data key="d7">VENTILATION STRATEGIES IN INPATIENT WARDS</data>
+      <data key="d8">HELIYON 2024 NUMERICAL INVESTIGATION (SATHEESAN ET AL., PMID: 38404798)</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">Simulations in Heliyon 2024 evaluate and support the effectiveness of ventilation strategies against airborne dispersion.</data>
+      <data key="d11">0.72</data>
+      <data key="d12">2</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_5</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="VENTILATION STRATEGIES IN INPATIENT WARDS" target="LEUNG 2021 REVIEW (NAT REV MICROBIOL, PMID: 33753932)">
+      <data key="d7">VENTILATION STRATEGIES IN INPATIENT WARDS</data>
+      <data key="d8">LEUNG 2021 REVIEW (NAT REV MICROBIOL, PMID: 33753932)</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">The review provides mechanistic context supporting ventilation as a key mitigation for airborne transmission.</data>
+      <data key="d11">0.6</data>
+      <data key="d12">3</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_5</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="REDUCTION IN AIRBORNE DISPERSION OF MERS-COV" target="HELIYON 2024 NUMERICAL INVESTIGATION (SATHEESAN ET AL., PMID: 38404798)">
+      <data key="d7">REDUCTION IN AIRBORNE DISPERSION OF MERS-COV</data>
+      <data key="d8">HELIYON 2024 NUMERICAL INVESTIGATION (SATHEESAN ET AL., PMID: 38404798)</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">The study quantifies reductions in airborne spread under different ventilation scenarios.</data>
+      <data key="d11">0.7</data>
+      <data key="d12">2</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_5</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="AIRBORNE FUNGI IN HOSPITALS" target="BELIZARIO 2021 REVIEW (AEROBIOLOGIA, PMID: 34007098)">
+      <data key="d7">AIRBORNE FUNGI IN HOSPITALS</data>
+      <data key="d8">BELIZARIO 2021 REVIEW (AEROBIOLOGIA, PMID: 34007098)</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">Evidence synthesized in the review supports the relevance of fungal aerosols in critical hospital areas.</data>
+      <data key="d11">0.55</data>
+      <data key="d12">3</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_5</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="VENTILATION OF HEALTH CARE FACILITIES (ASHRAE/ASHE STANDARD 170-2008)" target="HEALTH CARE FACILITIES">
+      <data key="d7">VENTILATION OF HEALTH CARE FACILITIES (ASHRAE/ASHE STANDARD 170-2008)</data>
+      <data key="d8">HEALTH CARE FACILITIES</data>
+      <data key="d9">APPLIED_TO</data>
+      <data key="d10">The ventilation requirements defined by ASHRAE/ASHE Standard 170-2008 are intended for implementation across healthcare environments.</data>
+      <data key="d11">0.9</data>
+      <data key="d12">1</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_6</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="VENTILATION OF HEALTH CARE FACILITIES (ASHRAE/ASHE STANDARD 170-2008)" target="ASHRAE HANDBOOK—FUNDAMENTALS (2005)">
+      <data key="d7">VENTILATION OF HEALTH CARE FACILITIES (ASHRAE/ASHE STANDARD 170-2008)</data>
+      <data key="d8">ASHRAE HANDBOOK—FUNDAMENTALS (2005)</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">The ventilation framework is supported by HVAC principles and methodologies detailed in the ASHRAE Handbook—Fundamentals cited with the standard.</data>
+      <data key="d11">0.6</data>
+      <data key="d12">2</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_6</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="VENTILATION OF HEALTH CARE FACILITIES (ASHRAE/ASHE STANDARD 170-2008)" target="RISK MANAGEMENT GUIDANCE FOR HEALTH, SAFETY AND ENVIRONMENTAL SECURITY UNDER EXTRAORDINARY INCIDENTS (ASHRAE, 2003)">
+      <data key="d7">VENTILATION OF HEALTH CARE FACILITIES (ASHRAE/ASHE STANDARD 170-2008)</data>
+      <data key="d8">RISK MANAGEMENT GUIDANCE FOR HEALTH, SAFETY AND ENVIRONMENTAL SECURITY UNDER EXTRAORDINARY INCIDENTS (ASHRAE, 2003)</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">Risk management guidance cited alongside the standard provides complementary context for implementing ventilation and related controls during extraordinary incidents.</data>
+      <data key="d11">0.4</data>
+      <data key="d12">3</data>
+      <data key="d13">3fc1e87d-c54a-447e-9229-2850cf6a1b9b_chunk_6</data>
+      <data key="d14">3fc1e87d-c54a-447e-9229-2850cf6a1b9b</data>
+    </edge>
+    <edge source="WINDOW OPENING (BUS IN MOTION)" target="SARS-COV-2">
+      <data key="d7">WINDOW OPENING (BUS IN MOTION)</data>
+      <data key="d8">SARS-COV-2</data>
+      <data key="d9">TARGETS</data>
+      <data key="d10">Window opening is applied to reduce airborne transmission risk of SARS-CoV-2 in the bus.</data>
+      <data key="d11">0.85</data>
+      <data key="d12">1</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_2</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="WINDOW OPENING (BUS IN MOTION)" target="AIR CHANGES PER HOUR (ACH) IN ROUTE BUS">
+      <data key="d7">WINDOW OPENING (BUS IN MOTION)</data>
+      <data key="d8">AIR CHANGES PER HOUR (ACH) IN ROUTE BUS</data>
+      <data key="d9">HAS_DOSE</data>
+      <data key="d10">Opening windows increases ACH, enhancing dilution of exhaled aerosols.</data>
+      <data key="d11">0.9</data>
+      <data key="d12">1</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_2</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="WINDOW OPENING (BUS IN MOTION)" target="92% REDUCTION IN AVERAGE INFECTION RISK WITH WINDOWS OPEN (MOVING BUS)">
+      <data key="d7">WINDOW OPENING (BUS IN MOTION)</data>
+      <data key="d8">92% REDUCTION IN AVERAGE INFECTION RISK WITH WINDOWS OPEN (MOVING BUS)</data>
+      <data key="d9">REDUCES</data>
+      <data key="d10">Opening windows while the bus is moving reduces average infection risk by 92% relative to windows closed.</data>
+      <data key="d11">0.95</data>
+      <data key="d12">1</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_2</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="VENTILATION FANS SET TO EXHAUST MODE" target="SARS-COV-2">
+      <data key="d7">VENTILATION FANS SET TO EXHAUST MODE</data>
+      <data key="d8">SARS-COV-2</data>
+      <data key="d9">TARGETS</data>
+      <data key="d10">Exhaust fan operation is used to reduce airborne SARS-CoV-2 risk by enhancing ventilation.</data>
+      <data key="d11">0.8</data>
+      <data key="d12">2</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_2</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="VENTILATION FANS SET TO EXHAUST MODE" target="AIR CHANGES PER HOUR (ACH) IN ROUTE BUS">
+      <data key="d7">VENTILATION FANS SET TO EXHAUST MODE</data>
+      <data key="d8">AIR CHANGES PER HOUR (ACH) IN ROUTE BUS</data>
+      <data key="d9">HAS_DOSE</data>
+      <data key="d10">Setting both fans to exhaust increases ACH compared with supply mode.</data>
+      <data key="d11">0.9</data>
+      <data key="d12">1</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_2</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="VENTILATION FANS SET TO EXHAUST MODE" target="35% REDUCTION IN AVERAGE INFECTION RISK WITH EXHAUST FAN OPERATION (WINDOWS CLOSED, MOVING BUS)">
+      <data key="d7">VENTILATION FANS SET TO EXHAUST MODE</data>
+      <data key="d8">35% REDUCTION IN AVERAGE INFECTION RISK WITH EXHAUST FAN OPERATION (WINDOWS CLOSED, MOVING BUS)</data>
+      <data key="d9">REDUCES</data>
+      <data key="d10">With windows closed in a moving bus, exhaust fan operation reduces average infection risk by 35%.</data>
+      <data key="d11">0.85</data>
+      <data key="d12">1</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_2</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="VENTILATION FANS SET TO EXHAUST MODE" target="VENTILATION FANS SET TO SUPPLY MODE">
+      <data key="d7">VENTILATION FANS SET TO EXHAUST MODE</data>
+      <data key="d8">VENTILATION FANS SET TO SUPPLY MODE</data>
+      <data key="d9">OUTPERFORMS</data>
+      <data key="d10">Exhaust mode yields more than double the ACH compared with supply mode.</data>
+      <data key="d11">0.9</data>
+      <data key="d12">2</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_2</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="FRONT AND REAR WINDOW PAIR OPEN" target="TWO REAR WINDOWS OPEN">
+      <data key="d7">FRONT AND REAR WINDOW PAIR OPEN</data>
+      <data key="d8">TWO REAR WINDOWS OPEN</data>
+      <data key="d9">OUTPERFORMS</data>
+      <data key="d10">Opening a front and rear window produces greater ACH than opening two rear windows.</data>
+      <data key="d11">0.8</data>
+      <data key="d12">2</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_2</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="FRONT AND REAR WINDOW PAIR OPEN" target="AIR CHANGES PER HOUR (ACH) IN ROUTE BUS">
+      <data key="d7">FRONT AND REAR WINDOW PAIR OPEN</data>
+      <data key="d8">AIR CHANGES PER HOUR (ACH) IN ROUTE BUS</data>
+      <data key="d9">HAS_DOSE</data>
+      <data key="d10">This window configuration increases ACH more effectively than opening two rear windows.</data>
+      <data key="d11">0.8</data>
+      <data key="d12">2</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_2</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="TWO REAR WINDOWS OPEN" target="AIR CHANGES PER HOUR (ACH) IN ROUTE BUS">
+      <data key="d7">TWO REAR WINDOWS OPEN</data>
+      <data key="d8">AIR CHANGES PER HOUR (ACH) IN ROUTE BUS</data>
+      <data key="d9">HAS_DOSE</data>
+      <data key="d10">This configuration increases ACH but less than a front-rear window pairing.</data>
+      <data key="d11">0.7</data>
+      <data key="d12">3</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_2</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="AC UNIT EQUIPPED WITH APPROPRIATE PREFILTER" target="SARS-COV-2">
+      <data key="d7">AC UNIT EQUIPPED WITH APPROPRIATE PREFILTER</data>
+      <data key="d8">SARS-COV-2</data>
+      <data key="d9">TARGETS</data>
+      <data key="d10">Filtration in the AC unit targets aerosolized particles that can carry SARS-CoV-2.</data>
+      <data key="d11">0.75</data>
+      <data key="d12">2</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_2</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="AC UNIT EQUIPPED WITH APPROPRIATE PREFILTER" target="PARTICLES SPREAD AT ~50% OF CO2 RATE WITH AC ON (PREFILTER EFFECT)">
+      <data key="d7">AC UNIT EQUIPPED WITH APPROPRIATE PREFILTER</data>
+      <data key="d8">PARTICLES SPREAD AT ~50% OF CO2 RATE WITH AC ON (PREFILTER EFFECT)</data>
+      <data key="d9">REDUCES</data>
+      <data key="d10">Prefilter use is consistent with halving particle spread rate relative to CO2 when AC is on.</data>
+      <data key="d11">0.8</data>
+      <data key="d12">2</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_2</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="AIR CHANGES PER HOUR (ACH) IN ROUTE BUS" target="ROUTE BUS FIELD MEASUREMENTS AND MODIFIED WELLS–RILEY MODELING">
+      <data key="d7">AIR CHANGES PER HOUR (ACH) IN ROUTE BUS</data>
+      <data key="d8">ROUTE BUS FIELD MEASUREMENTS AND MODIFIED WELLS–RILEY MODELING</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">ACH values and their dependence on bus speed, window configuration, and fan mode were empirically determined.</data>
+      <data key="d11">0.9</data>
+      <data key="d12">1</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_2</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="92% REDUCTION IN AVERAGE INFECTION RISK WITH WINDOWS OPEN (MOVING BUS)" target="ROUTE BUS FIELD MEASUREMENTS AND MODIFIED WELLS–RILEY MODELING">
+      <data key="d7">92% REDUCTION IN AVERAGE INFECTION RISK WITH WINDOWS OPEN (MOVING BUS)</data>
+      <data key="d8">ROUTE BUS FIELD MEASUREMENTS AND MODIFIED WELLS–RILEY MODELING</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">Effect size derived from modified Wells–Riley calculations informed by field measurements.</data>
+      <data key="d11">0.9</data>
+      <data key="d12">1</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_2</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="35% REDUCTION IN AVERAGE INFECTION RISK WITH EXHAUST FAN OPERATION (WINDOWS CLOSED, MOVING BUS)" target="ROUTE BUS FIELD MEASUREMENTS AND MODIFIED WELLS–RILEY MODELING">
+      <data key="d7">35% REDUCTION IN AVERAGE INFECTION RISK WITH EXHAUST FAN OPERATION (WINDOWS CLOSED, MOVING BUS)</data>
+      <data key="d8">ROUTE BUS FIELD MEASUREMENTS AND MODIFIED WELLS–RILEY MODELING</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">Effect estimate obtained from modified Wells–Riley calculations using measured ventilation conditions.</data>
+      <data key="d11">0.85</data>
+      <data key="d12">1</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_2</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="PARTICLES SPREAD AT ~50% OF CO2 RATE WITH AC ON (PREFILTER EFFECT)" target="ROUTE BUS FIELD MEASUREMENTS AND MODIFIED WELLS–RILEY MODELING">
+      <data key="d7">PARTICLES SPREAD AT ~50% OF CO2 RATE WITH AC ON (PREFILTER EFFECT)</data>
+      <data key="d8">ROUTE BUS FIELD MEASUREMENTS AND MODIFIED WELLS–RILEY MODELING</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">Observation based on comparative spread of CO2 and particles during AC operation.</data>
+      <data key="d11">0.75</data>
+      <data key="d12">2</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_2</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="OPEN WINDOWS" target="ACH">
+      <data key="d7">OPEN WINDOWS</data>
+      <data key="d8">ACH</data>
+      <data key="d9">HAS_DOSE</data>
+      <data key="d10">Opening windows increases outdoor air exchange; ACH quantifies the ventilation rate achieved under this control.</data>
+      <data key="d11">0.88</data>
+      <data key="d12">1</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_4</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="OPEN WINDOWS" target="STATIONARY TESTS IN THE CAR BARN AT THE FUJISAWA PLANT">
+      <data key="d7">OPEN WINDOWS</data>
+      <data key="d8">STATIONARY TESTS IN THE CAR BARN AT THE FUJISAWA PLANT</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">The impact of opening windows on bus ACH was evaluated in stationary car-barn tests at the Fujisawa plant.</data>
+      <data key="d11">0.78</data>
+      <data key="d12">1</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_4</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="OPEN WINDOWS" target="MOVING TESTS OUTDOORS AT TSUKUBA">
+      <data key="d7">OPEN WINDOWS</data>
+      <data key="d8">MOVING TESTS OUTDOORS AT TSUKUBA</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">The effectiveness of opening windows on ACH was assessed during outdoor moving tests at Tsukuba.</data>
+      <data key="d11">0.75</data>
+      <data key="d12">1</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_4</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="OPEN WINDOWS" target="ACH IN THE BUS WITHOUT MANNEQUINS WITH DIFFERENT NUMBERS OF OPEN WINDOWS">
+      <data key="d7">OPEN WINDOWS</data>
+      <data key="d8">ACH IN THE BUS WITHOUT MANNEQUINS WITH DIFFERENT NUMBERS OF OPEN WINDOWS</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">Figure-referenced study specifically assessing ACH under varying numbers and placements of open windows in a bus without mannequins.</data>
+      <data key="d11">0.77</data>
+      <data key="d12">1</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_4</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="RIGHT FRONT AND LEFT REAR WINDOWS OPEN" target="ACH">
+      <data key="d7">RIGHT FRONT AND LEFT REAR WINDOWS OPEN</data>
+      <data key="d8">ACH</data>
+      <data key="d9">HAS_DOSE</data>
+      <data key="d10">This cross-ventilation configuration leads to a measurable ACH reflecting its ventilation performance. | Opening right-side front and rear windows establishes airflow that yields a quantifiable ACH. | Opening rear windows on both sides produces a ventilation condition with a corresponding ACH.</data>
+      <data key="d11">0.79</data>
+      <data key="d12">1</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_4</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="RIGHT FRONT AND LEFT REAR WINDOWS OPEN" target="STATIONARY TESTS IN THE CAR BARN AT THE FUJISAWA PLANT">
+      <data key="d7">RIGHT FRONT AND LEFT REAR WINDOWS OPEN</data>
+      <data key="d8">STATIONARY TESTS IN THE CAR BARN AT THE FUJISAWA PLANT</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">ACH for this window configuration was measured in stationary car-barn tests at Fujisawa.</data>
+      <data key="d11">0.77</data>
+      <data key="d12">1</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_4</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="RIGHT FRONT AND LEFT REAR WINDOWS OPEN" target="MOVING TESTS OUTDOORS AT TSUKUBA">
+      <data key="d7">RIGHT FRONT AND LEFT REAR WINDOWS OPEN</data>
+      <data key="d8">MOVING TESTS OUTDOORS AT TSUKUBA</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">ACH for this window configuration was measured in outdoor moving tests at Tsukuba.</data>
+      <data key="d11">0.74</data>
+      <data key="d12">1</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_4</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="VENTILATION FAN OPERATION" target="ACH">
+      <data key="d7">VENTILATION FAN OPERATION</data>
+      <data key="d8">ACH</data>
+      <data key="d9">HAS_DOSE</data>
+      <data key="d10">Operating onboard fans alters airflow and mixing; ACH captures the resulting ventilation rate.</data>
+      <data key="d11">0.89</data>
+      <data key="d12">1</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_4</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="VENTILATION FAN OPERATION" target="EFFECTS OF VENTILATION FAN OPERATION ON THE ACH IN THE BUS WITHOUT MANNEQUINS">
+      <data key="d7">VENTILATION FAN OPERATION</data>
+      <data key="d8">EFFECTS OF VENTILATION FAN OPERATION ON THE ACH IN THE BUS WITHOUT MANNEQUINS</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">Fan operation effects on ACH were quantified in dedicated experiments (front F and rear R fans).</data>
+      <data key="d11">0.81</data>
+      <data key="d12">1</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_4</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="FRONT VENTILATION FAN" target="ACH">
+      <data key="d7">FRONT VENTILATION FAN</data>
+      <data key="d8">ACH</data>
+      <data key="d9">HAS_DOSE</data>
+      <data key="d10">Activating the front fan yields a measurable ACH contribution from the front subsystem.</data>
+      <data key="d11">0.7</data>
+      <data key="d12">1</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_4</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="FRONT VENTILATION FAN" target="EFFECTS OF VENTILATION FAN OPERATION ON THE ACH IN THE BUS WITHOUT MANNEQUINS">
+      <data key="d7">FRONT VENTILATION FAN</data>
+      <data key="d8">EFFECTS OF VENTILATION FAN OPERATION ON THE ACH IN THE BUS WITHOUT MANNEQUINS</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">The front fan’s impact on ACH was measured in the fan-operation experiments.</data>
+      <data key="d11">0.76</data>
+      <data key="d12">1</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_4</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="REAR VENTILATION FAN" target="ACH">
+      <data key="d7">REAR VENTILATION FAN</data>
+      <data key="d8">ACH</data>
+      <data key="d9">HAS_DOSE</data>
+      <data key="d10">Operating the rear fan yields a measurable ACH contribution from the rear subsystem.</data>
+      <data key="d11">0.7</data>
+      <data key="d12">1</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_4</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="REAR VENTILATION FAN" target="EFFECTS OF VENTILATION FAN OPERATION ON THE ACH IN THE BUS WITHOUT MANNEQUINS">
+      <data key="d7">REAR VENTILATION FAN</data>
+      <data key="d8">EFFECTS OF VENTILATION FAN OPERATION ON THE ACH IN THE BUS WITHOUT MANNEQUINS</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">The rear fan’s impact on ACH was measured in the fan-operation experiments.</data>
+      <data key="d11">0.76</data>
+      <data key="d12">1</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_4</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="INHALATION VOLUME OF CO2 RELATIVE TO THE VOLUME EMITTED (P_CO2)" target="STATIONARY TESTS WITH MANNEQUINS — EMISSION AT RIGHT REARMOST PART OF BUS">
+      <data key="d7">INHALATION VOLUME OF CO2 RELATIVE TO THE VOLUME EMITTED (P_CO2)</data>
+      <data key="d8">STATIONARY TESTS WITH MANNEQUINS — EMISSION AT RIGHT REARMOST PART OF BUS</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">P_CO2 was measured with emission from the right rearmost part in stationary mannequin tests.</data>
+      <data key="d11">0.78</data>
+      <data key="d12">1</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_4</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="INHALATION VOLUME OF CO2 RELATIVE TO THE VOLUME EMITTED (P_CO2)" target="STATIONARY TESTS WITH MANNEQUINS — EMISSION AT FRONT CENTER (STANDING)">
+      <data key="d7">INHALATION VOLUME OF CO2 RELATIVE TO THE VOLUME EMITTED (P_CO2)</data>
+      <data key="d8">STATIONARY TESTS WITH MANNEQUINS — EMISSION AT FRONT CENTER (STANDING)</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">P_CO2 was measured with emission from the front center (standing) in stationary mannequin tests.</data>
+      <data key="d11">0.78</data>
+      <data key="d12">1</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_4</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="WINDOWS OPEN" target="NORMALIZED EXPOSURE DATA IN THE STATIONARY CITY BUS">
+      <data key="d7">WINDOWS OPEN</data>
+      <data key="d8">NORMALIZED EXPOSURE DATA IN THE STATIONARY CITY BUS</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">The exposure dataset includes the 'windows open, AC off, fan off' condition, providing empirical measurements for the effect of opening windows on normalized exposure in a stationary bus.</data>
+      <data key="d11">0.85</data>
+      <data key="d12">1</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_5</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="WINDOWS OPEN" target="INFLUENCE OF NATURAL VENTILATION DESIGN ON THE DISPERSION OF PATHOGEN-LADEN DROPLETS IN A COACH BUS.">
+      <data key="d7">WINDOWS OPEN</data>
+      <data key="d8">INFLUENCE OF NATURAL VENTILATION DESIGN ON THE DISPERSION OF PATHOGEN-LADEN DROPLETS IN A COACH BUS.</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">External study by Luo et al. supports the premise that natural ventilation strategies, including opening windows, significantly affect droplet/aerosol dispersion in coach buses.</data>
+      <data key="d11">0.7</data>
+      <data key="d12">2</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_5</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="WINDOWS CLOSED, AC OFF, FAN OFF" target="NORMALIZED EXPOSURE DATA IN THE STATIONARY CITY BUS">
+      <data key="d7">WINDOWS CLOSED, AC OFF, FAN OFF</data>
+      <data key="d8">NORMALIZED EXPOSURE DATA IN THE STATIONARY CITY BUS</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">The dataset contains this sealed baseline condition, enabling comparison of normalized exposure against other ventilation states.</data>
+      <data key="d11">0.85</data>
+      <data key="d12">1</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_5</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="AC ON" target="RELATIONSHIPS BETWEEN P CO2 AND P PARTICLES IN THE BUS">
+      <data key="d7">AC ON</data>
+      <data key="d8">RELATIONSHIPS BETWEEN P CO2 AND P PARTICLES IN THE BUS</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">Figure 8 explicitly analyzes the relationship between P_CO2 and P_PARTICLES with AC in the 'on' state at five bus positions.</data>
+      <data key="d11">0.8</data>
+      <data key="d12">1</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_5</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="AC OFF" target="RELATIONSHIPS BETWEEN P CO2 AND P PARTICLES IN THE BUS">
+      <data key="d7">AC OFF</data>
+      <data key="d8">RELATIONSHIPS BETWEEN P CO2 AND P PARTICLES IN THE BUS</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">Figure 8 explicitly analyzes the relationship between P_CO2 and P_PARTICLES with AC in the 'off' state at five bus positions.</data>
+      <data key="d11">0.8</data>
+      <data key="d12">1</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_5</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="FAN SUPPLY (FRONT) &amp; EXHAUST (REAR)" target="NORMALIZED EXPOSURE DATA IN THE STATIONARY CITY BUS">
+      <data key="d7">FAN SUPPLY (FRONT) &amp; EXHAUST (REAR)</data>
+      <data key="d8">NORMALIZED EXPOSURE DATA IN THE STATIONARY CITY BUS</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">The dataset includes the front-supply/rear-exhaust configuration, providing measured normalized exposure outcomes under a directional flow strategy.</data>
+      <data key="d11">0.85</data>
+      <data key="d12">1</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_5</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="FAN SUPPLY (FRONT) &amp; SUPPLY (REAR)" target="NORMALIZED EXPOSURE DATA IN THE STATIONARY CITY BUS">
+      <data key="d7">FAN SUPPLY (FRONT) &amp; SUPPLY (REAR)</data>
+      <data key="d8">NORMALIZED EXPOSURE DATA IN THE STATIONARY CITY BUS</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">The dataset includes the supply-at-both-ends configuration, offering empirical exposure outcomes for a mixing-oriented strategy without dedicated exhaust.</data>
+      <data key="d11">0.8</data>
+      <data key="d12">1</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_5</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="P_CO2 (NORMALIZED INHALATION OF CO2)" target="INHALATION VOLUME OF CO2 IN MOVING TESTS WITH MANNEQUINS">
+      <data key="d7">P_CO2 (NORMALIZED INHALATION OF CO2)</data>
+      <data key="d8">INHALATION VOLUME OF CO2 IN MOVING TESTS WITH MANNEQUINS</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">Figure 7 provides measurements for P_CO2 by comparing inhaled CO2 volume to emitted volume at defined release positions in a moving bus.</data>
+      <data key="d11">0.85</data>
+      <data key="d12">1</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_5</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="P_CO2 (NORMALIZED INHALATION OF CO2)" target="RELATIONSHIPS BETWEEN P CO2 AND P PARTICLES IN THE BUS">
+      <data key="d7">P_CO2 (NORMALIZED INHALATION OF CO2)</data>
+      <data key="d8">RELATIONSHIPS BETWEEN P CO2 AND P PARTICLES IN THE BUS</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">Figure 8 uses P_CO2 to examine its relationship with normalized particle exposure under AC on/off conditions.</data>
+      <data key="d11">0.8</data>
+      <data key="d12">1</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_5</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="P_PARTICLES (NORMALIZED PARTICLE EXPOSURE)" target="RELATIONSHIPS BETWEEN P CO2 AND P PARTICLES IN THE BUS">
+      <data key="d7">P_PARTICLES (NORMALIZED PARTICLE EXPOSURE)</data>
+      <data key="d8">RELATIONSHIPS BETWEEN P CO2 AND P PARTICLES IN THE BUS</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">Figure 8 reports P_PARTICLES at five positions and analyzes its coupling with P_CO2 under different AC states.</data>
+      <data key="d11">0.8</data>
+      <data key="d12">1</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_5</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="NORMALIZED EXPOSURE (P) IN BUS" target="NORMALIZED EXPOSURE DATA IN THE STATIONARY CITY BUS">
+      <data key="d7">NORMALIZED EXPOSURE (P) IN BUS</data>
+      <data key="d8">NORMALIZED EXPOSURE DATA IN THE STATIONARY CITY BUS</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">Figure 9 provides the normalized exposure metric P across four ventilation configurations in a stationary bus.</data>
+      <data key="d11">0.85</data>
+      <data key="d12">1</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_5</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="NATURAL VENTILATION STRATEGY" target="SARS-COV-2">
+      <data key="d7">NATURAL VENTILATION STRATEGY</data>
+      <data key="d8">SARS-COV-2</data>
+      <data key="d9">REDUCES</data>
+      <data key="d10">Natural ventilation lowers concentrations of SARS-CoV-2-laden aerosols by increasing dilution with outdoor air, reducing exposure risk indoors.</data>
+      <data key="d11">0.84</data>
+      <data key="d12">1</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_6</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="NATURAL VENTILATION STRATEGY" target="AIR CHANGE RATE (ACH)">
+      <data key="d7">NATURAL VENTILATION STRATEGY</data>
+      <data key="d8">AIR CHANGE RATE (ACH)</data>
+      <data key="d9">HAS_DOSE</data>
+      <data key="d10">Effectiveness of natural ventilation is characterized by the resulting air change rate (ACH), which determines indoor air dilution.</data>
+      <data key="d11">0.78</data>
+      <data key="d12">1</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_6</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="NATURAL VENTILATION STRATEGY" target="NATURAL VENTILATION STRATEGY AND RELATED ISSUES TO PREVENT CORONAVIRUS DISEASE 2019 (COVID-19) AIRBORNE TRANSMISSION IN A SCHOOL BUILDING.">
+      <data key="d7">NATURAL VENTILATION STRATEGY</data>
+      <data key="d8">NATURAL VENTILATION STRATEGY AND RELATED ISSUES TO PREVENT CORONAVIRUS DISEASE 2019 (COVID-19) AIRBORNE TRANSMISSION IN A SCHOOL BUILDING.</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">Evidence from a school setting demonstrates application, benefits, and practical limitations of natural ventilation for airborne COVID-19 risk reduction.</data>
+      <data key="d11">0.83</data>
+      <data key="d12">1</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_6</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="NATURAL VENTILATION STRATEGY" target="[VENTILATION CONCEPTS IN SCHOOLS FOR THE PREVENTION OF TRANSMISSION OF HIGHLY INFECTIOUS VIRUSES (SARS-COV-2) BY AEROSOLS IN INDOOR AIR].">
+      <data key="d7">NATURAL VENTILATION STRATEGY</data>
+      <data key="d8">[VENTILATION CONCEPTS IN SCHOOLS FOR THE PREVENTION OF TRANSMISSION OF HIGHLY INFECTIOUS VIRUSES (SARS-COV-2) BY AEROSOLS IN INDOOR AIR].</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">Review compiles strategies and supports the role of natural ventilation in schools for mitigating aerosol transmission, including SARS-CoV-2.</data>
+      <data key="d11">0.74</data>
+      <data key="d12">2</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_6</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="NATURAL VENTILATION STRATEGY" target="INDOOR AEROSOL SCIENCE ASPECTS OF SARS-COV-2 TRANSMISSION.">
+      <data key="d7">NATURAL VENTILATION STRATEGY</data>
+      <data key="d8">INDOOR AEROSOL SCIENCE ASPECTS OF SARS-COV-2 TRANSMISSION.</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">Aerosol science review explains mechanisms by which ventilation dilutes pathogen-laden aerosols, underpinning natural ventilation’s effectiveness.</data>
+      <data key="d11">0.71</data>
+      <data key="d12">2</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_6</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="DIFFERENT VENTILATION STRATEGIES" target="HOSPITAL LIFT">
+      <data key="d7">DIFFERENT VENTILATION STRATEGIES</data>
+      <data key="d8">HOSPITAL LIFT</data>
+      <data key="d9">APPLIED_TO</data>
+      <data key="d10">Ventilation approaches are analyzed within the confined environment of a hospital elevator, where airflow strongly impacts exposure.</data>
+      <data key="d11">0.86</data>
+      <data key="d12">1</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_6</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="DIFFERENT VENTILATION STRATEGIES" target="AIR CHANGE RATE (ACH)">
+      <data key="d7">DIFFERENT VENTILATION STRATEGIES</data>
+      <data key="d8">AIR CHANGE RATE (ACH)</data>
+      <data key="d9">HAS_DOSE</data>
+      <data key="d10">Alternative ventilation approaches are operationalized by different air change rates, which govern dilution in the elevator.</data>
+      <data key="d11">0.8</data>
+      <data key="d12">1</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_6</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="DIFFERENT VENTILATION STRATEGIES" target="INDOOR CO2 CONCENTRATION">
+      <data key="d7">DIFFERENT VENTILATION STRATEGIES</data>
+      <data key="d8">INDOOR CO2 CONCENTRATION</data>
+      <data key="d9">REDUCES</data>
+      <data key="d10">Increasing ventilation rate and optimizing airflow patterns lower CO2 accumulation, indicating improved dilution in the confined space.</data>
+      <data key="d11">0.81</data>
+      <data key="d12">1</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_6</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="DIFFERENT VENTILATION STRATEGIES" target="COUGH DROPLET DISPERSION">
+      <data key="d7">DIFFERENT VENTILATION STRATEGIES</data>
+      <data key="d8">COUGH DROPLET DISPERSION</data>
+      <data key="d9">REDUCES</data>
+      <data key="d10">Enhanced ventilation diminishes the extent and persistence of cough droplet/aerosol dispersion, reducing potential exposure in the lift.</data>
+      <data key="d11">0.77</data>
+      <data key="d12">1</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_6</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="DIFFERENT VENTILATION STRATEGIES" target="NUMERICAL PERFORMANCE OF CO2 ACCUMULATION AND DROPLET DISPERSION FROM A COUGH INSIDE A HOSPITAL LIFT UNDER DIFFERENT VENTILATION STRATEGIES.">
+      <data key="d7">DIFFERENT VENTILATION STRATEGIES</data>
+      <data key="d8">NUMERICAL PERFORMANCE OF CO2 ACCUMULATION AND DROPLET DISPERSION FROM A COUGH INSIDE A HOSPITAL LIFT UNDER DIFFERENT VENTILATION STRATEGIES.</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">Numerical modeling quantifies how varying strategies alter CO2 buildup and cough droplet spread in a hospital elevator.</data>
+      <data key="d11">0.88</data>
+      <data key="d12">1</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_6</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="INDOOR CO2 CONCENTRATION" target="NUMERICAL PERFORMANCE OF CO2 ACCUMULATION AND DROPLET DISPERSION FROM A COUGH INSIDE A HOSPITAL LIFT UNDER DIFFERENT VENTILATION STRATEGIES.">
+      <data key="d7">INDOOR CO2 CONCENTRATION</data>
+      <data key="d8">NUMERICAL PERFORMANCE OF CO2 ACCUMULATION AND DROPLET DISPERSION FROM A COUGH INSIDE A HOSPITAL LIFT UNDER DIFFERENT VENTILATION STRATEGIES.</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">CO2 accumulation is used as a performance metric in the elevator study to compare ventilation strategies.</data>
+      <data key="d11">0.75</data>
+      <data key="d12">2</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_6</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="COUGH DROPLET DISPERSION" target="NUMERICAL PERFORMANCE OF CO2 ACCUMULATION AND DROPLET DISPERSION FROM A COUGH INSIDE A HOSPITAL LIFT UNDER DIFFERENT VENTILATION STRATEGIES.">
+      <data key="d7">COUGH DROPLET DISPERSION</data>
+      <data key="d8">NUMERICAL PERFORMANCE OF CO2 ACCUMULATION AND DROPLET DISPERSION FROM A COUGH INSIDE A HOSPITAL LIFT UNDER DIFFERENT VENTILATION STRATEGIES.</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">Droplet/aerosol dispersion from a cough is explicitly simulated to assess the impact of ventilation strategies in the elevator.</data>
+      <data key="d11">0.74</data>
+      <data key="d12">2</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_6</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="VENTILATION STRATEGIES" target="HOSPITAL LIFT">
+      <data key="d7">VENTILATION STRATEGIES</data>
+      <data key="d8">HOSPITAL LIFT</data>
+      <data key="d9">APPLIED_TO</data>
+      <data key="d10">Ventilation strategies are implemented within the hospital lift to influence air exchange and airflow patterns, aiming to reduce accumulation of exhaled CO2 and remove or dilute cough-generated droplets.</data>
+      <data key="d11">0.88</data>
+      <data key="d12">1</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_7</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="VENTILATION STRATEGIES" target="AIR CHANGES PER HOUR (ACH) IN ELEVATOR CABIN">
+      <data key="d7">VENTILATION STRATEGIES</data>
+      <data key="d8">AIR CHANGES PER HOUR (ACH) IN ELEVATOR CABIN</data>
+      <data key="d9">HAS_DOSE</data>
+      <data key="d10">Adjusting ACH is a primary lever of ventilation strategies in elevator cabins, determining the dilution rate for exhaled contaminants.</data>
+      <data key="d11">0.82</data>
+      <data key="d12">1</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_7</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="VENTILATION STRATEGIES" target="CO2 CONCENTRATION IN CABIN AIR">
+      <data key="d7">VENTILATION STRATEGIES</data>
+      <data key="d8">CO2 CONCENTRATION IN CABIN AIR</data>
+      <data key="d9">REDUCES</data>
+      <data key="d10">Increasing outdoor air supply and extraction lowers indoor CO2 levels, indicating reduced rebreathed air fraction during elevator rides.</data>
+      <data key="d11">0.87</data>
+      <data key="d12">1</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_7</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="VENTILATION STRATEGIES" target="DROPLET AND DROPLET NUCLEI CONCENTRATION IN CABIN AIR">
+      <data key="d7">VENTILATION STRATEGIES</data>
+      <data key="d8">DROPLET AND DROPLET NUCLEI CONCENTRATION IN CABIN AIR</data>
+      <data key="d9">REDUCES</data>
+      <data key="d10">Enhanced ventilation and directed airflow reduce suspended droplet and droplet nuclei concentrations from cough emissions within the cabin.</data>
+      <data key="d11">0.85</data>
+      <data key="d12">1</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_7</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="VENTILATION STRATEGIES" target="AIRBORNE TRANSMISSION RISK SCORE">
+      <data key="d7">VENTILATION STRATEGIES</data>
+      <data key="d8">AIRBORNE TRANSMISSION RISK SCORE</data>
+      <data key="d9">REDUCES</data>
+      <data key="d10">By diluting and removing exhaled aerosols, ventilation strategies lower modeled or measured airborne infection risk under typical elevator occupancy.</data>
+      <data key="d11">0.8</data>
+      <data key="d12">1</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_7</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="VENTILATION STRATEGIES" target="SARS-COV-2 (COVID-19)">
+      <data key="d7">VENTILATION STRATEGIES</data>
+      <data key="d8">SARS-COV-2 (COVID-19)</data>
+      <data key="d9">TARGETS</data>
+      <data key="d10">Ventilation is designed to mitigate airborne transmission of SARS-CoV-2 by reducing the concentration of infectious aerosols in shared indoor air.</data>
+      <data key="d11">0.78</data>
+      <data key="d12">2</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_7</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="VENTILATION STRATEGIES" target="PERFORMANCE OF CO2 ACCUMULATION AND DROPLET DISPERSION FROM A COUGH INSIDE A HOSPITAL LIFT UNDER DIFFERENT VENTILATION STRATEGIES.">
+      <data key="d7">VENTILATION STRATEGIES</data>
+      <data key="d8">PERFORMANCE OF CO2 ACCUMULATION AND DROPLET DISPERSION FROM A COUGH INSIDE A HOSPITAL LIFT UNDER DIFFERENT VENTILATION STRATEGIES.</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">Elevator-specific experimental/modeling results quantify how different ventilation setups affect CO2 and droplet dispersion, supporting ventilation as an effective control in lifts.</data>
+      <data key="d11">0.9</data>
+      <data key="d12">1</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_7</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="VENTILATION STRATEGIES" target="MULTI-SCALE RISK ASSESSMENT AND MITIGATIONS COMPARISON FOR COVID-19 IN URBAN PUBLIC TRANSPORT: A COMBINED FIELD MEASUREMENT AND MODELING APPROACH.">
+      <data key="d7">VENTILATION STRATEGIES</data>
+      <data key="d8">MULTI-SCALE RISK ASSESSMENT AND MITIGATIONS COMPARISON FOR COVID-19 IN URBAN PUBLIC TRANSPORT: A COMBINED FIELD MEASUREMENT AND MODELING APPROACH.</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">Field and modeling evidence from urban public transport shows how ventilation and related measures affect COVID-19 risk, supporting generalizable ventilation benefits.</data>
+      <data key="d11">0.76</data>
+      <data key="d12">2</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_7</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="VENTILATION STRATEGIES" target="SPATIAL DISTRIBUTIONS OF AIRBORNE TRANSMISSION RISK ON COMMUTER BUSES: NUMERICAL CASE STUDY USING COMPUTATIONAL FLUID AND PARTICLE DYNAMICS WITH COMPUTER-SIMULATED PERSONS.">
+      <data key="d7">VENTILATION STRATEGIES</data>
+      <data key="d8">SPATIAL DISTRIBUTIONS OF AIRBORNE TRANSMISSION RISK ON COMMUTER BUSES: NUMERICAL CASE STUDY USING COMPUTATIONAL FLUID AND PARTICLE DYNAMICS WITH COMPUTER-SIMULATED PERSONS.</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">CFD-based bus analyses demonstrate how airflow-driven dispersion shapes spatial risk, indirectly validating ventilation design principles for enclosed shared spaces.</data>
+      <data key="d11">0.68</data>
+      <data key="d12">2</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_7</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="VENTILATION STRATEGIES" target="COVID-19 TRANSMISSION AND CONTROL IN LAND PUBLIC TRANSPORT: A LITERATURE REVIEW.">
+      <data key="d7">VENTILATION STRATEGIES</data>
+      <data key="d8">COVID-19 TRANSMISSION AND CONTROL IN LAND PUBLIC TRANSPORT: A LITERATURE REVIEW.</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">Synthesis of transport literature supports the role of ventilation as a key mitigation for airborne COVID-19 transmission.</data>
+      <data key="d11">0.72</data>
+      <data key="d12">2</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_7</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="VENTILATION STRATEGIES" target="WIND VELOCITY AND DISPERSION/ADVECTION-DIFFUSION OF ARTIFICIAL DROPLETS AND DROPLET NUCLEI IN A DOMED ALL-WEATHER MULTI-PURPOSE STADIUM.">
+      <data key="d7">VENTILATION STRATEGIES</data>
+      <data key="d8">WIND VELOCITY AND DISPERSION/ADVECTION-DIFFUSION OF ARTIFICIAL DROPLETS AND DROPLET NUCLEI IN A DOMED ALL-WEATHER MULTI-PURPOSE STADIUM.</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">Large-indoor-space findings on airflow and droplet transport mechanisms support fundamental dispersion concepts relevant to ventilation controls.</data>
+      <data key="d11">0.55</data>
+      <data key="d12">3</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_7</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="PERFORMANCE OF CO2 ACCUMULATION AND DROPLET DISPERSION FROM A COUGH INSIDE A HOSPITAL LIFT UNDER DIFFERENT VENTILATION STRATEGIES." target="HOSPITAL LIFT">
+      <data key="d7">PERFORMANCE OF CO2 ACCUMULATION AND DROPLET DISPERSION FROM A COUGH INSIDE A HOSPITAL LIFT UNDER DIFFERENT VENTILATION STRATEGIES.</data>
+      <data key="d8">HOSPITAL LIFT</data>
+      <data key="d9">APPLIED_TO</data>
+      <data key="d10">The study was conducted in the hospital elevator setting, assessing ventilation configurations in that micro-environment.</data>
+      <data key="d11">0.86</data>
+      <data key="d12">1</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_7</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="AEROSOL CONCENTRATION IN INDOOR AIR" target="CDC SCIENTIFIC BRIEF: SARS-COV-2 TRANSMISSION (UPDATED MAY 7, 2021)">
+      <data key="d7">AEROSOL CONCENTRATION IN INDOOR AIR</data>
+      <data key="d8">CDC SCIENTIFIC BRIEF: SARS-COV-2 TRANSMISSION (UPDATED MAY 7, 2021)</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">Use of aerosol levels as a relevant metric for airborne transmission risk is supported by the CDC’s synthesis of aerosol transmission evidence.</data>
+      <data key="d11">0.6</data>
+      <data key="d12">2</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_9</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="INDOOR CO2 CONCENTRATION (PPM)" target="AEROSOL CONCENTRATION IN INDOOR AIR">
+      <data key="d7">INDOOR CO2 CONCENTRATION (PPM)</data>
+      <data key="d8">AEROSOL CONCENTRATION IN INDOOR AIR</data>
+      <data key="d9">COMPLEMENTS</data>
+      <data key="d10">CO2 monitoring complements aerosol measurements by indicating ventilation adequacy and potential for aerosol accumulation in occupied spaces.</data>
+      <data key="d11">0.7</data>
+      <data key="d12">3</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_9</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="VENTILATION (INDOOR AIR DILUTION VIA HVAC)" target="RESPIRATORY AEROSOL CONCENTRATION (INDOOR AIR)">
+      <data key="d7">VENTILATION (INDOOR AIR DILUTION VIA HVAC)</data>
+      <data key="d8">RESPIRATORY AEROSOL CONCENTRATION (INDOOR AIR)</data>
+      <data key="d9">REDUCES</data>
+      <data key="d10">Increasing outdoor air exchange and filtration through ventilation lowers indoor aerosol concentrations, thereby reducing potential exposure.</data>
+      <data key="d11">0.8</data>
+      <data key="d12">1</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_10</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="VENTILATION (INDOOR AIR DILUTION VIA HVAC)" target="INDOOR CARBON DIOXIDE CONCENTRATION (CO2)">
+      <data key="d7">VENTILATION (INDOOR AIR DILUTION VIA HVAC)</data>
+      <data key="d8">INDOOR CARBON DIOXIDE CONCENTRATION (CO2)</data>
+      <data key="d9">REDUCES</data>
+      <data key="d10">Enhanced ventilation dilutes and removes exhaled CO2, lowering indoor CO2 levels as an indicator of improved ventilation performance.</data>
+      <data key="d11">0.7</data>
+      <data key="d12">2</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_10</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+    <edge source="VENTILATION (INDOOR AIR DILUTION VIA HVAC)" target="PEER-REVIEWED STUDY INDEXED IN PUBMED (PMID: 35347782)">
+      <data key="d7">VENTILATION (INDOOR AIR DILUTION VIA HVAC)</data>
+      <data key="d8">PEER-REVIEWED STUDY INDEXED IN PUBMED (PMID: 35347782)</data>
+      <data key="d9">VALIDATED_BY</data>
+      <data key="d10">The PubMed-indexed study provides empirical context linking ventilation with aerosols and CO2 in human-occupied settings.</data>
+      <data key="d11">0.6</data>
+      <data key="d12">3</data>
+      <data key="d13">e45568c3-e22e-4830-92f5-64de955e8aee_chunk_10</data>
+      <data key="d14">e45568c3-e22e-4830-92f5-64de955e8aee</data>
+    </edge>
+  </graph>
+</graphml>

@@ -1,0 +1,18 @@
+{
+  "model": "gpt5nano",
+  "corpus_dir": "data/haiqu_corpus",
+  "results": [
+    {
+      "group": "haiqu_engineering_controls",
+      "schema": "haiqu_engineering_controls",
+      "papers_attempted": 3,
+      "papers_succeeded": 3,
+      "papers_skipped_short": 0,
+      "papers_failed": 0,
+      "nodes": 47,
+      "edges": 29,
+      "output_path": "haiqu_graphs/test_gpt5nano/haiqu_engineering_controls_graph.graphml",
+      "elapsed_sec": 1965.566430091858
+    }
+  ]
+}
