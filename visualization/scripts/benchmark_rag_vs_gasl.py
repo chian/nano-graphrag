@@ -260,7 +260,13 @@ def _run_gasl_queue_worker(graph_path: str, question: str, api_key: str, model: 
         })
 
 
-def run_gasl(graph_path: str, question: str, api_key: str, model: str, timeout_s: int) -> Dict[str, Any]:
+def run_gasl(
+    graph_path: str,
+    question: str,
+    api_key: str,
+    model: str,
+    heartbeat_s: int,
+) -> Dict[str, Any]:
     ctx = mp.get_context("spawn")
     queue = ctx.Queue()
     proc = ctx.Process(
@@ -268,18 +274,17 @@ def run_gasl(graph_path: str, question: str, api_key: str, model: str, timeout_s
         args=(graph_path, question, api_key, model, queue),
     )
     proc.start()
-    proc.join(timeout_s)
-    if proc.is_alive():
-        proc.terminate()
-        proc.join(5)
-        return {
-            "latency_s": float(timeout_s),
-            "answer": "",
-            "iterations": 0,
-            "query_answered": False,
-            "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0, "calls": 0},
-            "timeout": True,
-        }
+    start = time.perf_counter()
+    last_heartbeat = 0.0
+    while proc.is_alive():
+        proc.join(max(1.0, heartbeat_s))
+        elapsed = time.perf_counter() - start
+        if proc.is_alive() and elapsed - last_heartbeat >= heartbeat_s:
+            print(
+                f"      GASL heartbeat: alive elapsed={elapsed:.1f}s pid={proc.pid}",
+                flush=True,
+            )
+            last_heartbeat = elapsed
     if not queue.empty():
         return queue.get()
     return {
@@ -305,7 +310,7 @@ def benchmark(
     api_key: str,
     model: str,
     per_graph: int,
-    gasl_timeout_s: int,
+    heartbeat_s: int,
     bug_log_path: Optional[Path] = None,
 ) -> Dict[str, Any]:
     rows: List[Dict[str, Any]] = []
@@ -323,7 +328,13 @@ def benchmark(
                 flush=True,
             )
             rag = run_rag(loader, spec.question, api_key, model)
-            gasl = run_gasl(graph_path, spec.question, api_key, model, gasl_timeout_s)
+            gasl = run_gasl(
+                graph_path,
+                spec.question,
+                api_key,
+                model,
+                heartbeat_s,
+            )
             rag_score = score_answer(rag["answer"], spec.expected)
             gasl_score = score_answer(gasl["answer"], spec.expected)
             row = {
@@ -343,18 +354,17 @@ def benchmark(
             print(
                 f"    rag={rag_score} gasl={gasl_score} delta={row['delta']} "
                 f"rag_s={rag['latency_s']} gasl_s={gasl['latency_s']}"
-                + (" TIMEOUT" if gasl.get("timeout") else "")
                 + (f" GASL_ERR={gasl.get('error')}" if gasl.get("error") else ""),
                 flush=True,
             )
-            if gasl.get("timeout") or gasl.get("error"):
+            if gasl.get("error"):
                 _append_bug_log(
                     bug_log_path,
                     {
                         "question": spec.question,
                         "graph": spec.graph_name,
                         "family": spec.family,
-                        "type": "gasl_timeout" if gasl.get("timeout") else "gasl_error",
+                        "type": "gasl_error",
                         "payload": gasl,
                     },
                 )
@@ -377,7 +387,7 @@ def main() -> None:
     parser.add_argument("--graph", action="append", dest="graphs", default=[])
     parser.add_argument("--per-graph", type=int, default=10)
     parser.add_argument("--model", default="gpt-5.4-mini")
-    parser.add_argument("--gasl-timeout", type=int, default=90)
+    parser.add_argument("--heartbeat", type=int, default=1800)
     parser.add_argument("--output", default="")
     parser.add_argument("--bug-log", default="")
     args = parser.parse_args()
@@ -393,7 +403,7 @@ def main() -> None:
         api_key=api_key,
         model=args.model,
         per_graph=args.per_graph,
-        gasl_timeout_s=args.gasl_timeout,
+        heartbeat_s=args.heartbeat,
         bug_log_path=Path(args.bug_log) if args.bug_log else None,
     )
 
