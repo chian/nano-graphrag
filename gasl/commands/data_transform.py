@@ -173,6 +173,7 @@ class DataTransformHandler(CommandHandler):
         variable = args["variable"]
         by_field = args["by_field"]
         operation = args["operation"]  # sum, count, avg, min, max
+        result_variable = args.get("result_variable") or variable
         
         print(f"DEBUG: AGGREGATE - variable: {variable}, by: {by_field}, operation: {operation}")
         
@@ -229,21 +230,20 @@ class DataTransformHandler(CommandHandler):
         result_list = list(aggregated_data.values())
         
         # Store aggregated results
-        if self.state_store.has_variable(variable):
+        if self.state_store.has_variable(result_variable):
             # Update existing state variable
-            var_data = self.state_store.get_variable(variable)
+            var_data = self.state_store.get_variable(result_variable)
             if isinstance(var_data, dict) and "items" in var_data:
                 var_data["items"] = result_list
                 self.state_store._save_state()
-                print(f"DEBUG: AGGREGATE - Updated state variable {variable} with {len(result_list)} groups")
+                print(f"DEBUG: AGGREGATE - Updated state variable {result_variable} with {len(result_list)} groups")
             else:
                 # If it's not a LIST type, update it directly
-                self.state_store.update_variable(variable, result_list)
-                print(f"DEBUG: AGGREGATE - Updated state variable {variable} directly with {len(result_list)} groups")
+                self.state_store.update_variable(result_variable, result_list)
+                print(f"DEBUG: AGGREGATE - Updated state variable {result_variable} directly with {len(result_list)} groups")
         else:
-            # Store in context store if source variable is in context
-            self.context_store.set(variable, result_list)
-            print(f"DEBUG: AGGREGATE - Stored {len(result_list)} groups in context as {variable}")
+            self.context_store.set(result_variable, result_list)
+            print(f"DEBUG: AGGREGATE - Stored {len(result_list)} groups in context as {result_variable}")
         
         # Also store as last_aggregate_result for consistency
         self.context_store.set("last_aggregate_result", result_list)

@@ -50,6 +50,7 @@ class GraphNavHandler(CommandHandler):
         from_var = args["from_variable"]
         follow_types = args["relationship_types"]
         depth = int(args.get("depth", 1))
+        result_var = args.get("result_var")
         
         print(f"DEBUG: GRAPHWALK - from: {from_var}, follow: {follow_types}, depth: {depth}")
         
@@ -66,7 +67,9 @@ class GraphNavHandler(CommandHandler):
         
         # Perform graph walk with memory limit
         walked_data = []
+        visited_ids = set()
         max_nodes = 10000  # Limit to prevent memory issues
+        follow_filters = self._normalize_follow_types(follow_types)
         
         for node in source_nodes[:100]:  # Limit source nodes to first 100
             if len(walked_data) >= max_nodes:
@@ -82,29 +85,33 @@ class GraphNavHandler(CommandHandler):
                         if len(walked_data) >= max_nodes:
                             break
                             
-                        # Find edges from current node
-                        edges = self.adapter.find_edges({"source_filter": f"id={current_node['id']}"})
+                        edges = self.adapter.find_edges({"source": current_node["id"]})
                         for edge in edges[:50]:  # Limit edges per node to 50
                             if len(walked_data) >= max_nodes:
                                 break
-                                
-                            # Since edges don't have relationship_name, follow all edges
-                            # or check if the relationship type matches the edge description
-                            should_follow = True
-                            if follow_types not in ["*", "all", "any"]:
-                                # Check if any of the follow types appear in the edge description
-                                edge_desc = edge.get("data", {}).get("description", "").lower()
-                                follow_types_list = [rt.strip().lower() for rt in follow_types.split(",")]
-                                should_follow = any(rt in edge_desc for rt in follow_types_list)
-                            
-                            if should_follow:
-                                # Get target node
-                                target_node = self.adapter.find_nodes({"id_filter": edge["target"]})
-                                if target_node:
-                                    next_nodes.extend(target_node)
+                            edge_rel = (edge.get("data", {}).get("relation_type")
+                                        or edge.get("data", {}).get("relationship_name")
+                                        or "")
+                            if follow_filters and str(edge_rel).strip('"').strip("'").lower() not in follow_filters:
+                                continue
+
+                            target_nodes = self.adapter.find_nodes({"id_filter": edge["target"]})
+                            if not target_nodes:
+                                continue
+                            target_node = target_nodes[0]
+                            target_id = target_node["id"]
+                            if target_id in visited_ids:
+                                continue
+                            visited_ids.add(target_id)
+                            next_nodes.append(target_node)
                     current_nodes = next_nodes
                 walked_data.extend(current_nodes)
         
+        if result_var:
+            self.context_store.set(result_var, walked_data)
+            if self.state_store.has_variable(result_var):
+                self.state_store.update_variable(result_var, walked_data)
+
         # Store result in context
         self.context_store.set("last_walk_result", walked_data)
         print(f"DEBUG: GRAPHWALK - stored {len(walked_data)} nodes in last_walk_result")
@@ -134,6 +141,17 @@ class GraphNavHandler(CommandHandler):
                 print(f"DEBUG: GRAPHWALK - LLM Judge validation passed: {validation.get('reason', 'Valid')}")
         
         return result_obj
+
+    @staticmethod
+    def _normalize_follow_types(follow_types: str) -> list[str]:
+        text = (follow_types or "").strip()
+        if not text or text.lower() in {"*", "all", "any"}:
+            return []
+        if "=" in text:
+            key, value = text.split("=", 1)
+            if key.strip().lower() in {"relation_type", "relationship_name"}:
+                text = value
+        return [part.strip().strip('"').strip("'").lower() for part in text.split(",") if part.strip()]
     
     def _execute_graphconnect(self, command: Command) -> ExecutionResult:
         """Execute GRAPHCONNECT command."""

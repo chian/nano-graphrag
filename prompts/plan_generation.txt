@@ -160,5 +160,11 @@ IMPORTANT GASL SYNTAX RULES:
 - Only use ONE FIND command per plan - store results and process them with other commands
 - Commands end with semicolons or newlines
 
-Use GASL commands to systematically analyze the graph and build up state to answer the query.
+GRAPH-NATIVE PLANNING HEURISTICS:
+- If the query asks for "most frequent", "most common", "top", "rank", "widest range", "broadest", or graph-wide counts, prefer:
+  FIND source nodes -> GRAPHWALK exact relation_type -> AGGREGATE/COUNT -> RANK -> SHOW
+- Avoid PROCESS or ITERATE over large node lists when the answer can be obtained directly from graph edges.
+- Prefer exact graph schema tokens from the query and schema (for example entity_type=RESPIRATORY_INFECTION, relation_type=AFFECTS) instead of paraphrases.
+- For multi-axis breadth questions, prefer multiple GRAPHWALK steps plus AGGREGATE over LLM processing of raw node descriptions.
 
+Use GASL commands to systematically analyze the graph and build up state to answer the query.

@@ -21,7 +21,7 @@ class GASLParser:
             "FIND": r"FIND\s+(nodes|edges|paths)\s+(?:with\s+)?(.+?)(?:\s+AS\s+([a-zA-Z_][a-zA-Z0-9_.]*))?$",
             "PROCESS": r"PROCESS\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+(?:with\s+)?([^;]+)(?:\s+AS\s+([a-zA-Z_][a-zA-Z0-9_.]*))?",
             "COUNT": r"COUNT.*AS.*",
-            "AGGREGATE": r"AGGREGATE\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+by\s+([^;]+?)\s+with\s+([^;]+)",
+            "AGGREGATE": r"AGGREGATE\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+by\s+(.+?)\s+with\s+(.+?)(?:\s+AS\s+([a-zA-Z_][a-zA-Z0-9_.]*))?$",
             "UPDATE": r"UPDATE\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+(?:with\s+)?([^;]+)",
             
             # Graph modification commands
@@ -36,7 +36,7 @@ class GASLParser:
             "RANK": r"RANK\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+by\s+([^;]+?)(?:\s+order\s+(desc|asc))?",
             
             # Graph navigation commands
-            "GRAPHWALK": r"GRAPHWALK\s+from\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+follow\s+([^;]+?)(?:\s+depth\s+(\d+))?",
+            "GRAPHWALK": r"GRAPHWALK\s+from\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+follow\s+(.+?)(?:\s+depth\s+(\d+))?(?:\s+AS\s+([a-zA-Z_][a-zA-Z0-9_.]*))?$",
             "SUBGRAPH": r"SUBGRAPH\s+around\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+radius\s+(\d+)(?:\s+include\s+([^;]+))?",
             "GRAPHPATTERN": r"GRAPHPATTERN\s+find\s+([^;]+?)\s+in\s+([a-zA-Z_][a-zA-Z0-9_.]*)",
             
@@ -173,16 +173,10 @@ class GASLParser:
         # Graph Navigation commands
         elif command_type == "GRAPHWALK":
             args["from_variable"] = groups[0]
-            # Handle case where relationship_types might include "depth X"
-            relationship_text = groups[1].strip()
-            if " depth " in relationship_text:
-                parts = relationship_text.split(" depth ")
-                args["relationship_types"] = parts[0].strip()
-                args["depth"] = parts[1].strip() if len(parts) > 1 else "1"
-            else:
-                args["relationship_types"] = relationship_text
-                args["depth"] = groups[2] if len(groups) > 2 and groups[2] else "1"
-            
+            args["relationship_types"] = groups[1].strip()
+            args["depth"] = groups[2] if len(groups) > 2 and groups[2] else "1"
+            if len(groups) > 3 and groups[3]:
+                args["result_var"] = groups[3]
             # Special handling for common relationship types
             if args["relationship_types"] in ["a", "an", "any"]:
                 args["relationship_types"] = "any"
@@ -232,6 +226,8 @@ class GASLParser:
             args["variable"] = groups[0]
             args["by_field"] = groups[1].strip()
             args["operation"] = groups[2].strip()
+            if len(groups) > 3 and groups[3]:
+                args["result_variable"] = groups[3]
         
         elif command_type == "PIVOT":
             args["variable"] = groups[0]

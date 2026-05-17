@@ -130,6 +130,9 @@ class NetworkXAdapter(GraphAdapter):
     
     def _node_matches_filters(self, node_id: Any, data: Dict[str, Any], filters: Dict[str, Any]) -> bool:
         """Check if node matches filters."""
+        if "id_filter" in filters and str(node_id) != str(filters["id_filter"]):
+            return False
+
         # Check entity_type filter
         if "entity_type" in filters:
             entity_type = filters["entity_type"]
@@ -203,12 +206,17 @@ class NetworkXAdapter(GraphAdapter):
         if "relationship_name" in filters:
             relationship_name = filters["relationship_name"]
             edge_relationship_name = data.get("relationship_name") or data.get("relation_type")
-            if edge_relationship_name == f'"{relationship_name}"':
-                pass  # Match found with quotes
-            elif edge_relationship_name == relationship_name:
-                pass  # Match found without quotes
-            else:
+            clean_edge = str(edge_relationship_name or "").strip('"').strip("'").lower()
+            clean_filter = str(relationship_name).strip('"').strip("'").lower()
+            if clean_edge != clean_filter:
                 return False  # No match found
+
+        if "relation_type" in filters:
+            edge_relation_type = data.get("relation_type") or data.get("relationship_name")
+            clean_edge = str(edge_relation_type or "").strip('"').strip("'").lower()
+            clean_filter = str(filters["relation_type"]).strip('"').strip("'").lower()
+            if clean_edge != clean_filter:
+                return False
 
         # Check source filter
         if "source" in filters:

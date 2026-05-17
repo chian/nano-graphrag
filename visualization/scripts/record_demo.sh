@@ -2,19 +2,24 @@
 set -euo pipefail
 
 if [[ $# -lt 1 ]]; then
-  echo "Usage: $0 <demo-id> [output.mp4] [port]"
+  echo "Usage: $0 <demo-id> [output.mp4] [port] [compare|gasl]"
   exit 1
 fi
 
 DEMO_ID="$1"
 OUTPUT="${2:-demo-${DEMO_ID}.mp4}"
 PORT="${3:-5052}"
+RUN_MODE="${4:-compare}"
 DISPLAY_NUM="${DISPLAY_NUM:-:99}"
 RES="${RES:-1600x900}"
-DURATION="${DURATION:-12}"
+DURATION="${DURATION:-18}"
 
 ROOT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
-URL="http://127.0.0.1:${PORT}/?demo=${DEMO_ID}&replay=1&mode=gasl"
+if [[ "${RUN_MODE}" == "gasl" ]]; then
+  URL="http://127.0.0.1:${PORT}/?demo=${DEMO_ID}&replay=1&mode=gasl"
+else
+  URL="http://127.0.0.1:${PORT}/?demo=${DEMO_ID}&compare=1"
+fi
 
 cleanup() {
   if [[ -n "${CHROME_PID:-}" ]]; then kill "${CHROME_PID}" 2>/dev/null || true; fi
