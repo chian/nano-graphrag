@@ -128,6 +128,24 @@ class ArgoBridgeLLM:
             kwargs["reasoning_effort"] = self.reasoning_effort
         return kwargs
 
+    def clone(
+        self,
+        *,
+        model: Optional[str] = None,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        reasoning_effort: Optional[str] = None,
+    ) -> "ArgoBridgeLLM":
+        """Create a new client with the same credentials but different task-level defaults."""
+        return ArgoBridgeLLM(
+            model=model or self.model,
+            temperature=self.temperature if temperature is None else temperature,
+            max_tokens=self.max_tokens if max_tokens is None else max_tokens,
+            api_key=self._client_kwargs.get("api_key"),
+            base_url=self._client_kwargs.get("base_url"),
+            reasoning_effort=self.reasoning_effort if reasoning_effort is None else reasoning_effort,
+        )
+
     async def call_async(self, prompt: str) -> str:
         """Make async LLM call, streaming tokens if stream_callback is set."""
         if self.debug:

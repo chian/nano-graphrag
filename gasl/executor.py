@@ -108,7 +108,14 @@ class GASLExecutor:
             # Core commands
             DeclareHandler(self.state_store, self.context_store, self.state_manager),
             FindHandler(self.state_store, self.context_store, adapter, llm_func, self.state_manager),
-            ProcessHandler(self.state_store, self.context_store, llm_func, self.micro_framework, self.state_manager),
+            ProcessHandler(
+                self.state_store,
+                self.context_store,
+                llm_func,
+                self.micro_framework,
+                self.state_manager,
+                adapter=adapter,
+            ),
             ClassifyHandler(self.state_store, self.context_store, llm_func, self.state_manager),
             UpdateHandler(self.state_store, self.context_store, self.state_manager),
             CountHandler(self.state_store, self.context_store, llm_func, self.state_manager),

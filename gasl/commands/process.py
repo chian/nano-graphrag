@@ -2,27 +2,51 @@
 PROCESS command handler.
 """
 
-import re
-from typing import Any, List, Dict
+from typing import Any, List, Dict, Optional
 from .base import CommandHandler
 from ..types import Command, ExecutionResult, Provenance
 from ..validation import LLMJudgeValidator
 from ..utils import normalize_node_id
 from ..state_manager import StateManager
+from ..process_runtime import (
+    CandidateSelector,
+    DerivedArtifactRegistry,
+    ProcessSubtypeRouter,
+)
 
 
 class ProcessHandler(CommandHandler):
     """Handles PROCESS commands for LLM-based data processing."""
 
-    PREFILTER_THRESHOLD = 60
-    PREFILTER_BUDGET = 72
-    
-    def __init__(self, state_store, context_store, llm_func, micro_framework=None, state_manager=None):
+    PROBE_THRESHOLD = 40
+    MICROACTION_THRESHOLD = 24
+
+    def __init__(
+        self,
+        state_store,
+        context_store,
+        llm_func,
+        micro_framework=None,
+        state_manager=None,
+        adapter=None,
+        artifact_registry: Optional[DerivedArtifactRegistry] = None,
+    ):
         super().__init__(state_store, context_store)
         self.llm_func = llm_func
         self.micro_framework = micro_framework
         self.validator = LLMJudgeValidator(llm_func)
         self.state_manager = state_manager or StateManager(state_store, context_store)
+        self.adapter = adapter
+        api_key = None
+        if hasattr(llm_func, "_client_kwargs"):
+            api_key = llm_func._client_kwargs.get("api_key")
+        self.selector = CandidateSelector(
+            graph=getattr(adapter, "graph", None),
+            api_key=api_key,
+        )
+        self.subtype_router = ProcessSubtypeRouter()
+        state_file = getattr(state_store, "state_file", None)
+        self.artifact_registry = artifact_registry or DerivedArtifactRegistry(state_file=state_file)
     
     def can_handle(self, command: Command) -> bool:
         return command.command_type == "PROCESS"
@@ -55,40 +79,104 @@ class ProcessHandler(CommandHandler):
             print(f"🔍 PROCESS DEBUG: First data item keys: {list(data[0].keys()) if isinstance(data[0], dict) else 'not a dict'}")
         elif isinstance(data, dict):
             print(f"🔍 PROCESS DEBUG: Data dict keys: {list(data.keys())}")
-        
-        if isinstance(data, list) and len(data) > self.PREFILTER_THRESHOLD:
-            original_len = len(data)
-            data = self._prefilter_candidates(data, instruction)
-            print(
-                f"🔍 PROCESS DEBUG: prefiltered candidate pool "
-                f"{original_len} -> {len(data)} using query/instruction overlap"
+
+        query = (self.state_store.get_state().get("query") or "").strip()
+        initial_subtype = self.subtype_router.infer(instruction)
+
+        selection = (
+            self.selector.select(
+                data,
+                query=query,
+                instruction=instruction,
+                subtype=initial_subtype,
             )
+            if isinstance(data, list)
+            else None
+        )
+
+        diagnostics = selection.diagnostics if selection else {"strategy": "single"}
+        subtype = initial_subtype
+        final_instruction = instruction
+        final_data = data
+        diagnostics["routed_model"] = getattr(self._llm_for_subtype(initial_subtype), "model", getattr(self.llm_func, "model", None))
+
+        if selection and len(data) > self.PROBE_THRESHOLD:
+            probe_result = self._run_process_batch(
+                selection.probe_items,
+                instruction,
+                subtype=subtype,
+                phase="probe",
+            )
+            subtype = self.subtype_router.confirm_from_result(initial_subtype, probe_result)
+            final_instruction = self.selector.refine_instruction(instruction, probe_result, subtype)
+            final_data = self.selector.widen(
+                data,
+                probe_result,
+                selection,
+                query=query,
+                instruction=instruction,
+                subtype=subtype,
+            )
+            diagnostics["confirmed_subtype"] = subtype
+            diagnostics["refined_instruction"] = final_instruction
+            diagnostics["probe_result_count"] = len(
+                probe_result.get("filtered_items") or probe_result.get("processed_items") or []
+            )
+        elif selection:
+            final_data = selection.final_items
 
         # Use MicroActionFramework for batching if available
-        if self.micro_framework and isinstance(data, list) and len(data) > 20:
-            print(f"DEBUG: PROCESS - Using MicroActionFramework for {len(data)} items")
-            return self.micro_framework.execute_command_with_batching(
-                data=data,
-                command_type="PROCESS",
+        if self.micro_framework and isinstance(final_data, list) and len(final_data) > self.MICROACTION_THRESHOLD:
+            print(f"DEBUG: PROCESS - Using MicroActionFramework for {len(final_data)} items")
+            original_llm = getattr(self.micro_framework, "llm_func", None)
+            self.micro_framework.llm_func = self._llm_for_subtype(subtype)
+            try:
+                result = self.micro_framework.execute_command_with_batching(
+                    data=final_data,
+                    command_type="PROCESS",
+                    instruction=final_instruction,
+                    batch_size=None,
+                    target_variable=target_variable
+                )
+            finally:
+                self.micro_framework.llm_func = original_llm
+            self._record_artifact_candidate(
+                variable=variable,
+                target_variable=target_variable,
                 instruction=instruction,
-                batch_size=None,  # Let framework calculate optimal batch size
-                target_variable=target_variable
+                subtype=subtype,
+                diagnostics=diagnostics,
+                final_result=result,
+                source_size=len(data) if isinstance(data, list) else 1,
+                final_size=len(final_data) if isinstance(final_data, list) else 1,
             )
-        else:
-            print(f"DEBUG: PROCESS - Processing {len(data) if isinstance(data, list) else 1} items normally")
-            return self._execute_single_batch(data, instruction, command, target_variable)
+            return result
+
+        print(f"DEBUG: PROCESS - Processing {len(final_data) if isinstance(final_data, list) else 1} items normally")
+        result = self._execute_single_batch(final_data, final_instruction, command, target_variable, subtype=subtype)
+        self._record_artifact_candidate(
+            variable=variable,
+            target_variable=target_variable,
+            instruction=instruction,
+            subtype=subtype,
+            diagnostics=diagnostics,
+            final_result=result,
+            source_size=len(data) if isinstance(data, list) else 1,
+            final_size=len(final_data) if isinstance(final_data, list) else 1,
+        )
+        return result
     
-    def _execute_single_batch(self, data: Any, instruction: str, command: Command, target_variable: str) -> ExecutionResult:
+    def _execute_single_batch(
+        self,
+        data: Any,
+        instruction: str,
+        command: Command,
+        target_variable: str,
+        *,
+        subtype: str,
+    ) -> ExecutionResult:
         """Execute PROCESS on a single batch (original logic)."""
-        # Prepare prompt for LLM
-        prompt = self._create_process_prompt(data, instruction)
-        
-        # Call LLM
-        llm_response = self.llm_func.call(prompt)
-        print(f"DEBUG: PROCESS - LLM Response:\n{llm_response}\n")
-        
-        # Parse LLM response
-        result = self._parse_process_response(llm_response, data)
+        result = self._run_process_batch(data, instruction, subtype=subtype, phase="main")
         print(f"🔍 PROCESS DEBUG: Parsed result keys: {list(result.keys())}")
         print(f"🔍 PROCESS DEBUG: processed_items length: {len(result.get('processed_items', []))}")
         print(f"🔍 PROCESS DEBUG: processing_method: {result.get('processing_method', 'unknown')}")
@@ -118,7 +206,8 @@ class ProcessHandler(CommandHandler):
                 method="process",
                 variable=command.args["variable"],
                 instruction=instruction,
-                model="llm"
+                model="llm",
+                process_subtype=subtype,
             )
         ]
         
@@ -155,6 +244,54 @@ class ProcessHandler(CommandHandler):
                 print(f"DEBUG: PROCESS - LLM Judge validation passed: {validation.get('reason', 'Valid')}")
         
         return result_obj
+
+    def _run_process_batch(self, data: Any, instruction: str, *, subtype: str, phase: str) -> Dict[str, Any]:
+        prompt = self._create_process_prompt(data, instruction)
+        llm = self._llm_for_subtype(subtype)
+        llm_response = llm.call(prompt)
+        print(f"DEBUG: PROCESS ({phase}/{subtype}) - LLM Response:\n{llm_response}\n")
+        return self._parse_process_response(llm_response, data)
+
+    def _llm_for_subtype(self, subtype: str):
+        if hasattr(self.llm_func, "clone"):
+            routed_model = self.subtype_router.routed_model(getattr(self.llm_func, "model", ""), subtype)
+            if routed_model and routed_model != getattr(self.llm_func, "model", ""):
+                return self.llm_func.clone(model=routed_model)
+        return self.llm_func
+
+    def _record_artifact_candidate(
+        self,
+        *,
+        variable: str,
+        target_variable: str,
+        instruction: str,
+        subtype: str,
+        diagnostics: Dict[str, Any],
+        final_result: ExecutionResult,
+        source_size: int,
+        final_size: int,
+    ) -> None:
+        try:
+            state = self.state_store.get_state()
+            graph_version = None
+            if self.adapter is not None and hasattr(self.adapter, "versioned_graph"):
+                graph_version = getattr(self.adapter.versioned_graph, "current_version", None)
+            self.artifact_registry.record_candidate({
+                "query": state.get("query", ""),
+                "variable": variable,
+                "target_variable": target_variable,
+                "instruction": instruction,
+                "subtype": subtype,
+                "source_size": source_size,
+                "final_size": final_size,
+                "graph_version": graph_version,
+                "model": getattr(self.llm_func, "model", None),
+                "status": final_result.status,
+                "result_count": final_result.count,
+                "diagnostics": diagnostics,
+            })
+        except Exception as exc:
+            print(f"DEBUG: PROCESS artifact logging skipped: {exc}")
     
     def _store_processed_data(self, target_variable: str, processed_data: List[Dict]) -> None:
         """Store processed data in the target variable."""
@@ -252,64 +389,6 @@ Be thorough in your analysis and provide clear reasoning for each decision.
 """
         return prompt
 
-    def _prefilter_candidates(self, data: List[Dict], instruction: str) -> List[Dict]:
-        query = (self.state_store.get_state().get("query") or "").strip()
-        needle_text = f"{query} {instruction}".strip()
-        if not needle_text:
-            return data[: self.PREFILTER_BUDGET]
-
-        ranked = sorted(
-            data,
-            key=lambda item: self._candidate_score(item, needle_text),
-            reverse=True,
-        )
-        top = ranked[: self.PREFILTER_BUDGET]
-        # Keep a small tail sample so PROCESS can still discover off-keyword items.
-        tail = ranked[-8:] if len(ranked) > self.PREFILTER_BUDGET + 8 else []
-        merged: List[Dict] = []
-        seen = set()
-        for item in top + tail:
-            node_id = item.get("id") if isinstance(item, dict) else id(item)
-            if node_id in seen:
-                continue
-            seen.add(node_id)
-            merged.append(item)
-        return merged
-
-    def _candidate_score(self, item: Dict, needle_text: str) -> int:
-        tokens = {tok for tok in re.findall(r"[a-z0-9]+", needle_text.lower()) if len(tok) > 2}
-        item_text = self._item_search_text(item)
-        score = 0
-        for tok in tokens:
-            if tok in item_text:
-                score += 1
-        # Boost stronger matches in ids/entity labels
-        item_id = str(item.get("id", "")).lower() if isinstance(item, dict) else ""
-        entity = str(item.get("data", {}).get("entity_type", "")).lower() if isinstance(item, dict) else ""
-        for tok in tokens:
-            if tok == item_id:
-                score += 5
-            elif tok in item_id:
-                score += 2
-            if tok in entity:
-                score += 2
-        return score
-
-    @staticmethod
-    def _item_search_text(item: Dict) -> str:
-        if not isinstance(item, dict):
-            return str(item).lower()
-        parts = [str(item.get("id", ""))]
-        if isinstance(item.get("data"), dict):
-            data = item["data"]
-            parts.extend([
-                str(data.get("entity_type", "")),
-                str(data.get("entity_name", "")),
-                str(data.get("alternative_names", "")),
-                str(data.get("description", "")),
-            ])
-        return " ".join(parts).lower()
-    
     def _format_data_for_llm(self, data: Any) -> str:
         """Format data for LLM consumption."""
         if not isinstance(data, list):
