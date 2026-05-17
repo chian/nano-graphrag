@@ -131,6 +131,9 @@ celerybeat.pid
 
 # Environments
 .env
+.viz.local.env
+demo_videos/
+gasl_checkpoints/
 .venv
 env/
 venv/

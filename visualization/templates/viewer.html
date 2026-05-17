@@ -218,6 +218,113 @@
             position: relative;
         }
 
+        .graph-overlay {
+            position: absolute;
+            top: 16px;
+            left: 16px;
+            width: min(460px, calc(100% - 32px));
+            padding: 12px 14px;
+            background: rgba(11, 18, 32, 0.82);
+            border: 1px solid rgba(78, 104, 160, 0.4);
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.24);
+            z-index: 110;
+            pointer-events: none;
+            opacity: 0;
+            transform: translateY(-6px);
+            transition: opacity 0.18s ease, transform 0.18s ease;
+        }
+
+        .graph-overlay.active {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .graph-overlay-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+
+        .graph-overlay-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 9px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            background: rgba(255, 255, 255, 0.04);
+            font-size: 11px;
+            letter-spacing: 0.02em;
+            text-transform: uppercase;
+            color: #d9e2f0;
+        }
+
+        .graph-overlay-badge::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: currentColor;
+            box-shadow: 0 0 14px currentColor;
+        }
+
+        .graph-overlay-command {
+            flex: 1;
+            font-size: 12px;
+            line-height: 1.35;
+            color: #dbe5f7;
+            text-align: right;
+        }
+
+        .graph-overlay-metrics {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 8px;
+        }
+
+        .graph-overlay-metric {
+            padding: 8px 10px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .graph-overlay-label {
+            display: block;
+            margin-bottom: 4px;
+            font-size: 10px;
+            text-transform: uppercase;
+            color: #90a0bb;
+        }
+
+        .graph-overlay-value {
+            font-size: 18px;
+            font-weight: 650;
+            color: #f6fbff;
+        }
+
+        .graph-overlay-track {
+            position: relative;
+            height: 6px;
+            margin-top: 10px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.08);
+            overflow: hidden;
+        }
+
+        .graph-overlay-bar {
+            position: absolute;
+            inset: 0 auto 0 0;
+            width: 0%;
+            border-radius: inherit;
+            background: linear-gradient(90deg, rgba(255,255,255,0.18), currentColor 70%);
+            transition: width 0.24s ease;
+        }
+
         #graph {
             width: 100%;
             height: 100%;
@@ -691,6 +798,34 @@
                 <button class="control-btn" onclick="resetFilters()">Reset Filters</button>
             </div>
 
+            <div class="graph-overlay" id="gaslGraphOverlay">
+                <div class="graph-overlay-header">
+                    <span class="graph-overlay-badge" id="gaslOverlayBadge">Idle</span>
+                    <div class="graph-overlay-command" id="gaslOverlayCommand">Awaiting traversal</div>
+                </div>
+                <div class="graph-overlay-metrics">
+                    <div class="graph-overlay-metric">
+                        <span class="graph-overlay-label">Steps</span>
+                        <span class="graph-overlay-value" id="gaslOverlaySteps">0</span>
+                    </div>
+                    <div class="graph-overlay-metric">
+                        <span class="graph-overlay-label">Touched</span>
+                        <span class="graph-overlay-value" id="gaslOverlayTouched">0</span>
+                    </div>
+                    <div class="graph-overlay-metric">
+                        <span class="graph-overlay-label">Frontier</span>
+                        <span class="graph-overlay-value" id="gaslOverlayFrontier">0</span>
+                    </div>
+                    <div class="graph-overlay-metric">
+                        <span class="graph-overlay-label">Iterations</span>
+                        <span class="graph-overlay-value" id="gaslOverlayIterations">0</span>
+                    </div>
+                </div>
+                <div class="graph-overlay-track">
+                    <div class="graph-overlay-bar" id="gaslOverlayBar"></div>
+                </div>
+            </div>
+
             <!-- GASL Status -->
             <div class="gasl-status" id="gaslStatus">
                 <span class="gasl-status-text" id="gaslStatusText">GASL: Idle</span>
@@ -715,6 +850,18 @@
         let _activeDemo = null;
         let _replayTimeouts = [];
         let _gaslStepCount = 0;
+        let _gaslExpectedSteps = 0;
+
+        const GASL_PHASE_STYLE = {
+            INIT: {color: '#8b5cf6', label: 'Init'},
+            FIND: {color: '#3b82f6', label: 'Find'},
+            GRAPHWALK: {color: '#ff9800', label: 'Walk'},
+            PROCESS: {color: '#14b8a6', label: 'Process'},
+            AGGREGATE: {color: '#ec4899', label: 'Aggregate'},
+            DONE: {color: '#22c55e', label: 'Done'},
+            ERROR: {color: '#ef4444', label: 'Error'},
+            DEFAULT: {color: '#94a3b8', label: 'GASL'},
+        };
 
         // Entity colors – populated at runtime from /api/colors (auto-assigned on server)
         let ENTITY_COLORS = {};
@@ -732,10 +879,21 @@
 
         function resetGaslMetrics() {
             _gaslStepCount = 0;
+            _gaslExpectedSteps = 0;
             document.getElementById('gaslMetricPhase').textContent = '-';
             document.getElementById('gaslMetricSteps').textContent = '0';
             document.getElementById('gaslMetricNodes').textContent = '0';
             document.getElementById('gaslMetrics').style.display = 'none';
+            document.getElementById('gaslGraphOverlay').classList.remove('active');
+            document.getElementById('gaslOverlayBadge').textContent = 'Idle';
+            document.getElementById('gaslOverlayBadge').style.color = GASL_PHASE_STYLE.DEFAULT.color;
+            document.getElementById('gaslOverlayBar').style.width = '0%';
+            document.getElementById('gaslOverlayBar').style.color = GASL_PHASE_STYLE.DEFAULT.color;
+            document.getElementById('gaslOverlayCommand').textContent = 'Awaiting traversal';
+            document.getElementById('gaslOverlaySteps').textContent = '0';
+            document.getElementById('gaslOverlayTouched').textContent = '0';
+            document.getElementById('gaslOverlayFrontier').textContent = '0';
+            document.getElementById('gaslOverlayIterations').textContent = '0';
         }
 
         function updateGaslMetrics(phase) {
@@ -743,6 +901,91 @@
             if (phase) document.getElementById('gaslMetricPhase').textContent = phase;
             document.getElementById('gaslMetricSteps').textContent = String(_gaslStepCount);
             document.getElementById('gaslMetricNodes').textContent = String(_gaslNodeSet.size);
+        }
+
+        function updateGraphOverlay(phase, command, frontierCount, iterations) {
+            const style = GASL_PHASE_STYLE[phase] || GASL_PHASE_STYLE.DEFAULT;
+            const overlay = document.getElementById('gaslGraphOverlay');
+            overlay.classList.add('active');
+            document.getElementById('gaslOverlayBadge').textContent = style.label;
+            document.getElementById('gaslOverlayBadge').style.color = style.color;
+            document.getElementById('gaslOverlayBar').style.color = style.color;
+            document.getElementById('gaslOverlayCommand').textContent = command || 'Traversing graph';
+            document.getElementById('gaslOverlaySteps').textContent = String(_gaslStepCount);
+            document.getElementById('gaslOverlayTouched').textContent = String(_gaslNodeSet.size);
+            document.getElementById('gaslOverlayFrontier').textContent = String(frontierCount || 0);
+            document.getElementById('gaslOverlayIterations').textContent = String(iterations || 0);
+            let pct = 0;
+            if (phase === 'DONE') {
+                pct = 100;
+            } else if (_gaslExpectedSteps > 0) {
+                pct = Math.min(92, Math.round((_gaslStepCount / _gaslExpectedSteps) * 100));
+            } else {
+                pct = Math.min(90, 10 + _gaslStepCount * 11);
+            }
+            document.getElementById('gaslOverlayBar').style.width = `${pct}%`;
+        }
+
+        function pulseNodes(nodeIds, color) {
+            if (!nodeIds || !nodeIds.length) return;
+            const updates = nodeIds.map((id) => {
+                const existing = nodesDataset.get(id);
+                if (!existing) return null;
+                const baseSize = existing.size || 24;
+                return {
+                    id,
+                    color: {
+                        background: color,
+                        border: '#ffffff',
+                        highlight: {background: color, border: '#ffffff'},
+                    },
+                    size: baseSize + 10,
+                    borderWidth: 6,
+                };
+            }).filter(Boolean);
+            if (updates.length) nodesDataset.update(updates);
+
+            setTimeout(() => {
+                const settle = nodeIds.map((id) => {
+                    const live = nodesDataset.get(id);
+                    if (!live) return null;
+                    const source = currentGraphData?.nodes?.find?.((n) => n.id === id);
+                    return {
+                        id,
+                        size: source?.size || live.size || 24,
+                        borderWidth: 3,
+                    };
+                }).filter(Boolean);
+                if (settle.length) nodesDataset.update(settle);
+            }, 720);
+        }
+
+        function pulseEdgePairs(edgePairs, color) {
+            if (!edgePairs || !edgePairs.length) return;
+            const touchedIds = [];
+            edgePairs.forEach(([src, tgt]) => {
+                const matches = edgesDataset.get({filter: (e) => e.from === src && e.to === tgt});
+                matches.forEach((edge) => {
+                    touchedIds.push(edge.id);
+                    edgesDataset.update([{
+                        id: edge.id,
+                        color: {color, highlight: color, opacity: 1.0},
+                        width: 6,
+                    }]);
+                });
+            });
+            setTimeout(() => {
+                const settle = touchedIds.map((id) => {
+                    const edge = edgesDataset.get(id);
+                    if (!edge) return null;
+                    return {
+                        id,
+                        color: {color: '#ff9800', highlight: '#ff9800', opacity: 0.92},
+                        width: 3,
+                    };
+                }).filter(Boolean);
+                if (settle.length) edgesDataset.update(settle);
+            }, 680);
         }
 
         async function loadGraphFromPaths(graphPath, fullGraphPath) {
@@ -766,9 +1009,20 @@
                 const data = await resp.json();
                 _demoCatalog = data.demos || [];
                 renderDemoCards();
+                await maybeAutoloadDemoFromUrl();
             } catch (e) {
                 console.error('Could not load demos:', e);
             }
+        }
+
+        async function maybeAutoloadDemoFromUrl() {
+            const params = new URLSearchParams(window.location.search);
+            const demo = params.get('demo');
+            if (!demo) return;
+            const replay = params.get('replay') === '1';
+            const mode = params.get('mode');
+            if (mode === 'gasl' || mode === 'rag') setMode(mode);
+            await loadDemo(demo, replay);
         }
 
         function renderDemoCards() {
@@ -827,6 +1081,7 @@
             clearQueryHighlights();
             resetGaslMetrics();
             _activeJobId = 'demo:' + demo.id;
+            _gaslExpectedSteps = demo.replay.filter((step) => step.event === 'gasl_step').length;
             document.getElementById('gaslLog').style.display = 'block';
             document.getElementById('gaslLog').innerHTML = '';
             let elapsed = 0;
@@ -1624,10 +1879,15 @@
                 nodesDataset.clear();
                 edgesDataset.clear();
                 nodesDataset.add(nodesToAdd);
+                edgesDataset.add(edgesToAdd);
                 _subgraphMode = true;
                 _lastQueryColor = color;
                 document.getElementById('backToFullBtn').style.display = 'inline-block';
             }
+
+            const recentPairs = edgesToAdd.map((e) => [e.from, e.to]);
+            pulseNodes(truly_new, color);
+            pulseEdgePairs(recentPairs, color);
         }
 
         function handleGaslStep(data) {
@@ -1636,6 +1896,7 @@
             document.getElementById('queryStatus').textContent =
                 `GASL: ${data.command_type} – ${data.status}`;
             updateGaslMetrics(data.command_type);
+            updateGraphOverlay(data.command_type, data.command, 0, 0);
             const log = document.getElementById('gaslLog');
             log.innerHTML += `<div>${data.command}</div>`;
             log.scrollTop = log.scrollHeight;
@@ -1646,6 +1907,7 @@
             if (data.nodes && data.nodes.length) {
                 addNodesToLiveSubgraph(data.nodes, '#ff9800');
                 updateGaslMetrics(data.command_type || 'GRAPH');
+                updateGraphOverlay(data.command_type || 'GRAPHWALK', data.command, data.nodes.length, 0);
             }
         }
 
@@ -1672,6 +1934,7 @@
             document.getElementById('queryStatus').textContent =
                 `Done in ${iters} iteration${iters !== 1 ? 's' : ''} · ${data.nodes ? data.nodes.length : 0} nodes touched`;
             updateGaslMetrics('DONE');
+            updateGraphOverlay('DONE', data.answer, 0, iters);
             showAnswer(data.answer);
             showUsage(data.usage);
             document.getElementById('askBtn').disabled = false;
