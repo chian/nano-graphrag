@@ -147,23 +147,29 @@ class FlexibleParser:
     def _parse_find_flexible(self, text: str) -> Dict[str, Any]:
         """Flexible FIND command parser."""
         args = {}
-        
+
         # Remove FIND keyword
         text = text.replace("FIND", "").strip()
-        
+
+        # Extract AS clause BEFORE it bleeds into criteria
+        as_match = re.search(r'\bAS\s+(\w+)\s*$', text, re.IGNORECASE)
+        if as_match:
+            args["result_var"] = as_match.group(1)
+            text = text[:as_match.start()].strip()
+
         # Extract target (nodes, edges, paths)
         target_match = re.match(r'^(nodes|edges|paths)', text, re.IGNORECASE)
         if target_match:
             args["target"] = target_match.group(1).lower()
             text = text[target_match.end():].strip()
-        
+
         # Extract criteria
         if text.startswith("with"):
             criteria = text[4:].strip()
             args["criteria"] = criteria
         else:
             args["criteria"] = text
-        
+
         return args
     
     def _parse_declare_flexible(self, text: str) -> Dict[str, Any]:

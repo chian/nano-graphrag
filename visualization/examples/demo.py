@@ -234,6 +234,12 @@ Examples:
         help='Host to bind to (default: 127.0.0.1)'
     )
     parser.add_argument(
+        '--full-graph',
+        dest='full_graph_path',
+        default=None,
+        help='Path to the full graph used for queries (viz graph is still the one passed positionally)'
+    )
+    parser.add_argument(
         '--no-debug',
         action='store_true',
         help='Disable debug mode'
@@ -278,6 +284,7 @@ Examples:
 
     run_server(
         graph_path=graph_path,
+        full_graph_path=args.full_graph_path,
         host=args.host,
         port=args.port,
         debug=not args.no_debug

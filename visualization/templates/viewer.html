@@ -590,14 +590,13 @@
             <!-- Question Panel -->
             <div class="question-panel">
                 <h3>Ask a Question</h3>
-                <!-- BYOK: API key + model picker -->
+                <!-- Password unlock -->
                 <div class="byok-row" style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px;">
-                    <input type="password" id="apiKeyInput" class="byok-input"
-                           placeholder="OpenAI API key (sk-...)"
-                           style="flex: 1 1 180px; padding: 6px 8px; background: #2a2a2a; color: #eee; border: 1px solid #444; border-radius: 4px; font-family: inherit; font-size: 12px;">
-                    <button class="control-btn" type="button" onclick="toggleShowKey()" id="showKeyBtn" title="Show/hide key">👁</button>
-                    <button class="control-btn" type="button" onclick="saveApiKey()">Save</button>
-                    <button class="control-btn" type="button" onclick="clearApiKey()">Clear</button>
+                    <input type="password" id="passwordInput" class="byok-input"
+                           placeholder="Password to unlock queries"
+                           style="flex: 1 1 180px; padding: 6px 8px; background: #2a2a2a; color: #eee; border: 1px solid #444; border-radius: 4px; font-family: inherit; font-size: 12px;"
+                           oninput="localStorage.setItem(_LS_KEY_PASSWORD, this.value); updateApiKeyUI()">
+                    <button class="control-btn" type="button" onclick="toggleShowKey()" id="showKeyBtn" title="Show/hide password">👁</button>
                 </div>
                 <div class="byok-row" style="display: flex; gap: 6px; align-items: center; margin-bottom: 6px; font-size: 12px;">
                     <label for="modelSelect" style="color: #aaa;">Model:</label>
@@ -632,6 +631,15 @@
                     <input type="text" id="customModelInput" placeholder="Custom model id"
                            oninput="saveCustomModel()"
                            style="display: none; flex: 1; padding: 4px 6px; background: #2a2a2a; color: #eee; border: 1px solid #444; border-radius: 4px;">
+                </div>
+                <div id="effortRow" class="byok-row" style="display: none; gap: 6px; align-items: center; margin-bottom: 6px; font-size: 12px;">
+                    <label for="effortSelect" style="color: #aaa;">Effort:</label>
+                    <select id="effortSelect" onchange="saveEffort()"
+                            style="flex: 1; padding: 4px 6px; background: #2a2a2a; color: #eee; border: 1px solid #444; border-radius: 4px;">
+                        <option value="medium">medium (default)</option>
+                        <option value="low">low (faster / cheaper)</option>
+                        <option value="high">high (most thorough)</option>
+                    </select>
                 </div>
                 <div id="apiKeyStatus" style="font-size: 11px; margin-bottom: 8px;">⚠ No API key — queries disabled</div>
                 <textarea class="question-textarea" id="questionInput"
@@ -1099,12 +1107,29 @@
         }
 
         // ── BYOK (Bring Your Own API Key) ──────────────────────────────────────
-        const _LS_KEY_API = 'nano_graphrag_api_key';
+        const _LS_KEY_PASSWORD = 'nano_graphrag_password';
         const _LS_KEY_MODEL = 'nano_graphrag_model';
         const _LS_KEY_CUSTOM_MODEL = 'nano_graphrag_custom_model';
+        const _LS_KEY_EFFORT = 'nano_graphrag_effort';
 
-        function getApiKey() {
-            return (localStorage.getItem(_LS_KEY_API) || '').trim();
+        function isReasoningModel(m) {
+            if (!m) return false;
+            m = m.toLowerCase();
+            if (/^(o1|o3|o4|o5)/.test(m)) return true;
+            if (['gpt-5','gpt-5-mini','gpt-5-nano','gpt5','gpt5mini','gpt5nano'].includes(m)) return true;
+            if (m.startsWith('gpt-5.5') || m.startsWith('gpt55')) return true;
+            if (m.includes('chat-latest')) return true;
+            return false;
+        }
+        function getEffort() {
+            return document.getElementById('effortSelect').value || 'medium';
+        }
+        function saveEffort() {
+            localStorage.setItem(_LS_KEY_EFFORT, getEffort());
+        }
+
+        function getPassword() {
+            return (document.getElementById('passwordInput').value || '').trim();
         }
         function getModel() {
             const sel = document.getElementById('modelSelect').value;
@@ -1113,19 +1138,8 @@
             }
             return sel;
         }
-        function saveApiKey() {
-            const v = document.getElementById('apiKeyInput').value.trim();
-            if (!v) { return clearApiKey(); }
-            localStorage.setItem(_LS_KEY_API, v);
-            updateApiKeyUI();
-        }
-        function clearApiKey() {
-            localStorage.removeItem(_LS_KEY_API);
-            document.getElementById('apiKeyInput').value = '';
-            updateApiKeyUI();
-        }
         function toggleShowKey() {
-            const i = document.getElementById('apiKeyInput');
+            const i = document.getElementById('passwordInput');
             i.type = (i.type === 'password') ? 'text' : 'password';
         }
         function onModelChange() {
@@ -1133,6 +1147,11 @@
             document.getElementById('customModelInput').style.display =
                 (sel === '__custom__') ? 'block' : 'none';
             localStorage.setItem(_LS_KEY_MODEL, sel);
+            const model = sel === '__custom__'
+                ? (document.getElementById('customModelInput').value || '').trim()
+                : sel;
+            document.getElementById('effortRow').style.display =
+                isReasoningModel(model) ? 'flex' : 'none';
             updateApiKeyUI();
         }
         function saveCustomModel() {
@@ -1141,16 +1160,16 @@
             updateApiKeyUI();
         }
         function updateApiKeyUI() {
-            const key = getApiKey();
+            const pw = getPassword();
             const model = getModel();
             const status = document.getElementById('apiKeyStatus');
             const askBtn = document.getElementById('askBtn');
-            if (key && model) {
-                status.textContent = '✅ Key saved · model: ' + model;
+            if (pw && model) {
+                status.textContent = '🔑 Unlocked · model: ' + model;
                 status.style.color = '#27ae60';
                 askBtn.disabled = false;
-            } else if (!key) {
-                status.textContent = '⚠ No API key — queries disabled';
+            } else if (!pw) {
+                status.textContent = '🔒 Enter password to unlock queries';
                 status.style.color = '#e67e22';
                 askBtn.disabled = true;
             } else {
@@ -1161,8 +1180,8 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
-            const savedKey = localStorage.getItem(_LS_KEY_API) || '';
-            if (savedKey) document.getElementById('apiKeyInput').value = savedKey;
+            const savedPw = localStorage.getItem(_LS_KEY_PASSWORD) || '';
+            if (savedPw) document.getElementById('passwordInput').value = savedPw;
             const savedModel = localStorage.getItem(_LS_KEY_MODEL) || 'gpt-5.4-mini';
             const sel = document.getElementById('modelSelect');
             const known = Array.from(sel.options).map(o => o.value);
@@ -1172,6 +1191,15 @@
                 document.getElementById('customModelInput').value =
                     localStorage.getItem(_LS_KEY_CUSTOM_MODEL) || '';
             }
+            // Restore effort and show/hide effort row
+            const savedEffort = localStorage.getItem(_LS_KEY_EFFORT) || 'medium';
+            const effortSel = document.getElementById('effortSelect');
+            effortSel.value = savedEffort;
+            const currentModel = sel.value === '__custom__'
+                ? (document.getElementById('customModelInput').value || '').trim()
+                : sel.value;
+            document.getElementById('effortRow').style.display =
+                isReasoningModel(currentModel) ? 'flex' : 'none';
             updateApiKeyUI();
         });
 
@@ -1195,16 +1223,19 @@
             try {
                 const resp = await fetch('/api/query', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + getApiKey(),
-                    },
-                    body: JSON.stringify({question, mode: _queryMode, model: getModel()}),
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        question,
+                        mode: _queryMode,
+                        model: getModel(),
+                        password: getPassword(),
+                        reasoning_effort: isReasoningModel(getModel()) ? getEffort() : undefined,
+                    }),
                 });
 
                 if (resp.status === 401) {
                     document.getElementById('queryStatus').textContent =
-                        'API key missing or rejected — set it above and try again.';
+                        'Wrong password — enter the correct password above.';
                     document.getElementById('askBtn').disabled = false;
                     updateApiKeyUI();
                     return;

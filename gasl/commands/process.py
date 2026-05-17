@@ -66,70 +66,6 @@ class ProcessHandler(CommandHandler):
             print(f"DEBUG: PROCESS - Processing {len(data) if isinstance(data, list) else 1} items normally")
             return self._execute_single_batch(data, instruction, command, target_variable)
     
-    def _parse_process_response(self, llm_response: str, data: Any) -> Dict[str, Any]:
-        """Parse LLM response for PROCESS command."""
-        try:
-            import json
-            response_data = json.loads(llm_response)
-            
-            if "processed_items" in response_data:
-                # Handle dynamic field names - merge the new fields back into original nodes
-                processed_items = []
-                for processed_item in response_data["processed_items"]:
-                    # Find the original node
-                    original_node = self._find_original_node(data, processed_item.get("id", ""))
-                    if original_node:
-                        # Create a copy of the original node
-                        updated_node = original_node.copy()
-                        
-                        # Add all fields from the processed item (except id, name, reason)
-                        for key, value in processed_item.items():
-                            if key not in ["id", "name", "reason"]:
-                                updated_node[key] = value
-                        
-                        processed_items.append(updated_node)
-                
-                return {
-                    "processed_items": processed_items,
-                    "summary": response_data.get("summary", {}),
-                    "processing_method": "process_items"
-                }
-            elif "included" in response_data:
-                # Map back to original nodes
-                processed_items = []
-                for item in response_data.get("included", []):
-                    original_node = self._find_original_node(data, item.get("id", ""))
-                    if original_node:
-                        processed_items.append(original_node)
-                
-                return {
-                    "processed_items": processed_items,
-                    "summary": response_data.get("summary", {}),
-                    "processing_method": "filter_items"
-                }
-            else:
-                # Fallback - treat as processed items
-                return {
-                    "processed_items": [response_data] if isinstance(response_data, dict) else [],
-                    "summary": {"total_processed": 1},
-                    "processing_method": "fallback"
-                }
-                
-        except json.JSONDecodeError:
-            # If JSON parsing fails, try to extract information from text
-            return {
-                "processed_items": [],
-                "summary": {"error": "Failed to parse LLM response as JSON"},
-                "processing_method": "error"
-            }
-        except Exception as e:
-            return {
-                "processed_items": [],
-                "summary": {"error": f"Error parsing response: {str(e)}"},
-                "processing_method": "error"
-            }
-    
-    
     def _execute_single_batch(self, data: Any, instruction: str, command: Command, target_variable: str) -> ExecutionResult:
         """Execute PROCESS on a single batch (original logic)."""
         # Prepare prompt for LLM
@@ -316,13 +252,13 @@ Be thorough in your analysis and provide clear reasoning for each decision.
         for i, item in enumerate(sample_data):
             if isinstance(item, dict):
                 node_id = item.get('id', f'item_{i}')
-                
+
                 # Handle nested data structure from FIND command
                 if 'data' in item and isinstance(item['data'], dict):
-                    data = item['data']
-                    name = node_id  # Use ID as name since there's no separate name field
-                    description = data.get('description', 'No description')
-                    entity_type = data.get('entity_type', 'Unknown')
+                    node_data = item['data']
+                    name = node_id
+                    description = node_data.get('description', 'No description')
+                    entity_type = node_data.get('entity_type', 'Unknown')
                 else:
                     # Handle flat structure
                     name = item.get('name', node_id)
@@ -340,13 +276,19 @@ Be thorough in your analysis and provide clear reasoning for each decision.
         
         return "\n".join(formatted)
     
+    @staticmethod
+    def _strip_json_fences(text: str) -> str:
+        import re
+        text = text.strip()
+        match = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```', text)
+        return match.group(1).strip() if match else text
+
     def _parse_process_response(self, llm_response: str, original_data: Any) -> Dict[str, Any]:
         """Parse LLM response for PROCESS command."""
         try:
             import json
-            
-            # Try to parse as JSON
-            response_data = json.loads(llm_response)
+
+            response_data = json.loads(self._strip_json_fences(llm_response))
             
             # Handle different response formats
             if "included" in response_data and "excluded" in response_data:

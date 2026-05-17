@@ -20,8 +20,14 @@ from .graph_loader import GraphLoader, find_graphs_in_directory, build_color_map
 from .query_engine import RagQueryEngine, GaslQueryEngine
 
 
+# Server-side unlock: password → API key, never exposed to the browser.
+# Override either via environment variables.
+_SERVER_PASSWORD: str = os.environ.get("VIZ_PASSWORD", "slama")
+_SERVER_API_KEY: str = os.environ.get("VIZ_API_KEY", "")
+
 # Global state
 _current_loader: Optional[GraphLoader] = None
+_full_loader: Optional[GraphLoader] = None   # full graph used for queries
 _rag_engine: Optional[RagQueryEngine] = None
 _gasl_engine: Optional[GaslQueryEngine] = None
 _gasl_state: Dict[str, Any] = {
@@ -33,7 +39,8 @@ _gasl_state: Dict[str, Any] = {
 }
 
 
-def create_app(graph_path: Optional[str] = None) -> Flask:
+def create_app(graph_path: Optional[str] = None,
+               full_graph_path: Optional[str] = None) -> Flask:
     """
     Create and configure the Flask application.
 
@@ -43,7 +50,7 @@ def create_app(graph_path: Optional[str] = None) -> Flask:
     Returns:
         Configured Flask application
     """
-    global _current_loader
+    global _current_loader, _full_loader, _rag_engine, _gasl_engine
 
     app = Flask(__name__,
                 template_folder=str(Path(__file__).parent / 'templates'),
@@ -58,8 +65,13 @@ def create_app(graph_path: Optional[str] = None) -> Flask:
     # Load initial graph if provided
     if graph_path:
         _current_loader = GraphLoader(graph_path)
-        _rag_engine = RagQueryEngine(_current_loader)
-        _gasl_engine = GaslQueryEngine(_current_loader, socketio)
+        # Use a separate full-graph loader for queries if provided, else fall back to viz graph
+        _full_loader = GraphLoader(full_graph_path) if full_graph_path else _current_loader
+        if full_graph_path:
+            print(f"  Query graph: {full_graph_path} "
+                  f"({_full_loader.stats.num_nodes} nodes, {_full_loader.stats.num_edges} edges)")
+        _rag_engine = RagQueryEngine(_full_loader)
+        _gasl_engine = GaslQueryEngine(_full_loader, socketio)
 
     # ============== Routes ==============
 
@@ -128,17 +140,25 @@ def create_app(graph_path: Optional[str] = None) -> Flask:
         if _current_loader is None or _current_loader.graph is None:
             return jsonify({'error': 'No graph loaded'}), 404
 
-        auth = request.headers.get('Authorization', '')
-        api_key = auth[7:].strip() if auth.lower().startswith('bearer ') else ''
+        # Resolve API key: password in body takes priority over Bearer header.
+        password = (request.json or {}).get('password', '')
+        if password and password == _SERVER_PASSWORD:
+            api_key = _SERVER_API_KEY
+        else:
+            auth = request.headers.get('Authorization', '')
+            api_key = auth[7:].strip() if auth.lower().startswith('bearer ') else ''
         if not api_key:
             return jsonify({
-                'error': 'API key required. Send Authorization: Bearer <key>.'
+                'error': 'Wrong password or no API key. Provide the unlock password.'
             }), 401
 
         data = request.json or {}
         question = data.get('question', '').strip()
         mode = data.get('mode', 'rag').lower()
         model = (data.get('model') or 'gpt-5.4-mini').strip()
+        reasoning_effort = data.get('reasoning_effort') or None
+        if reasoning_effort not in (None, 'low', 'medium', 'high'):
+            reasoning_effort = None
 
         if not question:
             return jsonify({'error': 'No question provided'}), 400
@@ -148,7 +168,8 @@ def create_app(graph_path: Optional[str] = None) -> Flask:
                 _rag_engine = RagQueryEngine(_current_loader)
             result = _rag_engine.query(question)
             answer_obj = _rag_engine.generate_answer(
-                question, result['context'], api_key=api_key, model=model)
+                question, result['context'], api_key=api_key, model=model,
+                reasoning_effort=reasoning_effort)
             return jsonify({
                 'mode': 'rag',
                 'nodes': result['nodes'],
@@ -166,7 +187,8 @@ def create_app(graph_path: Optional[str] = None) -> Flask:
             t = threading.Thread(
                 target=_gasl_engine.run,
                 args=(question, job_id),
-                kwargs={'api_key': api_key, 'model': model},
+                kwargs={'api_key': api_key, 'model': model,
+                        'reasoning_effort': reasoning_effort},
                 daemon=True,
             )
             t.start()
@@ -318,6 +340,7 @@ def create_app(graph_path: Optional[str] = None) -> Flask:
 
 
 def run_server(graph_path: Optional[str] = None,
+               full_graph_path: Optional[str] = None,
                host: str = '127.0.0.1',
                port: int = 5050,
                debug: bool = True):
@@ -325,12 +348,13 @@ def run_server(graph_path: Optional[str] = None,
     Run the visualization server.
 
     Args:
-        graph_path: Optional path to a GraphML file to load initially
+        graph_path: Optional path to a GraphML file to load initially (used for viz)
+        full_graph_path: Optional path to the full graph used for queries (falls back to graph_path)
         host: Host to bind to
         port: Port to listen on
         debug: Enable debug mode
     """
-    app = create_app(graph_path)
+    app = create_app(graph_path, full_graph_path=full_graph_path)
     print(f"\n{'='*60}")
     print(f"  Graph Visualization Server")
     print(f"{'='*60}")

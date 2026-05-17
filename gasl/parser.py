@@ -104,9 +104,16 @@ class GASLParser:
         
         elif command_type in ["PROCESS", "UPDATE", "CLASSIFY", "SCORE"]:
             args["variable"] = groups[0]
-            args["instruction"] = groups[1].strip()
-            if command_type == "PROCESS" and len(groups) > 2 and groups[2]:
+            instruction = groups[1].strip()
+            # Pull trailing "AS <var>" out of instruction if the regex didn't capture it
+            import re as _re
+            _as_m = _re.search(r'\s+AS\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s*$', instruction, _re.IGNORECASE)
+            if _as_m:
+                args["target_variable"] = _as_m.group(1)
+                instruction = instruction[:_as_m.start()].strip()
+            elif command_type == "PROCESS" and len(groups) > 2 and groups[2]:
                 args["target_variable"] = groups[2]
+            args["instruction"] = instruction
         
         elif command_type == "ADD_FIELD":
             args["variable"] = groups[0]

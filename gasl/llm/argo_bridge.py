@@ -16,7 +16,8 @@ class ArgoBridgeLLM:
     """Wrapper around existing argo_bridge_llm function."""
     
     def __init__(self, model: str = None, temperature: float = 0.0, max_tokens: int = 4000,
-                 api_key: Optional[str] = None, base_url: Optional[str] = None):
+                 api_key: Optional[str] = None, base_url: Optional[str] = None,
+                 reasoning_effort: Optional[str] = None):
         self.model = model or os.getenv("LLM_MODEL", "gpt41")
         self.temperature = temperature
         self.max_tokens = max_tokens
@@ -34,7 +35,11 @@ class ArgoBridgeLLM:
                 "base_url": base_url or os.getenv(
                     "LLM_ENDPOINT", "https://apps-dev.inside.anl.gov/argoapi/v1"),
             }
-        self.client = AsyncOpenAI(**client_kwargs)
+        # Store credentials for creating fresh clients per call_async invocation.
+        # A single AsyncOpenAI instance cannot be reused across multiple asyncio.run()
+        # calls (each creates a new event loop), which causes [Errno 32] Broken Pipe.
+        self._client_kwargs = client_kwargs
+        self.client = AsyncOpenAI(**client_kwargs)  # kept for any direct external use
 
         # prompt_system is lazy — only constructed on first access via the
         # property below. Saves an expensive import for the RAG-only path.
@@ -48,6 +53,9 @@ class ArgoBridgeLLM:
             "total_tokens": 0,
             "calls": 0,
         }
+
+        # reasoning_effort: "low" | "medium" | "high" — only sent for reasoning models
+        self.reasoning_effort: Optional[str] = reasoning_effort
 
         # Control debug output
         self.debug = os.getenv("LLM_DEBUG", "false").lower() == "true"
@@ -113,6 +121,9 @@ class ArgoBridgeLLM:
         # reasoning models reject custom temperature (must be default 1.0)
         if not self._is_reasoning_model():
             kwargs["temperature"] = self.temperature
+        # reasoning_effort is only valid for reasoning models
+        if self._is_reasoning_model() and self.reasoning_effort in ("low", "medium", "high"):
+            kwargs["reasoning_effort"] = self.reasoning_effort
         return kwargs
 
     async def call_async(self, prompt: str) -> str:
@@ -121,39 +132,43 @@ class ArgoBridgeLLM:
             print(f"DEBUG: LLM PROMPT SENT:\n{prompt}\n")
             print("="*80)
         try:
-            if self.stream_callback is not None:
-                # Streaming path
-                kwargs = self._build_create_kwargs(prompt, stream=True)
-                stream = await self.client.chat.completions.create(**kwargs)
-                full_text = ""
-                async for chunk in stream:
-                    token = (chunk.choices[0].delta.content or "") if chunk.choices else ""
-                    if token:
-                        full_text += token
-                        try:
-                            self.stream_callback(token)
-                        except Exception:
-                            pass
-                if self.debug:
-                    print(f"DEBUG: LLM RESPONSE (streamed):\n{full_text}\n")
-                    print("="*80)
-                return full_text
-            else:
-                # Non-streaming path (original behaviour)
-                kwargs = self._build_create_kwargs(prompt, stream=False)
-                response = await self.client.chat.completions.create(**kwargs)
-                result = response.choices[0].message.content
-                # Accumulate usage across calls (non-streaming exposes it directly).
-                u = getattr(response, "usage", None)
-                if u is not None:
-                    self.usage["prompt_tokens"] += getattr(u, "prompt_tokens", 0) or 0
-                    self.usage["completion_tokens"] += getattr(u, "completion_tokens", 0) or 0
-                    self.usage["total_tokens"] += getattr(u, "total_tokens", 0) or 0
-                self.usage["calls"] += 1
-                if self.debug:
-                    print(f"DEBUG: LLM RESPONSE RECEIVED:\n{result}\n")
-                    print("="*80)
-                return result
+            # Create a fresh client bound to the current event loop.
+            # Reusing self.client across asyncio.run() calls (each spawns a new
+            # loop) causes [Errno 32] Broken Pipe on the underlying HTTP transport.
+            async with AsyncOpenAI(**self._client_kwargs) as client:
+                if self.stream_callback is not None:
+                    # Streaming path
+                    kwargs = self._build_create_kwargs(prompt, stream=True)
+                    stream = await client.chat.completions.create(**kwargs)
+                    full_text = ""
+                    async for chunk in stream:
+                        token = (chunk.choices[0].delta.content or "") if chunk.choices else ""
+                        if token:
+                            full_text += token
+                            try:
+                                self.stream_callback(token)
+                            except Exception:
+                                pass
+                    if self.debug:
+                        print(f"DEBUG: LLM RESPONSE (streamed):\n{full_text}\n")
+                        print("="*80)
+                    return full_text
+                else:
+                    # Non-streaming path (original behaviour)
+                    kwargs = self._build_create_kwargs(prompt, stream=False)
+                    response = await client.chat.completions.create(**kwargs)
+                    result = response.choices[0].message.content
+                    # Accumulate usage across calls (non-streaming exposes it directly).
+                    u = getattr(response, "usage", None)
+                    if u is not None:
+                        self.usage["prompt_tokens"] += getattr(u, "prompt_tokens", 0) or 0
+                        self.usage["completion_tokens"] += getattr(u, "completion_tokens", 0) or 0
+                        self.usage["total_tokens"] += getattr(u, "total_tokens", 0) or 0
+                    self.usage["calls"] += 1
+                    if self.debug:
+                        print(f"DEBUG: LLM RESPONSE RECEIVED:\n{result}\n")
+                        print("="*80)
+                    return result
         except Exception as e:
             raise LLMError(f"LLM call failed: {e}", "argo_bridge", self.model)
 

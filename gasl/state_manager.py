@@ -80,23 +80,26 @@ class StateManager:
             if self.debug:
                 print(f"🔍 STATE_MANAGER: Stored in context store")
         
-        # Store in state store
+        # Store in state store using the GASL-native format (_meta + items)
         if store_in_state:
             if self.state_store.has_variable(variable_name):
-                # Update existing variable
-                self.state_store.update_variable(variable_name, data)
+                # Directly replace the items list rather than extending it
+                var_data = self.state_store.get_variable(variable_name)
+                if isinstance(var_data, dict) and "_meta" in var_data:
+                    var_data["items"] = data
+                    self.state_store._save_state()
                 if self.debug:
                     print(f"🔍 STATE_MANAGER: Updated existing state store variable")
             else:
-                # Create new variable
+                # Create new variable with GASL-native format
                 var_type = "LIST" if isinstance(data, list) else "DICT"
                 var_description = description or f"Data for {variable_name}"
-                self.state_store.set_variable_with_fields(
-                    variable_name, 
-                    data, 
-                    var_type, 
-                    var_description
-                )
+                self.state_store.declare_variable(variable_name, var_type, var_description)
+                var_data = self.state_store.get_variable(variable_name)
+                if isinstance(var_data, dict) and "_meta" in var_data:
+                    if var_type == "LIST":
+                        var_data["items"] = data
+                    self.state_store._save_state()
                 if self.debug:
                     print(f"🔍 STATE_MANAGER: Created new state store variable")
     
@@ -160,16 +163,19 @@ class StateManager:
         """Extract items from state store variable structure."""
         if var_data is None:
             return []
-        
-        # Handle state store variable structure (with _meta and items)
+
+        # LIST variable: {"_meta": ..., "items": [...]}
         if isinstance(var_data, dict) and "items" in var_data:
             return var_data["items"]
-        elif isinstance(var_data, list):
+        # DICT variable: {"_meta": ..., "key": val, ...} — return non-meta content as single dict
+        if isinstance(var_data, dict) and "_meta" in var_data:
+            content = {k: v for k, v in var_data.items() if k != "_meta"}
+            return [content] if content else []
+        if isinstance(var_data, list):
             return var_data
-        elif isinstance(var_data, dict):
+        if isinstance(var_data, dict):
             return [var_data]
-        else:
-            return []
+        return []
 
 
 def create_state_manager(state_store: StateStore, context_store: ContextStore) -> StateManager:

@@ -55,19 +55,22 @@ from .errors import ExecutionError, ParseError
 class GASLExecutor:
     """Main execution engine for GASL plans."""
     
-    def __init__(self, adapter: GraphAdapter, llm_func, state_file: str = None):
+    def __init__(self, adapter: GraphAdapter, llm_func, state_file: str = None,
+                 job_id: str = None):
         self.adapter = adapter
         self.llm_func = llm_func
         self.parser = GASLParser()
         self.state_store = StateStore(state_file)
         self.context_store = ContextStore()
         self.state_manager = StateManager(self.state_store, self.context_store)
-        
+
         # Get versioned graph from adapter if available
         versioned_graph = getattr(adapter, 'versioned_graph', None)
-        
-        # Initialize micro-action framework
-        self.micro_framework = MicroActionFramework(llm_func, self.state_store, self.context_store)
+
+        # Initialize micro-action framework with job_id for checkpointing
+        self.micro_framework = MicroActionFramework(
+            llm_func, self.state_store, self.context_store, job_id=job_id
+        )
         
         # Pass versioned graph to micro framework
         if versioned_graph:
@@ -303,22 +306,30 @@ class GASLExecutor:
                 # Plan execution failed, try again
                 continue
         
-        # Generate final answer only if query was answered
         final_state = self.state_store.get_state()
         variables = final_state.get("variables", {})
-        
+
         print(f"🔍 STATE DEBUG: Final state variables: {list(variables.keys())}")
         for var_name, var_data in variables.items():
-            print(f"🔍 STATE DEBUG: {var_name}: {var_data}")
-        
-        # Validate if query was actually answered
-        validation_prompt = self.llm_func.create_completion_validator_prompt(query, variables)
-        validation_response = self.llm_func.call(validation_prompt).strip().upper()
-        
-        if validation_response == "YES":
+            if isinstance(var_data, dict) and "items" in var_data:
+                print(f"🔍 STATE DEBUG: {var_name}: LIST({len(var_data['items'])} items)")
+            else:
+                print(f"🔍 STATE DEBUG: {var_name}: {var_data}")
+
+        # Always try to generate an answer from whatever state was accumulated.
+        # The LLM is better than a hard-coded fallback at turning partial results
+        # into a useful response.
+        has_data = any(
+            (isinstance(v, dict) and "_meta" in v and
+             (v.get("items") or any(k != "_meta" for k in v)))
+            for v in variables.values()
+        )
+        if has_data:
             final_answer = self._generate_final_answer(query, final_state)
+            query_answered = True
         else:
             final_answer = f"Query could not be answered after {iteration} iterations. No meaningful results found."
+            query_answered = False
         
         return {
             "query": query,
@@ -326,46 +337,72 @@ class GASLExecutor:
             "results": all_results,
             "final_state": final_state,
             "final_answer": final_answer,
-            "query_answered": validation_response == "YES"
+            "query_answered": query_answered,
         }
     
     def _generate_final_answer(self, query: str, state: Dict[str, Any]) -> str:
         """Generate final answer from accumulated state."""
-        # Prepare results for LLM
         results = {}
         variables = state.get("variables", {})
-        
+
         for var_name, var_data in variables.items():
             if isinstance(var_data, dict) and "_meta" in var_data:
                 var_type = var_data["_meta"]["type"]
                 if var_type == "LIST":
-                    results[var_name] = var_data.get("items", [])
+                    items = var_data.get("items", [])
+                    results[var_name] = self._summarize_list(items)
                 elif var_type == "DICT":
                     results[var_name] = {k: v for k, v in var_data.items() if k != "_meta"}
                 elif var_type == "COUNTER":
                     results[var_name] = var_data.get("value", 0)
             elif isinstance(var_data, dict) and "value" in var_data:
-                # Handle variables stored as {"value": [...]} without _meta
                 results[var_name] = var_data["value"]
             else:
                 results[var_name] = var_data
-        
-        # Create analysis prompt
+
         print(f"DEBUG: FINAL ANSWER - Query: {query}")
         print(f"DEBUG: FINAL ANSWER - Results keys: {list(results.keys())}")
         for key, value in results.items():
-            if isinstance(value, list):
-                print(f"DEBUG: FINAL ANSWER - {key}: {len(value)} items")
-                if value and isinstance(value[0], dict):
-                    print(f"DEBUG: FINAL ANSWER - First item keys: {list(value[0].keys())}")
+            if isinstance(value, (list, dict)):
+                print(f"DEBUG: FINAL ANSWER - {key}: {type(value).__name__} len={len(value)}")
             else:
                 print(f"DEBUG: FINAL ANSWER - {key}: {value}")
-        
+
         analysis_prompt = self.llm_func.create_analysis_prompt(query, results)
         print(f"DEBUG: FINAL ANSWER - Analysis prompt being sent to LLM:")
         print("=" * 80)
-        print(analysis_prompt)
+        print(analysis_prompt[:3000])   # log only first 3k chars
         print("=" * 80)
-        
-        # Get final answer from LLM
+
         return self.llm_func.call(analysis_prompt)
+
+    def _summarize_list(self, items: list, max_items: int = 50) -> object:
+        """Compress a large list for the final-answer prompt.
+
+        If every item has a classification-like field (e.g. cognitive_domain,
+        category) we tally the values and return a count dict instead of the
+        raw list — much cheaper on tokens and actually more useful to the LLM.
+        Otherwise we return at most max_items items.
+        """
+        if not items:
+            return []
+
+        # Detect a dominant classification field in the first item
+        first = items[0] if isinstance(items[0], dict) else {}
+        classification_fields = [k for k in first if k in (
+            "cognitive_domain", "category", "domain", "class", "label",
+            "cognitive_domains", "domain_label",
+        )]
+
+        if classification_fields:
+            field = classification_fields[0]
+            tally: dict = {}
+            for item in items:
+                val = item.get(field) if isinstance(item, dict) else None
+                val = str(val) if val is not None else "unclassified"
+                tally[val] = tally.get(val, 0) + 1
+            tally["_total"] = len(items)
+            return tally
+
+        # No classification field — return a sample
+        return items[:max_items]

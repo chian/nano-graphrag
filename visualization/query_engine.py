@@ -142,7 +142,8 @@ class RagQueryEngine:
     # ------------------------------------------------------------------
     def generate_answer(self, question: str, context: str,
                         api_key: Optional[str] = None,
-                        model: Optional[str] = None) -> Dict[str, Any]:
+                        model: Optional[str] = None,
+                        reasoning_effort: Optional[str] = None) -> Dict[str, Any]:
         """Generate a natural-language answer using ArgoBridgeLLM.
 
         Returns a dict {'text': str, 'usage': {prompt_tokens, completion_tokens,
@@ -154,7 +155,8 @@ class RagQueryEngine:
                     "usage": empty_usage}
         try:
             from gasl.llm.argo_bridge import ArgoBridgeLLM
-            llm = ArgoBridgeLLM(model=model, api_key=api_key)
+            llm = ArgoBridgeLLM(model=model, api_key=api_key,
+                                reasoning_effort=reasoning_effort)
             prompt = (
                 "You are answering questions about a biomedical knowledge graph "
                 "focused on respiratory disease and cognitive function.\n\n"
@@ -286,7 +288,8 @@ class GaslQueryEngine:
     # ------------------------------------------------------------------
     def run(self, question: str, job_id: str,
             api_key: Optional[str] = None,
-            model: Optional[str] = None):
+            model: Optional[str] = None,
+            reasoning_effort: Optional[str] = None):
         """Execute GASL traversal in a background thread."""
         patch = None
         try:
@@ -295,8 +298,9 @@ class GaslQueryEngine:
             from gasl.llm.argo_bridge import ArgoBridgeLLM
 
             adapter = NetworkXAdapter(self.loader.graph)
-            llm = ArgoBridgeLLM(model=model, api_key=api_key)
-            executor = GASLExecutor(adapter, llm)
+            llm = ArgoBridgeLLM(model=model, api_key=api_key,
+                                reasoning_effort=reasoning_effort)
+            executor = GASLExecutor(adapter, llm, job_id=job_id)
 
             # Attach visualization patch
             patch = _VisualizingPatch(executor, self.socketio, job_id)

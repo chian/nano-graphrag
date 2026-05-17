@@ -137,9 +137,9 @@ class FindHandler(CommandHandler):
                 for part in parts:
                     # Match: entity_type=PERSON, entity_type="PERSON", entity_type='PERSON', entity_type = PERSON, etc.
                     patterns = [
-                        r"entity_type\s*=\s*['\"]?([A-Z_\s]+)['\"]?",  # entity_type=PERSON or entity_type="PERSON" or entity_type="RESISTANCE MECHANISM"
-                        r"entity_type\s*:\s*['\"]?([A-Z_\s]+)['\"]?",  # entity_type: PERSON
-                        r"entity_type\s+['\"]?([A-Z_\s]+)['\"]?",      # entity_type PERSON
+                        r"entity_type\s*=\s*['\"]?([A-Z_]+)['\"]?",  # entity_type=PERSON or entity_type="PERSON" or entity_type="RESISTANCE MECHANISM"
+                        r"entity_type\s*:\s*['\"]?([A-Z_]+)['\"]?",  # entity_type: PERSON
+                        r"entity_type\s+['\"]?([A-Z_]+)['\"]?",      # entity_type PERSON
                     ]
                     
                     for pattern in patterns:
@@ -156,9 +156,9 @@ class FindHandler(CommandHandler):
             else:
                 # Single entity type (no OR)
                 patterns = [
-                    r"entity_type\s*=\s*['\"]?([A-Z_\s]+)['\"]?",  # entity_type=PERSON or entity_type="PERSON" or entity_type="RESISTANCE MECHANISM"
-                    r"entity_type\s*:\s*['\"]?([A-Z_\s]+)['\"]?",  # entity_type: PERSON
-                    r"entity_type\s+['\"]?([A-Z_\s]+)['\"]?",      # entity_type PERSON
+                    r"entity_type\s*=\s*['\"]?([A-Z_]+)['\"]?",  # entity_type=PERSON or entity_type="PERSON" or entity_type="RESISTANCE MECHANISM"
+                    r"entity_type\s*:\s*['\"]?([A-Z_]+)['\"]?",  # entity_type: PERSON
+                    r"entity_type\s+['\"]?([A-Z_]+)['\"]?",      # entity_type PERSON
                 ]
                 
                 for pattern in patterns:

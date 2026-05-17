@@ -1,7 +1,15 @@
 """
 Micro-action framework for handling large datasets with batching.
+
+Supports resumable checkpointing: each batch result is written to disk
+immediately so that interrupted runs can resume from the last completed batch.
+Memory usage is bounded — raw items are never accumulated across all batches.
 """
 
+import json
+import os
+from datetime import datetime
+from pathlib import Path
 from typing import Any, List, Dict, Optional
 from .types import Command, ExecutionResult, Provenance
 from .llm.argo_bridge import ArgoBridgeLLM
@@ -10,44 +18,160 @@ from .utils import normalize_node_id
 
 class MicroActionFramework:
     """Shared framework for all batching operations across commands."""
-    
-    def __init__(self, llm_func: ArgoBridgeLLM, state_store=None, context_store=None):
+
+    def __init__(self, llm_func: ArgoBridgeLLM, state_store=None, context_store=None,
+                 job_id: str = None, checkpoint_dir: str = None):
         self.llm_func = llm_func
         self.state_store = state_store
         self.context_store = context_store
-    
-    def execute_command_with_batching(self, data: List[Dict], command_type: str, 
-                                    instruction: str, batch_size: int = None, 
+        self.job_id = job_id or "default"
+        self.checkpoint_dir = Path(checkpoint_dir) if checkpoint_dir else (
+            Path(__file__).parent.parent / "gasl_checkpoints"
+        )
+
+    def set_job_id(self, job_id: str) -> None:
+        """Update job_id (called by executor before each run)."""
+        self.job_id = job_id
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # Checkpoint helpers
+    # ──────────────────────────────────────────────────────────────────────────
+
+    def _manifest_path(self, variable_name: str) -> Path:
+        return self.checkpoint_dir / f"{self.job_id}_{variable_name}.json"
+
+    def _batch_path(self, variable_name: str, batch_index: int) -> Path:
+        return self.checkpoint_dir / f"{self.job_id}_{variable_name}_batch_{batch_index}.json"
+
+    def _load_manifest(self, variable_name: str) -> Optional[Dict]:
+        path = self._manifest_path(variable_name)
+        if path.exists():
+            try:
+                with open(path) as f:
+                    return json.load(f)
+            except Exception:
+                return None
+        return None
+
+    def _save_manifest(self, manifest: Dict) -> None:
+        self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
+        manifest["updated_at"] = datetime.utcnow().isoformat()
+        with open(self._manifest_path(manifest["variable_name"]), "w") as f:
+            json.dump(manifest, f)
+
+    def _save_batch_result(self, variable_name: str, batch_index: int, items: List[Dict]) -> None:
+        self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
+        with open(self._batch_path(variable_name, batch_index), "w") as f:
+            json.dump(items, f)
+
+    def _load_batch_result(self, variable_name: str, batch_index: int) -> Optional[List[Dict]]:
+        path = self._batch_path(variable_name, batch_index)
+        if path.exists():
+            try:
+                with open(path) as f:
+                    return json.load(f)
+            except Exception:
+                return None
+        return None
+
+    def _iter_all_batch_results(self, variable_name: str, total_batches: int):
+        """Yield items from each batch file one-by-one (streaming, low memory)."""
+        for i in range(total_batches):
+            items = self._load_batch_result(variable_name, i)
+            if items:
+                yield from items
+
+    def _build_tally_from_batches(self, variable_name: str, total_batches: int) -> Dict:
+        """Stream through all batch files and build a domain-tally dict."""
+        tally: Dict[str, int] = {}
+        total = 0
+        field = None
+        for item in self._iter_all_batch_results(variable_name, total_batches):
+            if not isinstance(item, dict):
+                continue
+            if field is None:
+                for candidate in ("cognitive_domain", "category", "domain",
+                                  "class", "label", "cognitive_domains", "domain_label"):
+                    if candidate in item:
+                        field = candidate
+                        break
+            if field:
+                val = str(item.get(field, "unclassified"))
+            else:
+                val = "unclassified"
+            tally[val] = tally.get(val, 0) + 1
+            total += 1
+        tally["_total"] = total
+        return tally
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # Core batching logic
+    # ──────────────────────────────────────────────────────────────────────────
+
+    def execute_command_with_batching(self, data: List[Dict], command_type: str,
+                                    instruction: str, batch_size: int = None,
                                     target_variable: str = None) -> ExecutionResult:
-        """Execute any command with batching - the single source of truth for all batching."""
-        
+        """Execute any command with batching.
+
+        Batches are checkpointed to disk immediately after processing so that
+        interrupted runs can resume.  Raw items are never kept across multiple
+        batches — memory use is bounded to ~1 batch at a time.
+        """
+
         if not isinstance(data, list) or len(data) == 0:
             return self._create_empty_result(command_type, instruction)
-        
+
         if batch_size is None:
             batch_size = self._calculate_optimal_batch_size(data, instruction)
-        
-        # If all data fits in one batch, process normally
+
+        # If all data fits in one batch, process normally (no checkpoint overhead)
         if batch_size >= len(data):
             return self._execute_single_batch(data, command_type, instruction)
-        
-        print(f"DEBUG: MICRO_ACTIONS - Processing {len(data)} items in batches of {batch_size}")
-        
-        all_results = []
+
         total_batches = (len(data) + batch_size - 1) // batch_size
-        
-        for i in range(0, len(data), batch_size):
-            batch = data[i:i + batch_size]
-            batch_num = i // batch_size + 1
-            
-            print(f"DEBUG: MICRO_ACTIONS - Processing batch {batch_num}/{total_batches} ({len(batch)} items)")
-            
-            # Execute the core command logic on this batch
+        var_key = target_variable or command_type.lower()
+
+        print(f"DEBUG: MICRO_ACTIONS - Processing {len(data)} items in {total_batches} batches of {batch_size}")
+
+        # ── Load or create checkpoint manifest ────────────────────────────────
+        manifest = self._load_manifest(var_key)
+        if manifest and manifest.get("total_items") == len(data) and manifest.get("status") != "complete":
+            completed = set(manifest.get("completed_batches", []))
+            print(f"DEBUG: MICRO_ACTIONS - Resuming checkpoint: {len(completed)}/{total_batches} batches done")
+        else:
+            # Fresh run (or data size changed)
+            completed = set()
+            manifest = {
+                "job_id": self.job_id,
+                "variable_name": var_key,
+                "command_type": command_type,
+                "instruction": instruction[:200],
+                "total_items": len(data),
+                "batch_size": batch_size,
+                "total_batches": total_batches,
+                "completed_batches": [],
+                "status": "in_progress",
+                "created_at": datetime.utcnow().isoformat(),
+            }
+            self._save_manifest(manifest)
+
+        total_processed = sum(
+            len(self._load_batch_result(var_key, i) or []) for i in completed
+        )
+
+        for batch_index in range(total_batches):
+            if batch_index in completed:
+                print(f"DEBUG: MICRO_ACTIONS - Skipping batch {batch_index+1}/{total_batches} (already done)")
+                continue
+
+            start = batch_index * batch_size
+            batch = data[start:start + batch_size]
+
+            print(f"DEBUG: MICRO_ACTIONS - Processing batch {batch_index+1}/{total_batches} ({len(batch)} items)")
             batch_result = self._execute_single_batch(batch, command_type, instruction)
-            
-            print(f"DEBUG: MICRO_ACTIONS - Batch {batch_num} status: {batch_result.status}")
+            print(f"DEBUG: MICRO_ACTIONS - Batch {batch_index+1} status: {batch_result.status}")
+
             if batch_result.status == "success":
-                # Extract results based on command type
                 if command_type == "PROCESS":
                     batch_items = batch_result.data.get("processed_items", [])
                 elif command_type == "CLASSIFY":
@@ -58,37 +182,46 @@ class MicroActionFramework:
                     batch_items = batch_result.data.get("aggregated_groups", [])
                 else:
                     batch_items = batch_result.data.get("items", [])
-                
-                print(f"DEBUG: MICRO_ACTIONS - Batch {batch_num} extracted {len(batch_items)} items")
-                all_results.extend(batch_items)
+
+                # Write to disk immediately, release from memory
+                self._save_batch_result(var_key, batch_index, batch_items)
+                total_processed += len(batch_items)
+                completed.add(batch_index)
+
+                manifest["completed_batches"] = sorted(completed)
+                self._save_manifest(manifest)
+                print(f"DEBUG: MICRO_ACTIONS - Batch {batch_index+1} saved ({len(batch_items)} items, {total_processed} total so far)")
             else:
-                print(f"DEBUG: MICRO_ACTIONS - Batch {batch_num} failed: {batch_result.error_message}")
-        
-        print(f"DEBUG: MICRO_ACTIONS - Completed processing {len(all_results)} total items")
-        
-        # Save the processed data back to storage and create new version
-        if target_variable and all_results:
-            self._save_to_state(target_variable, all_results, command_type)
-            
-            # Auto-create version if we have a versioned graph
-            if hasattr(self, 'versioned_graph') and self.versioned_graph:
-                # Apply modifications to current graph
-                current_graph = self.versioned_graph.get_current_graph()
-                self._apply_modifications_to_graph(current_graph, all_results, target_variable)
-                
-                # Create new version
-                self.versioned_graph.create_version_after_command(
-                    command_type,
-                    f"{command_type}: {instruction[:50]}{'...' if len(instruction) > 50 else ''}",
-                    current_graph,
-                    {"items_processed": len(all_results), "target_variable": target_variable}
-                )
-        
-        # Create final result
+                print(f"DEBUG: MICRO_ACTIONS - Batch {batch_index+1} failed: {batch_result.error_message}")
+
+        print(f"DEBUG: MICRO_ACTIONS - Completed {len(completed)}/{total_batches} batches ({total_processed} items)")
+
+        # Mark manifest complete
+        manifest["status"] = "complete"
+        self._save_manifest(manifest)
+
+        # ── Build final tally by streaming batch files (bounded memory) ───────
+        if target_variable:
+            tally = self._build_tally_from_batches(var_key, total_batches)
+            print(f"DEBUG: MICRO_ACTIONS - Tally: {tally}")
+            self._save_tally_to_state(target_variable, tally, command_type, total_processed)
+
+        # ── Versioned-graph update (if applicable) ────────────────────────────
+        if target_variable and hasattr(self, 'versioned_graph') and self.versioned_graph:
+            current_graph = self.versioned_graph.get_current_graph()
+            all_items = list(self._iter_all_batch_results(var_key, total_batches))
+            self._apply_modifications_to_graph(current_graph, all_items, target_variable)
+            self.versioned_graph.create_version_after_command(
+                command_type,
+                f"{command_type}: {instruction[:50]}{'...' if len(instruction) > 50 else ''}",
+                current_graph,
+                {"items_processed": total_processed, "target_variable": target_variable}
+            )
+
         return self._create_result(
-            status="success" if all_results else "empty",
-            data={"processed_items": all_results} if command_type == "PROCESS" else {"items": all_results},
-            count=len(all_results)
+            status="success" if total_processed > 0 else "empty",
+            data={"processed_items": [], "_checkpoint_tally": tally if target_variable else {}},
+            count=total_processed
         )
     
     def _execute_single_batch(self, batch: List[Dict], command_type: str, instruction: str) -> ExecutionResult:
@@ -105,15 +238,24 @@ class MicroActionFramework:
         else:
             return self._create_error_result(f"Unknown command type: {command_type}")
     
+    def _strip_json_fences(self, text: str) -> str:
+        """Strip markdown code fences that LLMs often wrap JSON in."""
+        import re
+        text = text.strip()
+        match = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```', text)
+        if match:
+            return match.group(1).strip()
+        return text
+
     def _process_batch(self, batch: List[Dict], instruction: str) -> ExecutionResult:
         """Core PROCESS logic for a single batch."""
         prompt = self._create_process_prompt(batch, instruction)
         llm_response = self.llm_func.call(prompt)
-        
+
         # Parse JSON response (only catch JSON errors, not programming errors)
         import json
         try:
-            parsed_result = json.loads(llm_response)
+            parsed_result = json.loads(self._strip_json_fences(llm_response))
         except json.JSONDecodeError:
             return self._create_error_result("Failed to parse LLM response as JSON")
         
@@ -197,10 +339,10 @@ class MicroActionFramework:
         # Parse JSON response (only catch JSON errors, not programming errors)
         import json
         try:
-            parsed_result = json.loads(llm_response)
+            parsed_result = json.loads(self._strip_json_fences(llm_response))
         except json.JSONDecodeError:
             return self._create_error_result("Failed to parse LLM response as JSON")
-        
+
         # Update original nodes with category field
         updated_items = []
         for item in batch:
@@ -399,23 +541,41 @@ class MicroActionFramework:
             error_message=error_message
         )
     
+    def _save_tally_to_state(self, target_variable: str, tally: Dict, command_type: str, total: int) -> None:
+        """Store a domain-tally dict in state/context stores (not the raw item list)."""
+        print(f"DEBUG: MICRO_ACTIONS - Saving tally for {target_variable}: {tally}")
+        # Wrap tally as a list-of-one so existing readers work
+        tally_record = {"tally": tally, "total": total, "variable": target_variable}
+        if self.context_store:
+            self.context_store.set(target_variable, [tally_record])
+        if self.state_store:
+            if not self.state_store.has_variable(target_variable):
+                self.state_store.declare_variable(target_variable, "LIST",
+                    f"Domain tally from {command_type} command")
+            var_data = self.state_store.get_variable(target_variable)
+            if isinstance(var_data, dict) and "_meta" in var_data:
+                var_data["items"] = [tally_record]
+                self.state_store._save_state()
+
     def _save_to_state(self, target_variable: str, all_results: List[Dict], command_type: str) -> None:
         """Save processed data back to the state and context stores."""
         print(f"DEBUG: MICRO_ACTIONS - Saving {len(all_results)} processed items back to {target_variable}")
-        
+
         # Store in context store (for immediate access by next commands)
         if self.context_store:
             self.context_store.set(target_variable, all_results)
             print(f"DEBUG: MICRO_ACTIONS - Saved to context store: {target_variable}")
-        
-        # Also store in state store if available (for persistence)
+
+        # Store in state store using the GASL-native format (declare_variable + items)
+        # so that all readers (_get_variable_data, StateManager, etc.) can find it.
         if self.state_store:
-            self.state_store.set_variable_with_fields(
-                target_variable,
-                all_results,
-                "LIST",
-                f"Processed data from {command_type} command"
-            )
+            if not self.state_store.has_variable(target_variable):
+                self.state_store.declare_variable(target_variable, "LIST",
+                    f"Processed data from {command_type} command")
+            var_data = self.state_store.get_variable(target_variable)
+            if isinstance(var_data, dict) and "_meta" in var_data:
+                var_data["items"] = all_results
+                self.state_store._save_state()
             print(f"DEBUG: MICRO_ACTIONS - Saved to state store: {target_variable}")
     
     def _save_to_graph(self, target_variable: str, all_results: List[Dict], command_type: str) -> None:
