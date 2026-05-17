@@ -28,6 +28,33 @@ def _extract_json(text: str) -> str:
         starts = [i for i in (s.find('{'), s.find('[')) if i >= 0]
         if starts:
             s = s[min(starts):]
+    if not s or s[0] not in '{[':
+        return s
+
+    # If the model emitted multiple JSON objects back-to-back, keep only the
+    # first balanced one so the downstream json parser sees a single object.
+    open_ch = s[0]
+    close_ch = '}' if open_ch == '{' else ']'
+    depth = 0
+    in_str = False
+    escape = False
+    for idx, ch in enumerate(s):
+        if in_str:
+            if escape:
+                escape = False
+            elif ch == '\\':
+                escape = True
+            elif ch == '"':
+                in_str = False
+            continue
+        if ch == '"':
+            in_str = True
+        elif ch == open_ch:
+            depth += 1
+        elif ch == close_ch:
+            depth -= 1
+            if depth == 0:
+                return s[:idx + 1]
     return s
 
 

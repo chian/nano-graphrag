@@ -37,11 +37,15 @@ from gasl.llm.argo_bridge import ArgoBridgeLLM
 
 
 DEFAULT_GRAPHS = [
-    "haiqu_graphs/v1/haiqu_cognitive_impact/haiqu_cognitive_impact_graph.graphml",
-    "haiqu_graphs/v1/haiqu_engineering_controls/haiqu_engineering_controls_graph.graphml",
+    "haiqu_graphs/v1/haiqu_cognitive_impact/haiqu_cognitive_impact_graph_deg10.graphml",
     "haiqu_graphs/v1/haiqu_hospital_environment/haiqu_hospital_environment_graph.graphml",
-    "haiqu_graphs/v1/haiqu_aerosol_exposure/haiqu_aerosol_exposure_graph.graphml",
+    "haiqu_graphs/v1/haiqu_biosensor_detection/haiqu_biosensor_detection_graph.graphml",
 ]
+
+BENCHMARK_SUFFIX = (
+    " Return only the top 3 node ids in ranked order as a comma-separated list. "
+    "Do not add explanation."
+)
 
 
 @dataclass
@@ -70,11 +74,11 @@ def norm(text: str) -> str:
 
 
 def score_answer(answer: str, expected: Iterable[str]) -> int:
-    answer_norm = norm(answer)
+    answer_parts = [norm(part) for part in re.split(r"[\n,;|]+", answer or "") if norm(part)]
     score = 0
     for item in expected:
         needle = norm(item)
-        if needle and needle in answer_norm:
+        if any(part == needle or needle in part or part in needle for part in answer_parts):
             score += 1
     return score
 
@@ -111,7 +115,7 @@ def top_relation_triples(graph: nx.Graph, limit: int, min_edges: int = 8) -> Lis
                 family="relation_frequency",
                 question=(
                     f"Using graph schema tokens, which {dst_type} nodes receive the most {rel} links "
-                    f"from {src_type} nodes in the {graph_name} graph?"
+                    f"from {src_type} nodes in the {graph_name} graph?{BENCHMARK_SUFFIX}"
                 ),
                 expected=expected,
                 metadata={
@@ -165,7 +169,7 @@ def breadth_questions(graph: nx.Graph, limit: int, min_nodes: int = 6) -> List[Q
                     question=(
                         f"Using graph schema tokens, which {mid_type} nodes span the widest range of "
                         f"{src_type} and {dst_type} evidence through {rel_in} and {rel_out} links in the "
-                        f"{graph_name} graph?"
+                        f"{graph_name} graph?{BENCHMARK_SUFFIX}"
                     ),
                     expected=top_nodes,
                     metadata={

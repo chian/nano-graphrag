@@ -33,7 +33,7 @@ class GASLParser:
             # Analysis commands
             "CLASSIFY": r"CLASSIFY\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+(?:with\s+)?([^;]+)",
             "SCORE": r"SCORE\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+(?:with\s+)?([^;]+)",
-            "RANK": r"RANK\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+by\s+([^;]+?)(?:\s+order\s+(desc|asc))?",
+            "RANK": r"RANK\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+by\s+(.+?)(?:\s+order\s+(desc|asc))?$",
             
             # Graph navigation commands
             "GRAPHWALK": r"GRAPHWALK\s+from\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+follow\s+(.+?)(?:\s+depth\s+(\d+))?(?:\s+AS\s+([a-zA-Z_][a-zA-Z0-9_.]*))?$",

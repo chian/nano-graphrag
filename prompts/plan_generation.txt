@@ -163,6 +163,7 @@ IMPORTANT GASL SYNTAX RULES:
 GRAPH-NATIVE PLANNING HEURISTICS:
 - If the query asks for "most frequent", "most common", "top", "rank", "widest range", "broadest", or graph-wide counts, prefer:
   FIND source nodes -> GRAPHWALK exact relation_type -> AGGREGATE/COUNT -> RANK -> SHOW
+- Always bind GRAPHWALK outputs with `AS <result_var>` and use that variable in downstream AGGREGATE/PROCESS commands.
 - Avoid PROCESS or ITERATE over large node lists when the answer can be obtained directly from graph edges.
 - Prefer exact graph schema tokens from the query and schema (for example entity_type=RESPIRATORY_INFECTION, relation_type=AFFECTS) instead of paraphrases.
 - For multi-axis breadth questions, prefer multiple GRAPHWALK steps plus AGGREGATE over LLM processing of raw node descriptions.

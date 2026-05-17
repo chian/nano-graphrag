@@ -27,6 +27,15 @@ class TestGASLParser(unittest.TestCase):
         self.assertEqual(cmd.args["operation"], "count")
         self.assertEqual(cmd.args["result_variable"], "cognitive_domain_frequency")
 
+    def test_rank_parses_full_field_name_and_order(self):
+        cmd = self.parser.parse_command(
+            "RANK confounding_factors by count order desc"
+        )
+        self.assertEqual(cmd.command_type, "RANK")
+        self.assertEqual(cmd.args["variable"], "confounding_factors")
+        self.assertEqual(cmd.args["field"], "count")
+        self.assertEqual(cmd.args["order"], "desc")
+
 
 if __name__ == "__main__":
     unittest.main()
