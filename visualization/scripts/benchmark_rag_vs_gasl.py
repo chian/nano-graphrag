@@ -37,15 +37,25 @@ from gasl.llm.argo_bridge import ArgoBridgeLLM
 
 
 DEFAULT_GRAPHS = [
-    "haiqu_graphs/v1/haiqu_cognitive_impact/haiqu_cognitive_impact_graph_deg10.graphml",
+    "haiqu_graphs/v1/haiqu_engineering_controls/haiqu_engineering_controls_graph.graphml",
     "haiqu_graphs/v1/haiqu_hospital_environment/haiqu_hospital_environment_graph.graphml",
     "haiqu_graphs/v1/haiqu_biosensor_detection/haiqu_biosensor_detection_graph.graphml",
+    "haiqu_graphs/v1/haiqu_aerosol_exposure/haiqu_aerosol_exposure_graph.graphml",
 ]
 
-BENCHMARK_SUFFIX = (
-    " Return only the top 3 node ids in ranked order as a comma-separated list. "
-    "Do not add explanation."
-)
+BENCHMARK_SUFFIX = " Return the top three item names as a comma-separated list with no explanation."
+
+RELATION_PROMPT_STYLES = [
+    "Across the {graph_name} evidence base, which {dst_type_h} are most frequently linked with {src_type_h} findings through {rel_h}?{suffix}",
+    "For indoor-health monitoring and intervention planning, which {dst_type_h} come up most often in connection with {src_type_h} in the {graph_name} literature?{suffix}",
+    "Looking across the {graph_name} graph, what {dst_type_h} have the strongest overall evidence footprint linked from {src_type_h}?{suffix}",
+]
+
+BREADTH_PROMPT_STYLES = [
+    "Which {mid_type_h} span the broadest range of evidence across both {src_type_h} and {dst_type_h} in the {graph_name} graph?{suffix}",
+    "For deployment planning, which {mid_type_h} are supported across the widest range of {src_type_h} and {dst_type_h} evidence in the {graph_name} literature?{suffix}",
+    "Looking across the {graph_name} evidence base, what {mid_type_h} appear most consistently across both {src_type_h} and {dst_type_h}?{suffix}",
+]
 
 
 @dataclass
@@ -108,24 +118,28 @@ def top_relation_triples(graph: nx.Graph, limit: int, min_edges: int = 8) -> Lis
             counts[dst] = counts.get(dst, 0) + 1
         expected = [name for name, _ in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))[:3]]
         graph_name = Path(graph.graph.get("graphml_path", "graph")).stem.replace("_graph", "")
-        questions.append(
-            QuestionSpec(
-                graph_path=str(graph.graph.get("graphml_path", "")),
-                graph_name=graph_name,
-                family="relation_frequency",
-                question=(
-                    f"Using graph schema tokens, which {dst_type} nodes receive the most {rel} links "
-                    f"from {src_type} nodes in the {graph_name} graph?{BENCHMARK_SUFFIX}"
-                ),
-                expected=expected,
-                metadata={
-                    "src_type": src_type,
-                    "rel": rel,
-                    "dst_type": dst_type,
-                    "edge_count": len(edges),
-                },
+        for style_idx, style in enumerate(RELATION_PROMPT_STYLES):
+            questions.append(
+                QuestionSpec(
+                    graph_path=str(graph.graph.get("graphml_path", "")),
+                    graph_name=graph_name,
+                    family=f"relation_frequency/style_{style_idx+1}",
+                    question=style.format(
+                        graph_name=graph_name.replace("_", " "),
+                        dst_type_h=humanize(dst_type),
+                        src_type_h=humanize(src_type),
+                        rel_h=humanize(rel),
+                        suffix=BENCHMARK_SUFFIX,
+                    ),
+                    expected=expected,
+                    metadata={
+                        "src_type": src_type,
+                        "rel": rel,
+                        "dst_type": dst_type,
+                        "edge_count": len(edges),
+                    },
+                )
             )
-        )
     return questions
 
 
@@ -161,26 +175,29 @@ def breadth_questions(graph: nx.Graph, limit: int, min_nodes: int = 6) -> List[Q
             mid_type, src_type, rel_in, dst_type, rel_out = pattern
             top_nodes = [n for n, _ in sorted(rows, key=lambda kv: (-kv[1], kv[0]))[:3]]
             graph_name = Path(graph.graph.get("graphml_path", "graph")).stem.replace("_graph", "")
-            questions.append(
-                QuestionSpec(
-                    graph_path=str(graph.graph.get("graphml_path", "")),
-                    graph_name=graph_name,
-                    family="two_axis_breadth",
-                    question=(
-                        f"Using graph schema tokens, which {mid_type} nodes span the widest range of "
-                        f"{src_type} and {dst_type} evidence through {rel_in} and {rel_out} links in the "
-                        f"{graph_name} graph?{BENCHMARK_SUFFIX}"
-                    ),
-                    expected=top_nodes,
-                    metadata={
-                        "mid_type": mid_type,
-                        "src_type": src_type,
-                        "dst_type": dst_type,
-                        "rel_in": rel_in,
-                        "rel_out": rel_out,
-                    },
+            for style_idx, style in enumerate(BREADTH_PROMPT_STYLES):
+                questions.append(
+                    QuestionSpec(
+                        graph_path=str(graph.graph.get("graphml_path", "")),
+                        graph_name=graph_name,
+                        family=f"two_axis_breadth/style_{style_idx+1}",
+                        question=style.format(
+                            graph_name=graph_name.replace("_", " "),
+                            mid_type_h=humanize(mid_type),
+                            src_type_h=humanize(src_type),
+                            dst_type_h=humanize(dst_type),
+                            suffix=BENCHMARK_SUFFIX,
+                        ),
+                        expected=top_nodes,
+                        metadata={
+                            "mid_type": mid_type,
+                            "src_type": src_type,
+                            "dst_type": dst_type,
+                            "rel_in": rel_in,
+                            "rel_out": rel_out,
+                        },
+                    )
                 )
-            )
     return questions[:limit]
 
 
@@ -189,9 +206,9 @@ def generate_questions(graph_path: str, per_graph: int) -> List[QuestionSpec]:
     graph = loader.graph
     assert graph is not None
     graph.graph["graphml_path"] = str(Path(graph_path))
-    half = max(2, per_graph // 2)
-    questions = top_relation_triples(graph, limit=half)
-    questions.extend(breadth_questions(graph, limit=per_graph - len(questions)))
+    third = max(1, per_graph // 2)
+    questions = top_relation_triples(graph, limit=third)
+    questions.extend(breadth_questions(graph, limit=max(1, per_graph - len(questions))))
     for q in questions:
         q.graph_path = graph_path
         q.graph_name = Path(graph_path).parent.name

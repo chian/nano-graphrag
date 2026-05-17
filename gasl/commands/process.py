@@ -2,6 +2,7 @@
 PROCESS command handler.
 """
 
+import re
 from typing import Any, List, Dict
 from .base import CommandHandler
 from ..types import Command, ExecutionResult, Provenance
@@ -12,6 +13,9 @@ from ..state_manager import StateManager
 
 class ProcessHandler(CommandHandler):
     """Handles PROCESS commands for LLM-based data processing."""
+
+    PREFILTER_THRESHOLD = 60
+    PREFILTER_BUDGET = 72
     
     def __init__(self, state_store, context_store, llm_func, micro_framework=None, state_manager=None):
         super().__init__(state_store, context_store)
@@ -52,6 +56,14 @@ class ProcessHandler(CommandHandler):
         elif isinstance(data, dict):
             print(f"🔍 PROCESS DEBUG: Data dict keys: {list(data.keys())}")
         
+        if isinstance(data, list) and len(data) > self.PREFILTER_THRESHOLD:
+            original_len = len(data)
+            data = self._prefilter_candidates(data, instruction)
+            print(
+                f"🔍 PROCESS DEBUG: prefiltered candidate pool "
+                f"{original_len} -> {len(data)} using query/instruction overlap"
+            )
+
         # Use MicroActionFramework for batching if available
         if self.micro_framework and isinstance(data, list) and len(data) > 20:
             print(f"DEBUG: PROCESS - Using MicroActionFramework for {len(data)} items")
@@ -239,6 +251,64 @@ Instructions:
 Be thorough in your analysis and provide clear reasoning for each decision.
 """
         return prompt
+
+    def _prefilter_candidates(self, data: List[Dict], instruction: str) -> List[Dict]:
+        query = (self.state_store.get_state().get("query") or "").strip()
+        needle_text = f"{query} {instruction}".strip()
+        if not needle_text:
+            return data[: self.PREFILTER_BUDGET]
+
+        ranked = sorted(
+            data,
+            key=lambda item: self._candidate_score(item, needle_text),
+            reverse=True,
+        )
+        top = ranked[: self.PREFILTER_BUDGET]
+        # Keep a small tail sample so PROCESS can still discover off-keyword items.
+        tail = ranked[-8:] if len(ranked) > self.PREFILTER_BUDGET + 8 else []
+        merged: List[Dict] = []
+        seen = set()
+        for item in top + tail:
+            node_id = item.get("id") if isinstance(item, dict) else id(item)
+            if node_id in seen:
+                continue
+            seen.add(node_id)
+            merged.append(item)
+        return merged
+
+    def _candidate_score(self, item: Dict, needle_text: str) -> int:
+        tokens = {tok for tok in re.findall(r"[a-z0-9]+", needle_text.lower()) if len(tok) > 2}
+        item_text = self._item_search_text(item)
+        score = 0
+        for tok in tokens:
+            if tok in item_text:
+                score += 1
+        # Boost stronger matches in ids/entity labels
+        item_id = str(item.get("id", "")).lower() if isinstance(item, dict) else ""
+        entity = str(item.get("data", {}).get("entity_type", "")).lower() if isinstance(item, dict) else ""
+        for tok in tokens:
+            if tok == item_id:
+                score += 5
+            elif tok in item_id:
+                score += 2
+            if tok in entity:
+                score += 2
+        return score
+
+    @staticmethod
+    def _item_search_text(item: Dict) -> str:
+        if not isinstance(item, dict):
+            return str(item).lower()
+        parts = [str(item.get("id", ""))]
+        if isinstance(item.get("data"), dict):
+            data = item["data"]
+            parts.extend([
+                str(data.get("entity_type", "")),
+                str(data.get("entity_name", "")),
+                str(data.get("alternative_names", "")),
+                str(data.get("description", "")),
+            ])
+        return " ".join(parts).lower()
     
     def _format_data_for_llm(self, data: Any) -> str:
         """Format data for LLM consumption."""
