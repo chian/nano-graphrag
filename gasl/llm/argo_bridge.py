@@ -84,6 +84,8 @@ class ArgoBridgeLLM:
         m = (self.model or "").lower()
         if m.startswith(("o1", "o3", "o4", "o5")):
             return True
+        if "rosalind" in m:
+            return True
         # Hyphenated public names (gpt-5, gpt-5-mini, ...) and Argo internal IDs
         # (gpt5, gpt5mini, gpt5nano) — all three are reasoning baseline models
         if m in ("gpt-5", "gpt-5-mini", "gpt-5-nano", "gpt5", "gpt5mini", "gpt5nano"):

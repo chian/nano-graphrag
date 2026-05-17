@@ -18,6 +18,7 @@ from flask_socketio import SocketIO, emit
 
 from .graph_loader import GraphLoader, find_graphs_in_directory, build_color_map
 from .query_engine import RagQueryEngine, GaslQueryEngine
+from .demo_catalog import get_demo_catalog, get_demo
 
 
 # Server-side unlock: password → API key, never exposed to the browser.
@@ -103,18 +104,20 @@ def create_app(graph_path: Optional[str] = None,
     @app.route('/api/graph/load', methods=['POST'])
     def load_graph():
         """Load a new graph from a file path."""
-        global _current_loader, _rag_engine, _gasl_engine
+        global _current_loader, _full_loader, _rag_engine, _gasl_engine
 
         data = request.json
         path = data.get('path')
+        full_graph_path = data.get('full_graph_path') or path
 
         if not path:
             return jsonify({'error': 'No path provided'}), 400
 
         try:
             _current_loader = GraphLoader(path)
-            _rag_engine = RagQueryEngine(_current_loader)
-            _gasl_engine = GaslQueryEngine(_current_loader, socketio)
+            _full_loader = GraphLoader(full_graph_path) if full_graph_path != path else _current_loader
+            _rag_engine = RagQueryEngine(_full_loader)
+            _gasl_engine = GaslQueryEngine(_full_loader, socketio)
             return jsonify({
                 'success': True,
                 'stats': {
@@ -122,10 +125,35 @@ def create_app(graph_path: Optional[str] = None,
                     'num_edges': _current_loader.stats.num_edges,
                     'entity_types': dict(_current_loader.stats.entity_types),
                     'relation_types': dict(_current_loader.stats.relation_types)
-                }
+                },
+                'graph_path': path,
+                'full_graph_path': full_graph_path,
             })
         except Exception as e:
             return jsonify({'error': str(e)}), 400
+
+    @app.route('/api/demos')
+    def list_demos():
+        """Return the curated demo catalog."""
+        demos = []
+        for demo in get_demo_catalog():
+            demos.append({
+                'id': demo['id'],
+                'title': demo['title'],
+                'question': demo['question'],
+                'why_gasl_wins': demo['why_gasl_wins'],
+                'rag_blind_spot': demo['rag_blind_spot'],
+                'metrics': demo['metrics'],
+            })
+        return jsonify({'demos': demos})
+
+    @app.route('/api/demos/<demo_id>')
+    def get_demo_payload(demo_id: str):
+        """Return a single demo with graph paths and replay events."""
+        demo = get_demo(demo_id)
+        if demo is None:
+            return jsonify({'error': f'Unknown demo: {demo_id}'}), 404
+        return jsonify(demo)
 
     @app.route('/api/query', methods=['POST'])
     def run_query():

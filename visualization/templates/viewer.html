@@ -628,7 +628,7 @@
                         </optgroup>
                         <option value="__custom__">Custom…</option>
                     </select>
-                    <input type="text" id="customModelInput" placeholder="Custom model id"
+                    <input type="text" id="customModelInput" placeholder="Custom model id (supports org-enabled life-science models)"
                            oninput="saveCustomModel()"
                            style="display: none; flex: 1; padding: 4px 6px; background: #2a2a2a; color: #eee; border: 1px solid #444; border-radius: 4px;">
                 </div>
@@ -650,12 +650,24 @@
                     <button class="ask-btn" id="askBtn" onclick="askQuestion()">Ask ▶</button>
                 </div>
                 <div class="query-status" id="queryStatus"></div>
+                <div id="gaslMetrics" style="display:none; margin-bottom:8px; padding:8px; background:#1f1f1f; border:1px solid #2d2d2d; border-radius:6px; font-size:12px;">
+                    <div style="display:flex; justify-content:space-between; gap:8px;">
+                        <span>Phase <strong id="gaslMetricPhase">-</strong></span>
+                        <span>Steps <strong id="gaslMetricSteps">0</strong></span>
+                        <span>Nodes <strong id="gaslMetricNodes">0</strong></span>
+                    </div>
+                </div>
                 <div class="gasl-log" id="gaslLog"></div>
                 <div class="answer-box" id="answerBox"></div>
                 <div id="usageBox" style="display:none; margin-top:6px; font-size:11px; color:#888; padding:4px 6px; background:#1f1f1f; border-radius:4px;"></div>
                 <span class="answer-clear" id="answerClear" onclick="clearQueryHighlights()">
                     Clear highlights &amp; answer
                 </span>
+            </div>
+
+            <div class="question-panel">
+                <h3>Demo Scenarios</h3>
+                <div id="demoCards" style="display:grid; gap:8px;"></div>
             </div>
 
             <!-- Node Details -->
@@ -699,6 +711,10 @@
         let physicsEnabled = true;
         let activeFilters = new Set();
         let currentGraphData = null;
+        let _demoCatalog = [];
+        let _activeDemo = null;
+        let _replayTimeouts = [];
+        let _gaslStepCount = 0;
 
         // Entity colors – populated at runtime from /api/colors (auto-assigned on server)
         let ENTITY_COLORS = {};
@@ -712,6 +728,118 @@
             } catch (e) {
                 console.error('Could not fetch color map:', e);
             }
+        }
+
+        function resetGaslMetrics() {
+            _gaslStepCount = 0;
+            document.getElementById('gaslMetricPhase').textContent = '-';
+            document.getElementById('gaslMetricSteps').textContent = '0';
+            document.getElementById('gaslMetricNodes').textContent = '0';
+            document.getElementById('gaslMetrics').style.display = 'none';
+        }
+
+        function updateGaslMetrics(phase) {
+            document.getElementById('gaslMetrics').style.display = 'block';
+            if (phase) document.getElementById('gaslMetricPhase').textContent = phase;
+            document.getElementById('gaslMetricSteps').textContent = String(_gaslStepCount);
+            document.getElementById('gaslMetricNodes').textContent = String(_gaslNodeSet.size);
+        }
+
+        async function loadGraphFromPaths(graphPath, fullGraphPath) {
+            document.getElementById('graphPath').value = graphPath;
+            const resp = await fetch('/api/graph/load', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({path: graphPath, full_graph_path: fullGraphPath || graphPath}),
+            });
+            const data = await resp.json();
+            if (data.error) throw new Error(data.error);
+            await fetchColors();
+            await fetchGraph();
+            await fetchStats();
+            return data;
+        }
+
+        async function fetchDemos() {
+            try {
+                const resp = await fetch('/api/demos');
+                const data = await resp.json();
+                _demoCatalog = data.demos || [];
+                renderDemoCards();
+            } catch (e) {
+                console.error('Could not load demos:', e);
+            }
+        }
+
+        function renderDemoCards() {
+            const container = document.getElementById('demoCards');
+            container.innerHTML = '';
+            _demoCatalog.forEach((demo) => {
+                const card = document.createElement('div');
+                card.style.padding = '8px';
+                card.style.background = '#1f1f1f';
+                card.style.border = '1px solid #2d2d2d';
+                card.style.borderRadius = '6px';
+                card.innerHTML = `
+                    <div style="font-size:12px; font-weight:600; color:#f0f0f0; margin-bottom:4px;">${demo.title}</div>
+                    <div style="font-size:11px; color:#9aa0a6; margin-bottom:6px;">${demo.question}</div>
+                    <div style="font-size:11px; color:#27ae60; margin-bottom:4px;"><strong>GASL edge:</strong> ${demo.why_gasl_wins}</div>
+                    <div style="font-size:11px; color:#e67e22; margin-bottom:8px;"><strong>RAG limit:</strong> ${demo.rag_blind_spot}</div>
+                    <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                        <button class="control-btn" type="button" data-demo-load="${demo.id}">Load</button>
+                        <button class="control-btn" type="button" data-demo-replay="${demo.id}">Replay GASL</button>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+
+            container.querySelectorAll('[data-demo-load]').forEach((btn) => {
+                btn.addEventListener('click', () => loadDemo(btn.dataset.demoLoad, false));
+            });
+            container.querySelectorAll('[data-demo-replay]').forEach((btn) => {
+                btn.addEventListener('click', () => loadDemo(btn.dataset.demoReplay, true));
+            });
+        }
+
+        async function loadDemo(demoId, replayAfterLoad) {
+            try {
+                const resp = await fetch('/api/demos/' + demoId);
+                const demo = await resp.json();
+                if (demo.error) throw new Error(demo.error);
+                _activeDemo = demo;
+                await loadGraphFromPaths(demo.graph_path, demo.full_graph_path);
+                document.getElementById('questionInput').value = demo.question;
+                document.getElementById('queryStatus').textContent =
+                    `${demo.title} loaded · ${demo.metrics.rag_window} node RAG window vs graph-wide GASL aggregation`;
+                if (replayAfterLoad) replayDemo(demo);
+            } catch (e) {
+                document.getElementById('queryStatus').textContent = 'Demo load failed: ' + e.message;
+            }
+        }
+
+        function clearReplayTimeouts() {
+            _replayTimeouts.forEach((id) => clearTimeout(id));
+            _replayTimeouts = [];
+        }
+
+        function replayDemo(demo) {
+            clearReplayTimeouts();
+            clearQueryHighlights();
+            resetGaslMetrics();
+            _activeJobId = 'demo:' + demo.id;
+            document.getElementById('gaslLog').style.display = 'block';
+            document.getElementById('gaslLog').innerHTML = '';
+            let elapsed = 0;
+            demo.replay.forEach((step) => {
+                elapsed += step.delay_ms || 0;
+                const timeoutId = setTimeout(() => {
+                    const payload = {...step.payload, job_id: _activeJobId};
+                    if (step.event === 'gasl_step') handleGaslStep(payload);
+                    if (step.event === 'gasl_highlight') handleGaslHighlight(payload);
+                    if (step.event === 'query_complete') handleQueryComplete(payload);
+                }, elapsed);
+                _replayTimeouts.push(timeoutId);
+            });
         }
 
         // Initialize Socket.IO
@@ -1116,6 +1244,7 @@
             if (!m) return false;
             m = m.toLowerCase();
             if (/^(o1|o3|o4|o5)/.test(m)) return true;
+            if (m.includes('rosalind')) return true;
             if (['gpt-5','gpt-5-mini','gpt-5-nano','gpt5','gpt5mini','gpt5nano'].includes(m)) return true;
             if (m.startsWith('gpt-5.5') || m.startsWith('gpt55')) return true;
             if (m.includes('chat-latest')) return true;
@@ -1201,6 +1330,8 @@
             document.getElementById('effortRow').style.display =
                 isReasoningModel(currentModel) ? 'flex' : 'none';
             updateApiKeyUI();
+            resetGaslMetrics();
+            fetchDemos();
         });
 
         async function askQuestion() {
@@ -1208,7 +1339,9 @@
             if (!question) return;
 
             // Reset UI
+            clearReplayTimeouts();
             clearQueryHighlights();
+            resetGaslMetrics();
             document.getElementById('queryStatus').textContent =
                 _queryMode === 'rag' ? 'Searching…' : 'Starting GASL traversal…';
             document.getElementById('answerBox').style.display = 'none';
@@ -1314,6 +1447,7 @@
         }
 
         function clearQueryHighlights() {
+            clearReplayTimeouts();
             // If in subgraph mode, restore full graph first
             if (_subgraphMode) {
                 _subgraphMode = false;
@@ -1348,6 +1482,7 @@
             document.getElementById('queryStatus').textContent = '';
             document.getElementById('gaslLog').style.display = 'none';
             document.getElementById('gaslLog').innerHTML = '';
+            resetGaslMetrics();
         }
 
         /**
@@ -1495,29 +1630,28 @@
             }
         }
 
-        // SocketIO handlers for GASL streaming
-        socket.on('gasl_step', (data) => {
+        function handleGaslStep(data) {
             if (data.job_id !== _activeJobId) return;
+            _gaslStepCount += 1;
             document.getElementById('queryStatus').textContent =
                 `GASL: ${data.command_type} – ${data.status}`;
+            updateGaslMetrics(data.command_type);
             const log = document.getElementById('gaslLog');
             log.innerHTML += `<div>${data.command}</div>`;
             log.scrollTop = log.scrollHeight;
-        });
+        }
 
-        socket.on('gasl_highlight', (data) => {
+        function handleGaslHighlight(data) {
             if (data.job_id !== _activeJobId) return;
             if (data.nodes && data.nodes.length) {
-                // Build subgraph incrementally – orange while GASL is walking
                 addNodesToLiveSubgraph(data.nodes, '#ff9800');
+                updateGaslMetrics(data.command_type || 'GRAPH');
             }
-        });
+        }
 
-        socket.on('query_complete', (data) => {
+        function handleQueryComplete(data) {
             if (data.job_id !== _activeJobId) return;
-            // Re-colour all touched nodes green (final answer)
             if (data.nodes && data.nodes.length) {
-                // If subgraph is already visible, just recolour in place
                 if (_subgraphMode) {
                     const updates = data.nodes.map(id => {
                         if (!nodesDataset.get(id)) return null;
@@ -1537,13 +1671,18 @@
             const iters = data.iterations || 0;
             document.getElementById('queryStatus').textContent =
                 `Done in ${iters} iteration${iters !== 1 ? 's' : ''} · ${data.nodes ? data.nodes.length : 0} nodes touched`;
-            // Show final answer (replaces any streamed partial)
+            updateGaslMetrics('DONE');
             showAnswer(data.answer);
             showUsage(data.usage);
             document.getElementById('askBtn').disabled = false;
             _activeJobId = null;
             _gaslNodeSet.clear();
-        });
+        }
+
+        // SocketIO handlers for GASL streaming
+        socket.on('gasl_step', handleGaslStep);
+        socket.on('gasl_highlight', handleGaslHighlight);
+        socket.on('query_complete', handleQueryComplete);
 
         // ── GASL Visualization (existing system highlight) ─────────────────────
         function updateGaslVisualization(state) {
