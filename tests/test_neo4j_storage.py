@@ -1,4 +1,5 @@
 import os
+import socket
 import pytest
 import numpy as np
 from functools import wraps
@@ -6,7 +7,18 @@ from nano_graphrag import GraphRAG
 from nano_graphrag._storage import Neo4jStorage
 from nano_graphrag._utils import wrap_embedding_func_with_attrs
 
-if os.environ.get("NANO_GRAPHRAG_TEST_IGNORE_NEO4J", False):
+def _neo4j_reachable() -> bool:
+    url = os.environ.get("NEO4J_URL", "bolt://localhost:7687")
+    hostport = url.split("://", 1)[-1]
+    host, _, port = hostport.partition(":")
+    try:
+        with socket.create_connection((host or "localhost", int(port or "7687")), timeout=1.0):
+            return True
+    except OSError:
+        return False
+
+
+if os.environ.get("NANO_GRAPHRAG_TEST_IGNORE_NEO4J", False) or not _neo4j_reachable():
     pytest.skip("skipping neo4j tests", allow_module_level=True)
 
 
