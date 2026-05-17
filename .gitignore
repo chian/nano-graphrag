@@ -135,6 +135,8 @@ celerybeat.pid
 demo_videos/
 benchmark_results/
 gasl_checkpoints/
+gasl_artifacts/
+tmp/
 .venv
 env/
 venv/

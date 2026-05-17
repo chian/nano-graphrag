@@ -21,7 +21,7 @@ import sys
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterable, List
+from typing import Any, Dict, Iterable, List, Optional
 
 import networkx as nx
 
@@ -292,17 +292,41 @@ def run_gasl(graph_path: str, question: str, api_key: str, model: str, timeout_s
     }
 
 
-def benchmark(graph_paths: List[str], api_key: str, model: str, per_graph: int, gasl_timeout_s: int) -> Dict[str, Any]:
+def _append_bug_log(path: Optional[Path], row: Dict[str, Any]) -> None:
+    if not path:
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(row) + "\n")
+
+
+def benchmark(
+    graph_paths: List[str],
+    api_key: str,
+    model: str,
+    per_graph: int,
+    gasl_timeout_s: int,
+    bug_log_path: Optional[Path] = None,
+) -> Dict[str, Any]:
     rows: List[Dict[str, Any]] = []
+    total_questions = 0
+    for graph_path in graph_paths:
+        total_questions += len(generate_questions(graph_path, per_graph=per_graph))
+    completed = 0
     for graph_path in graph_paths:
         loader = GraphLoader(graph_path)
         questions = generate_questions(graph_path, per_graph=per_graph)
         for spec in questions:
+            completed += 1
+            print(
+                f"[{completed}/{total_questions}] {spec.graph_name} | {spec.family} | {spec.question}",
+                flush=True,
+            )
             rag = run_rag(loader, spec.question, api_key, model)
             gasl = run_gasl(graph_path, spec.question, api_key, model, gasl_timeout_s)
             rag_score = score_answer(rag["answer"], spec.expected)
             gasl_score = score_answer(gasl["answer"], spec.expected)
-            rows.append({
+            row = {
                 "graph": spec.graph_name,
                 "graph_path": graph_path,
                 "family": spec.family,
@@ -314,7 +338,26 @@ def benchmark(graph_paths: List[str], api_key: str, model: str, per_graph: int, 
                 "gasl_score": gasl_score,
                 "delta": gasl_score - rag_score,
                 "metadata": spec.metadata,
-            })
+            }
+            rows.append(row)
+            print(
+                f"    rag={rag_score} gasl={gasl_score} delta={row['delta']} "
+                f"rag_s={rag['latency_s']} gasl_s={gasl['latency_s']}"
+                + (" TIMEOUT" if gasl.get("timeout") else "")
+                + (f" GASL_ERR={gasl.get('error')}" if gasl.get("error") else ""),
+                flush=True,
+            )
+            if gasl.get("timeout") or gasl.get("error"):
+                _append_bug_log(
+                    bug_log_path,
+                    {
+                        "question": spec.question,
+                        "graph": spec.graph_name,
+                        "family": spec.family,
+                        "type": "gasl_timeout" if gasl.get("timeout") else "gasl_error",
+                        "payload": gasl,
+                    },
+                )
 
     wins = [row for row in rows if row["delta"] > 0]
     wins.sort(key=lambda row: (-row["delta"], row["gasl"]["latency_s"], row["question"]))
@@ -336,6 +379,7 @@ def main() -> None:
     parser.add_argument("--model", default="gpt-5.4-mini")
     parser.add_argument("--gasl-timeout", type=int, default=90)
     parser.add_argument("--output", default="")
+    parser.add_argument("--bug-log", default="")
     args = parser.parse_args()
 
     load_env_file(REPO_ROOT / ".viz.local.env")
@@ -350,6 +394,7 @@ def main() -> None:
         model=args.model,
         per_graph=args.per_graph,
         gasl_timeout_s=args.gasl_timeout,
+        bug_log_path=Path(args.bug_log) if args.bug_log else None,
     )
 
     print(json.dumps({
