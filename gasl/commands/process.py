@@ -17,6 +17,7 @@ from ..process_runtime import (
 )
 from ..contracts import make_contract, merge_contract
 from ..process_repair_prompting import format_process_repair_case
+from ..prompt_observations import PromptObservationLogger
 
 
 class ProcessHandler(CommandHandler):
@@ -46,6 +47,7 @@ class ProcessHandler(CommandHandler):
         state_manager=None,
         adapter=None,
         artifact_registry: Optional[DerivedArtifactRegistry] = None,
+        prompt_logger: Optional[PromptObservationLogger] = None,
     ):
         super().__init__(state_store, context_store)
         self.llm_func = llm_func
@@ -63,6 +65,7 @@ class ProcessHandler(CommandHandler):
         self.subtype_router = ProcessSubtypeRouter()
         state_file = getattr(state_store, "state_file", None)
         self.artifact_registry = artifact_registry or DerivedArtifactRegistry(state_file=state_file)
+        self.prompt_logger = prompt_logger
     
     def can_handle(self, command: Command) -> bool:
         return command.command_type == "PROCESS"
@@ -367,8 +370,24 @@ class ProcessHandler(CommandHandler):
         try:
             llm = self._llm_for_interpretation()
             prompt = self._create_interpretation_prompt(data, query=query, instruction=instruction, history=history, incoming_contract=incoming_contract)
+            obs_id = None
+            if self.prompt_logger:
+                obs_id = self.prompt_logger.record_invocation(
+                    prompt_name="process_interpretation",
+                    prompt_text=prompt,
+                    model=getattr(llm, "model", None),
+                    metadata={"query": query, "instruction": instruction},
+                )
             raw = llm.call(prompt)
             parsed = self._parse_interpretation_response(raw)
+            if self.prompt_logger and obs_id:
+                self.prompt_logger.record_outcome(
+                    obs_id,
+                    prompt_name="process_interpretation",
+                    response_text=raw,
+                    parsed=parsed,
+                    labels={"parse_success": bool(parsed)},
+                )
             return parsed
         except Exception as exc:
             print(f"DEBUG: PROCESS interpretation skipped: {exc}")
@@ -416,8 +435,33 @@ class ProcessHandler(CommandHandler):
                 selection=selection,
                 probe_result=probe_result,
             )
+            obs_id = None
+            if self.prompt_logger:
+                obs_id = self.prompt_logger.record_invocation(
+                    prompt_name="process_repair",
+                    prompt_text=prompt,
+                    model=getattr(llm, "model", None),
+                    metadata={
+                        "query": query,
+                        "instruction": instruction,
+                        "probe_result_count": len(probe_result.get("filtered_items") or probe_result.get("processed_items") or []),
+                    },
+                )
             raw = llm.call(prompt)
-            return self._parse_repair_response(raw)
+            parsed = self._parse_repair_response(raw)
+            if self.prompt_logger and obs_id:
+                self.prompt_logger.record_outcome(
+                    obs_id,
+                    prompt_name="process_repair",
+                    response_text=raw,
+                    parsed=parsed,
+                    labels={
+                        "parse_success": bool(parsed),
+                        "current_rows_sufficient": parsed.get("current_rows_sufficient"),
+                        "selector_valid": parsed.get("selector_hint") in {"keep_current", "lexical", "vector", "central", "broaden", "narrow"},
+                    },
+                )
+            return parsed
         except Exception as exc:
             print(f"DEBUG: PROCESS repair skipped: {exc}")
             return None

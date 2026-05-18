@@ -78,6 +78,7 @@ from .commands.iterate import IterateHandler
 from .micro_actions import MicroActionFramework
 from .errors import ExecutionError, ParseError
 from .trace import GASLTraceLogger
+from .prompt_observations import PromptObservationLogger
 
 
 class GASLExecutor:
@@ -101,6 +102,7 @@ class GASLExecutor:
         )
         trace_base_dir = Path(state_file).parent if state_file else Path.cwd()
         self.trace = GASLTraceLogger(trace_base_dir, job_id=job_id)
+        self.prompt_obs = PromptObservationLogger(trace_base_dir, job_id=job_id)
         self.trace.log("executor_init", {
             "model": getattr(llm_func, "model", None),
             "state_file": str(state_file) if state_file else None,
@@ -123,6 +125,7 @@ class GASLExecutor:
                 self.micro_framework,
                 self.state_manager,
                 adapter=adapter,
+                prompt_logger=self.prompt_obs,
             ),
             ClassifyHandler(self.state_store, self.context_store, llm_func, self.state_manager),
             UpdateHandler(self.state_store, self.context_store, self.state_manager),
@@ -331,6 +334,17 @@ class GASLExecutor:
             
             # Create plan prompt
             plan_prompt = self.llm_func.create_plan_prompt(query, schema, current_state.get("variables", {}), history)
+            plan_obs_id = self.prompt_obs.record_invocation(
+                prompt_name="plan_generation",
+                prompt_text=plan_prompt,
+                model=getattr(self.llm_func, "model", None),
+                metadata={
+                    "iteration": iteration,
+                    "query": query,
+                    "history_len": len(history),
+                    "state_var_count": len(current_state.get("variables", {})),
+                },
+            )
             self.trace.log("planner_prompt", {
                 "iteration": iteration,
                 "query": query,
@@ -354,6 +368,14 @@ class GASLExecutor:
                 # Parse JSON response — tolerant of markdown fences / prose
                 plan_json = json.loads(_extract_json(plan_response))
                 plan_json["query"] = query  # Ensure query is set
+                self.prompt_obs.record_outcome(
+                    plan_obs_id,
+                    prompt_name="plan_generation",
+                    response_text=plan_response,
+                    parsed=plan_json,
+                    labels={"parse_success": True},
+                    metadata={"iteration": iteration},
+                )
                 self.trace.log("planner_plan", {
                     "iteration": iteration,
                     "plan": plan_json,
@@ -379,6 +401,12 @@ class GASLExecutor:
                     
                     # Use LLM to validate if query was actually answered
                     validation_prompt = self.llm_func.create_completion_validator_prompt(query, variables)
+                    validator_obs_id = self.prompt_obs.record_invocation(
+                        prompt_name="completion_validator",
+                        prompt_text=validation_prompt,
+                        model=getattr(self.llm_func, "model", None),
+                        metadata={"iteration": iteration, "query": query},
+                    )
                     print(f"DEBUG: Sending completion validation prompt to LLM")
                     self.trace.log("validation_prompt", {
                         "iteration": iteration,
@@ -386,6 +414,13 @@ class GASLExecutor:
                         "variables": variables,
                     })
                     validation_response = self.llm_func.call(validation_prompt).strip().upper()
+                    self.prompt_obs.record_outcome(
+                        validator_obs_id,
+                        prompt_name="completion_validator",
+                        response_text=validation_response,
+                        labels={"validator_yes": validation_response == "YES"},
+                        metadata={"iteration": iteration},
+                    )
                     
                     print(f"DEBUG: Completion validation: {validation_response}")
                     self.trace.log("validation_response", {
@@ -409,7 +444,20 @@ class GASLExecutor:
                         
                         # Create strategy adaptation prompt to help LLM learn from results
                         strategy_prompt = self.llm_func.create_strategy_adaptation_prompt(query, variables, iteration, current_schema, self.state_store.get_state())
+                        strat_obs_id = self.prompt_obs.record_invocation(
+                            prompt_name="strategy_adaptation",
+                            prompt_text=strategy_prompt,
+                            model=getattr(self.llm_func, "model", None),
+                            metadata={"iteration": iteration, "query": query},
+                        )
                         strategy_response = self.llm_func.call(strategy_prompt)
+                        self.prompt_obs.record_outcome(
+                            strat_obs_id,
+                            prompt_name="strategy_adaptation",
+                            response_text=strategy_response,
+                            labels={"generated": True},
+                            metadata={"iteration": iteration},
+                        )
                         print(f"DEBUG: Strategy Analysis (Iteration {iteration}):\n{strategy_response}\n")
                         self.trace.log("strategy_prompt", {
                             "iteration": iteration,
@@ -426,6 +474,13 @@ class GASLExecutor:
                 
             except json.JSONDecodeError:
                 # LLM didn't return valid JSON, try again
+                self.prompt_obs.record_outcome(
+                    plan_obs_id,
+                    prompt_name="plan_generation",
+                    response_text=plan_response,
+                    labels={"parse_success": False},
+                    metadata={"iteration": iteration},
+                )
                 continue
             except Exception as e:
                 # Plan execution failed, try again
