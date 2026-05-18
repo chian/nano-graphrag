@@ -138,6 +138,7 @@ benchmark_results/
 gasl_checkpoints/
 gasl_artifacts/
 tmp/
+archives/
 .venv
 env/
 venv/
