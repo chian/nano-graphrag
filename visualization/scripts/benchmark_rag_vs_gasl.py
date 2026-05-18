@@ -34,6 +34,7 @@ from visualization.query_engine import RagQueryEngine
 from gasl import GASLExecutor
 from gasl.adapters import NetworkXAdapter
 from gasl.llm.argo_bridge import ArgoBridgeLLM
+from gasl.llm.runtime_config import resolve_runtime_llm_config
 
 
 DEFAULT_GRAPHS = [
@@ -232,7 +233,8 @@ def run_rag(loader: GraphLoader, question: str, api_key: str, model: str) -> Dic
 def _run_gasl_worker(graph_path: str, question: str, api_key: str, model: str) -> Dict[str, Any]:
     loader = GraphLoader(graph_path)
     adapter = NetworkXAdapter(loader.graph)
-    llm = ArgoBridgeLLM(model=model, api_key=api_key)
+    runtime_cfg = resolve_runtime_llm_config(explicit_api_key=api_key, explicit_model=model)
+    llm = ArgoBridgeLLM(model=runtime_cfg.model or model, api_key=runtime_cfg.api_key, base_url=runtime_cfg.base_url)
     executor = GASLExecutor(adapter, llm, job_id=f"bench-{int(time.time()*1000)}")
     start = time.perf_counter()
     with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
@@ -393,7 +395,10 @@ def main() -> None:
     args = parser.parse_args()
 
     load_env_file(REPO_ROOT / ".viz.local.env")
-    api_key = os.environ.get("VIZ_API_KEY") or os.environ.get("OPENAI_API_KEY") or os.environ.get("LLM_API_KEY")
+    if os.environ.get("NANOGRAPHRAG_LLM_TRANSPORT", "").strip().lower() == "shim":
+        api_key = os.environ.get("NANOGRAPHRAG_SHIM_TOKEN") or os.environ.get("LLM_API_KEY") or ""
+    else:
+        api_key = os.environ.get("VIZ_API_KEY") or os.environ.get("OPENAI_API_KEY") or os.environ.get("LLM_API_KEY")
     if not api_key:
         raise SystemExit("No API key found. Set VIZ_API_KEY or OPENAI_API_KEY.")
 

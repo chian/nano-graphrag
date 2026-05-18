@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence
 
 from openai import AsyncOpenAI
+from .llm.runtime_config import resolve_runtime_llm_config
 
 
 PROCESS_SUBTYPES = (
@@ -116,7 +117,9 @@ class CandidateSelector:
 
     def __init__(self, graph=None, api_key: Optional[str] = None):
         self.graph = graph
-        self.api_key = api_key or os.getenv("OPENAI_API_KEY") or os.getenv("VIZ_API_KEY")
+        runtime_cfg = resolve_runtime_llm_config(explicit_api_key=api_key or os.getenv("OPENAI_API_KEY") or os.getenv("VIZ_API_KEY"))
+        self.api_key = runtime_cfg.api_key
+        self.base_url = runtime_cfg.base_url
         self._client: Optional[AsyncOpenAI] = None
 
     def select(
@@ -269,7 +272,10 @@ class CandidateSelector:
 
     async def _vector_rank_async(self, data: List[Dict[str, Any]], text: str, top_k: int) -> List[Dict[str, Any]]:
         if self._client is None:
-            self._client = AsyncOpenAI(api_key=self.api_key)
+            client_kwargs = {"api_key": self.api_key}
+            if self.base_url:
+                client_kwargs["base_url"] = self.base_url
+            self._client = AsyncOpenAI(**client_kwargs)
         contents = [self._item_search_text(item)[:2000] for item in data]
         query_resp = await self._client.embeddings.create(model="text-embedding-3-small", input=[text], encoding_format="float")
         item_resp = await self._client.embeddings.create(model="text-embedding-3-small", input=contents, encoding_format="float")
