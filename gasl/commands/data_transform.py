@@ -233,10 +233,20 @@ class DataTransformHandler(CommandHandler):
         if self.state_store.has_variable(result_variable):
             # Update existing state variable
             var_data = self.state_store.get_variable(result_variable)
+            var_type = var_data.get("_meta", {}).get("type") if isinstance(var_data, dict) else None
             if isinstance(var_data, dict) and "items" in var_data:
                 var_data["items"] = result_list
                 self.state_store._save_state()
                 print(f"DEBUG: AGGREGATE - Updated state variable {result_variable} with {len(result_list)} groups")
+            elif var_type == "COUNTER":
+                # Planner often declares counters for eventual counts, but AGGREGATE
+                # returns grouped rows that downstream RANK/JOIN should read from
+                # context, not from the persisted counter slot.
+                self.context_store.set(result_variable, result_list)
+                print(
+                    f"DEBUG: AGGREGATE - Stored {len(result_list)} groups in context as {result_variable} "
+                    f"because declared state variable is COUNTER"
+                )
             else:
                 # If it's not a LIST type, update it directly
                 self.state_store.update_variable(result_variable, result_list)
