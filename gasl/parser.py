@@ -22,6 +22,8 @@ class GASLParser:
             "PROCESS": r"PROCESS\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+(?:with\s+)?([^;]+)(?:\s+AS\s+([a-zA-Z_][a-zA-Z0-9_.]*))?",
             "COUNT": r"COUNT.*AS.*",
             "AGGREGATE": r"AGGREGATE\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+by\s+(.+?)\s+with\s+(.+?)(?:\s+AS\s+([a-zA-Z_][a-zA-Z0-9_.]*))?$",
+            "PROJECT": r"PROJECT\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+GRAIN\s+(node|edge|path|paper|chunk)\s+FIELDS\s+(.+?)(?:\s+KEYS\s+(.+?))?(?:\s+WEIGHT\s+([a-zA-Z_][a-zA-Z0-9_.]*))?(?:\s+(PRESERVE_MULTIPLICITY))?(?:\s+AS\s+([a-zA-Z_][a-zA-Z0-9_.]*))?$",
+            "COLLAPSE": r"COLLAPSE\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+BY\s+(.+?)(?:\s+COUNT\s+AS\s+([a-zA-Z_][a-zA-Z0-9_.]*))?(?:\s+AS\s+([a-zA-Z_][a-zA-Z0-9_.]*))?$",
             "UPDATE": r"UPDATE\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+(?:with\s+)?([^;]+)",
             "ON": r"ON\s+(success|error|empty)\s+do\s+(.+)$",
             
@@ -230,6 +232,23 @@ class GASLParser:
             if len(groups) > 3 and groups[3]:
                 args["result_variable"] = groups[3]
         
+        elif command_type == "PROJECT":
+            args["variable"] = groups[0]
+            args["grain"] = groups[1].strip().lower()
+            args["fields"] = groups[2].strip()
+            args["keys"] = groups[3].strip() if len(groups) > 3 and groups[3] else ""
+            args["weight_field"] = groups[4].strip() if len(groups) > 4 and groups[4] else ""
+            args["preserve_multiplicity"] = bool(len(groups) > 5 and groups[5])
+            if len(groups) > 6 and groups[6]:
+                args["result_variable"] = groups[6]
+
+        elif command_type == "COLLAPSE":
+            args["variable"] = groups[0]
+            args["by_field"] = groups[1].strip()
+            args["weight_field"] = groups[2].strip() if len(groups) > 2 and groups[2] else "occurrence_count"
+            if len(groups) > 3 and groups[3]:
+                args["result_variable"] = groups[3]
+        
         elif command_type == "PIVOT":
             args["variable"] = groups[0]
             args["pivot_field"] = groups[1].strip()
@@ -312,7 +331,7 @@ class GASLParser:
             return self._validate_graph_nav(command)
         elif command.command_type in ["JOIN", "MERGE", "COMPARE"]:
             return self._validate_multi_var(command)
-        elif command.command_type in ["TRANSFORM", "RESHAPE", "AGGREGATE", "PIVOT"]:
+        elif command.command_type in ["TRANSFORM", "RESHAPE", "AGGREGATE", "PIVOT", "PROJECT", "COLLAPSE"]:
             return self._validate_data_transform(command)
         elif command.command_type in ["CALCULATE", "SCORE", "RANK", "WEIGHT"]:
             return self._validate_field_calc(command)
@@ -499,6 +518,10 @@ class GASLParser:
             return "variable" in args and "by_field" in args and "operation" in args
         elif command.command_type == "PIVOT":
             return "variable" in args and "pivot_field" in args and "value_field" in args
+        elif command.command_type == "PROJECT":
+            return "variable" in args and "grain" in args and "fields" in args
+        elif command.command_type == "COLLAPSE":
+            return "variable" in args and "by_field" in args
         return False
     
     def _validate_field_calc(self, command: Command) -> bool:

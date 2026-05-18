@@ -10,7 +10,7 @@ from ..contracts import make_contract, merge_contract
 
 
 class DataTransformHandler(CommandHandler):
-    """Handles data transformation commands: TRANSFORM, RESHAPE, AGGREGATE, PIVOT."""
+    """Handles data transformation commands: TRANSFORM, RESHAPE, AGGREGATE, PIVOT, PROJECT, COLLAPSE."""
     
     def __init__(self, state_store, context_store, llm_func=None, state_manager=None):
         super().__init__(state_store, context_store, state_manager)
@@ -18,7 +18,7 @@ class DataTransformHandler(CommandHandler):
         self.validator = LLMJudgeValidator(llm_func) if llm_func else None
     
     def can_handle(self, command: Command) -> bool:
-        return command.command_type in ["TRANSFORM", "RESHAPE", "AGGREGATE", "PIVOT"]
+        return command.command_type in ["TRANSFORM", "RESHAPE", "AGGREGATE", "PIVOT", "PROJECT", "COLLAPSE"]
     
     def execute(self, command: Command) -> ExecutionResult:
         """Execute data transformation command."""
@@ -31,6 +31,10 @@ class DataTransformHandler(CommandHandler):
                 return self._execute_aggregate(command)
             elif command.command_type == "PIVOT":
                 return self._execute_pivot(command)
+            elif command.command_type == "PROJECT":
+                return self._execute_project(command)
+            elif command.command_type == "COLLAPSE":
+                return self._execute_collapse(command)
             else:
                 return self._create_result(
                     command=command,
@@ -189,6 +193,7 @@ class DataTransformHandler(CommandHandler):
         resolved_by_field = self._resolve_aggregate_field(data, by_field, source_contract)
         
         resolved_metric_field, metric_basis = self._resolve_aggregate_metric(data, operation, source_contract)
+        source_row_weight_field = source_contract.get("row_weight_field", "")
 
         # Perform aggregation
         aggregated_data = {}
@@ -226,7 +231,11 @@ class DataTransformHandler(CommandHandler):
             # Use an effective row weight so grouped counts remain meaningful even
             # when upstream PROCESS has already deduplicated rows down to one row
             # per entity but preserved evidence-bearing fields.
-            row_weight = self._infer_row_weight(item, resolved_metric_field=resolved_metric_field)
+            row_weight = self._infer_row_weight(
+                item,
+                resolved_metric_field=resolved_metric_field,
+                source_row_weight_field=source_row_weight_field,
+            )
             aggregated_data[group_key]["count"] += row_weight
             aggregated_data[group_key]["result"] += row_weight
         
@@ -241,7 +250,9 @@ class DataTransformHandler(CommandHandler):
                 for item in group_data["items"]:
                     metric_value = self._extract_numeric_metric(item, resolved_metric_field)
                     total += metric_value if metric_value is not None else self._infer_row_weight(
-                        item, resolved_metric_field=resolved_metric_field
+                        item,
+                        resolved_metric_field=resolved_metric_field,
+                        source_row_weight_field=source_row_weight_field,
                     )
                 group_data["result"] = total
             elif operation == "avg":
@@ -261,6 +272,10 @@ class DataTransformHandler(CommandHandler):
             scope="current_rows_only",
             usable_by=["RANK", "PROCESS", "SHOW", "SELECT"],
             confidence=0.95,
+            grain_type=source_contract.get("grain_type", ""),
+            grain_keys=source_contract.get("grain_keys", []),
+            multiplicity_preserved=False,
+            row_weight_field="count" if operation == "count" else ("result" if operation == "sum" else ""),
             notes=[
                 f"requested_by_field={by_field}",
                 f"resolved_by_field={resolved_by_field}",
@@ -364,6 +379,9 @@ class DataTransformHandler(CommandHandler):
             if any(self._extract_numeric_metric(item, field) is not None for item in data[:25]):
                 return field, "row_numeric_field"
 
+        if source_contract.get("row_weight_field"):
+            return source_contract.get("row_weight_field", ""), "contract_row_weight"
+
         if operation in {"count", "sum", "avg"}:
             return "", "evidence_weight"
         return "", "none"
@@ -379,8 +397,18 @@ class DataTransformHandler(CommandHandler):
         except Exception:
             return None
 
-    def _infer_row_weight(self, item: Dict[str, Any], *, resolved_metric_field: str = "") -> float:
+    def _infer_row_weight(
+        self,
+        item: Dict[str, Any],
+        *,
+        resolved_metric_field: str = "",
+        source_row_weight_field: str = "",
+    ) -> float:
         """Infer an evidence-bearing row weight for aggregation."""
+        if source_row_weight_field:
+            metric_value = self._extract_numeric_metric(item, source_row_weight_field)
+            if metric_value is not None:
+                return float(metric_value)
         metric_value = self._extract_numeric_metric(item, resolved_metric_field)
         if metric_value is not None:
             return float(metric_value)
@@ -399,6 +427,201 @@ class DataTransformHandler(CommandHandler):
                     return float(len(dict.fromkeys(parts)))
 
         return 1.0
+
+    def _execute_project(self, command: Command) -> ExecutionResult:
+        args = command.args
+        variable = args["variable"]
+        grain = args["grain"]
+        field_specs = self._parse_project_fields(args.get("fields", ""))
+        key_specs = [part.strip() for part in args.get("keys", "").split(",") if part.strip()]
+        weight_field = args.get("weight_field", "")
+        preserve = bool(args.get("preserve_multiplicity", False))
+        result_variable = args.get("result_variable") or variable
+
+        data = self._get_variable_data(variable)
+        if not data:
+            return self._create_result(command=command, status="error",
+                                     error_message=f"Variable {variable} not found or empty")
+        source_contract = self.state_manager.get_variable_contract(variable) if self.state_manager else {}
+
+        projected = []
+        for item in data:
+            grain_rows = self._project_rows_for_grain(item, grain, field_specs)
+            for row in grain_rows:
+                if not row.get("id") and item.get("id"):
+                    row["id"] = item["id"]
+                if not preserve:
+                    dedupe_key = tuple(row.get(key) for key in (key_specs or [alias for _, alias in field_specs]))
+                    row["_collapse_key"] = dedupe_key
+                if weight_field:
+                    row[weight_field] = self._infer_row_weight(item)
+                projected.append(row)
+
+        if not preserve:
+            seen = set()
+            deduped = []
+            for row in projected:
+                key = row.pop("_collapse_key", tuple(sorted(row.items())))
+                if key in seen:
+                    continue
+                seen.add(key)
+                deduped.append(row)
+            projected = deduped
+
+        contract = merge_contract(source_contract, make_contract(
+            payload_kind="projected_rows",
+            data=projected,
+            label_field=field_specs[0][1] if field_specs else "",
+            metric_field=weight_field,
+            scope="current_rows_only",
+            usable_by=["PROCESS", "AGGREGATE", "RANK", "SHOW", "SELECT", "COLLAPSE"],
+            confidence=0.98,
+            grain_type=grain,
+            grain_keys=key_specs or self._default_grain_keys(grain),
+            multiplicity_preserved=preserve,
+            row_weight_field=weight_field,
+            notes=[f"project_from={variable}"],
+        ))
+
+        if self.state_manager:
+            self.state_manager.store_variable_data(
+                result_variable,
+                projected,
+                store_in_state=self.state_store.has_variable(result_variable),
+                store_in_context=True,
+                description=f"Projected rows from {variable}",
+                contract=contract,
+            )
+        else:
+            self.context_store.set(result_variable, projected, contract=contract)
+
+        return self._create_result(
+            command=command,
+            status="success" if projected else "empty",
+            data=projected,
+            count=len(projected),
+            contract=contract,
+            provenance=[self._create_provenance("project", "project", variable=variable, grain=grain)],
+        )
+
+    def _execute_collapse(self, command: Command) -> ExecutionResult:
+        args = command.args
+        variable = args["variable"]
+        by_field = args["by_field"]
+        weight_field = args.get("weight_field") or "occurrence_count"
+        result_variable = args.get("result_variable") or variable
+
+        data = self._get_variable_data(variable)
+        if not data:
+            return self._create_result(command=command, status="error",
+                                     error_message=f"Variable {variable} not found or empty")
+        source_contract = self.state_manager.get_variable_contract(variable) if self.state_manager else {}
+
+        collapsed = {}
+        for item in data:
+            key = self._get_nested_field(item, by_field)
+            if key is None:
+                key = "unknown"
+            if key not in collapsed:
+                collapsed[key] = {
+                    "group_name": str(key),
+                    by_field.split(".")[-1]: key,
+                    "items": [],
+                    weight_field: 0,
+                }
+            collapsed[key]["items"].append(item)
+            collapsed[key][weight_field] += self._infer_row_weight(
+                item, source_row_weight_field=source_contract.get("row_weight_field", "")
+            )
+
+        result_rows = list(collapsed.values())
+        contract = merge_contract(source_contract, make_contract(
+            payload_kind="collapsed_rows",
+            data=result_rows,
+            label_field=by_field.split(".")[-1],
+            metric_field=weight_field,
+            scope="current_rows_only",
+            usable_by=["AGGREGATE", "RANK", "SHOW", "SELECT"],
+            confidence=0.98,
+            grain_type=source_contract.get("grain_type", ""),
+            grain_keys=source_contract.get("grain_keys", []),
+            multiplicity_preserved=False,
+            row_weight_field=weight_field,
+            notes=[f"collapsed_by={by_field}"],
+        ))
+
+        if self.state_manager:
+            self.state_manager.store_variable_data(
+                result_variable,
+                result_rows,
+                store_in_state=self.state_store.has_variable(result_variable),
+                store_in_context=True,
+                description=f"Collapsed rows from {variable}",
+                contract=contract,
+            )
+        else:
+            self.context_store.set(result_variable, result_rows, contract=contract)
+
+        return self._create_result(
+            command=command,
+            status="success" if result_rows else "empty",
+            data=result_rows,
+            count=len(result_rows),
+            contract=contract,
+            provenance=[self._create_provenance("collapse", "collapse", variable=variable, by_field=by_field)],
+        )
+
+    @staticmethod
+    def _parse_project_fields(fields_text: str) -> List[tuple[str, str]]:
+        field_specs: List[tuple[str, str]] = []
+        for raw in [part.strip() for part in fields_text.split(",") if part.strip()]:
+            parts = raw.split(" AS ")
+            if len(parts) == 2:
+                field_specs.append((parts[0].strip(), parts[1].strip()))
+            else:
+                source = raw.strip()
+                field_specs.append((source, source.split(".")[-1]))
+        return field_specs
+
+    @staticmethod
+    def _default_grain_keys(grain: str) -> List[str]:
+        if grain == "edge":
+            return ["src_id", "tgt_id", "relation_type", "path_depth"]
+        if grain == "path":
+            return ["src_id", "tgt_id", "path_depth"]
+        if grain == "paper":
+            return ["paper_id"]
+        if grain == "chunk":
+            return ["chunk_id"]
+        return ["id"]
+
+    def _project_rows_for_grain(
+        self,
+        item: Dict[str, Any],
+        grain: str,
+        field_specs: List[tuple[str, str]],
+    ) -> List[Dict[str, Any]]:
+        base_row = {}
+        for source_path, alias in field_specs:
+            base_row[alias] = self._get_nested_field(item, source_path)
+        if grain == "paper":
+            papers = self._explode_csv_field(item, ["data.source_papers", "source_papers"])
+            if not papers:
+                return [{**base_row, "paper_id": None}]
+            return [{**base_row, "paper_id": paper_id} for paper_id in papers]
+        if grain == "chunk":
+            chunks = self._explode_csv_field(item, ["data.source_chunks", "source_chunks"])
+            if not chunks:
+                return [{**base_row, "chunk_id": None}]
+            return [{**base_row, "chunk_id": chunk_id} for chunk_id in chunks]
+        return [base_row]
+
+    def _explode_csv_field(self, item: Dict[str, Any], candidate_paths: List[str]) -> List[str]:
+        for path in candidate_paths:
+            value = self._get_nested_field(item, path)
+            if isinstance(value, str) and value.strip():
+                return [part.strip() for part in value.split(",") if part.strip()]
+        return []
     
     def _get_nested_field(self, item: Dict, field_path: str) -> Any:
         """Get nested field value using dot notation with automatic path resolution."""

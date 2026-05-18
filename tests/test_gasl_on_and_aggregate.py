@@ -138,6 +138,26 @@ def test_aggregate_sum_prefers_contract_metric_field():
     assert sums["Y"] == 7
 
 
+def test_project_paper_grain_explodes_source_papers():
+    state_store = StateStore()
+    context_store = ContextStore()
+    state_manager = StateManager(state_store, context_store)
+    handler = DataTransformHandler(state_store, context_store, llm_func=None, state_manager=state_manager)
+    rows = [
+        {"id": "n1", "data": {"entity_name": "SARS-COV-2", "source_papers": "p1,p2"}},
+        {"id": "n2", "data": {"entity_name": "INFLUENZA VIRUS", "source_papers": "p3"}},
+    ]
+    context_store.set("walk_rows", rows, contract={"payload_kind": "walk_rows", "grain_type": "edge", "multiplicity_preserved": True})
+    command = executor_command(
+        "PROJECT walk_rows GRAIN paper FIELDS data.entity_name AS entity_name PRESERVE_MULTIPLICITY AS paper_rows"
+    )
+    result = handler.execute(command)
+    assert result.status == "success"
+    assert result.count == 3
+    paper_ids = [row["paper_id"] for row in result.data]
+    assert paper_ids == ["p1", "p2", "p3"]
+
+
 def executor_command(text: str):
     from gasl.parser import GASLParser
 

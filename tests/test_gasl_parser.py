@@ -47,6 +47,28 @@ class TestGASLParser(unittest.TestCase):
             "GRAPHWALK from occupancy_load_nodes follow ADJACENT_TO depth 6 AS occupancy_reachable_graph",
         )
 
+    def test_project_parses_grain_fields_and_result_var(self):
+        cmd = self.parser.parse_command(
+            "PROJECT contains_targets GRAIN edge FIELDS src_id,tgt_id,data.entity_name AS entity_name KEYS src_id,tgt_id PRESERVE_MULTIPLICITY AS pathogen_links"
+        )
+        self.assertEqual(cmd.command_type, "PROJECT")
+        self.assertEqual(cmd.args["variable"], "contains_targets")
+        self.assertEqual(cmd.args["grain"], "edge")
+        self.assertEqual(cmd.args["fields"], "src_id,tgt_id,data.entity_name AS entity_name")
+        self.assertEqual(cmd.args["keys"], "src_id,tgt_id")
+        self.assertTrue(cmd.args["preserve_multiplicity"])
+        self.assertEqual(cmd.args["result_variable"], "pathogen_links")
+
+    def test_collapse_parses_weight_and_result_var(self):
+        cmd = self.parser.parse_command(
+            "COLLAPSE pathogen_links BY entity_name COUNT AS occurrence_count AS unique_pathogens"
+        )
+        self.assertEqual(cmd.command_type, "COLLAPSE")
+        self.assertEqual(cmd.args["variable"], "pathogen_links")
+        self.assertEqual(cmd.args["by_field"], "entity_name")
+        self.assertEqual(cmd.args["weight_field"], "occurrence_count")
+        self.assertEqual(cmd.args["result_variable"], "unique_pathogens")
+
 
 if __name__ == "__main__":
     unittest.main()

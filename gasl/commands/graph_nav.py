@@ -133,6 +133,9 @@ class GraphNavHandler(CommandHandler):
                 scope="current_rows_only",
                 usable_by=["PROCESS", "AGGREGATE", "SHOW", "SELECT"],
                 confidence=0.9,
+                grain_type="edge",
+                grain_keys=["src_id", "tgt_id", "relation_type", "path_depth"],
+                multiplicity_preserved=True,
             )
             self.context_store.set(result_var, walked_data, contract=walk_contract)
             if self.state_store.has_variable(result_var):
@@ -147,6 +150,9 @@ class GraphNavHandler(CommandHandler):
             scope="current_rows_only",
             usable_by=["PROCESS", "AGGREGATE", "SHOW", "SELECT"],
             confidence=0.9,
+            grain_type="edge",
+            grain_keys=["src_id", "tgt_id", "relation_type", "path_depth"],
+            multiplicity_preserved=True,
         )
         self.context_store.set("last_walk_result", walked_data, contract=walk_contract)
         # Compatibility: many plans expect the most recent graph navigation result

@@ -54,6 +54,9 @@ class FindHandler(CommandHandler):
                 scope="current_rows_only",
                 usable_by=["PROCESS", "GRAPHWALK", "AGGREGATE", "SHOW", "SELECT"],
                 confidence=0.95,
+                grain_type="node" if target == "nodes" else ("edge" if target == "edges" else "path"),
+                grain_keys=["id"] if target == "nodes" else (["src_id", "tgt_id", "relation_type"] if target == "edges" else ["path"]),
+                multiplicity_preserved=True,
             )
             # Store result using centralized state manager
             result_key = f"find_{target}_{len(self.context_store.keys())}"

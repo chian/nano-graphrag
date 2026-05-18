@@ -31,6 +31,8 @@ CORE COMMANDS:
     - COUNT person_nodes where starts_with_vowel = false AS non_vowel_count
 - AGGREGATE <var> by <EXACT_FIELD_NAME> with count|sum|avg|min|max
   CRITICAL: The field name must exist in the data (check "Available fields" above)
+- PROJECT <var> GRAIN node|edge|path|paper|chunk FIELDS <field1>[ AS alias],<field2>... [KEYS <field1>,<field2>...] [WEIGHT <field>] [PRESERVE_MULTIPLICITY] [AS <result_var>]
+- COLLAPSE <var> BY <field> [COUNT AS <weight_field>] [AS <result_var>]
 - UPDATE <var> with <source> [operation: replace|delete|merge|append] [where <condition>] - Modifies existing data
 
 FIELD CREATION COMMANDS:
@@ -87,6 +89,8 @@ Remember:
 - Focus on entity_type and relationship_name properties
 - Use PROCESS command for intelligent information filtering based on content analysis (text, descriptions, classifications) and filling new fields with specific information
 - Use AGGREGATE for grouping and counting data
+- Use PROJECT when you need to make the row grain explicit before PROCESS or AGGREGATE
+- Use COLLAPSE only when you intentionally want to deduplicate rows while keeping multiplicity in an explicit weight field
 - Use RANK for prioritizing items
 - Use GRAPHWALK for exploring graph structure
 - Use CLUSTER for finding similar items

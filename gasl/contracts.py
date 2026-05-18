@@ -48,6 +48,10 @@ def make_contract(
     usable_by: Optional[Iterable[str]] = None,
     confidence: float = 1.0,
     strategy: str = "",
+    grain_type: str = "",
+    grain_keys: Optional[Iterable[str]] = None,
+    multiplicity_preserved: Optional[bool] = None,
+    row_weight_field: str = "",
     notes: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     return {
@@ -63,6 +67,10 @@ def make_contract(
         "usable_by": list(usable_by or []),
         "confidence": float(confidence),
         "strategy": strategy,
+        "grain_type": grain_type,
+        "grain_keys": list(grain_keys or []),
+        "multiplicity_preserved": multiplicity_preserved,
+        "row_weight_field": row_weight_field,
         "notes": list(notes or []),
     }
 

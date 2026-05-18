@@ -17,7 +17,7 @@ class FlexibleParser:
             "DECLARE", "FIND", "PROCESS", "CLASSIFY", "UPDATE", "COUNT",
             "SELECT", "SET", "REQUIRE", "ASSERT", "ON", "TRY", "CATCH", "CANCEL",
             "GRAPHWALK", "GRAPHCONNECT", "SUBGRAPH", "GRAPHPATTERN",
-            "JOIN", "MERGE", "COMPARE", "AGGREGATE",
+            "JOIN", "MERGE", "COMPARE", "AGGREGATE", "PROJECT", "COLLAPSE",
             "RANK", "CREATE", "GENERATE",
             "CLUSTER", "GROUP"
         ]
@@ -45,6 +45,8 @@ class FlexibleParser:
             "MERGE": ["with", "AS"],
             "COMPARE": ["with", "AS"],
             "AGGREGATE": ["by", "with", "AS"],
+            "PROJECT": ["GRAIN", "FIELDS", "KEYS", "WEIGHT", "AS"],
+            "COLLAPSE": ["BY", "COUNT", "AS"],
             "RANK": ["by", "AS"],
             "CREATE": ["with", "AS"],
             "GENERATE": ["from", "with", "format", "AS"],
