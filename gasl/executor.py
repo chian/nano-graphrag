@@ -58,7 +58,7 @@ def _extract_json(text: str) -> str:
     return s
 
 
-from .types import PlanObject, Command, ExecutionResult, HistoryEntry, StateSnapshot
+from .types import PlanObject, Command, ExecutionResult, HistoryEntry, StateSnapshot, Provenance
 from .parser import GASLParser
 from .state import StateStore, ContextStore
 from .state_manager import StateManager
@@ -171,8 +171,44 @@ class GASLExecutor:
             
             # Execute commands
             results = []
+            previous_result: Optional[ExecutionResult] = None
             for i, command in enumerate(commands):
                 step_id = f"{plan.plan_id}-step-{i+1}"
+                if command.command_type == "ON":
+                    on_result, nested_result = self._execute_on(command, step_id, previous_result)
+                    results.append(on_result)
+                    self.state_store.add_history_entry(HistoryEntry(
+                        step_id=step_id,
+                        command=command.raw_text,
+                        status=on_result.status,
+                        result_count=on_result.count,
+                        duration_ms=on_result.duration_ms,
+                        timestamp=on_result.timestamp,
+                        error_message=on_result.error_message,
+                        provenance=on_result.provenance,
+                    ))
+                    if nested_result is not None:
+                        results.append(nested_result)
+                        nested_step_id = f"{step_id}.action"
+                        self.state_store.add_history_entry(HistoryEntry(
+                            step_id=nested_step_id,
+                            command=nested_result.command,
+                            status=nested_result.status,
+                            result_count=nested_result.count,
+                            duration_ms=nested_result.duration_ms,
+                            timestamp=nested_result.timestamp,
+                            error_message=nested_result.error_message,
+                            provenance=nested_result.provenance,
+                        ))
+                        previous_result = nested_result
+                        if nested_result.status == "error" and plan.config.get("stop_on_error", True):
+                            break
+                        elif nested_result.status == "empty" and not plan.config.get("continue_on_empty", False):
+                            break
+                    else:
+                        previous_result = on_result
+                    continue
+
                 result = self._execute_command(command, step_id)
                 results.append(result)
                 
@@ -188,6 +224,7 @@ class GASLExecutor:
                     provenance=result.provenance
                 )
                 self.state_store.add_history_entry(history_entry)
+                previous_result = result
                 
                 # Check for early termination
                 if result.status == "error" and plan.config.get("stop_on_error", True):
@@ -204,6 +241,82 @@ class GASLExecutor:
             
         except Exception as e:
             raise ExecutionError(f"Plan execution failed: {e}", plan_json.get("plan_id", "unknown"))
+
+    def _execute_on(
+        self,
+        command: Command,
+        step_id: str,
+        previous_result: Optional[ExecutionResult],
+    ) -> tuple[ExecutionResult, Optional[ExecutionResult]]:
+        """Execute ON control flow by conditionally running its nested action."""
+        start_time = time.time()
+        args = command.args
+        desired_status = args["status"]
+        action_text = args["action"]
+        matched = self._on_condition_matches(desired_status, previous_result)
+        self.trace.log("command_start", {
+            "step_id": step_id,
+            "command_type": "ON",
+            "raw_text": command.raw_text,
+            "args": command.args,
+            "inputs": {
+                "previous_result": {
+                    "status": getattr(previous_result, "status", None),
+                    "count": getattr(previous_result, "count", None),
+                    "data": getattr(previous_result, "data", None),
+                }
+            },
+            "state_keys_before": list(self.state_store.get_state().get("variables", {}).keys()),
+            "context_keys_before": list(self.context_store.keys()),
+        })
+        nested_result = None
+        if matched:
+            nested_command = self.parser.parse_command(action_text)
+            nested_result = self._execute_command(nested_command, f"{step_id}.action")
+        on_result = ExecutionResult(
+            command=command.raw_text,
+            status="success",
+            data={"status": desired_status, "matched": matched, "action": action_text, "triggered": matched},
+            count=1 if matched else 0,
+            duration_ms=int((time.time() - start_time) * 1000),
+            timestamp=datetime.now(),
+            provenance=[
+                Provenance(
+                    source_id="gasl-on",
+                    extraction={"method": "on_condition", "status": desired_status, "matched": matched, "action": action_text},
+                )
+            ],
+        )
+        self.trace.log("command_result", {
+            "step_id": step_id,
+            "command_type": "ON",
+            "status": on_result.status,
+            "count": on_result.count,
+            "error_message": on_result.error_message,
+            "duration_ms": on_result.duration_ms,
+            "data": on_result.data,
+            "contract": on_result.contract,
+            "state_after": self.state_store.get_state().get("variables", {}),
+            "context_keys_after": list(self.context_store.keys()),
+        })
+        return on_result, nested_result
+
+    @staticmethod
+    def _on_condition_matches(desired_status: str, previous_result: Optional[ExecutionResult]) -> bool:
+        if previous_result is None:
+            return False
+        if desired_status == "error":
+            return previous_result.status == "error"
+        is_empty = (
+            previous_result.status == "empty"
+            or previous_result.count == 0
+            or previous_result.data in (None, [], {})
+        )
+        if desired_status == "empty":
+            return is_empty
+        if desired_status == "success":
+            return previous_result.status == "success" and not is_empty
+        return False
     
     def _execute_command(self, command: Command, step_id: str) -> ExecutionResult:
         """Execute a single command."""

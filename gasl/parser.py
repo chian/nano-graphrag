@@ -23,6 +23,7 @@ class GASLParser:
             "COUNT": r"COUNT.*AS.*",
             "AGGREGATE": r"AGGREGATE\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+by\s+(.+?)\s+with\s+(.+?)(?:\s+AS\s+([a-zA-Z_][a-zA-Z0-9_.]*))?$",
             "UPDATE": r"UPDATE\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+(?:with\s+)?([^;]+)",
+            "ON": r"ON\s+(success|error|empty)\s+do\s+(.+)$",
             
             # Graph modification commands
             "ADD_FIELD": r"ADD_FIELD\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+field:\s*([^;]+?)\s*=\s*([a-zA-Z_][a-zA-Z0-9_.]*)",
@@ -155,14 +156,14 @@ class GASLParser:
         elif command_type == "SET":
             args["variable"] = groups[0]
             args["value"] = groups[1].strip()
-        
+
+        elif command_type == "ON":
+            args["status"] = groups[0].strip().lower()
+            args["action"] = groups[1].strip()
+
         elif command_type in ["REQUIRE", "ASSERT"]:
             args["variable"] = groups[0]
             args["condition"] = groups[1].strip()
-        
-        elif command_type == "ON":
-            args["status"] = groups[0]
-            args["action"] = groups[1].strip()
         
         elif command_type in ["TRY", "CATCH", "FINALLY"]:
             args["action"] = groups[0].strip()

@@ -36,6 +36,17 @@ class TestGASLParser(unittest.TestCase):
         self.assertEqual(cmd.args["field"], "count")
         self.assertEqual(cmd.args["order"], "desc")
 
+    def test_on_parses_status_and_action(self):
+        cmd = self.parser.parse_command(
+            "ON empty do GRAPHWALK from occupancy_load_nodes follow ADJACENT_TO depth 6 AS occupancy_reachable_graph"
+        )
+        self.assertEqual(cmd.command_type, "ON")
+        self.assertEqual(cmd.args["status"], "empty")
+        self.assertEqual(
+            cmd.args["action"],
+            "GRAPHWALK from occupancy_load_nodes follow ADJACENT_TO depth 6 AS occupancy_reachable_graph",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

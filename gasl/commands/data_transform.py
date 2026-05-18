@@ -183,14 +183,18 @@ class DataTransformHandler(CommandHandler):
         if not data:
             return self._create_result(command=command, status="error",
                                      error_message=f"Variable {variable} not found or empty")
+        source_contract = {}
+        if self.state_manager:
+            source_contract = self.state_manager.get_variable_contract(variable)
+        resolved_by_field = self._resolve_aggregate_field(data, by_field, source_contract)
         
         # Perform aggregation
         aggregated_data = {}
         group_counter = 0
         
         for item in data:
-            group_key = self._get_nested_field(item, by_field)
-            print(f"DEBUG: AGGREGATE - item: {item}, by_field: {by_field}, group_key: {group_key}")
+            group_key = self._get_nested_field(item, resolved_by_field)
+            print(f"DEBUG: AGGREGATE - item: {item}, by_field: {by_field}, resolved_by_field: {resolved_by_field}, group_key: {group_key}")
             if group_key is None:
                 group_key = "unknown"
             
@@ -200,10 +204,14 @@ class DataTransformHandler(CommandHandler):
                     "group_id": f"group_{group_counter}",
                     "group_name": str(group_key),
                     "group_key": group_key,
+                    by_field: group_key,
+                    resolved_by_field: group_key,
                     "items": [],
                     "item_ids": [],
                     "count": 0
                 }
+                simple_alias = by_field.split(".")[-1]
+                aggregated_data[group_key].setdefault(simple_alias, group_key)
             
             # Add item ID to tracking
             item_id = item.get("id", f"item_{len(aggregated_data[group_key]['items'])}")
@@ -229,19 +237,17 @@ class DataTransformHandler(CommandHandler):
         
         # Convert to list format
         result_list = list(aggregated_data.values())
-        source_contract = {}
-        if self.state_manager:
-            source_contract = self.state_manager.get_variable_contract(variable)
         aggregate_contract = merge_contract(source_contract, make_contract(
             payload_kind="grouped_rows",
             data=result_list,
-            label_field="group_name",
+            label_field=by_field.split(".")[-1] if by_field else "group_name",
             metric_field="count" if operation == "count" else "result",
             ordered=False,
-            order_basis=f"grouped by {by_field}",
+            order_basis=f"grouped by {resolved_by_field}",
             scope="current_rows_only",
             usable_by=["RANK", "PROCESS", "SHOW", "SELECT"],
             confidence=0.95,
+            notes=[f"requested_by_field={by_field}", f"resolved_by_field={resolved_by_field}"],
         ))
         
         # Store aggregated results
@@ -304,6 +310,21 @@ class DataTransformHandler(CommandHandler):
                 print(f"DEBUG: AGGREGATE - LLM Judge validation passed: {validation.get('reason', 'Valid')}")
         
         return result_obj
+
+    def _resolve_aggregate_field(self, data: List[Dict[str, Any]], requested_field: str, source_contract: Dict[str, Any]) -> str:
+        """Resolve the grouping field using row contents and contract metadata."""
+        if not requested_field:
+            return requested_field
+        if any(self._get_nested_field(item, requested_field) is not None for item in data[:25]):
+            return requested_field
+        label_field = source_contract.get("label_field", "")
+        if label_field and any(self._get_nested_field(item, label_field) is not None for item in data[:25]):
+            return label_field
+        if "." not in requested_field:
+            fallback = f"data.{requested_field}"
+            if any(self._get_nested_field(item, fallback) is not None for item in data[:25]):
+                return fallback
+        return requested_field
     
     def _get_nested_field(self, item: Dict, field_path: str) -> Any:
         """Get nested field value using dot notation with automatic path resolution."""
