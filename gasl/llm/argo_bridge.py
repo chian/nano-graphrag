@@ -385,14 +385,23 @@ class ArgoBridgeLLM:
             return "No produced artifacts yet."
         formatted = []
         for art in artifacts[-8:]:
-            formatted.append(
+            parts = [
                 f"- {art.get('variable','')}: {art.get('command_type','')} -> {art.get('payload_kind','')}"
                 f" ({art.get('item_count',0)} items)"
-                + (f", label={art.get('label_field')}" if art.get('label_field') else "")
-                + (f", metric={art.get('metric_field')}" if art.get('metric_field') else "")
-                + (f", grain={art.get('grain_type')}" if art.get('grain_type') else "")
-                + (f", fields={art.get('row_schema', [])[:8]}" if art.get('row_schema') else "")
-            )
+            ]
+            if art.get("label_field"):
+                parts.append(f"label={art.get('label_field')}")
+            if art.get("metric_field"):
+                parts.append(f"metric={art.get('metric_field')}")
+            if art.get("grain_type"):
+                parts.append(f"grain={art.get('grain_type')}")
+            if art.get("row_schema"):
+                parts.append(f"fields={art.get('row_schema', [])[:8]}")
+            if art.get("safe_for"):
+                parts.append(f"safe_for={art.get('safe_for')}")
+            if art.get("semantic_valid") is False:
+                parts.append(f"path_warning={art.get('semantic_reason','')}")
+            formatted.append(", ".join(parts))
         return "\n".join(formatted)
     
     def _format_results(self, results: Dict[str, Any]) -> str:

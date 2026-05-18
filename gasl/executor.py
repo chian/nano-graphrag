@@ -430,6 +430,7 @@ class GASLExecutor:
         if not variable:
             return None
         contract = result.contract or self.state_manager.get_variable_contract(variable, fallback_to_last_nodes=False) or {}
+        semantic_validation = contract.get("semantic_validation", {}) if isinstance(contract, dict) else {}
         return {
             "variable": variable,
             "command_type": command.command_type,
@@ -441,6 +442,9 @@ class GASLExecutor:
             "metric_field": contract.get("metric_field", ""),
             "grain_type": contract.get("grain_type", ""),
             "multiplicity_preserved": contract.get("multiplicity_preserved"),
+            "safe_for": contract.get("usable_by", []),
+            "semantic_valid": semantic_validation.get("semantically_valid"),
+            "semantic_reason": semantic_validation.get("reason", ""),
             "timestamp": result.timestamp.isoformat(),
         }
     

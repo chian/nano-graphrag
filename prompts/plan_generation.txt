@@ -171,10 +171,12 @@ GRAPH-NATIVE PLANNING HEURISTICS:
 - If the query asks for "most frequent", "most common", "top", "rank", "widest range", "broadest", or graph-wide counts, prefer:
   FIND source nodes -> GRAPHWALK exact relation_type -> AGGREGATE/COUNT -> RANK -> SHOW
 - Always bind GRAPHWALK outputs with `AS <result_var>` and use that variable in downstream AGGREGATE/PROCESS commands.
+- Use `Recently Produced Artifacts` aggressively. If an artifact lists `safe_for` and AGGREGATE is absent, or it carries a `path_warning`, do NOT aggregate it directly. Either PROJECT it to the correct grain first or choose a narrower traversal.
 - Avoid PROCESS or ITERATE over large node lists when the answer can be obtained directly from graph edges.
 - Prefer exact graph schema tokens from the query and schema (for example entity_type=RESPIRATORY_INFECTION, relation_type=AFFECTS) instead of paraphrases.
 - For multi-axis breadth questions, prefer multiple GRAPHWALK steps plus AGGREGATE over LLM processing of raw node descriptions.
 - For frequency questions, if a GRAPHWALK or PROCESS result may contain repeated occurrences, use PROJECT with GRAIN edge/path and PRESERVE_MULTIPLICITY before AGGREGATE.
 - Use COLLAPSE only when you intentionally want to deduplicate rows and carry multiplicity forward in an explicit weight field.
+- If a prior GRAPHWALK was semantically weak, repair the walk or narrow the source set before continuing. Do not hide weak traversal semantics behind later PROCESS/AGGREGATE steps.
 
 Use GASL commands to systematically analyze the graph and build up state to answer the query.

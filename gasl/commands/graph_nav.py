@@ -171,22 +171,45 @@ class GraphNavHandler(CommandHandler):
                                                from_variable=from_var, depth=depth)]
         )
         
-        # Validate with LLM judge if available
+        # Dedicated path-semantics validation with source-set context.
         if self.validator and len(walked_data) > 0:
-            validation = self.validator.validate_command_success(
-                command.command_type, command.args, walked_data, len(walked_data)
+            validation = self.validator.validate_graphwalk_semantics(
+                command.args,
+                source_nodes,
+                walked_data,
+                len(walked_data),
+                contract=walk_contract,
             )
-            
-            if not validation.get("valid", True):
-                # The graphwalk validator is advisory only. It frequently
-                # underestimates valid breadth-first traversals because the
-                # result payload is node-centric rather than path-centric.
+            walk_contract["confidence"] = min(
+                float(walk_contract.get("confidence", 0.9)),
+                float(validation.get("confidence", walk_contract.get("confidence", 0.9)) or 0.9),
+            )
+            if validation.get("recommended_payload_kind"):
+                walk_contract["payload_kind"] = validation["recommended_payload_kind"]
+            if validation.get("recommended_grain"):
+                walk_contract["grain_type"] = validation["recommended_grain"]
+            if validation.get("downstream_safe_for"):
+                walk_contract["usable_by"] = list(validation["downstream_safe_for"])
+            notes = list(walk_contract.get("notes", []))
+            notes.append(f"path_semantics: {validation.get('reason', '')}".strip())
+            walk_contract["notes"] = notes
+            walk_contract["semantic_validation"] = validation
+
+            if result_var:
+                self.context_store.set(result_var, walked_data, contract=walk_contract)
+                if self.state_store.has_variable(result_var):
+                    self.state_store.set_variable_contract(result_var, walk_contract)
+            self.context_store.set("last_walk_result", walked_data, contract=walk_contract)
+            self.context_store.set("last_nodes_result", walked_data, contract=walk_contract)
+            result_obj.contract = walk_contract
+
+            if not validation.get("semantically_valid", True):
                 result_obj.error_message = (
-                    f"Validation warning: {validation.get('reason', 'Unknown validation warning')}"
+                    f"Path semantics warning: {validation.get('reason', 'Unknown path semantics warning')}"
                 )
-                print(f"DEBUG: GRAPHWALK - LLM Judge validation warning: {validation}")
+                print(f"DEBUG: GRAPHWALK - path semantics warning: {validation}")
             else:
-                print(f"DEBUG: GRAPHWALK - LLM Judge validation passed: {validation.get('reason', 'Valid')}")
+                print(f"DEBUG: GRAPHWALK - path semantics passed: {validation.get('reason', 'Valid')}")
         
         return result_obj
 

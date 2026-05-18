@@ -2,6 +2,9 @@
 LLM-based validation system for GASL commands.
 """
 
+import json
+import os
+import re
 from typing import Any, Dict, List, Optional
 from .llm.argo_bridge import ArgoBridgeLLM
 
@@ -11,6 +14,18 @@ class LLMJudgeValidator:
     
     def __init__(self, llm_func):
         self.llm_func = llm_func
+
+    def _llm_for_path_semantics(self):
+        if hasattr(self.llm_func, "clone"):
+            current_model = getattr(self.llm_func, "model", "") or ""
+            model = os.getenv("PATH_SEMANTICS_MODEL", "")
+            if not model:
+                if "mini" in current_model.lower():
+                    model = os.getenv("PROCESS_LARGE_MODEL", "gpt-5.5")
+                else:
+                    model = current_model
+            return self.llm_func.clone(model=model, reasoning_effort=os.getenv("PATH_SEMANTICS_REASONING", "high"))
+        return self.llm_func
     
     def validate_command_success(self, command_type: str, command_args: Dict[str, Any], 
                                 result_data: Any, result_count: int) -> Dict[str, Any]:
@@ -252,13 +267,78 @@ Answer with JSON:
 }}"""
         
         return self._get_llm_judgment(prompt)
+
+    def validate_graphwalk_semantics(
+        self,
+        args: Dict[str, Any],
+        source_nodes: Any,
+        result_data: Any,
+        result_count: int,
+        contract: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Dedicated large-model validator for path semantics on GRAPHWALK results."""
+        from_variable = args.get("from_variable", "")
+        relationship_types = args.get("relationship_types", "")
+        depth = args.get("depth", "1")
+        prompt = f"""You are judging GRAPHWALK path semantics.
+
+Goal:
+- walk from source variable '{from_variable}'
+- follow relationship filter '{relationship_types}'
+- depth {depth}
+
+Source sample:
+{self._format_path_sample(source_nodes)}
+
+Walk result sample:
+{self._format_path_sample(result_data)}
+
+Current contract:
+{contract or {}}
+
+Judge the traversal semantically, not just structurally:
+1. Are result rows anchored to the declared source set?
+2. Do the returned rows appear to respect the requested relation semantics?
+3. Is the depth semantics plausible?
+4. Is the output safe for downstream aggregation, or only for display/inspection?
+5. What payload/grain should downstream commands treat this as?
+
+Return strict JSON:
+{{
+  "semantically_valid": true,
+  "reason": "short reason",
+  "anchor_strength": 0.0,
+  "relation_match_strength": 0.0,
+  "depth_match_strength": 0.0,
+  "recommended_payload_kind": "walk_rows|edge_rows|path_rows|node_rows",
+  "recommended_grain": "edge|path|node|chunk|paper",
+  "downstream_safe_for": ["PROCESS", "SHOW", "SELECT"],
+  "repair_hint": "short hint",
+  "confidence": 0.0
+}}"""
+        try:
+            llm = self._llm_for_path_semantics()
+            response = llm.call(prompt)
+            return json.loads(self._extract_json(response))
+        except Exception as e:
+            return {
+                "semantically_valid": True,
+                "reason": f"path semantics validation failed: {e}",
+                "anchor_strength": 0.5,
+                "relation_match_strength": 0.5,
+                "depth_match_strength": 0.5,
+                "recommended_payload_kind": (contract or {}).get("payload_kind", "walk_rows"),
+                "recommended_grain": (contract or {}).get("grain_type", "edge"),
+                "downstream_safe_for": (contract or {}).get("usable_by", ["PROCESS", "SHOW", "SELECT"]),
+                "repair_hint": "",
+                "confidence": 0.5,
+            }
     
     def _get_llm_judgment(self, prompt: str) -> Dict[str, Any]:
         """Get LLM judgment on command success."""
         try:
             response = self.llm_func.call(prompt)
-            import json
-            return json.loads(response)
+            return json.loads(self._extract_json(response))
         except Exception as e:
             return {
                 "valid": True,  # Default to valid if LLM fails
@@ -282,3 +362,46 @@ Answer with JSON:
             return f"Dict with keys: {list(data.keys())}"
         else:
             return str(data)[:200]  # Truncate long strings
+
+    def _format_path_sample(self, data: Any) -> str:
+        if not data:
+            return "No data"
+        rows = data if isinstance(data, list) else [data]
+        sample = [self._flatten_row(row) for row in rows[:6]]
+        return json.dumps(sample, ensure_ascii=True)
+
+    def _flatten_row(self, item: Any, prefix: str = "", depth: int = 0, max_depth: int = 2) -> Dict[str, Any]:
+        flat: Dict[str, Any] = {}
+        if depth > max_depth:
+            return flat
+        if isinstance(item, dict):
+            for key, value in item.items():
+                next_prefix = f"{prefix}.{key}" if prefix else str(key)
+                if isinstance(value, (str, int, float, bool)):
+                    flat[next_prefix] = value
+                elif isinstance(value, dict):
+                    flat.update(self._flatten_row(value, next_prefix, depth + 1, max_depth))
+        return flat
+
+    @staticmethod
+    def _extract_json(text: str) -> str:
+        s = (text or "").strip()
+        if s.startswith("```"):
+            lines = s.splitlines()
+            body = []
+            in_fence = False
+            for line in lines:
+                if line.strip().startswith("```"):
+                    if in_fence:
+                        break
+                    in_fence = True
+                    continue
+                if in_fence:
+                    body.append(line)
+            if body:
+                s = "\n".join(body).strip()
+        if s and s[0] not in "{[":
+            starts = [i for i in (s.find("{"), s.find("[")) if i >= 0]
+            if starts:
+                s = s[min(starts):]
+        return s
