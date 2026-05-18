@@ -188,6 +188,8 @@ class DataTransformHandler(CommandHandler):
             source_contract = self.state_manager.get_variable_contract(variable)
         resolved_by_field = self._resolve_aggregate_field(data, by_field, source_contract)
         
+        resolved_metric_field, metric_basis = self._resolve_aggregate_metric(data, operation, source_contract)
+
         # Perform aggregation
         aggregated_data = {}
         group_counter = 0
@@ -208,7 +210,9 @@ class DataTransformHandler(CommandHandler):
                     resolved_by_field: group_key,
                     "items": [],
                     "item_ids": [],
-                    "count": 0
+                    "row_count": 0,
+                    "count": 0,
+                    "result": 0,
                 }
                 simple_alias = by_field.split(".")[-1]
                 aggregated_data[group_key].setdefault(simple_alias, group_key)
@@ -217,23 +221,33 @@ class DataTransformHandler(CommandHandler):
             item_id = item.get("id", f"item_{len(aggregated_data[group_key]['items'])}")
             aggregated_data[group_key]["item_ids"].append(item_id)
             aggregated_data[group_key]["items"].append(item)
-            aggregated_data[group_key]["count"] += 1
+            aggregated_data[group_key]["row_count"] += 1
+
+            # Use an effective row weight so grouped counts remain meaningful even
+            # when upstream PROCESS has already deduplicated rows down to one row
+            # per entity but preserved evidence-bearing fields.
+            row_weight = self._infer_row_weight(item, resolved_metric_field=resolved_metric_field)
+            aggregated_data[group_key]["count"] += row_weight
+            aggregated_data[group_key]["result"] += row_weight
         
         # Apply operation
         for group_key, group_data in aggregated_data.items():
             if operation == "count":
                 group_data["result"] = group_data["count"]
             elif operation == "sum":
-                # Sum numeric fields
-                total = 0
+                # Sum a resolved numeric metric when present, otherwise fall back
+                # to the same evidence-weight heuristic used for count.
+                total = 0.0
                 for item in group_data["items"]:
-                    for key, value in item.items():
-                        if isinstance(value, (int, float)):
-                            total += value
+                    metric_value = self._extract_numeric_metric(item, resolved_metric_field)
+                    total += metric_value if metric_value is not None else self._infer_row_weight(
+                        item, resolved_metric_field=resolved_metric_field
+                    )
                 group_data["result"] = total
             elif operation == "avg":
-                # Average of counts or numeric fields
-                group_data["result"] = group_data["count"] / len(group_data["items"]) if group_data["items"] else 0
+                group_data["result"] = (
+                    group_data["count"] / group_data["row_count"] if group_data["row_count"] else 0
+                )
         
         # Convert to list format
         result_list = list(aggregated_data.values())
@@ -247,7 +261,12 @@ class DataTransformHandler(CommandHandler):
             scope="current_rows_only",
             usable_by=["RANK", "PROCESS", "SHOW", "SELECT"],
             confidence=0.95,
-            notes=[f"requested_by_field={by_field}", f"resolved_by_field={resolved_by_field}"],
+            notes=[
+                f"requested_by_field={by_field}",
+                f"resolved_by_field={resolved_by_field}",
+                f"metric_basis={metric_basis}",
+                f"resolved_metric_field={resolved_metric_field}",
+            ],
         ))
         
         # Store aggregated results
@@ -325,6 +344,61 @@ class DataTransformHandler(CommandHandler):
             if any(self._get_nested_field(item, fallback) is not None for item in data[:25]):
                 return fallback
         return requested_field
+
+    def _resolve_aggregate_metric(
+        self,
+        data: List[Dict[str, Any]],
+        operation: str,
+        source_contract: Dict[str, Any],
+    ) -> tuple[str, str]:
+        """Resolve the best numeric/evidence metric to aggregate."""
+        metric_field = source_contract.get("metric_field", "")
+        if metric_field and any(self._extract_numeric_metric(item, metric_field) is not None for item in data[:25]):
+            return metric_field, "contract_metric"
+
+        numeric_candidates = []
+        if data:
+            sample_fields = list(data[0].keys())
+            numeric_candidates = [field for field in sample_fields if field not in {"count", "row_count", "result"}]
+        for field in numeric_candidates:
+            if any(self._extract_numeric_metric(item, field) is not None for item in data[:25]):
+                return field, "row_numeric_field"
+
+        if operation in {"count", "sum", "avg"}:
+            return "", "evidence_weight"
+        return "", "none"
+
+    def _extract_numeric_metric(self, item: Dict[str, Any], field_path: str) -> Any:
+        if not field_path:
+            return None
+        value = self._get_nested_field(item, field_path)
+        if isinstance(value, (int, float)):
+            return value
+        try:
+            return float(value)
+        except Exception:
+            return None
+
+    def _infer_row_weight(self, item: Dict[str, Any], *, resolved_metric_field: str = "") -> float:
+        """Infer an evidence-bearing row weight for aggregation."""
+        metric_value = self._extract_numeric_metric(item, resolved_metric_field)
+        if metric_value is not None:
+            return float(metric_value)
+
+        for list_field in ("item_ids", "items"):
+            value = item.get(list_field)
+            if isinstance(value, list) and value:
+                return float(len(value))
+
+        # Graph-linked rows often preserve evidence multiplicity in source metadata.
+        for path in ("data.source_chunks", "data.source_papers", "source_chunks", "source_papers"):
+            value = self._get_nested_field(item, path)
+            if isinstance(value, str) and value.strip():
+                parts = [part.strip() for part in value.split(",") if part.strip()]
+                if parts:
+                    return float(len(dict.fromkeys(parts)))
+
+        return 1.0
     
     def _get_nested_field(self, item: Dict, field_path: str) -> Any:
         """Get nested field value using dot notation with automatic path resolution."""

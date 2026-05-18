@@ -68,6 +68,76 @@ def test_aggregate_falls_back_to_contract_label_field_and_preserves_requested_al
     assert all("pattern_name" in row for row in result.data)
 
 
+def test_aggregate_count_uses_evidence_weight_for_deduped_rows():
+    state_store = StateStore()
+    context_store = ContextStore()
+    state_manager = StateManager(state_store, context_store)
+    handler = DataTransformHandler(state_store, context_store, llm_func=None, state_manager=state_manager)
+    rows = [
+        {
+            "id": "n1",
+            "entity_name": "SARS-COV-2",
+            "data": {
+                "entity_name": "SARS-COV-2",
+                "source_papers": "p1,p2,p3",
+            },
+        },
+        {
+            "id": "n2",
+            "entity_name": "INFLUENZA VIRUS",
+            "data": {
+                "entity_name": "INFLUENZA VIRUS",
+                "source_papers": "p4",
+            },
+        },
+    ]
+    context_store.set(
+        "pathogen_rows",
+        rows,
+        contract={
+            "payload_kind": "filtered_rows",
+            "label_field": "entity_name",
+            "row_schema": ["id", "entity_name", "data.source_papers"],
+        },
+    )
+    command = executor_command(
+        "AGGREGATE pathogen_rows by entity_name with count AS pathogen_counts"
+    )
+    result = handler.execute(command)
+    assert result.status == "success"
+    counts = {row["group_name"]: row["count"] for row in result.data}
+    assert counts["SARS-COV-2"] == 3
+    assert counts["INFLUENZA VIRUS"] == 1
+
+
+def test_aggregate_sum_prefers_contract_metric_field():
+    state_store = StateStore()
+    context_store = ContextStore()
+    state_manager = StateManager(state_store, context_store)
+    handler = DataTransformHandler(state_store, context_store, llm_func=None, state_manager=state_manager)
+    rows = [
+        {"id": "a", "entity_name": "X", "count_value": 2},
+        {"id": "b", "entity_name": "X", "count_value": 5},
+        {"id": "c", "entity_name": "Y", "count_value": 7},
+    ]
+    context_store.set(
+        "dose_rows",
+        rows,
+        contract={
+            "payload_kind": "filtered_rows",
+            "label_field": "entity_name",
+            "metric_field": "count_value",
+            "row_schema": ["id", "entity_name", "count_value"],
+        },
+    )
+    command = executor_command("AGGREGATE dose_rows by entity_name with sum AS dose_counts")
+    result = handler.execute(command)
+    assert result.status == "success"
+    sums = {row["group_name"]: row["result"] for row in result.data}
+    assert sums["X"] == 7
+    assert sums["Y"] == 7
+
+
 def executor_command(text: str):
     from gasl.parser import GASLParser
 
