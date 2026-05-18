@@ -138,7 +138,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--graph", action="append", dest="graphs", default=[])
     parser.add_argument("--per-graph", type=int, default=10)
-    parser.add_argument("--model", default="gpt-4.1-mini")
+    parser.add_argument("--model", default="gpt-5.5")
     parser.add_argument("--heartbeat", type=int, default=1800)
     parser.add_argument("--run-id", default="")
     parser.add_argument("--breadth-only", action="store_true")

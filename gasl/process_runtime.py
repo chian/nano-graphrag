@@ -83,8 +83,8 @@ class ProcessSubtypeRouter:
 
     def routed_model(self, current_model: str, subtype: str) -> str:
         model = (current_model or "").strip()
-        mini_default = os.getenv("PROCESS_MINI_MODEL", "gpt-4.1-mini")
-        large_default = os.getenv("PROCESS_LARGE_MODEL", model or "gpt-4.1")
+        mini_default = os.getenv("PROCESS_MINI_MODEL", "gpt-5.5")
+        large_default = os.getenv("PROCESS_LARGE_MODEL", model or "gpt-5.5")
         if subtype in {"semantic_filter", "field_derivation"}:
             return mini_default
         if subtype == "cross_node_synthesis" and "mini" in model:
