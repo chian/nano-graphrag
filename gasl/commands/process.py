@@ -2,6 +2,8 @@
 PROCESS command handler.
 """
 
+import os
+import re
 from typing import Any, List, Dict, Optional
 from .base import CommandHandler
 from ..types import Command, ExecutionResult, Provenance
@@ -20,6 +22,18 @@ class ProcessHandler(CommandHandler):
 
     PROBE_THRESHOLD = 40
     MICROACTION_THRESHOLD = 24
+    TOP_K_WORDS = {
+        "one": 1,
+        "two": 2,
+        "three": 3,
+        "four": 4,
+        "five": 5,
+        "six": 6,
+        "seven": 7,
+        "eight": 8,
+        "nine": 9,
+        "ten": 10,
+    }
 
     def __init__(
         self,
@@ -81,7 +95,13 @@ class ProcessHandler(CommandHandler):
             print(f"🔍 PROCESS DEBUG: Data dict keys: {list(data.keys())}")
 
         query = (self.state_store.get_state().get("query") or "").strip()
+        history = self.state_store.get_state().get("history", [])
         initial_subtype = self.subtype_router.infer(instruction)
+        interpretation = (
+            self._interpret_process_context(data, query=query, instruction=instruction, history=history)
+            if isinstance(data, list) and data
+            else None
+        )
 
         selection = (
             self.selector.select(
@@ -96,9 +116,11 @@ class ProcessHandler(CommandHandler):
 
         diagnostics = selection.diagnostics if selection else {"strategy": "single"}
         subtype = initial_subtype
-        final_instruction = instruction
+        final_instruction = self._apply_interpretation(instruction, interpretation)
         final_data = data
         diagnostics["routed_model"] = getattr(self._llm_for_subtype(initial_subtype), "model", getattr(self.llm_func, "model", None))
+        if interpretation:
+            diagnostics["interpretation"] = interpretation
 
         if selection and len(data) > self.PROBE_THRESHOLD:
             probe_result = self._run_process_batch(
@@ -109,19 +131,27 @@ class ProcessHandler(CommandHandler):
             )
             subtype = self.subtype_router.confirm_from_result(initial_subtype, probe_result)
             final_instruction = self.selector.refine_instruction(instruction, probe_result, subtype)
-            final_data = self.selector.widen(
-                data,
-                probe_result,
-                selection,
-                query=query,
-                instruction=instruction,
-                subtype=subtype,
-            )
             diagnostics["confirmed_subtype"] = subtype
             diagnostics["refined_instruction"] = final_instruction
             diagnostics["probe_result_count"] = len(
                 probe_result.get("filtered_items") or probe_result.get("processed_items") or []
             )
+            if self._should_stop_after_probe(data, instruction, probe_result, interpretation):
+                top_k = self._requested_top_k(instruction) or 3
+                final_data = self._ranked_head_window(data, top_k, interpretation)
+                final_instruction = self._materialization_instruction(final_instruction, top_k)
+                diagnostics["stopped_after_probe"] = True
+                diagnostics["stop_reason"] = "ranked_topk_converged"
+                diagnostics["final_window_size"] = len(final_data)
+            else:
+                final_data = self.selector.widen(
+                    data,
+                    probe_result,
+                    selection,
+                    query=query,
+                    instruction=instruction,
+                    subtype=subtype,
+                )
         elif selection:
             final_data = selection.final_items
 
@@ -258,6 +288,41 @@ class ProcessHandler(CommandHandler):
                 return self.llm_func.clone(reasoning_effort=reasoning_effort)
         return self.llm_func
 
+    def _llm_for_interpretation(self):
+        if hasattr(self.llm_func, "clone"):
+            current_model = getattr(self.llm_func, "model", "")
+            large_model = self.subtype_router.routed_model(current_model, "cross_node_synthesis")
+            reasoning_effort = os.getenv("PROCESS_INTERPRET_REASONING", "high")
+            if large_model != current_model or getattr(self.llm_func, "reasoning_effort", None) != reasoning_effort:
+                return self.llm_func.clone(model=large_model, reasoning_effort=reasoning_effort)
+        return self.llm_func
+
+    def _interpret_process_context(
+        self,
+        data: List[Dict[str, Any]],
+        *,
+        query: str,
+        instruction: str,
+        history: List[Dict[str, Any]],
+    ) -> Optional[Dict[str, Any]]:
+        try:
+            llm = self._llm_for_interpretation()
+            prompt = self._create_interpretation_prompt(data, query=query, instruction=instruction, history=history)
+            raw = llm.call(prompt)
+            parsed = self._parse_interpretation_response(raw)
+            return parsed
+        except Exception as exc:
+            print(f"DEBUG: PROCESS interpretation skipped: {exc}")
+            return None
+
+    def _apply_interpretation(self, instruction: str, interpretation: Optional[Dict[str, Any]]) -> str:
+        if not interpretation:
+            return instruction
+        contract = (interpretation.get("output_contract") or "").strip()
+        if not contract:
+            return instruction
+        return f"{instruction}\nContract: {contract}"
+
     def _record_artifact_candidate(
         self,
         *,
@@ -388,6 +453,50 @@ Be thorough in your analysis and provide clear reasoning for each decision.
 """
         return prompt
 
+    def _create_interpretation_prompt(
+        self,
+        data: List[Dict[str, Any]],
+        *,
+        query: str,
+        instruction: str,
+        history: List[Dict[str, Any]],
+    ) -> str:
+        sample_rows = [self._flatten_row(row) for row in data[:8]]
+        history_tail = history[-4:] if history else []
+        return f"""You are interpreting the current PROCESS context.
+
+User query:
+{query}
+
+Current PROCESS instruction:
+{instruction}
+
+Recent workflow history:
+{history_tail}
+
+Sample current rows (flattened):
+{sample_rows}
+
+Return strict JSON with this schema:
+{{
+  "label_field": "<dotted field path or empty string>",
+  "metric_field": "<dotted field path or empty string>",
+  "ordered": true,
+  "order_basis": "<what the current row order most likely means>",
+  "order_field": "<dotted field path or empty string>",
+  "order_direction": "asc|desc|unknown",
+  "scope": "current_rows_only|needs_recompute|unknown",
+  "output_contract": "<short imperative contract for the PROCESS step>",
+  "confidence": 0.0
+}}
+
+Rules:
+- Base the answer only on the current rows and recent workflow history.
+- If the rows already look ordered or ranked, say so explicitly.
+- If the PROCESS should only materialize from the current rows, set scope=current_rows_only.
+- Do not answer the user query. Interpret the data shape and instruction only.
+"""
+
     def _format_data_for_llm(self, data: Any) -> str:
         """Format data for LLM consumption."""
         if not isinstance(data, list):
@@ -409,7 +518,7 @@ Be thorough in your analysis and provide clear reasoning for each decision.
                     entity_type = node_data.get('entity_type', 'Unknown')
                 else:
                     # Handle flat structure
-                    name = item.get('name', node_id)
+                    name = self._primary_label(item) or node_id
                     description = item.get('description', 'No description')
                     entity_type = item.get('entity_type', 'Unknown')
                 
@@ -417,12 +526,194 @@ Be thorough in your analysis and provide clear reasoning for each decision.
                 formatted.append(f"  Name: {name}")
                 formatted.append(f"  Entity Type: {entity_type}")
                 formatted.append(f"  Description: {description}")
+                for field_name, field_value in self._scalar_preview(item):
+                    formatted.append(f"  {field_name}: {field_value}")
                 formatted.append("")
         
         if len(data) > 20:
             formatted.append(f"... and {len(data) - 20} more items")
         
         return "\n".join(formatted)
+
+    @classmethod
+    def _requested_top_k(cls, instruction: str) -> Optional[int]:
+        text = (instruction or "").lower()
+        numeric = re.search(r"\btop\s+(\d+)\b", text)
+        if numeric:
+            return int(numeric.group(1))
+        for word, value in cls.TOP_K_WORDS.items():
+            if re.search(rf"\btop\s+{word}\b", text):
+                return value
+        return None
+
+    @staticmethod
+    def _item_labels(item: Dict[str, Any], interpretation: Optional[Dict[str, Any]] = None) -> set[str]:
+        if not isinstance(item, dict):
+            return set()
+        labels = set()
+        label_field = (interpretation or {}).get("label_field", "")
+        if label_field:
+            value = ProcessHandler._get_by_path(item, label_field)
+            if value is not None:
+                text = str(value).strip().lower()
+                if text:
+                    labels.add(text)
+        for _, value in ProcessHandler._iter_scalar_fields(item):
+            label = str(value).strip().lower()
+            if label:
+                labels.add(label)
+        return labels
+
+    @staticmethod
+    def _iter_scalar_fields(item: Any, prefix: str = "", *, depth: int = 0, max_depth: int = 2):
+        if depth > max_depth:
+            return
+        if isinstance(item, dict):
+            for key, value in item.items():
+                next_prefix = f"{prefix}.{key}" if prefix else str(key)
+                if isinstance(value, (str, int, float, bool)):
+                    yield next_prefix, value
+                elif isinstance(value, dict):
+                    yield from ProcessHandler._iter_scalar_fields(value, next_prefix, depth=depth + 1, max_depth=max_depth)
+        elif isinstance(item, (str, int, float, bool)):
+            yield prefix or "value", item
+
+    @staticmethod
+    def _scalar_preview(item: Dict[str, Any], *, limit: int = 6) -> List[tuple[str, Any]]:
+        preview = []
+        for field_name, field_value in ProcessHandler._iter_scalar_fields(item):
+            if field_name in {"id", "description"}:
+                continue
+            preview.append((field_name, field_value))
+            if len(preview) >= limit:
+                break
+        return preview
+
+    @staticmethod
+    def _primary_label(item: Dict[str, Any]) -> str:
+        for field_name, field_value in ProcessHandler._iter_scalar_fields(item):
+            if field_name.endswith(".description") or field_name == "description":
+                continue
+            text = str(field_value).strip()
+            if text and len(text) <= 120:
+                return text
+        return ""
+
+    @staticmethod
+    def _flatten_row(item: Dict[str, Any], *, limit: int = 16) -> Dict[str, Any]:
+        flattened: Dict[str, Any] = {}
+        for field_name, field_value in ProcessHandler._iter_scalar_fields(item):
+            flattened[field_name] = field_value
+            if len(flattened) >= limit:
+                break
+        return flattened
+
+    @staticmethod
+    def _parse_interpretation_response(text: str) -> Dict[str, Any]:
+        try:
+            import json
+            payload = json.loads(ProcessHandler._strip_json_fences(text))
+            return {
+                "label_field": str(payload.get("label_field", "") or ""),
+                "metric_field": str(payload.get("metric_field", "") or ""),
+                "ordered": bool(payload.get("ordered", False)),
+                "order_basis": str(payload.get("order_basis", "") or ""),
+                "order_field": str(payload.get("order_field", "") or ""),
+                "order_direction": str(payload.get("order_direction", "unknown") or "unknown"),
+                "scope": str(payload.get("scope", "unknown") or "unknown"),
+                "output_contract": str(payload.get("output_contract", "") or ""),
+                "confidence": float(payload.get("confidence", 0.0) or 0.0),
+            }
+        except Exception:
+            return {
+                "label_field": "",
+                "metric_field": "",
+                "ordered": False,
+                "order_basis": "",
+                "order_field": "",
+                "order_direction": "unknown",
+                "scope": "unknown",
+                "output_contract": "",
+                "confidence": 0.0,
+            }
+
+    @staticmethod
+    def _get_by_path(item: Any, path: str) -> Any:
+        if not path:
+            return None
+        current = item
+        for part in path.split("."):
+            if isinstance(current, dict) and part in current:
+                current = current[part]
+            else:
+                return None
+        return current
+
+    @classmethod
+    def _rows_are_ranked(cls, data: Any, interpretation: Optional[Dict[str, Any]] = None) -> bool:
+        if not isinstance(data, list):
+            return False
+        if interpretation and interpretation.get("ordered") and interpretation.get("scope") == "current_rows_only":
+            return True
+        return any(isinstance(item, dict) and "rank" in item for item in data)
+
+    @classmethod
+    def _ranked_head_window(
+        cls,
+        data: List[Dict[str, Any]],
+        top_k: int,
+        interpretation: Optional[Dict[str, Any]] = None,
+    ) -> List[Dict[str, Any]]:
+        rows = [item for item in data if isinstance(item, dict)]
+        order_field = (interpretation or {}).get("order_field", "")
+        order_direction = (interpretation or {}).get("order_direction", "unknown")
+        if order_field:
+            def sort_key(item):
+                value = cls._get_by_path(item, order_field)
+                try:
+                    return float(value)
+                except Exception:
+                    return str(value)
+            ranked = sorted(rows, key=sort_key, reverse=(order_direction == "desc"))
+        else:
+            ranked = sorted(rows, key=lambda item: int(item.get("rank", 10**9)))
+        window = max(top_k * 2, top_k + 3)
+        return ranked[: min(len(ranked), window)]
+
+    @classmethod
+    def _should_stop_after_probe(
+        cls,
+        data: Any,
+        instruction: str,
+        probe_result: Dict[str, Any],
+        interpretation: Optional[Dict[str, Any]] = None,
+    ) -> bool:
+        top_k = cls._requested_top_k(instruction)
+        if not top_k or not cls._rows_are_ranked(data, interpretation):
+            return False
+        if interpretation and interpretation.get("confidence", 0.0) < 0.5:
+            return False
+        ranked_head = cls._ranked_head_window(data, top_k, interpretation)[:top_k]
+        if len(ranked_head) < top_k:
+            return False
+        positives = probe_result.get("filtered_items") or probe_result.get("processed_items") or []
+        if not positives:
+            return False
+        positive_labels = set().union(*(cls._item_labels(item, interpretation) for item in positives if isinstance(item, dict)))
+        if not positive_labels:
+            return False
+        for row in ranked_head:
+            if cls._item_labels(row, interpretation).isdisjoint(positive_labels):
+                return False
+        return True
+
+    @classmethod
+    def _materialization_instruction(cls, instruction: str, top_k: int) -> str:
+        return (
+            f"{instruction}\n"
+            f"The input rows are already globally ranked. Materialize exactly the top {top_k} rows "
+            "from this ranked list, preserve their order, and do not expand beyond the provided ranked window."
+        )
     
     @staticmethod
     def _strip_json_fences(text: str) -> str:
