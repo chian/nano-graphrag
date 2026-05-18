@@ -316,7 +316,16 @@ class CandidateSelector:
         seen = set()
         for group in groups:
             for item in group:
-                node_id = item.get("id") if isinstance(item, dict) else id(item)
+                if isinstance(item, dict):
+                    node_id = (
+                        item.get("id")
+                        or item.get("group_id")
+                        or item.get("group_key")
+                        or item.get("name")
+                        or id(item)
+                    )
+                else:
+                    node_id = id(item)
                 if node_id in seen:
                     continue
                 seen.add(node_id)
@@ -328,6 +337,14 @@ class CandidateSelector:
         if not isinstance(item, dict):
             return str(item).lower()
         parts = [str(item.get("id", ""))]
+        parts.extend([
+            str(item.get("group_id", "")),
+            str(item.get("group_name", "")),
+            str(item.get("group_key", "")),
+            str(item.get("count", "")),
+            str(item.get("result", "")),
+            str(item.get("name", "")),
+        ])
         if isinstance(item.get("data"), dict):
             data = item["data"]
             parts.extend([
