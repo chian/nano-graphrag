@@ -270,10 +270,9 @@ class NetworkXAdapter(GraphAdapter):
         """Get available edge types (relationship names)."""
         types = set()
         for _, _, data in self.graph.edges(data=True):
-            relationship_name = data.get("relationship_name")
+            relationship_name = data.get("relationship_name") or data.get("relation_type")
             if relationship_name:
-                # Remove quotes if present
-                clean_type = relationship_name.strip('"')
+                clean_type = str(relationship_name).strip('"').strip("'")
                 types.add(clean_type)
         return list(types)
     

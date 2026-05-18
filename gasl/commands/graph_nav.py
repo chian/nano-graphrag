@@ -2,6 +2,7 @@
 Graph Navigation command handlers.
 """
 
+import re
 from typing import Any, List, Dict
 from .base import CommandHandler
 from ..types import Command, ExecutionResult, Provenance
@@ -67,7 +68,7 @@ class GraphNavHandler(CommandHandler):
         
         # Perform graph walk with memory limit
         walked_data = []
-        visited_ids = set()
+        visited_hops = set()
         max_nodes = 10000  # Limit to prevent memory issues
         follow_filters = self._normalize_follow_types(follow_types)
         
@@ -89,10 +90,13 @@ class GraphNavHandler(CommandHandler):
                         for edge in edges[:50]:  # Limit edges per node to 50
                             if len(walked_data) >= max_nodes:
                                 break
-                            edge_rel = (edge.get("data", {}).get("relation_type")
-                                        or edge.get("data", {}).get("relationship_name")
-                                        or "")
-                            if follow_filters and str(edge_rel).strip('"').strip("'").lower() not in follow_filters:
+                            edge_rel = (
+                                edge.get("data", {}).get("relation_type")
+                                or edge.get("data", {}).get("relationship_name")
+                                or ""
+                            )
+                            canonical_edge_rel = self._canonicalize_relation_token(edge_rel)
+                            if follow_filters and canonical_edge_rel not in follow_filters:
                                 continue
 
                             target_nodes = self.adapter.find_nodes({"id_filter": edge["target"]})
@@ -100,10 +104,23 @@ class GraphNavHandler(CommandHandler):
                                 continue
                             target_node = target_nodes[0]
                             target_id = target_node["id"]
-                            if target_id in visited_ids:
+                            hop_key = (current_node["id"], target_id, step + 1, canonical_edge_rel)
+                            if hop_key in visited_hops:
                                 continue
-                            visited_ids.add(target_id)
-                            next_nodes.append(target_node)
+                            visited_hops.add(hop_key)
+                            enriched_target = {
+                                **target_node,
+                                "src_id": current_node["id"],
+                                "tgt_id": target_id,
+                                "data": {
+                                    **target_node.get("data", {}),
+                                    "src_id": current_node["id"],
+                                    "tgt_id": target_id,
+                                    "relation_type": edge_rel,
+                                    "path_depth": step + 1,
+                                },
+                            }
+                            next_nodes.append(enriched_target)
                     current_nodes = next_nodes
                 walked_data.extend(current_nodes)
         
@@ -157,7 +174,18 @@ class GraphNavHandler(CommandHandler):
             key, value = text.split("=", 1)
             if key.strip().lower() in {"relation_type", "relationship_name"}:
                 text = value
-        return [part.strip().strip('"').strip("'").lower() for part in text.split(",") if part.strip()]
+        return [
+            GraphNavHandler._canonicalize_relation_token(part)
+            for part in text.split(",")
+            if part.strip()
+        ]
+
+    @staticmethod
+    def _canonicalize_relation_token(text: str) -> str:
+        raw = str(text or "").strip().strip('"').strip("'").lower()
+        raw = re.sub(r"[\s\-\/]+", "_", raw)
+        raw = re.sub(r"__+", "_", raw)
+        return raw
     
     def _execute_graphconnect(self, command: Command) -> ExecutionResult:
         """Execute GRAPHCONNECT command."""
