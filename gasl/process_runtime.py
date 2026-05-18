@@ -126,6 +126,7 @@ class CandidateSelector:
         query: str,
         instruction: str,
         subtype: str,
+        strategy_hint: str = "stratified",
     ) -> CandidateSelection:
         if not isinstance(data, list) or len(data) <= self.PROBE_SIZE:
             return CandidateSelection(probe_items=list(data), final_items=list(data), diagnostics={"strategy": "all"})
@@ -142,19 +143,26 @@ class CandidateSelector:
             query=query,
             instruction=instruction,
             subtype=subtype,
+            strategy_hint=strategy_hint,
         )
+        final_budget = self.FINAL_BUDGET + (24 if strategy_hint == "broaden" else (-24 if strategy_hint == "narrow" else 0))
+        final_budget = max(self.PROBE_SIZE, final_budget)
+        lexical_slice = lexical[: final_budget]
+        vector_slice = vector[:12 if strategy_hint != "vector" else 20]
+        central_slice = central[:12 if strategy_hint != "central" else 20]
+        random_slice = self._deterministic_random_tail(data, query, instruction, subtype, k=self.RANDOM_TAIL + (4 if strategy_hint == "broaden" else 0))
         final_items = self._merge_unique(
-            lexical[: self.FINAL_BUDGET],
-            vector[:12],
-            central[:12],
-            self._deterministic_random_tail(data, query, instruction, subtype, k=self.RANDOM_TAIL),
-        )[: self.FINAL_BUDGET + self.RANDOM_TAIL]
+            lexical_slice,
+            vector_slice,
+            central_slice,
+            random_slice,
+        )[: final_budget + self.RANDOM_TAIL]
 
         return CandidateSelection(
             probe_items=probe,
             final_items=final_items,
             diagnostics={
-                "strategy": "stratified",
+                "strategy": strategy_hint or "stratified",
                 "lexical_count": len(lexical),
                 "vector_count": len(vector),
                 "central_count": len(central),
@@ -291,8 +299,15 @@ class CandidateSelector:
         query: str,
         instruction: str,
         subtype: str,
+        strategy_hint: str,
     ) -> List[Dict[str, Any]]:
         random_tail = self._deterministic_random_tail(data, query, instruction, subtype, k=6)
+        if strategy_hint == "lexical":
+            return self._merge_unique(lexical[:12], vector[:2], central[:2], random_tail)[: self.PROBE_SIZE]
+        if strategy_hint == "vector":
+            return self._merge_unique(vector[:10], lexical[:4], central[:2], random_tail)[: self.PROBE_SIZE]
+        if strategy_hint == "central":
+            return self._merge_unique(central[:10], lexical[:4], vector[:2], random_tail)[: self.PROBE_SIZE]
         return self._merge_unique(
             lexical[:8],
             vector[:4],

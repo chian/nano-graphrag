@@ -6,6 +6,7 @@ from typing import Any, List, Dict
 from .base import CommandHandler
 from ..types import Command, ExecutionResult, Provenance
 from ..validation import LLMJudgeValidator
+from ..contracts import make_contract, merge_contract
 
 
 class DataTransformHandler(CommandHandler):
@@ -228,6 +229,20 @@ class DataTransformHandler(CommandHandler):
         
         # Convert to list format
         result_list = list(aggregated_data.values())
+        source_contract = {}
+        if self.state_manager:
+            source_contract = self.state_manager.get_variable_contract(variable)
+        aggregate_contract = merge_contract(source_contract, make_contract(
+            payload_kind="grouped_rows",
+            data=result_list,
+            label_field="group_name",
+            metric_field="count" if operation == "count" else "result",
+            ordered=False,
+            order_basis=f"grouped by {by_field}",
+            scope="current_rows_only",
+            usable_by=["RANK", "PROCESS", "SHOW", "SELECT"],
+            confidence=0.95,
+        ))
         
         # Store aggregated results
         if self.state_store.has_variable(result_variable):
@@ -236,13 +251,14 @@ class DataTransformHandler(CommandHandler):
             var_type = var_data.get("_meta", {}).get("type") if isinstance(var_data, dict) else None
             if isinstance(var_data, dict) and "items" in var_data:
                 var_data["items"] = result_list
+                var_data["_meta"]["contract"] = aggregate_contract
                 self.state_store._save_state()
                 print(f"DEBUG: AGGREGATE - Updated state variable {result_variable} with {len(result_list)} groups")
             elif var_type == "COUNTER":
                 # Planner often declares counters for eventual counts, but AGGREGATE
                 # returns grouped rows that downstream RANK/JOIN should read from
                 # context, not from the persisted counter slot.
-                self.context_store.set(result_variable, result_list)
+                self.context_store.set(result_variable, result_list, contract=aggregate_contract)
                 print(
                     f"DEBUG: AGGREGATE - Stored {len(result_list)} groups in context as {result_variable} "
                     f"because declared state variable is COUNTER"
@@ -250,13 +266,14 @@ class DataTransformHandler(CommandHandler):
             else:
                 # If it's not a LIST type, update it directly
                 self.state_store.update_variable(result_variable, result_list)
+                self.state_store.set_variable_contract(result_variable, aggregate_contract)
                 print(f"DEBUG: AGGREGATE - Updated state variable {result_variable} directly with {len(result_list)} groups")
         else:
-            self.context_store.set(result_variable, result_list)
+            self.context_store.set(result_variable, result_list, contract=aggregate_contract)
             print(f"DEBUG: AGGREGATE - Stored {len(result_list)} groups in context as {result_variable}")
         
         # Also store as last_aggregate_result for consistency
-        self.context_store.set("last_aggregate_result", result_list)
+        self.context_store.set("last_aggregate_result", result_list, contract=aggregate_contract)
         print(f"DEBUG: AGGREGATE - Also stored as last_aggregate_result with {len(result_list)} groups")
         
         print(f"DEBUG: AGGREGATE - created {len(result_list)} aggregated groups")
@@ -267,6 +284,7 @@ class DataTransformHandler(CommandHandler):
             status="success",
             data=result_list,
             count=len(result_list),
+            contract=aggregate_contract,
             provenance=[self._create_provenance("aggregate", "aggregate",
                                                variable=variable, by_field=by_field, operation=operation)]
         )

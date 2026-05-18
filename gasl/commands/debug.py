@@ -4,6 +4,7 @@ Debug commands for GASL.
 
 from typing import Any, Dict, List
 from .base import CommandHandler
+from ..contracts import make_contract
 
 
 class DebugHandler(CommandHandler):
@@ -46,9 +47,11 @@ class DebugHandler(CommandHandler):
         if self.state_store.has_variable(variable):
             data = self.state_store.get_variable(variable)
             source = "state"
+            contract = self.state_store.get_variable_contract(variable)
         elif self.context_store.has(variable):
             data = self.context_store.get(variable)
             source = "context"
+            contract = self.context_store.get_contract(variable)
         else:
             return self._create_result(
                 command=command,
@@ -87,7 +90,15 @@ class DebugHandler(CommandHandler):
         return self._create_result(
             command=command,
             status="success",
-            result_count=len(data) if isinstance(data, list) else 1
+            count=len(data) if isinstance(data, list) else 1,
+            data=data,
+            contract=contract or make_contract(
+                payload_kind="debug_view",
+                data=data,
+                scope="current_rows_only",
+                usable_by=[],
+                confidence=1.0,
+            ),
         )
     
     def _execute_inspect(self, command) -> Dict[str, Any]:
@@ -109,9 +120,11 @@ class DebugHandler(CommandHandler):
         if self.state_store.has_variable(variable):
             data = self.state_store.get_variable(variable)
             source = "state"
+            contract = self.state_store.get_variable_contract(variable)
         elif self.context_store.has(variable):
             data = self.context_store.get(variable)
             source = "context"
+            contract = self.context_store.get_contract(variable)
         else:
             return self._create_result(
                 command=command,
@@ -135,7 +148,15 @@ class DebugHandler(CommandHandler):
         return self._create_result(
             command=command,
             status="success",
-            result_count=analysis['size']
+            count=analysis['size'],
+            data=analysis,
+            contract=contract or make_contract(
+                payload_kind="debug_view",
+                data=analysis,
+                scope="current_rows_only",
+                usable_by=[],
+                confidence=1.0,
+            ),
         )
     
     def _analyze_data_structure(self, data: Any) -> Dict[str, Any]:

@@ -86,6 +86,7 @@ class ExecutionResult:
     count: int = 0
     error_message: Optional[str] = None
     provenance: List[Provenance] = field(default_factory=list)
+    contract: Dict[str, Any] = field(default_factory=dict)
     duration_ms: int = 0
     timestamp: datetime = field(default_factory=datetime.now)
 

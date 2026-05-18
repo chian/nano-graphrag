@@ -38,7 +38,8 @@ class CommandHandler(ABC):
     
     def _create_result(self, command: Command, status: str, data: Any = None, 
                       count: int = 0, error_message: str = None, 
-                      provenance: List[Provenance] = None) -> ExecutionResult:
+                      provenance: List[Provenance] = None,
+                      contract: Dict[str, Any] = None) -> ExecutionResult:
         """Create execution result."""
         return ExecutionResult(
             command=command.raw_text,
@@ -46,5 +47,6 @@ class CommandHandler(ABC):
             data=data,
             count=count,
             error_message=error_message,
-            provenance=provenance or []
+            provenance=provenance or [],
+            contract=contract or {}
         )

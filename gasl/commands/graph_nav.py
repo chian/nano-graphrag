@@ -8,6 +8,7 @@ from .base import CommandHandler
 from ..types import Command, ExecutionResult, Provenance
 from ..validation import LLMJudgeValidator
 from ..adapters.base import GraphAdapter
+from ..contracts import make_contract
 
 
 class GraphNavHandler(CommandHandler):
@@ -125,15 +126,32 @@ class GraphNavHandler(CommandHandler):
                 walked_data.extend(current_nodes)
         
         if result_var:
-            self.context_store.set(result_var, walked_data)
+            walk_contract = make_contract(
+                payload_kind="walk_rows",
+                data=walked_data,
+                label_field="data.entity_name",
+                scope="current_rows_only",
+                usable_by=["PROCESS", "AGGREGATE", "SHOW", "SELECT"],
+                confidence=0.9,
+            )
+            self.context_store.set(result_var, walked_data, contract=walk_contract)
             if self.state_store.has_variable(result_var):
                 self.state_store.update_variable(result_var, walked_data)
+                self.state_store.set_variable_contract(result_var, walk_contract)
 
         # Store result in context
-        self.context_store.set("last_walk_result", walked_data)
+        walk_contract = make_contract(
+            payload_kind="walk_rows",
+            data=walked_data,
+            label_field="data.entity_name",
+            scope="current_rows_only",
+            usable_by=["PROCESS", "AGGREGATE", "SHOW", "SELECT"],
+            confidence=0.9,
+        )
+        self.context_store.set("last_walk_result", walked_data, contract=walk_contract)
         # Compatibility: many plans expect the most recent graph navigation result
         # to be accessible via last_nodes_result for downstream PROCESS/AGGREGATE.
-        self.context_store.set("last_nodes_result", walked_data)
+        self.context_store.set("last_nodes_result", walked_data, contract=walk_contract)
         print(f"DEBUG: GRAPHWALK - stored {len(walked_data)} nodes in last_walk_result")
         
         # Create initial result
@@ -142,6 +160,7 @@ class GraphNavHandler(CommandHandler):
             status="success",
             data=walked_data,
             count=len(walked_data),
+            contract=walk_contract,
             provenance=[self._create_provenance("graph-walk", "graphwalk", 
                                                from_variable=from_var, depth=depth)]
         )

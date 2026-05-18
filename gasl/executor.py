@@ -241,6 +241,7 @@ class GASLExecutor:
                 "error_message": result.error_message,
                 "duration_ms": result.duration_ms,
                 "data": result.data,
+                "contract": result.contract,
                 "state_after": self.state_store.get_state().get("variables", {}),
                 "context_keys_after": list(self.context_store.keys()),
             })
@@ -249,7 +250,7 @@ class GASLExecutor:
             if command.command_type == "FIND" and result.status == "success" and result.data:
                 # Extract variable name from command args or use a default
                 target = command.args.get("target", "nodes")
-                self.context_store.set(f"last_{target}_result", result.data, result.provenance)
+                self.context_store.set(f"last_{target}_result", result.data, result.provenance, contract=result.contract)
                 print(f"DEBUG: Stored FIND result in context as 'last_{target}_result' with {len(result.data) if isinstance(result.data, list) else 'non-list'} items")
                 print(f"DEBUG: Context store now has: {list(self.context_store._data.keys())}")
             
@@ -269,22 +270,28 @@ class GASLExecutor:
         """Capture referenced variable payloads for command-level debugging."""
         referenced_state: Dict[str, Any] = {}
         referenced_context: Dict[str, Any] = {}
+        referenced_contracts: Dict[str, Any] = {}
         for _, value in command.args.items():
             if isinstance(value, str):
                 if self.state_store.has_variable(value):
                     referenced_state[value] = self.state_store.get_variable(value)
+                    referenced_contracts[value] = self.state_store.get_variable_contract(value)
                 if self.context_store.has(value):
                     referenced_context[value] = self.context_store.get(value)
+                    referenced_contracts[value] = self.context_store.get_contract(value)
             elif isinstance(value, list):
                 for item in value:
                     if isinstance(item, str):
                         if self.state_store.has_variable(item):
                             referenced_state[item] = self.state_store.get_variable(item)
+                            referenced_contracts[item] = self.state_store.get_variable_contract(item)
                         if self.context_store.has(item):
                             referenced_context[item] = self.context_store.get(item)
+                            referenced_contracts[item] = self.context_store.get_contract(item)
         return {
             "state": referenced_state,
             "context": referenced_context,
+            "contracts": referenced_contracts,
         }
     
     def create_snapshot(self, snapshot_id: str, next_actions: List[Dict[str, Any]] = None) -> StateSnapshot:

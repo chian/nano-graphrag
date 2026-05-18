@@ -15,6 +15,7 @@ from ..process_runtime import (
     DerivedArtifactRegistry,
     ProcessSubtypeRouter,
 )
+from ..contracts import make_contract, merge_contract
 
 
 class ProcessHandler(CommandHandler):
@@ -96,9 +97,10 @@ class ProcessHandler(CommandHandler):
 
         query = (self.state_store.get_state().get("query") or "").strip()
         history = self.state_store.get_state().get("history", [])
+        incoming_contract = self.state_manager.get_variable_contract(variable, fallback_to_last_nodes=True)
         initial_subtype = self.subtype_router.infer(instruction)
         interpretation = (
-            self._interpret_process_context(data, query=query, instruction=instruction, history=history)
+            self._interpret_process_context(data, query=query, instruction=instruction, history=history, incoming_contract=incoming_contract)
             if isinstance(data, list) and data
             else None
         )
@@ -109,6 +111,7 @@ class ProcessHandler(CommandHandler):
                 query=query,
                 instruction=instruction,
                 subtype=initial_subtype,
+                strategy_hint="stratified",
             )
             if isinstance(data, list)
             else None
@@ -136,6 +139,42 @@ class ProcessHandler(CommandHandler):
             diagnostics["probe_result_count"] = len(
                 probe_result.get("filtered_items") or probe_result.get("processed_items") or []
             )
+            hit_density = diagnostics["probe_result_count"] / max(1, len(selection.probe_items))
+            diagnostics["probe_hit_density"] = round(hit_density, 3)
+            repair = None
+            if self._should_attempt_repair(interpretation, hit_density):
+                repair = self._repair_contract_and_strategy(
+                    data=data,
+                    query=query,
+                    instruction=instruction,
+                    history=history,
+                    incoming_contract=incoming_contract,
+                    interpretation=interpretation,
+                    selection=selection,
+                    probe_result=probe_result,
+                )
+            if repair:
+                diagnostics["repair"] = repair
+                final_instruction = repair.get("refined_instruction") or final_instruction
+                selector_hint = repair.get("selector_hint", "keep_current")
+                if selector_hint not in {"keep_current", ""}:
+                    selection = self.selector.select(
+                        data,
+                        query=query,
+                        instruction=final_instruction,
+                        subtype=subtype,
+                        strategy_hint=selector_hint,
+                    )
+                    diagnostics["strategy"] = selector_hint
+                    probe_result = self._run_process_batch(
+                        selection.probe_items,
+                        final_instruction,
+                        subtype=subtype,
+                        phase="repair_probe",
+                    )
+                    diagnostics["repair_probe_result_count"] = len(
+                        probe_result.get("filtered_items") or probe_result.get("processed_items") or []
+                    )
             if self._should_stop_after_probe(data, instruction, probe_result, interpretation):
                 top_k = self._requested_top_k(instruction) or 3
                 final_data = self._ranked_head_window(data, top_k, interpretation)
@@ -170,6 +209,15 @@ class ProcessHandler(CommandHandler):
                 )
             finally:
                 self.micro_framework.llm_func = original_llm
+            process_contract = self._build_process_contract(
+                source_contract=incoming_contract,
+                interpretation=interpretation,
+                output_data=result.data.get("processed_items", []),
+                subtype=subtype,
+                strategy=diagnostics.get("strategy", ""),
+            )
+            self.state_manager.store_variable_contract(target_variable, process_contract, store_in_state=True, store_in_context=True)
+            result.contract = process_contract
             self._record_artifact_candidate(
                 variable=variable,
                 target_variable=target_variable,
@@ -240,12 +288,21 @@ class ProcessHandler(CommandHandler):
         status = "success" if len(normalized_items) > 0 else "empty"
         
         # Create initial result
+        process_contract = self._build_process_contract(
+            source_contract=self.state_manager.get_variable_contract(command.args["variable"], fallback_to_last_nodes=True),
+            interpretation=None,
+            output_data=normalized_items,
+            subtype=subtype,
+            strategy="single_batch",
+        )
+        self.state_manager.store_variable_contract(target_variable, process_contract, store_in_state=True, store_in_context=True)
         result_obj = self._create_result(
             command=command,
             status=status,
             data=normalized_items,
             count=len(normalized_items),
-            provenance=provenance
+            provenance=provenance,
+            contract=process_contract,
         )
         
         # Validate with LLM judge if available
@@ -304,10 +361,11 @@ class ProcessHandler(CommandHandler):
         query: str,
         instruction: str,
         history: List[Dict[str, Any]],
+        incoming_contract: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         try:
             llm = self._llm_for_interpretation()
-            prompt = self._create_interpretation_prompt(data, query=query, instruction=instruction, history=history)
+            prompt = self._create_interpretation_prompt(data, query=query, instruction=instruction, history=history, incoming_contract=incoming_contract)
             raw = llm.call(prompt)
             parsed = self._parse_interpretation_response(raw)
             return parsed
@@ -322,6 +380,46 @@ class ProcessHandler(CommandHandler):
         if not contract:
             return instruction
         return f"{instruction}\nContract: {contract}"
+
+    @staticmethod
+    def _should_attempt_repair(interpretation: Optional[Dict[str, Any]], hit_density: float) -> bool:
+        if interpretation is None:
+            return True
+        if interpretation.get("confidence", 0.0) < 0.65:
+            return True
+        if hit_density < 0.2:
+            return True
+        return False
+
+    def _repair_contract_and_strategy(
+        self,
+        *,
+        data: List[Dict[str, Any]],
+        query: str,
+        instruction: str,
+        history: List[Dict[str, Any]],
+        incoming_contract: Dict[str, Any],
+        interpretation: Optional[Dict[str, Any]],
+        selection,
+        probe_result: Dict[str, Any],
+    ) -> Optional[Dict[str, Any]]:
+        try:
+            llm = self._llm_for_interpretation()
+            prompt = self._create_repair_prompt(
+                data=data,
+                query=query,
+                instruction=instruction,
+                history=history,
+                incoming_contract=incoming_contract,
+                interpretation=interpretation,
+                selection=selection,
+                probe_result=probe_result,
+            )
+            raw = llm.call(prompt)
+            return self._parse_repair_response(raw)
+        except Exception as exc:
+            print(f"DEBUG: PROCESS repair skipped: {exc}")
+            return None
 
     def _record_artifact_candidate(
         self,
@@ -460,6 +558,7 @@ Be thorough in your analysis and provide clear reasoning for each decision.
         query: str,
         instruction: str,
         history: List[Dict[str, Any]],
+        incoming_contract: Optional[Dict[str, Any]],
     ) -> str:
         sample_rows = [self._flatten_row(row) for row in data[:8]]
         history_tail = history[-4:] if history else []
@@ -473,6 +572,9 @@ Current PROCESS instruction:
 
 Recent workflow history:
 {history_tail}
+
+Incoming contract:
+{incoming_contract or {}}
 
 Sample current rows (flattened):
 {sample_rows}
@@ -495,6 +597,62 @@ Rules:
 - If the rows already look ordered or ranked, say so explicitly.
 - If the PROCESS should only materialize from the current rows, set scope=current_rows_only.
 - Do not answer the user query. Interpret the data shape and instruction only.
+"""
+
+    def _create_repair_prompt(
+        self,
+        *,
+        data: List[Dict[str, Any]],
+        query: str,
+        instruction: str,
+        history: List[Dict[str, Any]],
+        incoming_contract: Dict[str, Any],
+        interpretation: Optional[Dict[str, Any]],
+        selection,
+        probe_result: Dict[str, Any],
+    ) -> str:
+        sample_rows = [self._flatten_row(row) for row in data[:8]]
+        probe_count = len(probe_result.get("filtered_items") or probe_result.get("processed_items") or [])
+        return f"""You are repairing a PROCESS contract/search mismatch.
+
+Query:
+{query}
+
+Instruction:
+{instruction}
+
+Incoming contract:
+{incoming_contract}
+
+Current interpretation:
+{interpretation or {}}
+
+Selection diagnostics:
+{selection.diagnostics}
+
+Probe positive count:
+{probe_count}
+
+Sample rows:
+{sample_rows}
+
+Recent workflow history:
+{history[-4:] if history else []}
+
+Return strict JSON:
+{{
+  "refined_instruction": "<updated PROCESS instruction or empty string>",
+  "selector_hint": "keep_current|lexical|vector|central|broaden|narrow",
+  "current_rows_sufficient": true,
+  "confidence": 0.0,
+  "reason": "<short reason>"
+}}
+
+Rules:
+- Use one selector_hint only.
+- If the current rows are already the right substrate, set current_rows_sufficient=true.
+- If the filter seems vague, pick a selector_hint and refine the instruction.
+- Do not answer the query.
 """
 
     def _format_data_for_llm(self, data: Any) -> str:
@@ -638,6 +796,21 @@ Rules:
             }
 
     @staticmethod
+    def _parse_repair_response(text: str) -> Dict[str, Any]:
+        try:
+            import json
+            payload = json.loads(ProcessHandler._strip_json_fences(text))
+            return {
+                "refined_instruction": str(payload.get("refined_instruction", "") or ""),
+                "selector_hint": str(payload.get("selector_hint", "keep_current") or "keep_current"),
+                "current_rows_sufficient": bool(payload.get("current_rows_sufficient", True)),
+                "confidence": float(payload.get("confidence", 0.0) or 0.0),
+                "reason": str(payload.get("reason", "") or ""),
+            }
+        except Exception:
+            return {}
+
+    @staticmethod
     def _get_by_path(item: Any, path: str) -> Any:
         if not path:
             return None
@@ -714,6 +887,37 @@ Rules:
             f"The input rows are already globally ranked. Materialize exactly the top {top_k} rows "
             "from this ranked list, preserve their order, and do not expand beyond the provided ranked window."
         )
+
+    def _build_process_contract(
+        self,
+        *,
+        source_contract: Dict[str, Any],
+        interpretation: Optional[Dict[str, Any]],
+        output_data: List[Dict[str, Any]],
+        subtype: str,
+        strategy: str,
+    ) -> Dict[str, Any]:
+        payload_kind = {
+            "semantic_filter": "filtered_rows",
+            "field_derivation": "derived_rows",
+            "classification": "classified_rows",
+            "cross_node_synthesis": "synthesized_rows",
+        }.get(subtype, "processed_rows")
+        inferred = make_contract(
+            payload_kind=payload_kind,
+            data=output_data,
+            label_field=(interpretation or {}).get("label_field", source_contract.get("label_field", "")),
+            metric_field=(interpretation or {}).get("metric_field", source_contract.get("metric_field", "")),
+            ordered=(interpretation or {}).get("ordered", source_contract.get("ordered", False)),
+            order_basis=(interpretation or {}).get("order_basis", source_contract.get("order_basis", "")),
+            order_field=(interpretation or {}).get("order_field", source_contract.get("order_field", "")),
+            order_direction=(interpretation or {}).get("order_direction", source_contract.get("order_direction", "unknown")),
+            scope=(interpretation or {}).get("scope", "current_rows_only"),
+            usable_by=["PROCESS", "AGGREGATE", "RANK", "SHOW", "SELECT"],
+            confidence=(interpretation or {}).get("confidence", 0.8),
+            strategy=strategy,
+        )
+        return merge_contract(source_contract, inferred)
     
     @staticmethod
     def _strip_json_fences(text: str) -> str:

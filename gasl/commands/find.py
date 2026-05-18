@@ -8,6 +8,7 @@ from ..types import Command, ExecutionResult, Provenance
 from ..adapters.base import GraphAdapter
 from ..validation import LLMJudgeValidator
 from ..state_manager import StateManager
+from ..contracts import make_contract
 
 
 class FindHandler(CommandHandler):
@@ -46,12 +47,20 @@ class FindHandler(CommandHandler):
                     error_message=f"Unknown target type: {target}"
                 )
             
+            result_contract = make_contract(
+                payload_kind=target,
+                data=result,
+                label_field="data.entity_name" if target == "nodes" else "id",
+                scope="current_rows_only",
+                usable_by=["PROCESS", "GRAPHWALK", "AGGREGATE", "SHOW", "SELECT"],
+                confidence=0.95,
+            )
             # Store result using centralized state manager
             result_key = f"find_{target}_{len(self.context_store.keys())}"
-            self.state_manager.store_variable_data(result_key, result, store_in_state=False, store_in_context=True)
+            self.state_manager.store_variable_data(result_key, result, store_in_state=False, store_in_context=True, contract=result_contract)
             
             # Also store as last_nodes_result for compatibility
-            self.state_manager.store_variable_data("last_nodes_result", result, store_in_state=False, store_in_context=True)
+            self.state_manager.store_variable_data("last_nodes_result", result, store_in_state=False, store_in_context=True, contract=result_contract)
             
             # Store with user-specified variable name if AS clause was used
             if "result_var" in args and args["result_var"]:
@@ -60,7 +69,8 @@ class FindHandler(CommandHandler):
                     result, 
                     store_in_state=True,  # Store in state for persistence
                     store_in_context=True,
-                    description=f"Nodes found with criteria: {criteria}"
+                    description=f"Nodes found with criteria: {criteria}",
+                    contract=result_contract,
                 )
                 print(f"DEBUG: FIND - Saved result to variable: {args['result_var']}")
             
@@ -92,7 +102,8 @@ class FindHandler(CommandHandler):
                 status=status,
                 data=result,
                 count=count,
-                provenance=provenance
+                provenance=provenance,
+                contract=result_contract,
             )
             
             # Validate with LLM judge if available

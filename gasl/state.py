@@ -18,12 +18,15 @@ class ContextStore:
     def __init__(self):
         self._data: Dict[str, Any] = {}
         self._provenance: Dict[str, List[Provenance]] = {}
+        self._contracts: Dict[str, Dict[str, Any]] = {}
     
-    def set(self, key: str, value: Any, provenance: List[Provenance] = None) -> None:
+    def set(self, key: str, value: Any, provenance: List[Provenance] = None, contract: Dict[str, Any] = None) -> None:
         """Set a context variable."""
         self._data[key] = value
         if provenance:
             self._provenance[key] = provenance
+        if contract is not None:
+            self._contracts[key] = contract
     
     def get(self, key: str, default: Any = None) -> Any:
         """Get a context variable."""
@@ -37,15 +40,21 @@ class ContextStore:
         """Delete a context variable."""
         self._data.pop(key, None)
         self._provenance.pop(key, None)
+        self._contracts.pop(key, None)
     
     def clear(self) -> None:
         """Clear all context variables."""
         self._data.clear()
         self._provenance.clear()
+        self._contracts.clear()
     
     def get_provenance(self, key: str) -> List[Provenance]:
         """Get provenance for a context variable."""
         return self._provenance.get(key, [])
+
+    def get_contract(self, key: str) -> Dict[str, Any]:
+        """Get contract for a context variable."""
+        return self._contracts.get(key, {})
     
     def keys(self) -> List[str]:
         """Get all context variable keys."""
@@ -114,16 +123,16 @@ class StateStore:
         if key not in self._state["variables"]:
             if var_type == "DICT":
                 self._state["variables"][key] = {
-                    "_meta": {"type": "DICT", "description": description}
+                    "_meta": {"type": "DICT", "description": description, "contract": {}}
                 }
             elif var_type == "LIST":
                 self._state["variables"][key] = {
-                    "_meta": {"type": "LIST", "description": description},
+                    "_meta": {"type": "LIST", "description": description, "contract": {}},
                     "items": []
                 }
             elif var_type == "COUNTER":
                 self._state["variables"][key] = {
-                    "_meta": {"type": "COUNTER", "description": description},
+                    "_meta": {"type": "COUNTER", "description": description, "contract": {}},
                     "value": 0
                 }
             else:
@@ -167,6 +176,21 @@ class StateStore:
         if key not in self._state["variables"]:
             raise StateError(f"Variable {key} not found")
         return self._state["variables"][key]
+
+    def set_variable_contract(self, key: str, contract: Dict[str, Any]) -> None:
+        """Set contract metadata for a variable."""
+        if key not in self._state["variables"]:
+            raise StateError(f"Variable {key} not declared")
+        meta = self._state["variables"][key].setdefault("_meta", {})
+        meta["contract"] = contract or {}
+        self._save_state()
+
+    def get_variable_contract(self, key: str) -> Dict[str, Any]:
+        """Get contract metadata for a variable."""
+        if key not in self._state["variables"]:
+            raise StateError(f"Variable {key} not found")
+        meta = self._state["variables"][key].get("_meta", {})
+        return meta.get("contract", {})
     
     def has_variable(self, key: str) -> bool:
         """Check if state variable exists."""

@@ -5,6 +5,7 @@ Field Calculation command handlers.
 from typing import Any, List, Dict
 from .base import CommandHandler
 from ..types import Command, ExecutionResult, Provenance
+from ..contracts import make_contract, merge_contract
 
 
 class FieldCalcHandler(CommandHandler):
@@ -199,12 +200,28 @@ class FieldCalcHandler(CommandHandler):
             new_item = {**item}
             new_item["rank"] = i + 1
             ranked_data.append(new_item)
+
+        source_contract = self.state_manager.get_variable_contract(variable) if self.state_manager else {}
+        rank_contract = merge_contract(source_contract, make_contract(
+            payload_kind="ranked_rows",
+            data=ranked_data,
+            label_field=source_contract.get("label_field", ""),
+            metric_field=rank_field,
+            ordered=True,
+            order_basis=f"sorted by {rank_field}",
+            order_field=rank_field,
+            order_direction=order,
+            scope="current_rows_only",
+            usable_by=["PROCESS", "SHOW", "SELECT"],
+            confidence=0.98,
+        ))
         
         # Update the state variable
         if self.state_store.has_variable(variable):
             var_data = self.state_store.get_variable(variable)
             if isinstance(var_data, dict) and "items" in var_data:
                 var_data["items"] = ranked_data
+                var_data["_meta"]["contract"] = rank_contract
                 self.state_store._save_state()
         
         print(f"DEBUG: RANK - ranked {len(ranked_data)} items by {rank_field}")
@@ -214,6 +231,7 @@ class FieldCalcHandler(CommandHandler):
             status="success",
             data=ranked_data,
             count=len(ranked_data),
+            contract=rank_contract,
             provenance=[self._create_provenance("rank", "rank",
                                                variable=variable, rank_field=rank_field, order=order)]
         )
