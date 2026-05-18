@@ -24,7 +24,11 @@ Workflow
 
    Repo-specific verifier for this codebase:
 
-   `python tools/prompt_lab/verify_repair_candidates.py --cases tmp/cases.jsonl --candidates tmp/seeded_candidates.jsonl --verifier-cmd '.venv/bin/python tools/prompt_lab/verifiers/nano_graphrag_verifier.py --case {case_path} --candidate {candidate_path}' --out tmp/verifications.jsonl`
+   `python tools/prompt_lab/verify_repair_candidates.py --cases tmp/cases.jsonl --candidates tmp/seeded_candidates.jsonl --verifier-cmd '.venv/bin/python tools/prompt_lab/verifiers/nano_graphrag_verifier.py --case {case_path} --candidate {candidate_path}' --out tmp/verifications.jsonl --accepted-repairs-out tmp/accepted_repairs.jsonl`
+
+   Notes:
+   - verification rows are appended incrementally and flushed after each candidate
+   - `accepted_repairs.jsonl` stores the high-value cases where the original prompt output failed verification but a repaired candidate passed
 
 4. Build a reusable labeled dataset:
 

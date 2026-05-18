@@ -211,19 +211,31 @@ def verify(case: Dict[str, Any], candidate: Dict[str, Any]) -> Dict[str, Any]:
     parsed = _parse_candidate_json(candidate)
     if prompt_name == "plan_generation":
         labels, score = _analyze_plan(parsed)
+        passed = bool(
+            score >= 0.8
+            and labels.get("has_plan_shape")
+            and labels.get("command_parse_success")
+            and labels.get("variable_flow_valid")
+            and labels.get("config_shape_valid")
+        )
     elif prompt_name == "process_repair":
         labels, score = _verify_process_repair(parsed, original_labels)
+        passed = bool(score >= 0.8)
     elif prompt_name == "process_interpretation":
         labels, score = _verify_process_interpretation(parsed)
+        passed = bool(score >= 0.8)
     elif prompt_name == "completion_validator":
         labels, score = _verify_completion_validator(candidate)
+        passed = bool(score >= 0.8)
     elif prompt_name == "strategy_adaptation":
         labels, score = _verify_strategy_adaptation(candidate)
+        passed = bool(score >= 0.8)
     else:
         labels = {"parse_success": bool(parsed or candidate.get("response_text"))}
         score = float(labels["parse_success"])
+        passed = bool(score >= 0.8)
     return {
-        "pass": score >= 0.8,
+        "pass": passed,
         "score": round(score, 4),
         "labels": labels,
         "notes": f"{prompt_name} verifier",
