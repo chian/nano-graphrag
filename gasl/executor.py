@@ -77,6 +77,7 @@ from .commands.create_groups import CreateGroupsHandler
 from .commands.iterate import IterateHandler
 from .micro_actions import MicroActionFramework
 from .errors import ExecutionError, ParseError
+from .trace import GASLTraceLogger
 
 
 class GASLExecutor:
@@ -98,6 +99,13 @@ class GASLExecutor:
         self.micro_framework = MicroActionFramework(
             llm_func, self.state_store, self.context_store, job_id=job_id
         )
+        trace_base_dir = Path(state_file).parent if state_file else Path.cwd()
+        self.trace = GASLTraceLogger(trace_base_dir, job_id=job_id)
+        self.trace.log("executor_init", {
+            "model": getattr(llm_func, "model", None),
+            "state_file": str(state_file) if state_file else None,
+            "adapter": type(adapter).__name__,
+        })
         
         # Pass versioned graph to micro framework
         if versioned_graph:
@@ -210,12 +218,32 @@ class GASLExecutor:
                 raise ExecutionError(f"No handler for command: {command.command_type}", command.raw_text, step_id)
             
             # Execute command
+            self.trace.log("command_start", {
+                "step_id": step_id,
+                "command_type": command.command_type,
+                "raw_text": command.raw_text,
+                "args": command.args,
+                "inputs": self._capture_command_inputs(command),
+                "state_keys_before": list(self.state_store.get_state().get("variables", {}).keys()),
+                "context_keys_before": list(self.context_store.keys()),
+            })
             print(f"DEBUG: Executing command: {command.command_type} - {command.args}")
             print(f"🔍 STATE DEBUG: Before command, state variables: {list(self.state_store.get_state().get('variables', {}).keys())}")
             result = handler.execute(command)
             result.duration_ms = int((time.time() - start_time) * 1000)
             print(f"DEBUG: Command result: {result.status} - count: {result.count}")
             print(f"🔍 STATE DEBUG: After command, state variables: {list(self.state_store.get_state().get('variables', {}).keys())}")
+            self.trace.log("command_result", {
+                "step_id": step_id,
+                "command_type": command.command_type,
+                "status": result.status,
+                "count": result.count,
+                "error_message": result.error_message,
+                "duration_ms": result.duration_ms,
+                "data": result.data,
+                "state_after": self.state_store.get_state().get("variables", {}),
+                "context_keys_after": list(self.context_store.keys()),
+            })
             
             # Store FIND results in context store for subsequent commands
             if command.command_type == "FIND" and result.status == "success" and result.data:
@@ -236,6 +264,28 @@ class GASLExecutor:
                 duration_ms=duration_ms,
                 timestamp=datetime.now()
             )
+
+    def _capture_command_inputs(self, command: Command) -> Dict[str, Any]:
+        """Capture referenced variable payloads for command-level debugging."""
+        referenced_state: Dict[str, Any] = {}
+        referenced_context: Dict[str, Any] = {}
+        for _, value in command.args.items():
+            if isinstance(value, str):
+                if self.state_store.has_variable(value):
+                    referenced_state[value] = self.state_store.get_variable(value)
+                if self.context_store.has(value):
+                    referenced_context[value] = self.context_store.get(value)
+            elif isinstance(value, list):
+                for item in value:
+                    if isinstance(item, str):
+                        if self.state_store.has_variable(item):
+                            referenced_state[item] = self.state_store.get_variable(item)
+                        if self.context_store.has(item):
+                            referenced_context[item] = self.context_store.get(item)
+        return {
+            "state": referenced_state,
+            "context": referenced_context,
+        }
     
     def create_snapshot(self, snapshot_id: str, next_actions: List[Dict[str, Any]] = None) -> StateSnapshot:
         """Create a state snapshot for MCTS future-proofing."""
@@ -274,16 +324,33 @@ class GASLExecutor:
             
             # Create plan prompt
             plan_prompt = self.llm_func.create_plan_prompt(query, schema, current_state.get("variables", {}), history)
+            self.trace.log("planner_prompt", {
+                "iteration": iteration,
+                "query": query,
+                "prompt": plan_prompt,
+                "schema": schema,
+                "state": current_state.get("variables", {}),
+                "history": history,
+            })
             
             # Get plan from LLM (prompt will be printed by the call method)
             print(f"🔄 ITERATION {iteration} - Generating Plan...")
             plan_response = self.llm_func.call(plan_prompt)
             print(f"DEBUG: LLM Response:\n{plan_response}\n")
+            self.trace.log("planner_response", {
+                "iteration": iteration,
+                "raw_response": plan_response,
+                "extracted_json": _extract_json(plan_response),
+            })
             
             try:
                 # Parse JSON response — tolerant of markdown fences / prose
                 plan_json = json.loads(_extract_json(plan_response))
                 plan_json["query"] = query  # Ensure query is set
+                self.trace.log("planner_plan", {
+                    "iteration": iteration,
+                    "plan": plan_json,
+                })
                 
                 # Execute plan
                 result = self.execute_plan(plan_json)
@@ -306,9 +373,18 @@ class GASLExecutor:
                     # Use LLM to validate if query was actually answered
                     validation_prompt = self.llm_func.create_completion_validator_prompt(query, variables)
                     print(f"DEBUG: Sending completion validation prompt to LLM")
+                    self.trace.log("validation_prompt", {
+                        "iteration": iteration,
+                        "prompt": validation_prompt,
+                        "variables": variables,
+                    })
                     validation_response = self.llm_func.call(validation_prompt).strip().upper()
                     
                     print(f"DEBUG: Completion validation: {validation_response}")
+                    self.trace.log("validation_response", {
+                        "iteration": iteration,
+                        "response": validation_response,
+                    })
                     
                     # Only stop if LLM confirms the query was answered
                     if validation_response == "YES":
@@ -328,6 +404,14 @@ class GASLExecutor:
                         strategy_prompt = self.llm_func.create_strategy_adaptation_prompt(query, variables, iteration, current_schema, self.state_store.get_state())
                         strategy_response = self.llm_func.call(strategy_prompt)
                         print(f"DEBUG: Strategy Analysis (Iteration {iteration}):\n{strategy_response}\n")
+                        self.trace.log("strategy_prompt", {
+                            "iteration": iteration,
+                            "prompt": strategy_prompt,
+                        })
+                        self.trace.log("strategy_response", {
+                            "iteration": iteration,
+                            "response": strategy_response,
+                        })
                         
                         # Store validation hint and strategy insights for next iteration
                         self.state_store.set_validation_hint(validation_response)
@@ -407,8 +491,17 @@ class GASLExecutor:
         print("=" * 80)
         print(analysis_prompt[:3000])   # log only first 3k chars
         print("=" * 80)
-
-        return self.llm_func.call(analysis_prompt)
+        self.trace.log("final_analysis_prompt", {
+            "query": query,
+            "prompt": analysis_prompt,
+            "results": results,
+        })
+        final_answer = self.llm_func.call(analysis_prompt)
+        self.trace.log("final_analysis_response", {
+            "query": query,
+            "response": final_answer,
+        })
+        return final_answer
 
     def _summarize_list(self, items: list, max_items: int = 50) -> object:
         """Compress a large list for the final-answer prompt.
