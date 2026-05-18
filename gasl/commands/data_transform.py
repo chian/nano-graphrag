@@ -441,15 +441,30 @@ Apply the transformation consistently to all items.
         return []
     
     def _get_nested_field(self, item: Dict, field_path: str) -> Any:
-        """Get nested field value using dot notation."""
+        """Get nested field value using dot notation with common node-data fallbacks."""
         if not field_path:
             return None
-        
+
         fields = field_path.split(".")
         value = item
         for field in fields:
             if isinstance(value, dict) and field in value:
                 value = value[field]
             else:
-                return None
-        return value
+                break
+        else:
+            return value
+
+        if "." not in field_path:
+            for path in (f"data.{field_path}", f"properties.{field_path}", f"attributes.{field_path}"):
+                fields = path.split(".")
+                value = item
+                for field in fields:
+                    if isinstance(value, dict) and field in value:
+                        value = value[field]
+                    else:
+                        break
+                else:
+                    return value
+
+        return None

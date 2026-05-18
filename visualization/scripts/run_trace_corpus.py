@@ -81,6 +81,25 @@ def run_gasl_with_artifacts(
     }
 
 
+def json_safe(value: Any) -> Any:
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, dict):
+        return {str(k): json_safe(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [json_safe(v) for v in value]
+    if isinstance(value, tuple):
+        return [json_safe(v) for v in value]
+    if hasattr(value, "to_dict"):
+        try:
+            return json_safe(value.to_dict())
+        except Exception:
+            pass
+    if hasattr(value, "__dict__"):
+        return json_safe(vars(value))
+    return str(value)
+
+
 def summarize_gasl_trace(trace_file: Path) -> Dict[str, Any]:
     if not trace_file.exists():
         return {"events": 0, "process_steps": 0, "commands": [], "visited_nodes": []}
@@ -183,7 +202,7 @@ def main() -> None:
             )
             trace_summary = summarize_gasl_trace(Path(gasl["trace_file"]))
             gasl["trace_summary"] = trace_summary
-            (query_dir / "gasl.json").write_text(json.dumps(gasl, indent=2))
+            (query_dir / "gasl.json").write_text(json.dumps(json_safe(gasl), indent=2))
 
             row = {
                 "query_id": query_id,

@@ -173,7 +173,7 @@ class FieldCalcHandler(CommandHandler):
         """Execute RANK command."""
         args = command.args
         variable = args["variable"]
-        rank_field = args["rank_field"]
+        rank_field = args.get("rank_field") or args.get("field")
         order = args.get("order", "desc")  # desc or asc
         
         print(f"DEBUG: RANK - variable: {variable}, field: {rank_field}, order: {order}")
