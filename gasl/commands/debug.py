@@ -9,9 +9,9 @@ from .base import CommandHandler
 class DebugHandler(CommandHandler):
     """Handles debug commands."""
     
-    def can_handle(self, command_type: str) -> bool:
+    def can_handle(self, command) -> bool:
         """Check if this handler can handle the command type."""
-        return command_type in ["SHOW", "INSPECT"]
+        return command.command_type in ["SHOW", "INSPECT"]
     
     def execute(self, command) -> Dict[str, Any]:
         """Execute debug command."""

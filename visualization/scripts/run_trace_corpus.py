@@ -6,7 +6,7 @@ This is the iterative debugging/evaluation harness:
 - generates many questions across HAIQU graphs
 - runs RAG and GASL for each question
 - stores schema snapshot, answers, node visits, and GASL trace path per query
-- writes a run-level summary for later review before the next code-adjust cycle
+- writes a run-level GASL behavior summary for later review before the next code-adjust cycle
 """
 
 from __future__ import annotations
@@ -17,6 +17,7 @@ import os
 import shutil
 import sys
 import time
+from collections import Counter
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
@@ -35,7 +36,6 @@ from visualization.scripts.benchmark_rag_vs_gasl import (
     generate_questions,
     load_env_file,
     run_gasl,
-    score_answer,
 )
 from gasl import GASLExecutor
 from gasl.adapters import NetworkXAdapter
@@ -134,6 +134,66 @@ def summarize_gasl_trace(trace_file: Path) -> Dict[str, Any]:
     }
 
 
+def _categorize_error(message: str) -> str:
+    text = (message or "").lower()
+    if "processed_items" in text and "processing_method" in text:
+        return "process_output_shape_mismatch"
+    if "no handler for command: show" in text:
+        return "missing_handler_show"
+    if "aggregate" in text and ("group_name" in text or "group_key" in text or "entity_name" in text):
+        return "aggregate_field_resolution"
+    if "graphwalk" in text or "relationship types" in text or "path" in text:
+        return "path_semantics_validator"
+    if "validation failed" in text:
+        return "llm_judge_validation"
+    return "other"
+
+
+def summarize_gasl_behavior(state_file: Path, gasl_result: Dict[str, Any], trace_summary: Dict[str, Any]) -> Dict[str, Any]:
+    if not state_file.exists():
+        return {
+            "planner_iterations": gasl_result.get("iterations", 0),
+            "history_len": 0,
+            "command_error_count": 0,
+            "command_empty_count": 0,
+            "process_status_counts": {},
+            "error_categories": {},
+            "validation_hint": None,
+            "query_answered": gasl_result.get("query_answered"),
+            "trace_events": trace_summary.get("events", 0),
+            "trace_process_steps": trace_summary.get("process_steps", 0),
+        }
+    state = json.loads(state_file.read_text())
+    history = state.get("history", [])
+    process_status_counts = Counter()
+    error_categories = Counter()
+    command_empty_count = 0
+    command_error_count = 0
+    for entry in history:
+        status = entry.get("status")
+        command = entry.get("command", "")
+        if status == "error":
+            command_error_count += 1
+            error_categories[_categorize_error(entry.get("error_message", ""))] += 1
+        elif status == "empty":
+            command_empty_count += 1
+        if command.startswith("PROCESS "):
+            process_status_counts[status] += 1
+
+    return {
+        "planner_iterations": gasl_result.get("iterations", 0),
+        "history_len": len(history),
+        "command_error_count": command_error_count,
+        "command_empty_count": command_empty_count,
+        "process_status_counts": dict(process_status_counts),
+        "error_categories": dict(error_categories),
+        "validation_hint": state.get("validation_hint"),
+        "query_answered": gasl_result.get("query_answered"),
+        "trace_events": trace_summary.get("events", 0),
+        "trace_process_steps": trace_summary.get("process_steps", 0),
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--graph", action="append", dest="graphs", default=[])
@@ -202,6 +262,7 @@ def main() -> None:
             )
             trace_summary = summarize_gasl_trace(Path(gasl["trace_file"]))
             gasl["trace_summary"] = trace_summary
+            gasl["behavior"] = summarize_gasl_behavior(Path(gasl["state_file"]), gasl["result"], trace_summary)
             (query_dir / "gasl.json").write_text(json.dumps(json_safe(gasl), indent=2))
 
             row = {
@@ -209,27 +270,33 @@ def main() -> None:
                 "graph": spec.graph_name,
                 "family": spec.family,
                 "question": spec.question,
-                "expected": spec.expected,
-                "rag_score": score_answer(rag["answer"]["text"], spec.expected),
-                "gasl_score": score_answer(gasl["result"]["final_answer"], spec.expected),
                 "rag_latency_s": rag["latency_s"],
                 "gasl_latency_s": gasl["latency_s"],
-                "gasl_process_steps": trace_summary["process_steps"],
+                "gasl_behavior": gasl["behavior"],
                 "gasl_trace_file": gasl["trace_file"],
             }
             rows.append(row)
             print(json.dumps(row, indent=2), flush=True)
 
-    summary = {
+    behavior_summary = {
         "run_id": run_id,
         "completed_at": datetime.now().isoformat(),
         "rows": rows,
-        "gasl_better": [r for r in rows if r["gasl_score"] > r["rag_score"]],
-        "rag_better": [r for r in rows if r["gasl_score"] < r["rag_score"]],
-        "ties": [r for r in rows if r["gasl_score"] == r["rag_score"]],
+        "aggregate": {
+            "planner_iterations_total": sum(r["gasl_behavior"]["planner_iterations"] for r in rows),
+            "history_len_total": sum(r["gasl_behavior"]["history_len"] for r in rows),
+            "command_error_count_total": sum(r["gasl_behavior"]["command_error_count"] for r in rows),
+            "command_empty_count_total": sum(r["gasl_behavior"]["command_empty_count"] for r in rows),
+            "process_status_counts": dict(
+                sum((Counter(r["gasl_behavior"]["process_status_counts"]) for r in rows), Counter())
+            ),
+            "error_categories": dict(
+                sum((Counter(r["gasl_behavior"]["error_categories"]) for r in rows), Counter())
+            ),
+        },
     }
-    (run_dir / "summary.json").write_text(json.dumps(summary, indent=2))
-    print(f"WROTE {run_dir / 'summary.json'}")
+    (run_dir / "behavior_summary.json").write_text(json.dumps(behavior_summary, indent=2))
+    print(f"WROTE {run_dir / 'behavior_summary.json'}")
 
 
 if __name__ == "__main__":

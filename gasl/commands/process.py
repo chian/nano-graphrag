@@ -177,23 +177,18 @@ class ProcessHandler(CommandHandler):
     ) -> ExecutionResult:
         """Execute PROCESS on a single batch (original logic)."""
         result = self._run_process_batch(data, instruction, subtype=subtype, phase="main")
+        normalized_items = self._normalized_items(result)
         print(f"🔍 PROCESS DEBUG: Parsed result keys: {list(result.keys())}")
-        print(f"🔍 PROCESS DEBUG: processed_items length: {len(result.get('processed_items', []))}")
+        print(f"🔍 PROCESS DEBUG: processed_items length: {len(normalized_items)}")
         print(f"🔍 PROCESS DEBUG: processing_method: {result.get('processing_method', 'unknown')}")
         
         # Store results in target variable
-        # Handle both filtering and processing responses
-        if result.get('processing_method') == 'filter':
-            processed_items = result.get("filtered_items", [])
-        else:
-            processed_items = result.get("processed_items", [])
+        print(f"🔍 PROCESS DEBUG: About to store {len(normalized_items)} items in {target_variable}")
+        if normalized_items:
+            print(f"🔍 PROCESS DEBUG: First item keys: {list(normalized_items[0].keys()) if normalized_items[0] else 'empty'}")
         
-        print(f"🔍 PROCESS DEBUG: About to store {len(processed_items)} items in {target_variable}")
-        if processed_items:
-            print(f"🔍 PROCESS DEBUG: First item keys: {list(processed_items[0].keys()) if processed_items[0] else 'empty'}")
-        
-        self._store_processed_data(target_variable, processed_items)
-        print(f"DEBUG: PROCESS - Updated {target_variable} with {len(processed_items)} processed items using {result.get('processing_method', 'unknown')} method")
+        self._store_processed_data(target_variable, normalized_items)
+        print(f"DEBUG: PROCESS - Updated {target_variable} with {len(normalized_items)} processed items using {result.get('processing_method', 'unknown')} method")
         
         # Store full result in context
         result_key = f"process_{command.args['variable']}_{len(self.context_store.keys())}"
@@ -212,27 +207,21 @@ class ProcessHandler(CommandHandler):
         ]
         
         # Determine status based on actual work done
-        if "processed_items" in result:
-            status = "success" if len(result['processed_items']) > 0 else "empty"
-        elif "filtered_items" in result:
-            status = "success" if len(result['filtered_items']) > 0 else "empty"
-        else:
-            status = "empty"
+        status = "success" if len(normalized_items) > 0 else "empty"
         
         # Create initial result
         result_obj = self._create_result(
             command=command,
             status=status,
-            data=result,
-            count=len(result.get('filtered_items', [])) if 'filtered_items' in result else len(result.get('processed_items', [])),
+            data=normalized_items,
+            count=len(normalized_items),
             provenance=provenance
         )
         
         # Validate with LLM judge if available
         if self.validator and status == "success":
             validation = self.validator.validate_command_success(
-                command.command_type, command.args, result, 
-                len(result.get('filtered_items', [])) if 'filtered_items' in result else len(result.get('processed_items', []))
+                command.command_type, command.args, normalized_items, len(normalized_items)
             )
             
             if not validation.get("valid", True):
@@ -245,6 +234,13 @@ class ProcessHandler(CommandHandler):
         
         return result_obj
 
+    @staticmethod
+    def _normalized_items(result: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Return the row/list payload downstream commands should see."""
+        if result.get("processing_method") == "filter":
+            return result.get("filtered_items", [])
+        return result.get("processed_items", [])
+
     def _run_process_batch(self, data: Any, instruction: str, *, subtype: str, phase: str) -> Dict[str, Any]:
         prompt = self._create_process_prompt(data, instruction)
         llm = self._llm_for_subtype(subtype)
@@ -255,8 +251,11 @@ class ProcessHandler(CommandHandler):
     def _llm_for_subtype(self, subtype: str):
         if hasattr(self.llm_func, "clone"):
             routed_model = self.subtype_router.routed_model(getattr(self.llm_func, "model", ""), subtype)
+            reasoning_effort = "low" if subtype in {"semantic_filter", "field_derivation"} else None
             if routed_model and routed_model != getattr(self.llm_func, "model", ""):
-                return self.llm_func.clone(model=routed_model)
+                return self.llm_func.clone(model=routed_model, reasoning_effort=reasoning_effort)
+            if reasoning_effort and getattr(self.llm_func, "reasoning_effort", None) != reasoning_effort:
+                return self.llm_func.clone(reasoning_effort=reasoning_effort)
         return self.llm_func
 
     def _record_artifact_candidate(
