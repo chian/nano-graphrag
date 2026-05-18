@@ -213,6 +213,7 @@ class GASLExecutor:
                 results.append(result)
                 
                 # Add to history
+                artifact = self._build_produced_artifact(command, result)
                 history_entry = HistoryEntry(
                     step_id=step_id,
                     command=command.raw_text,
@@ -221,9 +222,12 @@ class GASLExecutor:
                     duration_ms=result.duration_ms,
                     timestamp=result.timestamp,
                     error_message=result.error_message,
-                    provenance=result.provenance
+                    provenance=result.provenance,
+                    produced_artifact=artifact,
                 )
                 self.state_store.add_history_entry(history_entry)
+                if artifact:
+                    self.state_store.append_produced_artifact(artifact)
                 previous_result = result
                 
                 # Check for early termination
@@ -409,6 +413,36 @@ class GASLExecutor:
             "context": referenced_context,
             "contracts": referenced_contracts,
         }
+
+    def _build_produced_artifact(self, command: Command, result: ExecutionResult) -> Optional[Dict[str, Any]]:
+        """Build a compact artifact record for future prompts and variable-flow debugging."""
+        args = command.args or {}
+        variable = None
+        for key in ("result_variable", "target_variable", "result_var", "target"):
+            value = args.get(key)
+            if isinstance(value, str) and value:
+                variable = value
+                break
+        if variable is None and command.command_type == "DECLARE":
+            value = args.get("variable")
+            if isinstance(value, str) and value:
+                variable = value
+        if not variable:
+            return None
+        contract = result.contract or self.state_manager.get_variable_contract(variable, fallback_to_last_nodes=False) or {}
+        return {
+            "variable": variable,
+            "command_type": command.command_type,
+            "status": result.status,
+            "item_count": result.count,
+            "payload_kind": contract.get("payload_kind", ""),
+            "row_schema": contract.get("row_schema", []),
+            "label_field": contract.get("label_field", ""),
+            "metric_field": contract.get("metric_field", ""),
+            "grain_type": contract.get("grain_type", ""),
+            "multiplicity_preserved": contract.get("multiplicity_preserved"),
+            "timestamp": result.timestamp.isoformat(),
+        }
     
     def create_snapshot(self, snapshot_id: str, next_actions: List[Dict[str, Any]] = None) -> StateSnapshot:
         """Create a state snapshot for MCTS future-proofing."""
@@ -446,7 +480,7 @@ class GASLExecutor:
             history = current_state.get("history", [])
             
             # Create plan prompt
-            plan_prompt = self.llm_func.create_plan_prompt(query, schema, current_state.get("variables", {}), history)
+            plan_prompt = self.llm_func.create_plan_prompt(query, schema, current_state, history)
             plan_obs_id = self.prompt_obs.record_invocation(
                 prompt_name="plan_generation",
                 prompt_text=plan_prompt,

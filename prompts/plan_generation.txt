@@ -37,6 +37,9 @@ IMPORTANT: Before creating new variables, check if existing variables can be reu
 Execution History:
 {execution_history}
 
+Recently Produced Artifacts:
+{produced_artifacts}
+
 AVAILABLE GASL COMMANDS:
 
 CORE COMMANDS:

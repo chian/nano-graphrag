@@ -30,6 +30,7 @@ class HistoryEntry:
     timestamp: datetime
     error_message: Optional[str] = None
     provenance: List[Provenance] = field(default_factory=list)
+    produced_artifact: Optional[Dict[str, Any]] = None
 
 
 @dataclass

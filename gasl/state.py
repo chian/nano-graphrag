@@ -92,7 +92,8 @@ class StateStore:
             "history": [],
             "replay": [],
             "validation_hint": None,
-            "strategy_insights": None
+            "strategy_insights": None,
+            "produced_artifacts": []
         }
         self._save_state()
     
@@ -215,8 +216,16 @@ class StateStore:
                     "snippet": p.snippet,
                     "extraction": p.extraction
                 } for p in entry.provenance
-            ]
+            ],
+            "produced_artifact": entry.produced_artifact,
         })
+        self._save_state()
+
+    def append_produced_artifact(self, artifact: Dict[str, Any], max_keep: int = 50) -> None:
+        """Append a compact artifact record produced by a command."""
+        self._state.setdefault("produced_artifacts", []).append(artifact)
+        if len(self._state["produced_artifacts"]) > max_keep:
+            self._state["produced_artifacts"] = self._state["produced_artifacts"][-max_keep:]
         self._save_state()
     
     def create_snapshot(self, snapshot_id: str, next_actions: List[Dict[str, Any]] = None) -> StateSnapshot:

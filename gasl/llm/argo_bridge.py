@@ -224,8 +224,9 @@ class ArgoBridgeLLM:
             edge_types=schema.get('edge_types', []),
             node_properties=schema.get('node_properties', []),
             edge_properties=schema.get('edge_properties', []),
-            state_variables=self._format_state(state),
-            execution_history=self._format_history(history)
+            state_variables=self._format_state(state.get("variables", {})),
+            execution_history=self._format_history(history),
+            produced_artifacts=self._format_produced_artifacts(state.get("produced_artifacts", [])),
         )
         
         return formatted_prompt
@@ -376,6 +377,22 @@ class ArgoBridgeLLM:
             count = entry.get("result_count", 0)
             formatted.append(f"- {status}: {command} (result count: {count})")
         
+        return "\n".join(formatted)
+
+    def _format_produced_artifacts(self, artifacts: list) -> str:
+        """Format recently produced artifacts for prompt context."""
+        if not artifacts:
+            return "No produced artifacts yet."
+        formatted = []
+        for art in artifacts[-8:]:
+            formatted.append(
+                f"- {art.get('variable','')}: {art.get('command_type','')} -> {art.get('payload_kind','')}"
+                f" ({art.get('item_count',0)} items)"
+                + (f", label={art.get('label_field')}" if art.get('label_field') else "")
+                + (f", metric={art.get('metric_field')}" if art.get('metric_field') else "")
+                + (f", grain={art.get('grain_type')}" if art.get('grain_type') else "")
+                + (f", fields={art.get('row_schema', [])[:8]}" if art.get('row_schema') else "")
+            )
         return "\n".join(formatted)
     
     def _format_results(self, results: Dict[str, Any]) -> str:
