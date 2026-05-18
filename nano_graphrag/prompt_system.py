@@ -156,6 +156,7 @@ class QueryAwarePromptSystem:
             'plan_generation',
             'completion_validator',
             'process_batch',
+            'process_repair',
             'classify_batch',
             'entity_type_generation',
             'entity_type_generation_json',

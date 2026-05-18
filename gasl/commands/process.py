@@ -16,6 +16,7 @@ from ..process_runtime import (
     ProcessSubtypeRouter,
 )
 from ..contracts import make_contract, merge_contract
+from ..process_repair_prompting import format_process_repair_case
 
 
 class ProcessHandler(CommandHandler):
@@ -611,49 +612,19 @@ Rules:
         selection,
         probe_result: Dict[str, Any],
     ) -> str:
-        sample_rows = [self._flatten_row(row) for row in data[:8]]
-        probe_count = len(probe_result.get("filtered_items") or probe_result.get("processed_items") or [])
-        return f"""You are repairing a PROCESS contract/search mismatch.
-
-Query:
-{query}
-
-Instruction:
-{instruction}
-
-Incoming contract:
-{incoming_contract}
-
-Current interpretation:
-{interpretation or {}}
-
-Selection diagnostics:
-{selection.diagnostics}
-
-Probe positive count:
-{probe_count}
-
-Sample rows:
-{sample_rows}
-
-Recent workflow history:
-{history[-4:] if history else []}
-
-Return strict JSON:
-{{
-  "refined_instruction": "<updated PROCESS instruction or empty string>",
-  "selector_hint": "keep_current|lexical|vector|central|broaden|narrow",
-  "current_rows_sufficient": true,
-  "confidence": 0.0,
-  "reason": "<short reason>"
-}}
-
-Rules:
-- Use one selector_hint only.
-- If the current rows are already the right substrate, set current_rows_sufficient=true.
-- If the filter seems vague, pick a selector_hint and refine the instruction.
-- Do not answer the query.
-"""
+        from nano_graphrag.prompt_system import get_prompt_system
+        base_prompt = get_prompt_system().get_prompt("process_repair", optimize=False)
+        case_text = format_process_repair_case(
+            data=data,
+            query=query,
+            instruction=instruction,
+            history=history,
+            incoming_contract=incoming_contract,
+            interpretation=interpretation,
+            selection_diagnostics=selection.diagnostics,
+            probe_result=probe_result,
+        )
+        return f"{base_prompt}\n\n{case_text}"
 
     def _format_data_for_llm(self, data: Any) -> str:
         """Format data for LLM consumption."""
