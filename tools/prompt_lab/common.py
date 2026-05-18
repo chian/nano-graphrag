@@ -48,7 +48,7 @@ def iter_jsonl(path: Path) -> Iterator[Dict[str, Any]]:
         for line in fh:
             line = line.strip()
             if line:
-                yield json.loads(line)
+                yield json.loads(line, strict=False)
 
 
 def write_jsonl(path: Path, rows: Iterable[Dict[str, Any]]) -> None:

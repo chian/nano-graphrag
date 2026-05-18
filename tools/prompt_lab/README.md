@@ -14,9 +14,17 @@ Workflow
 
    `python tools/prompt_lab/generate_repair_candidates.py --cases tmp/cases.jsonl --template-file my_repair_prompt.txt --out tmp/candidates.jsonl`
 
+   Or bootstrap positives directly from existing successful prompt outcomes:
+
+   `python tools/prompt_lab/seed_candidates_from_cases.py --cases tmp/cases.jsonl --only-positive --out tmp/seeded_candidates.jsonl`
+
 3. Verify candidates with an external verifier:
 
    `python tools/prompt_lab/verify_repair_candidates.py --cases tmp/cases.jsonl --candidates tmp/candidates.jsonl --verifier-cmd 'python my_verifier.py --case {case_path} --candidate {candidate_path}' --out tmp/verifications.jsonl`
+
+   Repo-specific verifier for this codebase:
+
+   `python tools/prompt_lab/verify_repair_candidates.py --cases tmp/cases.jsonl --candidates tmp/seeded_candidates.jsonl --verifier-cmd '.venv/bin/python tools/prompt_lab/verifiers/nano_graphrag_verifier.py --case {case_path} --candidate {candidate_path}' --out tmp/verifications.jsonl`
 
 4. Build a reusable labeled dataset:
 
