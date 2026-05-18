@@ -196,6 +196,25 @@ def summarize_gasl_behavior(state_file: Path, gasl_result: Dict[str, Any], trace
     }
 
 
+def load_curated_questions(question_file: Path, graph_path: str, per_graph: int) -> List[QuestionSpec]:
+    payload = json.loads(question_file.read_text(encoding="utf-8"))
+    graph_name = Path(graph_path).parent.name
+    rows = [row for row in payload.get("questions", []) if row.get("graph") == graph_name]
+    specs: List[QuestionSpec] = []
+    for idx, row in enumerate(rows[:per_graph], start=1):
+        specs.append(
+            QuestionSpec(
+                graph_path=graph_path,
+                graph_name=graph_name,
+                family=row.get("family", f"curated/{idx:02d}"),
+                question=row["question"],
+                expected=row.get("expected", []),
+                metadata=row.get("metadata", {}),
+            )
+        )
+    return specs
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--graph", action="append", dest="graphs", default=[])
@@ -204,6 +223,7 @@ def main() -> None:
     parser.add_argument("--heartbeat", type=int, default=1800)
     parser.add_argument("--run-id", default="")
     parser.add_argument("--breadth-only", action="store_true")
+    parser.add_argument("--question-file", default="", help="Optional curated question-set JSON file")
     args = parser.parse_args()
 
     load_env_file(REPO_ROOT / ".viz.local.env")
@@ -226,6 +246,7 @@ def main() -> None:
         "graphs": graphs,
         "per_graph": args.per_graph,
         "breadth_only": args.breadth_only,
+        "question_file": args.question_file,
     }
     (run_dir / "manifest.json").write_text(json.dumps(manifest, indent=2))
 
@@ -236,7 +257,9 @@ def main() -> None:
         graph = loader.graph
         graph.graph["graphml_path"] = str(graph_path)
         questions: List[QuestionSpec]
-        if args.breadth_only:
+        if args.question_file:
+            questions = load_curated_questions(Path(args.question_file), graph_path, per_graph=args.per_graph)
+        elif args.breadth_only:
             questions = breadth_questions(graph, limit=args.per_graph)
         else:
             questions = generate_questions(graph_path, per_graph=args.per_graph)
