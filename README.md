@@ -58,6 +58,54 @@ Two cooperating systems plus glue:
 
 ---
 
+## Agentic system overview
+
+![GASL agent and prompt interaction flow](docs/assets/agentic_system_flow.svg)
+
+The GASL stack is not a single prompt. It is a bounded agent loop with
+explicit runtime prompts, deterministic command execution, sidecar
+logging, and an offline prompt-optimization pipeline.
+
+### Runtime loop
+
+1. `plan_generation` receives the user query, graph schema, prior
+   history, produced-artifact metadata, and any prior repair
+   constraints. It returns a JSON plan.
+2. `GASLExecutor` runs the plan against graph adapters using command
+   handlers such as `FIND`, `GRAPHWALK`, `PROJECT`, `PROCESS`,
+   `AGGREGATE`, `RANK`, and `SHOW`.
+3. Validators run in-line:
+   - path-semantics validation after `GRAPHWALK`
+   - completion validation after each iteration
+4. If completion is `NO`, the system first tries a direct
+   `plan_repair` patch against the previous plan. If no patch can be
+   applied, it falls back to `strategy_adaptation` to produce stricter
+   planner constraints for the next planning call.
+5. When the loop converges, a final analysis prompt synthesizes the
+   answer from the current GASL state.
+
+### Observation and tuning loop
+
+- Every prompt call is written to `gasl_artifacts/prompt_observations.jsonl`.
+- Every plan / command / validator event is written to
+  `gasl_artifacts/traces/<query>.jsonl`.
+- Produced-variable contracts are also persisted in state/history so
+  later prompts and repairs can use exact artifact metadata instead of
+  guessing.
+- The offline prompt-lab tooling in `tools/prompt_lab/` mines those
+  traces, verifies repaired candidates, and feeds GEPA optimizers for
+  prompts such as:
+  - `prompts/plan_generation.txt`
+  - `prompts/plan_repair.txt`
+  - `prompts/process_repair.txt`
+  - `prompts/aggregate_repair.txt`
+
+This split is deliberate: runtime prompts answer questions; offline
+repair/verification prompts turn bad traces into labeled datasets that
+can be optimized without mutating the live query path.
+
+---
+
 ## Quick start
 
 ```bash

@@ -1,0 +1,122 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="900" viewBox="0 0 1280 900" fill="none">
+  <defs>
+    <style>
+      .title { font: 700 28px Arial, sans-serif; fill: #111827; }
+      .section { font: 700 20px Arial, sans-serif; fill: #111827; }
+      .label { font: 600 15px Arial, sans-serif; fill: #111827; }
+      .body { font: 400 13px Arial, sans-serif; fill: #374151; }
+      .small { font: 400 12px Arial, sans-serif; fill: #6b7280; }
+      .box { fill: #ffffff; stroke: #cbd5e1; stroke-width: 2; rx: 10; ry: 10; }
+      .group { fill: #f8fafc; stroke: #e2e8f0; stroke-width: 2; rx: 16; ry: 16; }
+      .accent { fill: #eef2ff; stroke: #6366f1; stroke-width: 2; rx: 10; ry: 10; }
+      .repair { fill: #fff7ed; stroke: #f97316; stroke-width: 2; rx: 10; ry: 10; }
+      .sidecar { fill: #ecfeff; stroke: #0891b2; stroke-width: 2; rx: 10; ry: 10; }
+      .offline { fill: #f0fdf4; stroke: #16a34a; stroke-width: 2; rx: 10; ry: 10; }
+      .arrow { stroke: #475569; stroke-width: 2.5; fill: none; marker-end: url(#arrow); }
+      .dashed { stroke-dasharray: 8 6; }
+    </style>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+    </marker>
+  </defs>
+
+  <rect x="16" y="16" width="1248" height="868" fill="#ffffff"/>
+  <text x="40" y="56" class="title">GASL agent / prompt interaction map</text>
+
+  <rect x="36" y="84" width="1210" height="450" class="group"/>
+  <text x="54" y="118" class="section">Runtime loop</text>
+
+  <rect x="64" y="150" width="190" height="88" class="box"/>
+  <text x="84" y="183" class="label">1. User query</text>
+  <text x="84" y="205" class="body">Natural-language question</text>
+  <text x="84" y="224" class="body">plus graph schema / state</text>
+
+  <rect x="312" y="150" width="232" height="110" class="accent"/>
+  <text x="332" y="183" class="label">2. plan_generation prompt</text>
+  <text x="332" y="205" class="body">LLM receives query, schema, history,</text>
+  <text x="332" y="224" class="body">produced artifacts, and repair constraints</text>
+  <text x="332" y="245" class="small">prompts/plan_generation.txt</text>
+
+  <rect x="612" y="138" width="300" height="170" class="box"/>
+  <text x="632" y="171" class="label">3. Executor + graph commands</text>
+  <text x="632" y="194" class="body">GASLExecutor dispatches FIND, GRAPHWALK,</text>
+  <text x="632" y="213" class="body">PROJECT, PROCESS, AGGREGATE, RANK, SHOW</text>
+  <text x="632" y="236" class="body">against NetworkX / Neo4j adapters</text>
+  <text x="632" y="259" class="small">gasl/executor.py, gasl/commands/*</text>
+  <text x="632" y="280" class="small">graph adapters: gasl/adapters/*</text>
+
+  <rect x="966" y="150" width="238" height="110" class="box"/>
+  <text x="986" y="183" class="label">4. Validators</text>
+  <text x="986" y="205" class="body">Path semantics after GRAPHWALK</text>
+  <text x="986" y="224" class="body">Completion validator after each iteration</text>
+  <text x="986" y="245" class="small">gasl/validation.py</text>
+
+  <rect x="618" y="352" width="270" height="92" class="repair"/>
+  <text x="638" y="385" class="label">5. plan_repair prompt</text>
+  <text x="638" y="408" class="body">Patch the previous plan directly</text>
+  <text x="638" y="429" class="small">prompts/plan_repair.txt</text>
+
+  <rect x="926" y="352" width="278" height="92" class="repair"/>
+  <text x="946" y="385" class="label">6. strategy_adaptation prompt</text>
+  <text x="946" y="408" class="body">Fallback: emit planner constraints</text>
+  <text x="946" y="429" class="small">prompts/strategy_adaptation.txt</text>
+
+  <rect x="64" y="352" width="238" height="92" class="box"/>
+  <text x="84" y="385" class="label">7. final_analysis</text>
+  <text x="84" y="408" class="body">Synthesize final answer from state</text>
+  <text x="84" y="429" class="small">final analysis prompt + response</text>
+
+  <path d="M254 194 L312 194" class="arrow"/>
+  <path d="M544 205 L612 205" class="arrow"/>
+  <path d="M912 205 L966 205" class="arrow"/>
+  <path d="M1084 260 L1084 352" class="arrow"/>
+  <path d="M926 398 L888 398 L888 398" class="arrow"/>
+  <path d="M618 398 L544 398 L544 205" class="arrow"/>
+  <path d="M966 398 L544 398 L544 235" class="arrow dashed"/>
+  <path d="M612 280 L302 398 L302 398" class="arrow"/>
+  <path d="M302 398 L302 398 L302 398" class="arrow"/>
+  <path d="M612 280 L183 352" class="arrow"/>
+
+  <rect x="36" y="556" width="1210" height="130" class="group"/>
+  <text x="54" y="590" class="section">Sidecar observation and tracing</text>
+
+  <rect x="68" y="612" width="320" height="52" class="sidecar"/>
+  <text x="88" y="643" class="label">prompt_observations.jsonl</text>
+  <text x="280" y="643" class="small">prompt name, input, raw output, parsed output</text>
+
+  <rect x="470" y="612" width="320" height="52" class="sidecar"/>
+  <text x="490" y="643" class="label">traces/*.jsonl</text>
+  <text x="582" y="643" class="small">planner, commands, validators, final analysis</text>
+
+  <rect x="870" y="612" width="332" height="52" class="sidecar"/>
+  <text x="890" y="643" class="label">produced_artifacts in state/history</text>
+  <text x="1126" y="643" class="small">variable name, contract, counts, grain</text>
+
+  <path d="M430 205 L228 612" class="arrow dashed"/>
+  <path d="M720 308 L630 612" class="arrow dashed"/>
+  <path d="M1080 260 L1036 612" class="arrow dashed"/>
+
+  <rect x="36" y="712" width="1210" height="152" class="group"/>
+  <text x="54" y="746" class="section">Offline prompt-lab and GEPA loop</text>
+
+  <rect x="68" y="772" width="240" height="64" class="offline"/>
+  <text x="88" y="803" class="label">A. Collect cases</text>
+  <text x="88" y="825" class="body">Mine prompt observations + traces</text>
+
+  <rect x="348" y="772" width="240" height="64" class="offline"/>
+  <text x="368" y="803" class="label">B. Verify / label</text>
+  <text x="368" y="825" class="body">Deterministic verifier + accepted repairs</text>
+
+  <rect x="628" y="772" width="240" height="64" class="offline"/>
+  <text x="648" y="803" class="label">C. GEPA optimization</text>
+  <text x="648" y="825" class="body">planner, process_repair, aggregate_repair</text>
+
+  <rect x="908" y="772" width="276" height="64" class="offline"/>
+  <text x="928" y="803" class="label">D. Promote prompt files</text>
+  <text x="928" y="825" class="body">Write best prompt back to prompts/*.txt</text>
+
+  <path d="M308 804 L348 804" class="arrow"/>
+  <path d="M588 804 L628 804" class="arrow"/>
+  <path d="M868 804 L908 804" class="arrow"/>
+  <path d="M1046 772 L1046 686 L430 686 L430 260" class="arrow dashed"/>
+</svg>
