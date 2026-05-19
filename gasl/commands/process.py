@@ -376,7 +376,11 @@ class ProcessHandler(CommandHandler):
                     prompt_name="process_interpretation",
                     prompt_text=prompt,
                     model=getattr(llm, "model", None),
-                    metadata={"query": query, "instruction": instruction},
+                    metadata={
+                        "query": query,
+                        "instruction": instruction,
+                        "surface": getattr(self.llm_func, "get_prompt_surface", lambda _n: None)("process_interpretation"),
+                    },
                 )
             raw = llm.call(prompt)
             parsed = self._parse_interpretation_response(raw)
@@ -445,6 +449,7 @@ class ProcessHandler(CommandHandler):
                         "query": query,
                         "instruction": instruction,
                         "probe_result_count": len(probe_result.get("filtered_items") or probe_result.get("processed_items") or []),
+                        "surface": getattr(self.llm_func, "get_prompt_surface", lambda _n: None)("process_repair"),
                     },
                 )
             raw = llm.call(prompt)

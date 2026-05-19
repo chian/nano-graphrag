@@ -1,0 +1,87 @@
+{
+  "manifest_version": "1",
+  "agent_name": "gasl",
+  "surfaces": [
+    {
+      "surface_id": "planner",
+      "prompt_name": "plan_generation",
+      "skeleton_file": "prompts/plan_generation.txt",
+      "slot_schema": [],
+      "parser_id": "json_plan_v1",
+      "verifier_id": "completion_validator_v1",
+      "runtime_entrypoint": "gasl.llm.argo_bridge:create_plan_prompt"
+    },
+    {
+      "surface_id": "plan_repair",
+      "prompt_name": "plan_repair",
+      "skeleton_file": "prompts/plan_repair.txt",
+      "slot_schema": [],
+      "parser_id": "json_plan_repair_v1",
+      "verifier_id": "plan_patch_verifier_v1",
+      "runtime_entrypoint": "gasl.executor:_attempt_plan_repair"
+    },
+    {
+      "surface_id": "completion_validator",
+      "prompt_name": "completion_validator",
+      "skeleton_file": "prompts/completion_validator.txt",
+      "slot_schema": [],
+      "parser_id": "yes_no_v1",
+      "verifier_id": "completion_gate_v1",
+      "runtime_entrypoint": "gasl.llm.argo_bridge:create_completion_validator_prompt"
+    },
+    {
+      "surface_id": "final_analysis",
+      "prompt_name": "final_analysis",
+      "skeleton_file": "prompts/final_analysis.txt",
+      "slot_schema": [],
+      "parser_id": "freeform_answer_v1",
+      "verifier_id": "none",
+      "runtime_entrypoint": "gasl.llm.argo_bridge:create_analysis_prompt"
+    },
+    {
+      "surface_id": "strategy_adaptation",
+      "prompt_name": "strategy_adaptation",
+      "skeleton_file": "prompts/strategy_adaptation.txt",
+      "slot_schema": [],
+      "parser_id": "freeform_strategy_v1",
+      "verifier_id": "none",
+      "runtime_entrypoint": "gasl.llm.argo_bridge:create_strategy_adaptation_prompt"
+    },
+    {
+      "surface_id": "process_interpretation",
+      "prompt_name": "process_interpretation",
+      "skeleton_file": null,
+      "slot_schema": [],
+      "parser_id": "json_process_interpretation_v1",
+      "verifier_id": "process_contract_v1",
+      "runtime_entrypoint": "gasl.commands.process:_create_interpretation_prompt"
+    },
+    {
+      "surface_id": "process_repair",
+      "prompt_name": "process_repair",
+      "skeleton_file": "prompts/process_repair.txt",
+      "slot_schema": [],
+      "parser_id": "json_process_repair_v1",
+      "verifier_id": "process_contract_v1",
+      "runtime_entrypoint": "gasl.commands.process:_create_repair_prompt"
+    },
+    {
+      "surface_id": "process_batch",
+      "prompt_name": "process_batch",
+      "skeleton_file": "prompts/process_batch.txt",
+      "slot_schema": [],
+      "parser_id": "json_process_batch_v1",
+      "verifier_id": "batch_process_v1",
+      "runtime_entrypoint": "gasl.micro_actions:_create_process_prompt"
+    },
+    {
+      "surface_id": "classify_batch",
+      "prompt_name": "classify_batch",
+      "skeleton_file": "prompts/classify_batch.txt",
+      "slot_schema": [],
+      "parser_id": "json_classify_batch_v1",
+      "verifier_id": "batch_classify_v1",
+      "runtime_entrypoint": "gasl.micro_actions:_create_classify_prompt"
+    }
+  ]
+}

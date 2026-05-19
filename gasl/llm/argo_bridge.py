@@ -72,6 +72,9 @@ class ArgoBridgeLLM:
             self._prompt_system = QueryAwarePromptSystem()
         return self._prompt_system
 
+    def get_prompt_surface(self, prompt_name: str) -> Optional[Dict[str, Any]]:
+        return self.prompt_system.get_prompt_surface(prompt_name)
+
     def _is_reasoning_model(self) -> bool:
         """Models that reject custom temperature / require defaults.
 

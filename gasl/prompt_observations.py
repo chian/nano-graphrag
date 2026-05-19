@@ -20,6 +20,7 @@ class PromptObservationLogger:
         self.obs_dir = Path(base_dir) / "gasl_artifacts"
         self.obs_dir.mkdir(parents=True, exist_ok=True)
         self.obs_file = self.obs_dir / "prompt_observations.jsonl"
+        self.manifest_file = self.obs_dir / "agent_manifest.snapshot.json"
 
     @staticmethod
     def _hash_text(text: str) -> str:
@@ -75,3 +76,7 @@ class PromptObservationLogger:
         }
         with self.obs_file.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(row, default=str) + "\n")
+
+    def write_manifest(self, manifest: Dict[str, Any]) -> Path:
+        self.manifest_file.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+        return self.manifest_file

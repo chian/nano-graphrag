@@ -105,6 +105,11 @@ class GASLExecutor:
         trace_base_dir = Path(state_file).parent if state_file else Path.cwd()
         self.trace = GASLTraceLogger(trace_base_dir, job_id=job_id)
         self.prompt_obs = PromptObservationLogger(trace_base_dir, job_id=job_id)
+        if hasattr(self.llm_func, "prompt_system"):
+            try:
+                self.prompt_obs.write_manifest(self.llm_func.prompt_system.get_agent_manifest())
+            except Exception:
+                pass
         self.trace.log("executor_init", {
             "model": getattr(llm_func, "model", None),
             "state_file": str(state_file) if state_file else None,
@@ -499,6 +504,7 @@ class GASLExecutor:
                         "query": query,
                         "history_len": len(history),
                         "state_var_count": len(current_state.get("variables", {})),
+                        "surface": getattr(self.llm_func, "get_prompt_surface", lambda _n: None)("plan_generation"),
                     },
                 )
                 self.trace.log("planner_prompt", {
@@ -572,7 +578,11 @@ class GASLExecutor:
                         prompt_name="completion_validator",
                         prompt_text=validation_prompt,
                         model=getattr(self.llm_func, "model", None),
-                        metadata={"iteration": iteration, "query": query},
+                        metadata={
+                            "iteration": iteration,
+                            "query": query,
+                            "surface": getattr(self.llm_func, "get_prompt_surface", lambda _n: None)("completion_validator"),
+                        },
                     )
                     print(f"DEBUG: Sending completion validation prompt to LLM")
                     self.trace.log("validation_prompt", {
@@ -626,7 +636,11 @@ class GASLExecutor:
                             prompt_name="strategy_adaptation",
                             prompt_text=strategy_prompt,
                             model=getattr(self.llm_func, "model", None),
-                            metadata={"iteration": iteration, "query": query},
+                            metadata={
+                                "iteration": iteration,
+                                "query": query,
+                                "surface": getattr(self.llm_func, "get_prompt_surface", lambda _n: None)("strategy_adaptation"),
+                            },
                         )
                         strategy_response = self.llm_func.call(strategy_prompt)
                         self.prompt_obs.record_outcome(
@@ -709,7 +723,11 @@ class GASLExecutor:
             prompt_name="plan_repair",
             prompt_text=repair_prompt,
             model=getattr(self.llm_func, "model", None),
-            metadata={"iteration": iteration, "query": query},
+            metadata={
+                "iteration": iteration,
+                "query": query,
+                "surface": getattr(self.llm_func, "get_prompt_surface", lambda _n: None)("plan_repair"),
+            },
         )
         raw = self.llm_func.call(repair_prompt)
         parsed = self._parse_plan_repair_response(raw)

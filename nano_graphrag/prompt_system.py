@@ -4,6 +4,8 @@ Replaces the static PROMPTS dictionary with dynamic, query-optimized prompts.
 """
 
 import os
+import json
+from copy import deepcopy
 from pathlib import Path
 from typing import Dict, Any, Optional
 from jinja2 import Template
@@ -18,9 +20,41 @@ class QueryAwarePromptSystem:
         self.llm_func = llm_func
         self._prompt_cache = {}
         self._optimized_cache = {}
+        self._manifest_cache = None
         
         # Load static prompts that don't need optimization
         self._load_static_prompts()
+
+    def _load_manifest(self) -> Dict[str, Any]:
+        if self._manifest_cache is not None:
+            return self._manifest_cache
+        manifest_path = self.prompts_dir / "agent_manifest.json"
+        if manifest_path.exists():
+            with open(manifest_path, "r", encoding="utf-8") as f:
+                self._manifest_cache = json.load(f)
+        else:
+            self._manifest_cache = {
+                "manifest_version": "0",
+                "agent_name": "gasl",
+                "surfaces": [],
+            }
+        return self._manifest_cache
+
+    def get_agent_manifest(self) -> Dict[str, Any]:
+        return deepcopy(self._load_manifest())
+
+    def get_prompt_surface(self, prompt_name: str) -> Optional[Dict[str, Any]]:
+        manifest = self._load_manifest()
+        for surface in manifest.get("surfaces", []):
+            if surface.get("prompt_name") == prompt_name:
+                return deepcopy(surface)
+        return None
+
+    def snapshot_agent_manifest(self, out_dir: str | Path) -> Path:
+        out_path = Path(out_dir) / "agent_manifest.snapshot.json"
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(json.dumps(self.get_agent_manifest(), indent=2), encoding="utf-8")
+        return out_path
     
     def _load_static_prompts(self):
         """Load prompts that don't need query optimization."""
