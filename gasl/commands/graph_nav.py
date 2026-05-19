@@ -9,6 +9,7 @@ from ..types import Command, ExecutionResult, Provenance
 from ..validation import LLMJudgeValidator
 from ..adapters.base import GraphAdapter
 from ..contracts import make_contract
+from ..retrieval_probe import RetrievalProbePolicy
 
 
 class GraphNavHandler(CommandHandler):
@@ -18,6 +19,7 @@ class GraphNavHandler(CommandHandler):
         super().__init__(state_store, context_store, state_manager)
         self.adapter = adapter
         self.validator = LLMJudgeValidator(llm_func) if llm_func else None
+        self.probe_policy = RetrievalProbePolicy()
     
     def can_handle(self, command: Command) -> bool:
         return command.command_type in ["GRAPHWALK", "GRAPHCONNECT", "SUBGRAPH", "GRAPHPATTERN"]
@@ -68,62 +70,35 @@ class GraphNavHandler(CommandHandler):
                                          error_message=f"Variable {from_var} not found or empty, and no last_nodes_result available")
         
         # Perform graph walk with memory limit
-        walked_data = []
-        visited_hops = set()
-        max_nodes = 10000  # Limit to prevent memory issues
+        effective_depth = depth
+        source_cap = 100
         follow_filters = self._normalize_follow_types(follow_types)
-        
-        for node in source_nodes[:100]:  # Limit source nodes to first 100
-            if len(walked_data) >= max_nodes:
-                break
-                
-            node_id = node.get("id")
-            if node_id:
-                # Multi-hop traversal
-                current_nodes = [node]
-                for step in range(depth):
-                    next_nodes = []
-                    for current_node in current_nodes:
-                        if len(walked_data) >= max_nodes:
-                            break
-                            
-                        edges = self.adapter.find_edges({"source": current_node["id"]})
-                        for edge in edges[:50]:  # Limit edges per node to 50
-                            if len(walked_data) >= max_nodes:
-                                break
-                            edge_rel = (
-                                edge.get("data", {}).get("relation_type")
-                                or edge.get("data", {}).get("relationship_name")
-                                or ""
-                            )
-                            canonical_edge_rel = self._canonicalize_relation_token(edge_rel)
-                            if follow_filters and canonical_edge_rel not in follow_filters:
-                                continue
 
-                            target_nodes = self.adapter.find_nodes({"id_filter": edge["target"]})
-                            if not target_nodes:
-                                continue
-                            target_node = target_nodes[0]
-                            target_id = target_node["id"]
-                            hop_key = (current_node["id"], target_id, step + 1, canonical_edge_rel)
-                            if hop_key in visited_hops:
-                                continue
-                            visited_hops.add(hop_key)
-                            enriched_target = {
-                                **target_node,
-                                "src_id": current_node["id"],
-                                "tgt_id": target_id,
-                                "data": {
-                                    **target_node.get("data", {}),
-                                    "src_id": current_node["id"],
-                                    "tgt_id": target_id,
-                                    "relation_type": edge_rel,
-                                    "path_depth": step + 1,
-                                },
-                            }
-                            next_nodes.append(enriched_target)
-                    current_nodes = next_nodes
-                walked_data.extend(current_nodes)
+        if self.validator and (len(source_nodes) > 10 or depth > 1):
+            pilot = self._walk(source_nodes, follow_filters, depth, source_cap=10, max_nodes=60, edge_cap=15)
+            pilot_contract = make_contract(
+                payload_kind="walk_rows",
+                data=pilot,
+                label_field="data.entity_name",
+                scope="current_rows_only",
+                usable_by=["PROCESS", "AGGREGATE", "SHOW", "SELECT"],
+                confidence=0.9,
+                grain_type="edge",
+                grain_keys=["src_id", "tgt_id", "relation_type", "path_depth"],
+                multiplicity_preserved=True,
+            )
+            pilot_validation = self.validator.validate_graphwalk_semantics(
+                command.args,
+                source_nodes[:10],
+                pilot,
+                len(pilot),
+                contract=pilot_contract,
+            )
+            if depth > 1 and (not pilot or self.probe_policy.should_adapt(pilot_validation, len(pilot), min_count=25)):
+                effective_depth = 1
+                source_cap = min(25, len(source_nodes))
+
+        walked_data = self._walk(source_nodes, follow_filters, effective_depth, source_cap=source_cap, max_nodes=10000, edge_cap=50)
         
         if result_var:
             walk_contract = make_contract(
@@ -192,6 +167,8 @@ class GraphNavHandler(CommandHandler):
                 walk_contract["usable_by"] = list(validation["downstream_safe_for"])
             notes = list(walk_contract.get("notes", []))
             notes.append(f"path_semantics: {validation.get('reason', '')}".strip())
+            if effective_depth != depth:
+                notes.append(f"retrieval_probe: adapted GRAPHWALK depth {depth} -> {effective_depth}")
             walk_contract["notes"] = notes
             walk_contract["semantic_validation"] = validation
 
@@ -212,6 +189,68 @@ class GraphNavHandler(CommandHandler):
                 print(f"DEBUG: GRAPHWALK - path semantics passed: {validation.get('reason', 'Valid')}")
         
         return result_obj
+
+    def _walk(
+        self,
+        source_nodes: list[dict],
+        follow_filters: list[str],
+        depth: int,
+        *,
+        source_cap: int,
+        max_nodes: int,
+        edge_cap: int,
+    ) -> list[dict]:
+        walked_data: list[dict] = []
+        visited_hops = set()
+        for node in source_nodes[:source_cap]:
+            if len(walked_data) >= max_nodes:
+                break
+            node_id = node.get("id")
+            if not node_id:
+                continue
+            current_nodes = [node]
+            for step in range(depth):
+                next_nodes = []
+                for current_node in current_nodes:
+                    if len(walked_data) >= max_nodes:
+                        break
+                    edges = self.adapter.find_edges({"source": current_node["id"]})
+                    for edge in edges[:edge_cap]:
+                        if len(walked_data) >= max_nodes:
+                            break
+                        edge_rel = (
+                            edge.get("data", {}).get("relation_type")
+                            or edge.get("data", {}).get("relationship_name")
+                            or ""
+                        )
+                        canonical_edge_rel = self._canonicalize_relation_token(edge_rel)
+                        if follow_filters and canonical_edge_rel not in follow_filters:
+                            continue
+                        target_nodes = self.adapter.find_nodes({"id_filter": edge["target"]})
+                        if not target_nodes:
+                            continue
+                        target_node = target_nodes[0]
+                        target_id = target_node["id"]
+                        hop_key = (current_node["id"], target_id, step + 1, canonical_edge_rel)
+                        if hop_key in visited_hops:
+                            continue
+                        visited_hops.add(hop_key)
+                        enriched_target = {
+                            **target_node,
+                            "src_id": current_node["id"],
+                            "tgt_id": target_id,
+                            "data": {
+                                **target_node.get("data", {}),
+                                "src_id": current_node["id"],
+                                "tgt_id": target_id,
+                                "relation_type": edge_rel,
+                                "path_depth": step + 1,
+                            },
+                        }
+                        next_nodes.append(enriched_target)
+                current_nodes = next_nodes
+            walked_data.extend(current_nodes)
+        return walked_data
 
     @staticmethod
     def _normalize_follow_types(follow_types: str) -> list[str]:
