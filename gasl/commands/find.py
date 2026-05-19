@@ -15,6 +15,7 @@ from ..retrieval_probe import RetrievalProbePolicy
 
 class FindHandler(CommandHandler):
     """Handles FIND commands for graph traversal."""
+    PATH_PROBE_PAIR_BUDGET = 120
     
     def __init__(self, state_store, context_store, adapter: GraphAdapter, llm_func=None, state_manager=None):
         super().__init__(state_store, context_store)
@@ -120,8 +121,12 @@ class FindHandler(CommandHandler):
                 contract=result_contract,
             )
             
+            gate = diagnostics.get("gate", {}) if diagnostics else {}
+            if gate.get("valid") is False:
+                result_obj.status = "error"
+                result_obj.error_message = f"Path query blocked before launch: {gate.get('reason', 'unanchored path query')}"
             # Validate with LLM judge if available
-            if self.validator and status == "success":
+            elif self.validator and status == "success":
                 validation = self.validator.validate_command_success(
                     command.command_type, command.args, result, count
                 )
@@ -246,27 +251,34 @@ class FindHandler(CommandHandler):
     def _find_paths_with_probe(self, command: Command, filters: dict) -> list[dict]:
         criteria = command.args.get("criteria", "")
         exact_path_semantics = bool(filters.get("source_filter") and filters.get("target_filter") and filters.get("relation_type"))
-        if exact_path_semantics:
-            strict_probe = self._strict_relation_paths(filters, source_limit=10, max_results=50)
-            if strict_probe:
-                sample = self.probe_policy.sample_rows(strict_probe, seed_text=criteria)
-                validation = self.validator.validate_command_success("FIND", command.args, sample, len(sample)) if self.validator else {}
-                if validation.get("valid", True):
-                    filters["_strategy"] = "strict_relation_paths"
-                    filters["_probe_diagnostics"] = {"validation": validation, "sample_size": len(sample)}
-                    return self._strict_relation_paths(filters, source_limit=None, max_results=self.adapter.capabilities.max_results)
-                filters["_probe_diagnostics"] = {"validation": validation, "sample_size": len(sample)}
+        if not exact_path_semantics:
+            filters["_strategy"] = "blocked_unanchored_find_paths"
+            filters["_probe_diagnostics"] = {
+                "gate": {
+                    "valid": False,
+                    "reason": "FIND paths must be source/edge/target anchored. Use exact source entity_type=... edge relation_type=... target entity_type=... syntax or choose FIND nodes + GRAPHWALK instead.",
+                    "confidence": 0.98,
+                }
+            }
+            return []
 
-        result = self.adapter.find_paths(filters)
-        if self.validator and len(result) > self.probe_policy.PROBE_SIZE:
-            sample = self.probe_policy.sample_rows(result, seed_text=criteria)
-            validation = self.validator.validate_command_success("FIND", command.args, sample, len(sample))
-            filters["_probe_diagnostics"] = {"validation": validation, "sample_size": len(sample)}
-            if self.probe_policy.should_adapt(validation, len(result), min_count=50) and exact_path_semantics:
-                filters["_strategy"] = "adapted_to_strict_relation_paths"
-                return self._strict_relation_paths(filters, source_limit=None, max_results=self.adapter.capabilities.max_results)
-        filters["_strategy"] = "adapter_find_paths"
-        return result
+        sample_filters = dict(filters)
+        sample_filters["_max_pairs"] = self.PATH_PROBE_PAIR_BUDGET
+        strict_probe = self.adapter.find_paths(sample_filters)
+        if not strict_probe:
+            filters["_strategy"] = "strict_relation_paths_sampled_empty"
+            filters["_probe_diagnostics"] = {"validation": {"valid": False, "reason": "No relation-constrained paths found in probe sample."}, "sample_size": 0}
+            return []
+        sample = self.probe_policy.sample_rows(strict_probe, seed_text=criteria)
+        validation = self.validator.validate_command_success("FIND", command.args, sample, len(sample)) if self.validator else {}
+        filters["_probe_diagnostics"] = {"validation": validation, "sample_size": len(sample)}
+        if validation.get("valid", True):
+            filters["_strategy"] = "strict_relation_paths_sampled"
+            full_filters = dict(filters)
+            full_filters["_max_results"] = self.adapter.capabilities.max_results
+            return self.adapter.find_paths(full_filters)
+        filters["_strategy"] = "aborted_after_invalid_probe"
+        return []
 
     def _strict_relation_paths(self, filters: dict, *, source_limit: int | None, max_results: int) -> list[dict]:
         source_nodes = self.adapter.find_nodes(filters["source_filter"])

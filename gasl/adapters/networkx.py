@@ -89,6 +89,8 @@ class NetworkXAdapter(GraphAdapter):
         try:
             paths = []
             max_path_length = self.capabilities.max_path_length
+            max_pair_budget = int(filters.get("_max_pairs", 0) or 0)
+            relation_type = str(filters.get("relation_type", "") or "").strip('"').strip("'")
             
             # Extract source and target from filters
             source_nodes = self._get_nodes_by_filter(filters.get("source_filter", {}))
@@ -96,22 +98,30 @@ class NetworkXAdapter(GraphAdapter):
             
             if not source_nodes or not target_nodes:
                 return paths
+
+            search_graph = self._relation_filtered_graph(relation_type) if relation_type else self.graph
+            scanned_pairs = 0
             
             # Find paths between source and target nodes
             for source in source_nodes:
                 for target in target_nodes:
                     if source != target:
+                        scanned_pairs += 1
+                        if max_pair_budget and scanned_pairs > max_pair_budget:
+                            return paths
                         try:
                             # Use NetworkX shortest path
-                            path = nx.shortest_path(self.graph, source, target)
+                            path = nx.shortest_path(search_graph, source, target)
                             
                             if len(path) <= max_path_length:
+                                edge_types = self._path_edge_types(path)
                                 path_info = {
                                     "source": source,
                                     "target": target,
                                     "path": path,
                                     "length": len(path) - 1,
-                                    "type": "path"
+                                    "type": "path",
+                                    "edge_types": edge_types,
                                 }
                                 paths.append(path_info)
                         except nx.NetworkXNoPath:
@@ -127,6 +137,48 @@ class NetworkXAdapter(GraphAdapter):
             
         except Exception as e:
             raise AdapterError(f"Failed to find paths: {e}", "networkx", "find_paths")
+
+    def _relation_filtered_graph(self, relation_type: str):
+        """Return a graph view restricted to a specific relation type."""
+        if not relation_type:
+            return self.graph
+        relation_type = str(relation_type).strip('"').strip("'").lower()
+        if isinstance(self.graph, nx.MultiDiGraph):
+            g = nx.MultiDiGraph()
+            g.add_nodes_from(self.graph.nodes(data=True))
+            for u, v, k, data in self.graph.edges(data=True, keys=True):
+                edge_rel = str(data.get("relation_type") or data.get("relationship_name") or "").strip('"').strip("'").lower()
+                if edge_rel == relation_type:
+                    g.add_edge(u, v, key=k, **data)
+            return g
+        else:
+            g = type(self.graph)()
+            g.add_nodes_from(self.graph.nodes(data=True))
+            for u, v, data in self.graph.edges(data=True):
+                edge_rel = str(data.get("relation_type") or data.get("relationship_name") or "").strip('"').strip("'").lower()
+                if edge_rel == relation_type:
+                    g.add_edge(u, v, **data)
+            return g
+
+    def _path_edge_types(self, path: List[Any]) -> List[str]:
+        """Return relation types along a path to make path semantics inspectable."""
+        edge_types: List[str] = []
+        if len(path) < 2:
+            return edge_types
+        for i in range(len(path) - 1):
+            u, v = path[i], path[i + 1]
+            if isinstance(self.graph, nx.MultiDiGraph):
+                edge_data = self.graph.get_edge_data(u, v) or {}
+                rel = None
+                for _, data in edge_data.items():
+                    rel = data.get("relation_type") or data.get("relationship_name")
+                    if rel:
+                        break
+            else:
+                data = self.graph.get_edge_data(u, v) or {}
+                rel = data.get("relation_type") or data.get("relationship_name")
+            edge_types.append(str(rel or ""))
+        return edge_types
     
     def _node_matches_filters(self, node_id: Any, data: Dict[str, Any], filters: Dict[str, Any]) -> bool:
         """Check if node matches filters."""

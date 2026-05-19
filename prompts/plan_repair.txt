@@ -52,6 +52,8 @@ Hard constraints:
 - If a prior traversal/path artifact is semantically invalid, patch the walk or
   source selection directly. Do not hide weak traversal semantics behind later
   PROCESS/AGGREGATE steps.
+- If the failing line is a broad `FIND paths` query, replace it with either an
+  anchored `FIND paths` source/edge/target query or with `FIND nodes` + `GRAPHWALK`.
 - If the issue is variable handoff, patch the plan so downstream commands
   reference the exact produced variable names.
 - Use exact GASL command syntax.

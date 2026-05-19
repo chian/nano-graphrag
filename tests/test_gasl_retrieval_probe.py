@@ -62,11 +62,42 @@ def test_find_strict_relation_paths_prefers_exact_relation():
         "target_filter": {"entity_type": '"VALIDATION_STUDY"'},
         "relation_type": "VALIDATED_BY",
     }
-    rows = handler._strict_relation_paths(filters, source_limit=None, max_results=50)
+    rows = handler.adapter.find_paths(filters)
     pairs = {(row["source"], row["target"]) for row in rows}
     assert ("ec1", "vs1") in pairs
     assert ("ec1", "vs2") in pairs
     assert ("ec1", "other") not in pairs
+    assert all("VALIDATED_BY" in row.get("edge_types", []) for row in rows)
+
+
+def test_find_paths_gate_blocks_unanchored_path_query():
+    handler = FindHandler(StateStore(), ContextStore(), NetworkXAdapter(_make_graph()))
+    command = Command(
+        command_type="FIND",
+        args={
+            "target": "paths",
+            "criteria": "entity_type=ENGINEERING_CONTROL and relation_type in [TARGETS,REDUCES] and entity_type=AIRBORNE_PATHOGEN",
+            "result_var": "control_pathogen_paths",
+        },
+        raw_text="FIND paths with entity_type=ENGINEERING_CONTROL and relation_type in [TARGETS,REDUCES] and entity_type=AIRBORNE_PATHOGEN AS control_pathogen_paths",
+        line_number=1,
+    )
+    result = handler.execute(command)
+    assert result.status == "error"
+    assert "source/edge/target anchored" in (result.error_message or "")
+
+
+def test_networkx_find_paths_respects_pair_budget():
+    graph = _make_graph()
+    adapter = NetworkXAdapter(graph)
+    filters = {
+        "source_filter": {"entity_type": '"ENGINEERING_CONTROL"'},
+        "target_filter": {"entity_type": '"VALIDATION_STUDY"'},
+        "relation_type": "VALIDATED_BY",
+        "_max_pairs": 1,
+    }
+    rows = adapter.find_paths(filters)
+    assert len(rows) == 1
 
 
 def test_graphwalk_probe_can_reduce_depth_on_invalid_pilot():
