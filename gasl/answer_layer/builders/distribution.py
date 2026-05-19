@@ -1,19 +1,19 @@
 from __future__ import annotations
 
 from ..types import AnswerView
-from ..utils import distribution_summary, numeric_fields
+from ..utils import distribution_summary
 
 
-def build(view_id: str, variable_name: str, rows: list[dict], meta: dict) -> AnswerView:
-    measure_field = next(iter(numeric_fields(rows, meta.get("metric_field"))), None)
-    if not measure_field:
-        return AnswerView(view_id=view_id, kind="distribution", source_variable=variable_name, sufficient=False, payload={})
-    values = [float(row.get(measure_field)) for row in rows if isinstance(row.get(measure_field), (int, float))]
+def build(view_id: str, grouped_summary_view: AnswerView) -> AnswerView:
+    rows = grouped_summary_view.payload.get("rows", [])
+    values = [float(row.get("measure_mean")) for row in rows if isinstance(row.get("measure_mean"), (int, float))]
+    if not values:
+        return AnswerView(view_id=view_id, kind="distribution", source_variable=grouped_summary_view.source_variable, sufficient=False, payload={})
     summary = distribution_summary(values)
     return AnswerView(
         view_id=view_id,
         kind="distribution",
-        source_variable=variable_name,
+        source_variable=grouped_summary_view.source_variable,
         sufficient=bool(summary),
-        payload={"measure_field": measure_field, **summary},
+        payload={"measure_field": "measure_mean", **summary},
     )

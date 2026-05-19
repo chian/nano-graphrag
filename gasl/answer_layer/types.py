@@ -5,11 +5,13 @@ from typing import Any, Literal
 
 
 AnswerViewKind = Literal[
-    "ranked_subjects",
-    "subject_measure",
+    "evidence_table",
+    "grouped_summary",
     "distribution",
     "comparison",
-    "evidence_lookup",
+    "frontier",
+    "ranking",
+    "provenance",
 ]
 
 
@@ -26,4 +28,5 @@ class AnswerView:
 @dataclass
 class AnswerSelection:
     view: AnswerView | None
+    supporting_views: list[AnswerView] = field(default_factory=list)
     rationale: str = ""

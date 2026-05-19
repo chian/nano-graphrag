@@ -713,7 +713,7 @@ class GASLExecutor:
         }
         compiler = AnswerLayerCompiler()
         views = compiler.build_views(runtime_view)
-        selection = compiler.select_view(query, views)
+        selection = compiler.select_view(query, views, llm_func=self.llm_func)
         self.trace.log(
             "answer_views",
             {
@@ -731,6 +731,7 @@ class GASLExecutor:
                 "selection": {
                     "view_id": selection.view.view_id if selection.view else None,
                     "kind": selection.view.kind if selection.view else None,
+                    "supporting_view_ids": [view.view_id for view in selection.supporting_views],
                     "rationale": selection.rationale,
                 },
             },
@@ -770,6 +771,10 @@ class GASLExecutor:
             results = {
                 "selected_view_kind": selection.view.kind,
                 "selected_view": selection.view.payload,
+                "supporting_views": [
+                    {"kind": view.kind, "payload": view.payload}
+                    for view in selection.supporting_views
+                ],
                 "selection_rationale": selection.rationale,
             }
         analysis_prompt = self.llm_func.create_analysis_prompt(query, results)
