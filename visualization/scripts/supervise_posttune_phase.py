@@ -73,6 +73,49 @@ def _launch_rerun(per_graph: int, run_tag: str, log_fh) -> int:
     return pid
 
 
+def _launch_codex_exec(failure_json: Path, next_text: Path, out_dir: Path, log_fh) -> int:
+    prompt = f"""
+You are taking over an overnight post-tuning cycle in /home/chia/repos/nano-graphrag.
+
+Inputs:
+- failure summary JSON: {failure_json}
+- next-action text: {next_text}
+
+Task:
+1. Read the failure summary and representative traces.
+2. Look for the dominant remaining failure pattern across the completed post-tuning runs.
+3. Decide the next best fix using pattern-level evidence, not one-off query overfitting.
+4. Implement the fix.
+5. Commit and push.
+6. Start the next corpus rerun.
+7. Write a brief action summary to {out_dir / "codex_next_action.txt"}.
+
+Constraints:
+- Use many examples, not one trace.
+- Prefer central fixes over prompt-specific hacks.
+- Keep the repo working tree clean except for purposeful changes.
+"""
+    prompt_file = out_dir / "codex_exec_prompt.txt"
+    prompt_file.write_text(prompt.strip() + "\n", encoding="utf-8")
+    output_file = out_dir / "codex_next_action.txt"
+    cmd = (
+        f"setsid codex exec -m gpt-5.5 -C {shlex.quote(str(REPO_ROOT))} "
+        f"-s danger-full-access --dangerously-bypass-approvals-and-sandbox "
+        f"-o {shlex.quote(str(output_file))} "
+        f"- "
+        f"> {shlex.quote(str(out_dir / 'codex_exec.log'))} 2>&1 < {shlex.quote(str(prompt_file))} & echo $!"
+    )
+    proc = subprocess.run(cmd, shell=True, cwd=REPO_ROOT, text=True, capture_output=True)
+    pid_text = proc.stdout.strip().splitlines()[-1] if proc.stdout.strip() else ""
+    try:
+        pid = int(pid_text)
+    except Exception:
+        pid = 0
+    log_fh.write(f"{_ts()} LAUNCHED codex-exec pid={pid}\n")
+    log_fh.flush()
+    return pid
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Supervise post-tuning runs, analyze at threshold, optimize, and rerun.")
     parser.add_argument("--run-root", default="benchmark_results")
@@ -82,6 +125,7 @@ def main() -> None:
     parser.add_argument("--poll", type=int, default=600)
     parser.add_argument("--per-graph-rerun", type=int, default=5)
     parser.add_argument("--out-dir", default="")
+    parser.add_argument("--launch-codex-exec", action="store_true", help="After threshold analysis, hand off to codex exec for next-fix cycle")
     args = parser.parse_args()
 
     run_root = Path(args.run_root)
@@ -162,6 +206,8 @@ def main() -> None:
                 analysis_done = True
                 if not alive:
                     current_pid = _launch_rerun(args.per_graph_rerun, "posttune_after_opt", log_fh)
+                if args.launch_codex_exec:
+                    _launch_codex_exec(failure_json, next_text, out_dir, log_fh)
 
             if not alive and completed < args.threshold:
                 current_pid = _launch_rerun(args.per_graph_rerun, "posttune_chain", log_fh)
