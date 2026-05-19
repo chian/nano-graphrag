@@ -5,8 +5,8 @@ Data Transformation command handlers.
 from typing import Any, List, Dict
 from .base import CommandHandler
 from ..types import Command, ExecutionResult, Provenance
-from ..validation import LLMJudgeValidator
 from ..contracts import make_contract, merge_contract
+from nano_graphrag.graph_slots import get_source_refs
 
 
 class DataTransformHandler(CommandHandler):
@@ -15,7 +15,6 @@ class DataTransformHandler(CommandHandler):
     def __init__(self, state_store, context_store, llm_func=None, state_manager=None):
         super().__init__(state_store, context_store, state_manager)
         self.llm_func = llm_func
-        self.validator = LLMJudgeValidator(llm_func) if llm_func else None
     
     def can_handle(self, command: Command) -> bool:
         return command.command_type in ["TRANSFORM", "RESHAPE", "AGGREGATE", "PIVOT", "PROJECT", "COLLAPSE"]
@@ -329,20 +328,6 @@ class DataTransformHandler(CommandHandler):
                                                variable=variable, by_field=by_field, operation=operation)]
         )
         
-        # Validate with LLM judge if available
-        if self.validator and len(result_list) > 0:
-            validation = self.validator.validate_command_success(
-                command.command_type, command.args, result_list, len(result_list)
-            )
-            
-            if not validation.get("valid", True):
-                # Override status if LLM judge says it failed
-                result_obj.status = "error"
-                result_obj.error_message = f"LLM Judge Validation Failed: {validation.get('reason', 'Unknown validation failure')}"
-                print(f"DEBUG: AGGREGATE - LLM Judge validation failed: {validation}")
-            else:
-                print(f"DEBUG: AGGREGATE - LLM Judge validation passed: {validation.get('reason', 'Valid')}")
-        
         return result_obj
 
     def _resolve_aggregate_field(self, data: List[Dict[str, Any]], requested_field: str, source_contract: Dict[str, Any]) -> str:
@@ -419,12 +404,18 @@ class DataTransformHandler(CommandHandler):
                 return float(len(value))
 
         # Graph-linked rows often preserve evidence multiplicity in source metadata.
-        for path in ("data.source_chunks", "data.source_papers", "source_chunks", "source_papers"):
+        for path in ("data.source_chunks", "source_chunks"):
             value = self._get_nested_field(item, path)
             if isinstance(value, str) and value.strip():
                 parts = [part.strip() for part in value.split(",") if part.strip()]
                 if parts:
                     return float(len(dict.fromkeys(parts)))
+        for container_path in ("data", ""):
+            container = self._get_nested_field(item, container_path) if container_path else item
+            if isinstance(container, dict):
+                refs = get_source_refs(container)
+                if refs:
+                    return float(len(dict.fromkeys(refs)))
 
         return 1.0
 
@@ -605,7 +596,7 @@ class DataTransformHandler(CommandHandler):
         for source_path, alias in field_specs:
             base_row[alias] = self._get_nested_field(item, source_path)
         if grain == "paper":
-            papers = self._explode_csv_field(item, ["data.source_papers", "source_papers"])
+            papers = self._extract_source_refs(item)
             if not papers:
                 return [{**base_row, "paper_id": None}]
             return [{**base_row, "paper_id": paper_id} for paper_id in papers]
@@ -622,6 +613,14 @@ class DataTransformHandler(CommandHandler):
             if isinstance(value, str) and value.strip():
                 return [part.strip() for part in value.split(",") if part.strip()]
         return []
+
+    def _extract_source_refs(self, item: Dict[str, Any]) -> List[str]:
+        data_container = item.get("data")
+        if isinstance(data_container, dict):
+            refs = get_source_refs(data_container)
+            if refs:
+                return refs
+        return get_source_refs(item)
     
     def _get_nested_field(self, item: Dict, field_path: str) -> Any:
         """Get nested field value using dot notation with automatic path resolution."""

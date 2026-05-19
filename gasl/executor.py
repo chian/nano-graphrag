@@ -78,9 +78,9 @@ from .commands.iterate import IterateHandler
 from .micro_actions import MicroActionFramework
 from .errors import ExecutionError, ParseError
 from .trace import GASLTraceLogger
+from .answer_layer import AnswerLayerCompiler, DeterministicAnswerFinalizer
 from .prompt_observations import PromptObservationLogger
-
-PLAN_REPAIR_ALLOWED_MODES = {"patch", "replan", "noop"}
+from .plan_iteration_agent import PlanIterationAgent, PlanIterationRequest
 
 
 class GASLExecutor:
@@ -105,6 +105,7 @@ class GASLExecutor:
         trace_base_dir = Path(state_file).parent if state_file else Path.cwd()
         self.trace = GASLTraceLogger(trace_base_dir, job_id=job_id)
         self.prompt_obs = PromptObservationLogger(trace_base_dir, job_id=job_id)
+        self.plan_iteration_agent = PlanIterationAgent(self.llm_func, prompt_logger=self.prompt_obs, trace=self.trace)
         self.trace.log("executor_init", {
             "model": getattr(llm_func, "model", None),
             "state_file": str(state_file) if state_file else None,
@@ -432,7 +433,7 @@ class GASLExecutor:
         if not variable:
             return None
         contract = result.contract or self.state_manager.get_variable_contract(variable, fallback_to_last_nodes=False) or {}
-        semantic_validation = contract.get("semantic_validation", {}) if isinstance(contract, dict) else {}
+        refinement = contract.get("refinement", {}) if isinstance(contract, dict) else {}
         return {
             "variable": variable,
             "command_type": command.command_type,
@@ -445,8 +446,8 @@ class GASLExecutor:
             "grain_type": contract.get("grain_type", ""),
             "multiplicity_preserved": contract.get("multiplicity_preserved"),
             "safe_for": contract.get("usable_by", []),
-            "semantic_valid": semantic_validation.get("semantically_valid"),
-            "semantic_reason": semantic_validation.get("reason", ""),
+            "refinement_hint": refinement.get("refinement_hint"),
+            "refinement_reason": refinement.get("refinement_reason", ""),
             "timestamp": result.timestamp.isoformat(),
         }
     
@@ -477,6 +478,7 @@ class GASLExecutor:
         iteration = 0
         all_results = []
         pending_plan_json: Optional[Dict[str, Any]] = None
+        clean_iteration_completed = False
         
         while iteration < max_iterations:
             iteration += 1
@@ -557,89 +559,61 @@ class GASLExecutor:
                 print(f"DEBUG: Status repr: {repr(result['status'])}")
                 print(f"🔍 STATE DEBUG: After plan execution, state variables: {list(self.state_store.get_state().get('variables', {}).keys())}")
                 
-                # Check if we should continue
+                # Deterministic repair trigger: if this execution produced any command errors/empties,
+                # the run failed and must be repaired. Do not gate repair on an LLM validator.
                 if result["status"] in ["completed", "success"]:
-                    print(f"DEBUG: Plan completed successfully, checking for completion validation")
-                    # Check if we have enough information to answer
                     final_state = result["final_state"]
                     variables = final_state.get("variables", {})
-                    
                     print(f"DEBUG: Final state variables: {list(variables.keys())}")
-                    
-                    # Use LLM to validate if query was actually answered
-                    validation_prompt = self.llm_func.create_completion_validator_prompt(query, variables)
-                    validator_obs_id = self.prompt_obs.record_invocation(
-                        prompt_name="completion_validator",
-                        prompt_text=validation_prompt,
+                    failure_summary = self._determine_iteration_failures(result["results"])
+                    self.trace.log("iteration_failure_summary", {
+                        "iteration": iteration,
+                        "summary": failure_summary,
+                    })
+                    if not failure_summary["needs_repair"]:
+                        print(f"DEBUG: Clean iteration completed after {iteration} iterations")
+                        clean_iteration_completed = True
+                        break
+
+                    print(f"DEBUG: Iteration {iteration} needs repair: {failure_summary['reasons']}")
+                    if iteration >= max_iterations:
+                        print(f"DEBUG: Reached max iterations ({max_iterations}) with unresolved execution defects")
+                        break
+
+                    self.state_store.set_strategy_insights(json.dumps(failure_summary["reasons"]))
+                    repaired_plan, plan_repair_response = self._attempt_plan_repair(
+                        query=query,
+                        previous_plan=plan_json,
+                        variables=variables,
+                        iteration=iteration,
+                    )
+                    if repaired_plan is not None:
+                        pending_plan_json = repaired_plan
+                        self.state_store.set_strategy_insights(
+                            json.dumps(plan_repair_response.get("planner_constraints", []))
+                        )
+                        continue
+
+                    current_schema = self.get_schema()
+                    strategy_prompt = self.llm_func.create_strategy_adaptation_prompt(query, variables, iteration, current_schema, self.state_store.get_state())
+                    strat_obs_id = self.prompt_obs.record_invocation(
+                        prompt_name="strategy_adaptation",
+                        prompt_text=strategy_prompt,
                         model=getattr(self.llm_func, "model", None),
                         metadata={"iteration": iteration, "query": query},
                     )
-                    print(f"DEBUG: Sending completion validation prompt to LLM")
-                    self.trace.log("validation_prompt", {
-                        "iteration": iteration,
-                        "prompt": validation_prompt,
-                        "variables": variables,
-                    })
-                    validation_response = self.llm_func.call(validation_prompt).strip().upper()
+                    strategy_response = self.llm_func.call(strategy_prompt)
                     self.prompt_obs.record_outcome(
-                        validator_obs_id,
-                        prompt_name="completion_validator",
-                        response_text=validation_response,
-                        labels={"validator_yes": validation_response == "YES"},
+                        strat_obs_id,
+                        prompt_name="strategy_adaptation",
+                        response_text=strategy_response,
+                        labels={"generated": True},
                         metadata={"iteration": iteration},
                     )
-                    
-                    print(f"DEBUG: Completion validation: {validation_response}")
-                    self.trace.log("validation_response", {
-                        "iteration": iteration,
-                        "response": validation_response,
-                    })
-                    
-                    # Only stop if LLM confirms the query was answered
-                    if validation_response == "YES":
-                        print(f"DEBUG: Query successfully answered after {iteration} iterations")
-                        break
-                    else:
-                        print(f"DEBUG: Query not yet answered, continuing to iteration {iteration + 1}")
-                        if iteration >= max_iterations - 1:
-                            print(f"DEBUG: Reached max iterations ({max_iterations}) without answering query")
-                            break
-                        
-                        # First try direct plan repair. If patching fails, fall back to strategy notes.
-                        repaired_plan, plan_repair_response = self._attempt_plan_repair(
-                            query=query,
-                            previous_plan=plan_json,
-                            variables=variables,
-                            iteration=iteration,
-                        )
-                        self.state_store.set_validation_hint(validation_response)
-                        if repaired_plan is not None:
-                            pending_plan_json = repaired_plan
-                            self.state_store.set_strategy_insights(
-                                json.dumps(plan_repair_response.get("planner_constraints", []))
-                            )
-                            continue
-
-                        current_schema = self.get_schema()
-                        strategy_prompt = self.llm_func.create_strategy_adaptation_prompt(query, variables, iteration, current_schema, self.state_store.get_state())
-                        strat_obs_id = self.prompt_obs.record_invocation(
-                            prompt_name="strategy_adaptation",
-                            prompt_text=strategy_prompt,
-                            model=getattr(self.llm_func, "model", None),
-                            metadata={"iteration": iteration, "query": query},
-                        )
-                        strategy_response = self.llm_func.call(strategy_prompt)
-                        self.prompt_obs.record_outcome(
-                            strat_obs_id,
-                            prompt_name="strategy_adaptation",
-                            response_text=strategy_response,
-                            labels={"generated": True},
-                            metadata={"iteration": iteration},
-                        )
-                        print(f"DEBUG: Strategy Analysis (Iteration {iteration}):\n{strategy_response}\n")
-                        self.trace.log("strategy_prompt", {"iteration": iteration, "prompt": strategy_prompt})
-                        self.trace.log("strategy_response", {"iteration": iteration, "response": strategy_response})
-                        self.state_store.set_strategy_insights(strategy_response)
+                    print(f"DEBUG: Strategy Analysis (Iteration {iteration}):\n{strategy_response}\n")
+                    self.trace.log("strategy_prompt", {"iteration": iteration, "prompt": strategy_prompt})
+                    self.trace.log("strategy_response", {"iteration": iteration, "response": strategy_response})
+                    self.state_store.set_strategy_insights(strategy_response)
                 
             except json.JSONDecodeError:
                 # LLM didn't return valid JSON, try again
@@ -666,19 +640,16 @@ class GASLExecutor:
             else:
                 print(f"🔍 STATE DEBUG: {var_name}: {var_data}")
 
-        # Always try to generate an answer from whatever state was accumulated.
-        # The LLM is better than a hard-coded fallback at turning partial results
-        # into a useful response.
         has_data = any(
             (isinstance(v, dict) and "_meta" in v and
              (v.get("items") or any(k != "_meta" for k in v)))
             for v in variables.values()
         )
-        if has_data:
+        if clean_iteration_completed and has_data:
             final_answer = self._generate_final_answer(query, final_state)
             query_answered = True
         else:
-            final_answer = f"Query could not be answered after {iteration} iterations. No meaningful results found."
+            final_answer = f"Query could not be answered cleanly after {iteration} iterations. Execution defects remain."
             query_answered = False
         
         return {
@@ -690,6 +661,24 @@ class GASLExecutor:
             "query_answered": query_answered,
         }
 
+    @staticmethod
+    def _determine_iteration_failures(results: List[ExecutionResult]) -> Dict[str, Any]:
+        """Summarize deterministic execution defects for the current iteration."""
+        failure_reasons: List[Dict[str, Any]] = []
+        for result in results:
+            status = getattr(result, "status", None)
+            if status not in {"error", "empty"}:
+                continue
+            failure_reasons.append({
+                "command": getattr(result, "command", ""),
+                "status": status,
+                "error_message": getattr(result, "error_message", ""),
+            })
+        return {
+            "needs_repair": bool(failure_reasons),
+            "reasons": failure_reasons,
+        }
+
     def _attempt_plan_repair(
         self,
         query: str,
@@ -697,87 +686,60 @@ class GASLExecutor:
         variables: Dict[str, Any],
         iteration: int,
     ) -> tuple[Optional[Dict[str, Any]], Dict[str, Any]]:
-        """Try a structured patch to the prior plan before asking the planner again."""
-        repair_prompt = self.llm_func.create_plan_repair_prompt(
+        request = PlanIterationRequest(
             query=query,
             previous_plan=previous_plan,
             results=variables,
             iteration=iteration,
             state=self.state_store.get_state(),
         )
-        repair_obs_id = self.prompt_obs.record_invocation(
-            prompt_name="plan_repair",
-            prompt_text=repair_prompt,
-            model=getattr(self.llm_func, "model", None),
-            metadata={"iteration": iteration, "query": query},
-        )
-        raw = self.llm_func.call(repair_prompt)
-        parsed = self._parse_plan_repair_response(raw)
-        self.prompt_obs.record_outcome(
-            repair_obs_id,
-            prompt_name="plan_repair",
-            response_text=raw,
-            parsed=parsed,
-            labels={"mode": parsed.get("mode", ""), "parse_success": bool(parsed)},
-            metadata={"iteration": iteration},
-        )
-        self.trace.log("plan_repair_prompt", {"iteration": iteration, "prompt": repair_prompt})
-        self.trace.log("plan_repair_response", {"iteration": iteration, "response": raw, "parsed": parsed})
-        if not parsed or parsed.get("mode") not in PLAN_REPAIR_ALLOWED_MODES:
-            return None, parsed
-        if parsed["mode"] == "patch":
-            repaired = self._apply_plan_patch(previous_plan, parsed)
-            return repaired, parsed
-        return None, parsed
+        return self.plan_iteration_agent.iterate_plan(request)
 
     @staticmethod
     def _parse_plan_repair_response(text: str) -> Dict[str, Any]:
-        try:
-            parsed = json.loads(_extract_json(text))
-            if not isinstance(parsed, dict):
-                return {}
-            return parsed
-        except Exception:
-            return {}
+        return PlanIterationAgent.parse_response(text)
 
     @staticmethod
     def _apply_plan_patch(plan_json: Dict[str, Any], patch: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        commands = list(plan_json.get("commands", []))
-        changed = False
-        replace_command = (patch.get("replace_command") or "").strip()
-        replacement_command = (patch.get("replacement_command") or "").strip()
-        insert_after = (patch.get("insert_after_command") or "").strip()
-        insert_command = (patch.get("insert_command") or "").strip()
-        delete_command = (patch.get("delete_command") or "").strip()
-
-        if replace_command and replacement_command:
-            for idx, cmd in enumerate(commands):
-                if cmd.strip() == replace_command:
-                    commands[idx] = replacement_command
-                    changed = True
-                    break
-        if delete_command:
-            new_commands = [cmd for cmd in commands if cmd.strip() != delete_command]
-            if len(new_commands) != len(commands):
-                commands = new_commands
-                changed = True
-        if insert_after and insert_command:
-            for idx, cmd in enumerate(commands):
-                if cmd.strip() == insert_after:
-                    commands.insert(idx + 1, insert_command)
-                    changed = True
-                    break
-        if not changed:
-            return None
-        updated = dict(plan_json)
-        updated["commands"] = commands
-        why = patch.get("reason")
-        if why:
-            updated["why"] = f"{plan_json.get('why', '')} | repaired: {why}".strip(" |")
-        return updated
+        return PlanIterationAgent.apply_patch(plan_json, patch)
     
     def _generate_final_answer(self, query: str, state: Dict[str, Any]) -> str:
         """Generate final answer from accumulated state."""
+        runtime_view = {
+            "state_variables": state.get("variables", {}),
+            "context_variables": {key: self.context_store.get(key) for key in self.context_store.keys()},
+            "produced_artifacts": state.get("produced_artifacts", []),
+            "history": state.get("history", []),
+        }
+        compiler = AnswerLayerCompiler()
+        views = compiler.build_views(runtime_view)
+        selection = compiler.select_view(query, views)
+        self.trace.log(
+            "answer_views",
+            {
+                "query": query,
+                "views": [
+                    {
+                        "view_id": view.view_id,
+                        "kind": view.kind,
+                        "source_variable": view.source_variable,
+                        "sufficient": view.sufficient,
+                        "payload": view.payload,
+                    }
+                    for view in views
+                ],
+                "selection": {
+                    "view_id": selection.view.view_id if selection.view else None,
+                    "kind": selection.view.kind if selection.view else None,
+                    "rationale": selection.rationale,
+                },
+            },
+        )
+        deterministic = DeterministicAnswerFinalizer().finalize(query, selection)
+        if deterministic:
+            self.trace.log("final_answer_response", {"query": query, "mode": "deterministic_view", "response": deterministic})
+            return deterministic
+
         results = {}
         variables = state.get("variables", {})
 
@@ -804,6 +766,12 @@ class GASLExecutor:
             else:
                 print(f"DEBUG: FINAL ANSWER - {key}: {value}")
 
+        if selection.view and selection.view.sufficient:
+            results = {
+                "selected_view_kind": selection.view.kind,
+                "selected_view": selection.view.payload,
+                "selection_rationale": selection.rationale,
+            }
         analysis_prompt = self.llm_func.create_analysis_prompt(query, results)
         print(f"DEBUG: FINAL ANSWER - Analysis prompt being sent to LLM:")
         print("=" * 80)
