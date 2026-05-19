@@ -1,122 +1,147 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="900" viewBox="0 0 1280 900" fill="none">
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="920" viewBox="0 0 1440 920" fill="none">
   <defs>
     <style>
-      .title { font: 700 28px Arial, sans-serif; fill: #111827; }
-      .section { font: 700 20px Arial, sans-serif; fill: #111827; }
-      .label { font: 600 15px Arial, sans-serif; fill: #111827; }
-      .body { font: 400 13px Arial, sans-serif; fill: #374151; }
-      .small { font: 400 12px Arial, sans-serif; fill: #6b7280; }
-      .box { fill: #ffffff; stroke: #cbd5e1; stroke-width: 2; rx: 10; ry: 10; }
-      .group { fill: #f8fafc; stroke: #e2e8f0; stroke-width: 2; rx: 16; ry: 16; }
-      .accent { fill: #eef2ff; stroke: #6366f1; stroke-width: 2; rx: 10; ry: 10; }
-      .repair { fill: #fff7ed; stroke: #f97316; stroke-width: 2; rx: 10; ry: 10; }
-      .sidecar { fill: #ecfeff; stroke: #0891b2; stroke-width: 2; rx: 10; ry: 10; }
-      .offline { fill: #f0fdf4; stroke: #16a34a; stroke-width: 2; rx: 10; ry: 10; }
-      .arrow { stroke: #475569; stroke-width: 2.5; fill: none; marker-end: url(#arrow); }
-      .dashed { stroke-dasharray: 8 6; }
+      .bg { fill: #ffffff; }
+      .title { font: 700 34px Inter, Arial, sans-serif; fill: #0f172a; }
+      .subtitle { font: 500 16px Inter, Arial, sans-serif; fill: #475569; }
+      .lane-title { font: 700 18px Inter, Arial, sans-serif; fill: #0f172a; }
+      .card-title { font: 700 16px Inter, Arial, sans-serif; fill: #0f172a; }
+      .card-body { font: 500 13px Inter, Arial, sans-serif; fill: #475569; }
+      .tiny { font: 500 12px Inter, Arial, sans-serif; fill: #64748b; }
+      .card { fill: #ffffff; stroke: #cbd5e1; stroke-width: 1.5; rx: 14; ry: 14; }
+      .lane { fill: #f8fafc; stroke: #e2e8f0; stroke-width: 1.5; rx: 22; ry: 22; }
+      .accent-ui { fill: #fff1f2; stroke: #fb7185; stroke-width: 2; rx: 14; ry: 14; }
+      .accent-rag { fill: #ecfeff; stroke: #06b6d4; stroke-width: 2; rx: 14; ry: 14; }
+      .accent-gasl { fill: #eef2ff; stroke: #6366f1; stroke-width: 2; rx: 14; ry: 14; }
+      .accent-state { fill: #f8fafc; stroke: #94a3b8; stroke-width: 2; rx: 14; ry: 14; }
+      .accent-log { fill: #f0fdf4; stroke: #22c55e; stroke-width: 2; rx: 14; ry: 14; }
+      .accent-offline { fill: #fff7ed; stroke: #f97316; stroke-width: 2; rx: 14; ry: 14; }
+      .arrow { stroke: #334155; stroke-width: 2.5; fill: none; marker-end: url(#arrow); }
+      .arrow-soft { stroke: #64748b; stroke-width: 2; fill: none; stroke-dasharray: 8 6; marker-end: url(#arrow-soft); }
     </style>
     <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="strokeWidth">
-      <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+      <path d="M0,0 L10,5 L0,10 z" fill="#334155"/>
     </marker>
+    <marker id="arrow-soft" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L10,5 L0,10 z" fill="#64748b"/>
+    </marker>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#0f172a" flood-opacity="0.08"/>
+    </filter>
   </defs>
 
-  <rect x="16" y="16" width="1248" height="868" fill="#ffffff"/>
-  <text x="40" y="56" class="title">GASL agent / prompt interaction map</text>
+  <rect class="bg" x="0" y="0" width="1440" height="920"/>
+  <text x="56" y="70" class="title">nano-graphrag QA system map</text>
+  <text x="56" y="102" class="subtitle">Browser-first graph QA with two answer paths, explicit state, and inspectable sidecars.</text>
 
-  <rect x="36" y="84" width="1210" height="450" class="group"/>
-  <text x="54" y="118" class="section">Runtime loop</text>
+  <rect class="lane" x="44" y="132" width="1352" height="192" filter="url(#shadow)"/>
+  <text x="64" y="164" class="lane-title">Operator surface</text>
 
-  <rect x="64" y="150" width="190" height="88" class="box"/>
-  <text x="84" y="183" class="label">1. User query</text>
-  <text x="84" y="205" class="body">Natural-language question</text>
-  <text x="84" y="224" class="body">plus graph schema / state</text>
+  <rect class="accent-ui" x="64" y="190" width="250" height="96"/>
+  <text x="84" y="222" class="card-title">Visualization UI</text>
+  <text x="84" y="246" class="card-body">Graph canvas, node details, filters,</text>
+  <text x="84" y="266" class="card-body">query panel, demo cards, live replay.</text>
+  <text x="84" y="286" class="tiny">visualization/templates/viewer.html</text>
 
-  <rect x="312" y="150" width="232" height="110" class="accent"/>
-  <text x="332" y="183" class="label">2. plan_generation prompt</text>
-  <text x="332" y="205" class="body">LLM receives query, schema, history,</text>
-  <text x="332" y="224" class="body">produced artifacts, and repair constraints</text>
-  <text x="332" y="245" class="small">prompts/plan_generation.txt</text>
+  <rect class="card" x="362" y="190" width="260" height="96"/>
+  <text x="382" y="222" class="card-title">Server surface</text>
+  <text x="382" y="246" class="card-body">Flask + Socket.IO endpoints for graph data,</text>
+  <text x="382" y="266" class="card-body">question execution, and replay events.</text>
+  <text x="382" y="286" class="tiny">visualization/server.py</text>
 
-  <rect x="612" y="138" width="300" height="170" class="box"/>
-  <text x="632" y="171" class="label">3. Executor + graph commands</text>
-  <text x="632" y="194" class="body">GASLExecutor dispatches FIND, GRAPHWALK,</text>
-  <text x="632" y="213" class="body">PROJECT, PROCESS, AGGREGATE, RANK, SHOW</text>
-  <text x="632" y="236" class="body">against NetworkX / Neo4j adapters</text>
-  <text x="632" y="259" class="small">gasl/executor.py, gasl/commands/*</text>
-  <text x="632" y="280" class="small">graph adapters: gasl/adapters/*</text>
+  <rect class="card" x="670" y="190" width="260" height="96"/>
+  <text x="690" y="222" class="card-title">Query engine</text>
+  <text x="690" y="246" class="card-body">Routes every question into RAG or GASL,</text>
+  <text x="690" y="266" class="card-body">packages the runtime request, streams back events.</text>
+  <text x="690" y="286" class="tiny">visualization/query_engine.py</text>
 
-  <rect x="966" y="150" width="238" height="110" class="box"/>
-  <text x="986" y="183" class="label">4. Validators</text>
-  <text x="986" y="205" class="body">Path semantics after GRAPHWALK</text>
-  <text x="986" y="224" class="body">Completion validator after each iteration</text>
-  <text x="986" y="245" class="small">gasl/validation.py</text>
+  <rect class="card" x="978" y="190" width="398" height="96"/>
+  <text x="998" y="222" class="card-title">Bring-your-own-key model access</text>
+  <text x="998" y="246" class="card-body">Model choice stays in the browser. The server does not persist keys.</text>
+  <text x="998" y="266" class="card-body">OpenAI API or Argo-compatible gateway via the same LLM bridge.</text>
+  <text x="998" y="286" class="tiny">gasl/llm/argo_bridge.py</text>
 
-  <rect x="618" y="352" width="270" height="92" class="repair"/>
-  <text x="638" y="385" class="label">5. plan_repair prompt</text>
-  <text x="638" y="408" class="body">Patch the previous plan directly</text>
-  <text x="638" y="429" class="small">prompts/plan_repair.txt</text>
+  <path class="arrow" d="M314 238 L362 238"/>
+  <path class="arrow" d="M622 238 L670 238"/>
+  <path class="arrow" d="M930 238 L978 238"/>
 
-  <rect x="926" y="352" width="278" height="92" class="repair"/>
-  <text x="946" y="385" class="label">6. strategy_adaptation prompt</text>
-  <text x="946" y="408" class="body">Fallback: emit planner constraints</text>
-  <text x="946" y="429" class="small">prompts/strategy_adaptation.txt</text>
+  <rect class="lane" x="44" y="350" width="648" height="304" filter="url(#shadow)"/>
+  <text x="64" y="382" class="lane-title">Path A · RAG</text>
 
-  <rect x="64" y="352" width="238" height="92" class="box"/>
-  <text x="84" y="385" class="label">7. final_analysis</text>
-  <text x="84" y="408" class="body">Synthesize final answer from state</text>
-  <text x="84" y="429" class="small">final analysis prompt + response</text>
+  <rect class="accent-rag" x="64" y="412" width="270" height="96"/>
+  <text x="84" y="444" class="card-title">Subgraph retrieval</text>
+  <text x="84" y="468" class="card-body">TF-IDF / salience-biased retrieval over graph-backed text,</text>
+  <text x="84" y="488" class="card-body">returning a compact answer window for synthesis.</text>
+  <text x="84" y="508" class="tiny">visualization/query_engine.py</text>
 
-  <path d="M254 194 L312 194" class="arrow"/>
-  <path d="M544 205 L612 205" class="arrow"/>
-  <path d="M912 205 L966 205" class="arrow"/>
-  <path d="M1084 260 L1084 352" class="arrow"/>
-  <path d="M926 398 L888 398 L888 398" class="arrow"/>
-  <path d="M618 398 L544 398 L544 205" class="arrow"/>
-  <path d="M966 398 L544 398 L544 235" class="arrow dashed"/>
-  <path d="M612 280 L302 398 L302 398" class="arrow"/>
-  <path d="M302 398 L302 398 L302 398" class="arrow"/>
-  <path d="M612 280 L183 352" class="arrow"/>
+  <rect class="accent-rag" x="388" y="412" width="284" height="96"/>
+  <text x="408" y="444" class="card-title">RAG synthesis</text>
+  <text x="408" y="468" class="card-body">Fast answer over the retrieved window with provenance from</text>
+  <text x="408" y="488" class="card-body">the visible slice rather than whole-graph traversal.</text>
+  <text x="408" y="508" class="tiny">Query-mode toggle in the browser</text>
 
-  <rect x="36" y="556" width="1210" height="130" class="group"/>
-  <text x="54" y="590" class="section">Sidecar observation and tracing</text>
+  <rect class="card" x="64" y="544" width="608" height="84"/>
+  <text x="84" y="574" class="card-title">When RAG is the right tool</text>
+  <text x="84" y="598" class="card-body">Rapid lookups, orienting questions, and situations where the answer is adequately supported by a small, local retrieval window.</text>
 
-  <rect x="68" y="612" width="320" height="52" class="sidecar"/>
-  <text x="88" y="643" class="label">prompt_observations.jsonl</text>
-  <text x="280" y="643" class="small">prompt name, input, raw output, parsed output</text>
+  <path class="arrow" d="M334 460 L388 460"/>
 
-  <rect x="470" y="612" width="320" height="52" class="sidecar"/>
-  <text x="490" y="643" class="label">traces/*.jsonl</text>
-  <text x="582" y="643" class="small">planner, commands, validators, final analysis</text>
+  <rect class="lane" x="748" y="350" width="648" height="304" filter="url(#shadow)"/>
+  <text x="768" y="382" class="lane-title">Path B · GASL</text>
 
-  <rect x="870" y="612" width="332" height="52" class="sidecar"/>
-  <text x="890" y="643" class="label">produced_artifacts in state/history</text>
-  <text x="1126" y="643" class="small">variable name, contract, counts, grain</text>
+  <rect class="accent-gasl" x="768" y="412" width="188" height="96"/>
+  <text x="788" y="444" class="card-title">Plan</text>
+  <text x="788" y="468" class="card-body">LLM emits a bounded graph-action plan.</text>
+  <text x="788" y="488" class="tiny">prompts/plan_generation.txt</text>
 
-  <path d="M430 205 L228 612" class="arrow dashed"/>
-  <path d="M720 308 L630 612" class="arrow dashed"/>
-  <path d="M1080 260 L1036 612" class="arrow dashed"/>
+  <rect class="accent-gasl" x="976" y="412" width="188" height="96"/>
+  <text x="996" y="444" class="card-title">Execute</text>
+  <text x="996" y="468" class="card-body">FIND, GRAPHWALK, PROCESS,</text>
+  <text x="996" y="488" class="card-body">AGGREGATE, RANK, SHOW.</text>
+  <text x="996" y="508" class="tiny">gasl/executor.py + gasl/commands/*</text>
 
-  <rect x="36" y="712" width="1210" height="152" class="group"/>
-  <text x="54" y="746" class="section">Offline prompt-lab and GEPA loop</text>
+  <rect class="accent-gasl" x="1184" y="412" width="192" height="96"/>
+  <text x="1204" y="444" class="card-title">Repair + iterate</text>
+  <text x="1204" y="468" class="card-body">Search refinement, command repair,</text>
+  <text x="1204" y="488" class="card-body">and plan iteration when needed.</text>
+  <text x="1204" y="508" class="tiny">gasl/search_refinement_agent.py etc.</text>
 
-  <rect x="68" y="772" width="240" height="64" class="offline"/>
-  <text x="88" y="803" class="label">A. Collect cases</text>
-  <text x="88" y="825" class="body">Mine prompt observations + traces</text>
+  <rect class="accent-state" x="768" y="548" width="608" height="80"/>
+  <text x="788" y="578" class="card-title">State and answer views</text>
+  <text x="788" y="602" class="card-body">The answer layer compiles candidate views from current state — evidence_table, grouped_summary, distribution, comparison, frontier, ranking, provenance — then selects the best structurally valid framing.</text>
+  <text x="788" y="622" class="tiny">gasl/answer_layer/*</text>
 
-  <rect x="348" y="772" width="240" height="64" class="offline"/>
-  <text x="368" y="803" class="label">B. Verify / label</text>
-  <text x="368" y="825" class="body">Deterministic verifier + accepted repairs</text>
+  <path class="arrow" d="M956 460 L976 460"/>
+  <path class="arrow" d="M1164 460 L1184 460"/>
+  <path class="arrow" d="M1276 508 L1276 548"/>
+  <path class="arrow-soft" d="M1070 508 L1070 548"/>
 
-  <rect x="628" y="772" width="240" height="64" class="offline"/>
-  <text x="648" y="803" class="label">C. GEPA optimization</text>
-  <text x="648" y="825" class="body">planner, process_repair, aggregate_repair</text>
+  <rect class="lane" x="44" y="680" width="1352" height="186" filter="url(#shadow)"/>
+  <text x="64" y="712" class="lane-title">Shared state, adapters, and offline optimization</text>
 
-  <rect x="908" y="772" width="276" height="64" class="offline"/>
-  <text x="928" y="803" class="label">D. Promote prompt files</text>
-  <text x="928" y="825" class="body">Write best prompt back to prompts/*.txt</text>
+  <rect class="accent-state" x="64" y="742" width="308" height="88"/>
+  <text x="84" y="774" class="card-title">Graph adapters</text>
+  <text x="84" y="798" class="card-body">NetworkX / Neo4j boundaries expose the graph to both query paths with a canonical internal object model.</text>
+  <text x="84" y="818" class="tiny">gasl/adapters/*</text>
 
-  <path d="M308 804 L348 804" class="arrow"/>
-  <path d="M588 804 L628 804" class="arrow"/>
-  <path d="M868 804 L908 804" class="arrow"/>
-  <path d="M1046 772 L1046 686 L430 686 L430 260" class="arrow dashed"/>
+  <rect class="accent-log" x="408" y="742" width="308" height="88"/>
+  <text x="428" y="774" class="card-title">Runtime sidecars</text>
+  <text x="428" y="798" class="card-body">Prompt observations, traces, and produced-artifact metadata make every run inspectable and replayable.</text>
+  <text x="428" y="818" class="tiny">gasl_artifacts/prompt_observations.jsonl · traces/*.jsonl</text>
+
+  <rect class="accent-offline" x="752" y="742" width="308" height="88"/>
+  <text x="772" y="774" class="card-title">Prompt lab</text>
+  <text x="772" y="798" class="card-body">Offline verifiers and GEPA mine the sidecars, test repairs, and promote prompt updates without mutating the live query path.</text>
+  <text x="772" y="818" class="tiny">tools/prompt_lab/*</text>
+
+  <rect class="card" x="1096" y="742" width="280" height="88"/>
+  <text x="1116" y="774" class="card-title">Design invariants</text>
+  <text x="1116" y="798" class="card-body">Deterministic truth stays deterministic. LLMs handle gray areas, not post-hoc truth rewriting.</text>
+  <text x="1116" y="818" class="tiny">docs/RUNTIME_INVARIANTS.md</text>
+
+  <path class="arrow-soft" d="M826 238 L826 350"/>
+  <path class="arrow-soft" d="M552 238 L552 350 L180 350 L180 412"/>
+  <path class="arrow-soft" d="M1070 628 L1070 742"/>
+  <path class="arrow-soft" d="M522 628 L522 742"/>
+  <path class="arrow-soft" d="M218 830 L218 878 L906 878 L906 830"/>
 </svg>
