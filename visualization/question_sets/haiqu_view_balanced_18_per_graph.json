@@ -1,80 +1,653 @@
 {
-  "description": "Curated HAIQU question set stratified by target answer view. Each graph gets 18 questions: 3 ranking, 3 grouped_summary, 3 distribution, 3 comparison, 3 frontier, and 3 provenance. The goal is to test answer-view selection breadth rather than only top-k ranking.",
+  "description": "Curated HAIQU question set stratified by target answer view. Questions are phrased in a scientific/presentation voice while retaining explicit answer formatting constraints for evaluation.",
   "questions": [
-    {"graph":"haiqu_engineering_controls","family":"view_balance/engineering/01","question":"Which engineering controls have the broadest validation footprint across hospital zones? Return the top three item names as a comma-separated list with no explanation.","metadata":{"target_view":"ranking","theme":"validation_footprint"}},
-    {"graph":"haiqu_engineering_controls","family":"view_balance/engineering/02","question":"Which engineering controls most often combine pathogen-reduction evidence with low-cost proxies? Return the top three item names as a comma-separated list with no explanation.","metadata":{"target_view":"ranking","theme":"effectiveness_cost"}},
-    {"graph":"haiqu_engineering_controls","family":"view_balance/engineering/03","question":"Which engineering controls are most frequently linked to practical compliance evidence? Return the top three item names as a comma-separated list with no explanation.","metadata":{"target_view":"ranking","theme":"compliance"}},
-    {"graph":"haiqu_engineering_controls","family":"view_balance/engineering/04","question":"Summarize the best-supported engineering controls by reported outcome. Return three records in the form 'control | outcome | support count'.","metadata":{"target_view":"grouped_summary","theme":"control_outcome_summary"}},
-    {"graph":"haiqu_engineering_controls","family":"view_balance/engineering/05","question":"For engineering controls with validation support, summarize which adverse-effect or safety outcomes are reported. Return three records in the form 'control | outcome | support count'.","metadata":{"target_view":"grouped_summary","theme":"control_safety_summary"}},
-    {"graph":"haiqu_engineering_controls","family":"view_balance/engineering/06","question":"Summarize the strongest-supported controls by pathogen target. Return three records in the form 'control | pathogen or overall | support count'.","metadata":{"target_view":"grouped_summary","theme":"control_pathogen_summary"}},
-    {"graph":"haiqu_engineering_controls","family":"view_balance/engineering/07","question":"What is the distribution of validation-study support counts per engineering control? Return 'n=<n>; mean=<mean>; median=<median>'.","metadata":{"target_view":"distribution","theme":"validation_distribution"}},
-    {"graph":"haiqu_engineering_controls","family":"view_balance/engineering/08","question":"What is the distribution of adverse-effect support counts across engineering controls? Return 'n=<n>; mean=<mean>; median=<median>'.","metadata":{"target_view":"distribution","theme":"adverse_distribution"}},
-    {"graph":"haiqu_engineering_controls","family":"view_balance/engineering/09","question":"What is the distribution of pathogen-target coverage per engineering control? Return 'n=<n>; mean=<mean>; median=<median>'.","metadata":{"target_view":"distribution","theme":"target_coverage_distribution"}},
-    {"graph":"haiqu_engineering_controls","family":"view_balance/engineering/10","question":"Compare the two most-supported engineering controls on validation support and adverse-effect burden. Return one line per control.","metadata":{"target_view":"comparison","theme":"support_vs_adverse_compare"}},
-    {"graph":"haiqu_engineering_controls","family":"view_balance/engineering/11","question":"Compare the two most-supported controls on compliance evidence and pathogen-target breadth. Return one line per control.","metadata":{"target_view":"comparison","theme":"compliance_vs_breadth_compare"}},
-    {"graph":"haiqu_engineering_controls","family":"view_balance/engineering/12","question":"Compare the two most-supported controls on validation-study count and number of linked hospital zones. Return one line per control.","metadata":{"target_view":"comparison","theme":"validation_vs_zones_compare"}},
-    {"graph":"haiqu_engineering_controls","family":"view_balance/engineering/13","question":"Which engineering controls lie on the tradeoff frontier between validation support and adverse-effect burden? Return up to five controls, comma-separated.","metadata":{"target_view":"frontier","theme":"support_adverse_frontier"}},
-    {"graph":"haiqu_engineering_controls","family":"view_balance/engineering/14","question":"Which engineering controls lie on the tradeoff frontier between compliance evidence and pathogen-target breadth? Return up to five controls, comma-separated.","metadata":{"target_view":"frontier","theme":"compliance_breadth_frontier"}},
-    {"graph":"haiqu_engineering_controls","family":"view_balance/engineering/15","question":"Which engineering controls lie on the tradeoff frontier between zone coverage and validation-study support? Return up to five controls, comma-separated.","metadata":{"target_view":"frontier","theme":"zone_validation_frontier"}},
-    {"graph":"haiqu_engineering_controls","family":"view_balance/engineering/16","question":"For the strongest-supported engineering control, list the top three evidence items or linked studies that support it. Return item names only, comma-separated.","metadata":{"target_view":"provenance","theme":"top_control_provenance"}},
-    {"graph":"haiqu_engineering_controls","family":"view_balance/engineering/17","question":"For the control with the broadest pathogen-target coverage, list the top three evidence items or linked studies. Return item names only, comma-separated.","metadata":{"target_view":"provenance","theme":"pathogen_breadth_provenance"}},
-    {"graph":"haiqu_engineering_controls","family":"view_balance/engineering/18","question":"For the control with the strongest compliance evidence, list the top three supporting evidence items or linked studies. Return item names only, comma-separated.","metadata":{"target_view":"provenance","theme":"compliance_provenance"}},
-
-    {"graph":"haiqu_hospital_environment","family":"view_balance/hospital/01","question":"Which hospital zones connect to the widest mix of air paths and pressure relationships? Return the top three item names as a comma-separated list with no explanation.","metadata":{"target_view":"ranking","theme":"zone_connectivity"}},
-    {"graph":"haiqu_hospital_environment","family":"view_balance/hospital/02","question":"Which HVAC units serve the widest variety of hospital zones and pressure relationships? Return the top three item names as a comma-separated list with no explanation.","metadata":{"target_view":"ranking","theme":"hvac_service_breadth"}},
-    {"graph":"haiqu_hospital_environment","family":"view_balance/hospital/03","question":"Which air distribution patterns are measured by the widest range of tracer gases? Return the top three item names as a comma-separated list with no explanation.","metadata":{"target_view":"ranking","theme":"distribution_tracer"}},
-    {"graph":"haiqu_hospital_environment","family":"view_balance/hospital/04","question":"Summarize the most-connected hospital zones by airflow outcome. Return three records in the form 'zone | outcome or overall | support count'.","metadata":{"target_view":"grouped_summary","theme":"zone_outcome_summary"}},
-    {"graph":"haiqu_hospital_environment","family":"view_balance/hospital/05","question":"Summarize ACH-related evidence by hospital zone. Return three records in the form 'zone | ACH-related outcome or overall | support count'.","metadata":{"target_view":"grouped_summary","theme":"ach_zone_summary"}},
-    {"graph":"haiqu_hospital_environment","family":"view_balance/hospital/06","question":"Summarize pressure-relationship evidence by HVAC unit. Return three records in the form 'HVAC unit | pressure relationship or overall | support count'.","metadata":{"target_view":"grouped_summary","theme":"pressure_hvac_summary"}},
-    {"graph":"haiqu_hospital_environment","family":"view_balance/hospital/07","question":"What is the distribution of ACH-related support counts per hospital zone? Return 'n=<n>; mean=<mean>; median=<median>'.","metadata":{"target_view":"distribution","theme":"ach_distribution"}},
-    {"graph":"haiqu_hospital_environment","family":"view_balance/hospital/08","question":"What is the distribution of air-path connectivity counts per hospital zone? Return 'n=<n>; mean=<mean>; median=<median>'.","metadata":{"target_view":"distribution","theme":"airpath_distribution"}},
-    {"graph":"haiqu_hospital_environment","family":"view_balance/hospital/09","question":"What is the distribution of tracer-gas coverage per air distribution pattern? Return 'n=<n>; mean=<mean>; median=<median>'.","metadata":{"target_view":"distribution","theme":"tracer_distribution"}},
-    {"graph":"haiqu_hospital_environment","family":"view_balance/hospital/10","question":"Compare the two most-supported hospital zones on ACH evidence and pressure-relationship breadth. Return one line per zone.","metadata":{"target_view":"comparison","theme":"zone_ach_pressure_compare"}},
-    {"graph":"haiqu_hospital_environment","family":"view_balance/hospital/11","question":"Compare the two most-supported HVAC units on served-zone breadth and pressure evidence. Return one line per HVAC unit.","metadata":{"target_view":"comparison","theme":"hvac_pressure_compare"}},
-    {"graph":"haiqu_hospital_environment","family":"view_balance/hospital/12","question":"Compare the two most-supported air distribution patterns on tracer-gas breadth and zone coverage. Return one line per pattern.","metadata":{"target_view":"comparison","theme":"distribution_tracer_compare"}},
-    {"graph":"haiqu_hospital_environment","family":"view_balance/hospital/13","question":"Which hospital zones lie on the tradeoff frontier between ACH evidence and air-path connectivity? Return up to five zones, comma-separated.","metadata":{"target_view":"frontier","theme":"zone_ach_frontier"}},
-    {"graph":"haiqu_hospital_environment","family":"view_balance/hospital/14","question":"Which HVAC units lie on the tradeoff frontier between served-zone breadth and pressure-relationship evidence? Return up to five HVAC units, comma-separated.","metadata":{"target_view":"frontier","theme":"hvac_frontier"}},
-    {"graph":"haiqu_hospital_environment","family":"view_balance/hospital/15","question":"Which air distribution patterns lie on the tradeoff frontier between tracer-gas breadth and zone coverage? Return up to five patterns, comma-separated.","metadata":{"target_view":"frontier","theme":"distribution_frontier"}},
-    {"graph":"haiqu_hospital_environment","family":"view_balance/hospital/16","question":"For the strongest-supported hospital zone, list the top three evidence items or linked studies. Return item names only, comma-separated.","metadata":{"target_view":"provenance","theme":"zone_provenance"}},
-    {"graph":"haiqu_hospital_environment","family":"view_balance/hospital/17","question":"For the most-supported HVAC unit, list the top three evidence items or linked studies. Return item names only, comma-separated.","metadata":{"target_view":"provenance","theme":"hvac_provenance"}},
-    {"graph":"haiqu_hospital_environment","family":"view_balance/hospital/18","question":"For the most-supported air distribution pattern, list the top three evidence items or linked studies. Return item names only, comma-separated.","metadata":{"target_view":"provenance","theme":"pattern_provenance"}},
-
-    {"graph":"haiqu_biosensor_detection","family":"view_balance/biosensor/01","question":"Which biosensor platforms span the broadest mix of pathogen targets, signals, and validation evidence? Return the top three item names as a comma-separated list with no explanation.","metadata":{"target_view":"ranking","theme":"platform_breadth"}},
-    {"graph":"haiqu_biosensor_detection","family":"view_balance/biosensor/02","question":"Which assay validations cover the widest range of biosensor platforms and pathogen targets? Return the top three item names as a comma-separated list with no explanation.","metadata":{"target_view":"ranking","theme":"validation_breadth"}},
-    {"graph":"haiqu_biosensor_detection","family":"view_balance/biosensor/03","question":"Which reporter signals are most often associated with platforms that outperform alternatives? Return the top three item names as a comma-separated list with no explanation.","metadata":{"target_view":"ranking","theme":"signal_outperform"}},
-    {"graph":"haiqu_biosensor_detection","family":"view_balance/biosensor/04","question":"Summarize the strongest-supported biosensor platforms by pathogen outcome. Return three records in the form 'platform | pathogen or overall | support count'.","metadata":{"target_view":"grouped_summary","theme":"platform_pathogen_summary"}},
-    {"graph":"haiqu_biosensor_detection","family":"view_balance/biosensor/05","question":"Summarize assay validation evidence by biosensor platform. Return three records in the form 'platform | validation outcome or overall | support count'.","metadata":{"target_view":"grouped_summary","theme":"platform_validation_summary"}},
-    {"graph":"haiqu_biosensor_detection","family":"view_balance/biosensor/06","question":"Summarize reporter-signal evidence by platform. Return three records in the form 'platform | signal or overall | support count'.","metadata":{"target_view":"grouped_summary","theme":"signal_platform_summary"}},
-    {"graph":"haiqu_biosensor_detection","family":"view_balance/biosensor/07","question":"What is the distribution of validation-support counts per biosensor platform? Return 'n=<n>; mean=<mean>; median=<median>'.","metadata":{"target_view":"distribution","theme":"platform_validation_distribution"}},
-    {"graph":"haiqu_biosensor_detection","family":"view_balance/biosensor/08","question":"What is the distribution of pathogen-target breadth per biosensor platform? Return 'n=<n>; mean=<mean>; median=<median>'.","metadata":{"target_view":"distribution","theme":"pathogen_breadth_distribution"}},
-    {"graph":"haiqu_biosensor_detection","family":"view_balance/biosensor/09","question":"What is the distribution of signal diversity per biosensor platform? Return 'n=<n>; mean=<mean>; median=<median>'.","metadata":{"target_view":"distribution","theme":"signal_diversity_distribution"}},
-    {"graph":"haiqu_biosensor_detection","family":"view_balance/biosensor/10","question":"Compare the two most-supported biosensor platforms on validation support and pathogen-target breadth. Return one line per platform.","metadata":{"target_view":"comparison","theme":"platform_compare"}},
-    {"graph":"haiqu_biosensor_detection","family":"view_balance/biosensor/11","question":"Compare the two most-supported assay validations on platform breadth and pathogen-target breadth. Return one line per validation.","metadata":{"target_view":"comparison","theme":"validation_compare"}},
-    {"graph":"haiqu_biosensor_detection","family":"view_balance/biosensor/12","question":"Compare the two most-supported reporter signals on platform breadth and outperform evidence. Return one line per signal.","metadata":{"target_view":"comparison","theme":"signal_compare"}},
-    {"graph":"haiqu_biosensor_detection","family":"view_balance/biosensor/13","question":"Which biosensor platforms lie on the tradeoff frontier between validation support and pathogen-target breadth? Return up to five platforms, comma-separated.","metadata":{"target_view":"frontier","theme":"platform_frontier"}},
-    {"graph":"haiqu_biosensor_detection","family":"view_balance/biosensor/14","question":"Which assay validations lie on the tradeoff frontier between platform breadth and signal diversity? Return up to five validations, comma-separated.","metadata":{"target_view":"frontier","theme":"validation_frontier"}},
-    {"graph":"haiqu_biosensor_detection","family":"view_balance/biosensor/15","question":"Which reporter signals lie on the tradeoff frontier between platform breadth and outperform evidence? Return up to five signals, comma-separated.","metadata":{"target_view":"frontier","theme":"signal_frontier"}},
-    {"graph":"haiqu_biosensor_detection","family":"view_balance/biosensor/16","question":"For the strongest-supported biosensor platform, list the top three evidence items or linked studies. Return item names only, comma-separated.","metadata":{"target_view":"provenance","theme":"platform_provenance"}},
-    {"graph":"haiqu_biosensor_detection","family":"view_balance/biosensor/17","question":"For the most-supported assay validation, list the top three evidence items or linked studies. Return item names only, comma-separated.","metadata":{"target_view":"provenance","theme":"validation_provenance"}},
-    {"graph":"haiqu_biosensor_detection","family":"view_balance/biosensor/18","question":"For the most-supported reporter signal, list the top three evidence items or linked studies. Return item names only, comma-separated.","metadata":{"target_view":"provenance","theme":"signal_provenance"}},
-
-    {"graph":"haiqu_aerosol_exposure","family":"view_balance/aerosol/01","question":"Which airborne pathogens are most frequently found in indoor aerosol samples? Return the top three item names as a comma-separated list with no explanation.","metadata":{"target_view":"ranking","theme":"indoor_pathogens"}},
-    {"graph":"haiqu_aerosol_exposure","family":"view_balance/aerosol/02","question":"Which hospital settings show the richest combined aerosol, pathogen, and environmental-condition evidence? Return the top three item names as a comma-separated list with no explanation.","metadata":{"target_view":"ranking","theme":"hospital_settings"}},
-    {"graph":"haiqu_aerosol_exposure","family":"view_balance/aerosol/03","question":"Which sampling methods are linked to the broadest range of concentration measures and particle sizes? Return the top three item names as a comma-separated list with no explanation.","metadata":{"target_view":"ranking","theme":"sampling_measurement"}},
-    {"graph":"haiqu_aerosol_exposure","family":"view_balance/aerosol/04","question":"Summarize the strongest-supported pathogens by environmental condition. Return three records in the form 'pathogen | condition or overall | support count'.","metadata":{"target_view":"grouped_summary","theme":"pathogen_condition_summary"}},
-    {"graph":"haiqu_aerosol_exposure","family":"view_balance/aerosol/05","question":"Summarize aerosol evidence by hospital setting. Return three records in the form 'setting | aerosol outcome or overall | support count'.","metadata":{"target_view":"grouped_summary","theme":"setting_aerosol_summary"}},
-    {"graph":"haiqu_aerosol_exposure","family":"view_balance/aerosol/06","question":"Summarize viability evidence by particle size. Return three records in the form 'particle size | viability outcome or overall | support count'.","metadata":{"target_view":"grouped_summary","theme":"viability_size_summary"}},
-    {"graph":"haiqu_aerosol_exposure","family":"view_balance/aerosol/07","question":"What is the distribution of pathogen-support counts per hospital setting? Return 'n=<n>; mean=<mean>; median=<median>'.","metadata":{"target_view":"distribution","theme":"setting_pathogen_distribution"}},
-    {"graph":"haiqu_aerosol_exposure","family":"view_balance/aerosol/08","question":"What is the distribution of concentration-measure diversity per sampling method? Return 'n=<n>; mean=<mean>; median=<median>'.","metadata":{"target_view":"distribution","theme":"sampling_distribution"}},
-    {"graph":"haiqu_aerosol_exposure","family":"view_balance/aerosol/09","question":"What is the distribution of environmental-condition breadth per pathogen? Return 'n=<n>; mean=<mean>; median=<median>'.","metadata":{"target_view":"distribution","theme":"condition_breadth_distribution"}},
-    {"graph":"haiqu_aerosol_exposure","family":"view_balance/aerosol/10","question":"Compare the two most-supported pathogens on environmental-condition breadth and viability-state breadth. Return one line per pathogen.","metadata":{"target_view":"comparison","theme":"pathogen_compare"}},
-    {"graph":"haiqu_aerosol_exposure","family":"view_balance/aerosol/11","question":"Compare the two most-supported hospital settings on pathogen breadth and sampling-method breadth. Return one line per setting.","metadata":{"target_view":"comparison","theme":"setting_compare"}},
-    {"graph":"haiqu_aerosol_exposure","family":"view_balance/aerosol/12","question":"Compare the two most-supported sampling methods on concentration-measure breadth and particle-size breadth. Return one line per method.","metadata":{"target_view":"comparison","theme":"method_compare"}},
-    {"graph":"haiqu_aerosol_exposure","family":"view_balance/aerosol/13","question":"Which pathogens lie on the tradeoff frontier between environmental-condition breadth and viability-state breadth? Return up to five pathogens, comma-separated.","metadata":{"target_view":"frontier","theme":"pathogen_frontier"}},
-    {"graph":"haiqu_aerosol_exposure","family":"view_balance/aerosol/14","question":"Which hospital settings lie on the tradeoff frontier between pathogen breadth and sampling-method breadth? Return up to five settings, comma-separated.","metadata":{"target_view":"frontier","theme":"setting_frontier"}},
-    {"graph":"haiqu_aerosol_exposure","family":"view_balance/aerosol/15","question":"Which sampling methods lie on the tradeoff frontier between concentration-measure breadth and particle-size breadth? Return up to five methods, comma-separated.","metadata":{"target_view":"frontier","theme":"method_frontier"}},
-    {"graph":"haiqu_aerosol_exposure","family":"view_balance/aerosol/16","question":"For the strongest-supported pathogen, list the top three evidence items or linked studies. Return item names only, comma-separated.","metadata":{"target_view":"provenance","theme":"pathogen_provenance"}},
-    {"graph":"haiqu_aerosol_exposure","family":"view_balance/aerosol/17","question":"For the most-supported hospital setting, list the top three evidence items or linked studies. Return item names only, comma-separated.","metadata":{"target_view":"provenance","theme":"setting_provenance"}},
-    {"graph":"haiqu_aerosol_exposure","family":"view_balance/aerosol/18","question":"For the most-supported sampling method, list the top three evidence items or linked studies. Return item names only, comma-separated.","metadata":{"target_view":"provenance","theme":"method_provenance"}}
+    {
+      "graph": "haiqu_engineering_controls",
+      "family": "view_balance/engineering/01",
+      "question": "Looking across the current evidence, which engineering controls have the broadest validation footprint across hospital zones? Please answer with three names, comma-separated.",
+      "metadata": {
+        "target_view": "ranking",
+        "theme": "validation_footprint"
+      }
+    },
+    {
+      "graph": "haiqu_engineering_controls",
+      "family": "view_balance/engineering/02",
+      "question": "Looking across the current evidence, which engineering controls most often combine pathogen-reduction evidence with low-cost proxies? Please answer with three names, comma-separated.",
+      "metadata": {
+        "target_view": "ranking",
+        "theme": "effectiveness_cost"
+      }
+    },
+    {
+      "graph": "haiqu_engineering_controls",
+      "family": "view_balance/engineering/03",
+      "question": "Looking across the current evidence, which engineering controls are most frequently linked to practical compliance evidence? Please answer with three names, comma-separated.",
+      "metadata": {
+        "target_view": "ranking",
+        "theme": "compliance"
+      }
+    },
+    {
+      "graph": "haiqu_engineering_controls",
+      "family": "view_balance/engineering/04",
+      "question": "Looking across the current evidence, how would you summarize the best-supported engineering controls by reported outcome? Please answer with three short records in the form 'control | outcome | support count'.",
+      "metadata": {
+        "target_view": "grouped_summary",
+        "theme": "control_outcome_summary"
+      }
+    },
+    {
+      "graph": "haiqu_engineering_controls",
+      "family": "view_balance/engineering/05",
+      "question": "For engineering controls with validation support, summarize which adverse-effect or safety outcomes are reported? Please answer with three short records in the form 'control | outcome | support count'.",
+      "metadata": {
+        "target_view": "grouped_summary",
+        "theme": "control_safety_summary"
+      }
+    },
+    {
+      "graph": "haiqu_engineering_controls",
+      "family": "view_balance/engineering/06",
+      "question": "Looking across the current evidence, how would you summarize the strongest-supported controls by pathogen target? Please answer with three short records in the form 'control | pathogen or overall | support count'.",
+      "metadata": {
+        "target_view": "grouped_summary",
+        "theme": "control_pathogen_summary"
+      }
+    },
+    {
+      "graph": "haiqu_engineering_controls",
+      "family": "view_balance/engineering/07",
+      "question": "Looking across the current evidence, what does the distribution of validation-study support counts per engineering control look like? Please report the result as 'n=<n>; mean=<mean>; median=<median>'.",
+      "metadata": {
+        "target_view": "distribution",
+        "theme": "validation_distribution"
+      }
+    },
+    {
+      "graph": "haiqu_engineering_controls",
+      "family": "view_balance/engineering/08",
+      "question": "Looking across the current evidence, what does the distribution of adverse-effect support counts across engineering controls look like? Please report the result as 'n=<n>; mean=<mean>; median=<median>'.",
+      "metadata": {
+        "target_view": "distribution",
+        "theme": "adverse_distribution"
+      }
+    },
+    {
+      "graph": "haiqu_engineering_controls",
+      "family": "view_balance/engineering/09",
+      "question": "Looking across the current evidence, what does the distribution of pathogen-target coverage per engineering control look like? Please report the result as 'n=<n>; mean=<mean>; median=<median>'.",
+      "metadata": {
+        "target_view": "distribution",
+        "theme": "target_coverage_distribution"
+      }
+    },
+    {
+      "graph": "haiqu_engineering_controls",
+      "family": "view_balance/engineering/10",
+      "question": "Looking across the current evidence, how do the two most-supported engineering controls compare on validation support and adverse-effect burden? Please give one short line per control.",
+      "metadata": {
+        "target_view": "comparison",
+        "theme": "support_vs_adverse_compare"
+      }
+    },
+    {
+      "graph": "haiqu_engineering_controls",
+      "family": "view_balance/engineering/11",
+      "question": "Looking across the current evidence, how do the two most-supported controls compare on compliance evidence and pathogen-target breadth? Please give one short line per control.",
+      "metadata": {
+        "target_view": "comparison",
+        "theme": "compliance_vs_breadth_compare"
+      }
+    },
+    {
+      "graph": "haiqu_engineering_controls",
+      "family": "view_balance/engineering/12",
+      "question": "Looking across the current evidence, how do the two most-supported controls compare on validation-study count and number of linked hospital zones? Please give one short line per control.",
+      "metadata": {
+        "target_view": "comparison",
+        "theme": "validation_vs_zones_compare"
+      }
+    },
+    {
+      "graph": "haiqu_engineering_controls",
+      "family": "view_balance/engineering/13",
+      "question": "Looking across the current evidence, which engineering controls lie on the tradeoff frontier between validation support and adverse-effect burden? Please name up to five controls, comma-separated.",
+      "metadata": {
+        "target_view": "frontier",
+        "theme": "support_adverse_frontier"
+      }
+    },
+    {
+      "graph": "haiqu_engineering_controls",
+      "family": "view_balance/engineering/14",
+      "question": "Looking across the current evidence, which engineering controls lie on the tradeoff frontier between compliance evidence and pathogen-target breadth? Please name up to five controls, comma-separated.",
+      "metadata": {
+        "target_view": "frontier",
+        "theme": "compliance_breadth_frontier"
+      }
+    },
+    {
+      "graph": "haiqu_engineering_controls",
+      "family": "view_balance/engineering/15",
+      "question": "Looking across the current evidence, which engineering controls lie on the tradeoff frontier between zone coverage and validation-study support? Please name up to five controls, comma-separated.",
+      "metadata": {
+        "target_view": "frontier",
+        "theme": "zone_validation_frontier"
+      }
+    },
+    {
+      "graph": "haiqu_engineering_controls",
+      "family": "view_balance/engineering/16",
+      "question": "For the strongest-supported engineering control, list the top three evidence items or linked studies that support it? Please answer with up to three item names, comma-separated.",
+      "metadata": {
+        "target_view": "provenance",
+        "theme": "top_control_provenance"
+      }
+    },
+    {
+      "graph": "haiqu_engineering_controls",
+      "family": "view_balance/engineering/17",
+      "question": "For the control with the broadest pathogen-target coverage, what evidence would you cite first? Please answer with up to three item names, comma-separated.",
+      "metadata": {
+        "target_view": "provenance",
+        "theme": "pathogen_breadth_provenance"
+      }
+    },
+    {
+      "graph": "haiqu_engineering_controls",
+      "family": "view_balance/engineering/18",
+      "question": "For the control with the strongest compliance evidence, list the top three supporting evidence items or linked studies? Please answer with up to three item names, comma-separated.",
+      "metadata": {
+        "target_view": "provenance",
+        "theme": "compliance_provenance"
+      }
+    },
+    {
+      "graph": "haiqu_hospital_environment",
+      "family": "view_balance/hospital/01",
+      "question": "Looking across the current evidence, which hospital zones connect to the widest mix of air paths and pressure relationships? Please answer with three names, comma-separated.",
+      "metadata": {
+        "target_view": "ranking",
+        "theme": "zone_connectivity"
+      }
+    },
+    {
+      "graph": "haiqu_hospital_environment",
+      "family": "view_balance/hospital/02",
+      "question": "Looking across the current evidence, which HVAC units serve the widest variety of hospital zones and pressure relationships? Please answer with three names, comma-separated.",
+      "metadata": {
+        "target_view": "ranking",
+        "theme": "hvac_service_breadth"
+      }
+    },
+    {
+      "graph": "haiqu_hospital_environment",
+      "family": "view_balance/hospital/03",
+      "question": "Looking across the current evidence, which air distribution patterns are measured by the widest range of tracer gases? Please answer with three names, comma-separated.",
+      "metadata": {
+        "target_view": "ranking",
+        "theme": "distribution_tracer"
+      }
+    },
+    {
+      "graph": "haiqu_hospital_environment",
+      "family": "view_balance/hospital/04",
+      "question": "Looking across the current evidence, how would you summarize the most-connected hospital zones by airflow outcome? Please answer with three short records in the form 'zone | outcome or overall | support count'.",
+      "metadata": {
+        "target_view": "grouped_summary",
+        "theme": "zone_outcome_summary"
+      }
+    },
+    {
+      "graph": "haiqu_hospital_environment",
+      "family": "view_balance/hospital/05",
+      "question": "Looking across the current evidence, how would you summarize ACH-related evidence by hospital zone? Please answer with three short records in the form 'zone | ACH-related outcome or overall | support count'.",
+      "metadata": {
+        "target_view": "grouped_summary",
+        "theme": "ach_zone_summary"
+      }
+    },
+    {
+      "graph": "haiqu_hospital_environment",
+      "family": "view_balance/hospital/06",
+      "question": "Looking across the current evidence, how would you summarize pressure-relationship evidence by HVAC unit? Please answer with three short records in the form 'HVAC unit | pressure relationship or overall | support count'.",
+      "metadata": {
+        "target_view": "grouped_summary",
+        "theme": "pressure_hvac_summary"
+      }
+    },
+    {
+      "graph": "haiqu_hospital_environment",
+      "family": "view_balance/hospital/07",
+      "question": "Looking across the current evidence, what does the distribution of ACH-related support counts per hospital zone look like? Please report the result as 'n=<n>; mean=<mean>; median=<median>'.",
+      "metadata": {
+        "target_view": "distribution",
+        "theme": "ach_distribution"
+      }
+    },
+    {
+      "graph": "haiqu_hospital_environment",
+      "family": "view_balance/hospital/08",
+      "question": "Looking across the current evidence, what does the distribution of air-path connectivity counts per hospital zone look like? Please report the result as 'n=<n>; mean=<mean>; median=<median>'.",
+      "metadata": {
+        "target_view": "distribution",
+        "theme": "airpath_distribution"
+      }
+    },
+    {
+      "graph": "haiqu_hospital_environment",
+      "family": "view_balance/hospital/09",
+      "question": "Looking across the current evidence, what does the distribution of tracer-gas coverage per air distribution pattern look like? Please report the result as 'n=<n>; mean=<mean>; median=<median>'.",
+      "metadata": {
+        "target_view": "distribution",
+        "theme": "tracer_distribution"
+      }
+    },
+    {
+      "graph": "haiqu_hospital_environment",
+      "family": "view_balance/hospital/10",
+      "question": "Looking across the current evidence, how do the two most-supported hospital zones compare on ACH evidence and pressure-relationship breadth? Please give one short line per zone.",
+      "metadata": {
+        "target_view": "comparison",
+        "theme": "zone_ach_pressure_compare"
+      }
+    },
+    {
+      "graph": "haiqu_hospital_environment",
+      "family": "view_balance/hospital/11",
+      "question": "Looking across the current evidence, how do the two most-supported HVAC units compare on served-zone breadth and pressure evidence? Please give one short line per HVAC unit.",
+      "metadata": {
+        "target_view": "comparison",
+        "theme": "hvac_pressure_compare"
+      }
+    },
+    {
+      "graph": "haiqu_hospital_environment",
+      "family": "view_balance/hospital/12",
+      "question": "Looking across the current evidence, how do the two most-supported air distribution patterns compare on tracer-gas breadth and zone coverage? Please give one short line per pattern.",
+      "metadata": {
+        "target_view": "comparison",
+        "theme": "distribution_tracer_compare"
+      }
+    },
+    {
+      "graph": "haiqu_hospital_environment",
+      "family": "view_balance/hospital/13",
+      "question": "Looking across the current evidence, which hospital zones lie on the tradeoff frontier between ACH evidence and air-path connectivity? Please name up to five zones, comma-separated.",
+      "metadata": {
+        "target_view": "frontier",
+        "theme": "zone_ach_frontier"
+      }
+    },
+    {
+      "graph": "haiqu_hospital_environment",
+      "family": "view_balance/hospital/14",
+      "question": "Looking across the current evidence, which HVAC units lie on the tradeoff frontier between served-zone breadth and pressure-relationship evidence? Please name up to five HVAC units, comma-separated.",
+      "metadata": {
+        "target_view": "frontier",
+        "theme": "hvac_frontier"
+      }
+    },
+    {
+      "graph": "haiqu_hospital_environment",
+      "family": "view_balance/hospital/15",
+      "question": "Looking across the current evidence, which air distribution patterns lie on the tradeoff frontier between tracer-gas breadth and zone coverage? Please name up to five patterns, comma-separated.",
+      "metadata": {
+        "target_view": "frontier",
+        "theme": "distribution_frontier"
+      }
+    },
+    {
+      "graph": "haiqu_hospital_environment",
+      "family": "view_balance/hospital/16",
+      "question": "For the strongest-supported hospital zone, what evidence would you cite first? Please answer with up to three item names, comma-separated.",
+      "metadata": {
+        "target_view": "provenance",
+        "theme": "zone_provenance"
+      }
+    },
+    {
+      "graph": "haiqu_hospital_environment",
+      "family": "view_balance/hospital/17",
+      "question": "For the most-supported HVAC unit, what evidence would you cite first? Please answer with up to three item names, comma-separated.",
+      "metadata": {
+        "target_view": "provenance",
+        "theme": "hvac_provenance"
+      }
+    },
+    {
+      "graph": "haiqu_hospital_environment",
+      "family": "view_balance/hospital/18",
+      "question": "For the most-supported air distribution pattern, what evidence would you cite first? Please answer with up to three item names, comma-separated.",
+      "metadata": {
+        "target_view": "provenance",
+        "theme": "pattern_provenance"
+      }
+    },
+    {
+      "graph": "haiqu_biosensor_detection",
+      "family": "view_balance/biosensor/01",
+      "question": "Looking across the current evidence, which biosensor platforms span the broadest mix of pathogen targets, signals, and validation evidence? Please answer with three names, comma-separated.",
+      "metadata": {
+        "target_view": "ranking",
+        "theme": "platform_breadth"
+      }
+    },
+    {
+      "graph": "haiqu_biosensor_detection",
+      "family": "view_balance/biosensor/02",
+      "question": "Looking across the current evidence, which assay validations cover the widest range of biosensor platforms and pathogen targets? Please answer with three names, comma-separated.",
+      "metadata": {
+        "target_view": "ranking",
+        "theme": "validation_breadth"
+      }
+    },
+    {
+      "graph": "haiqu_biosensor_detection",
+      "family": "view_balance/biosensor/03",
+      "question": "Looking across the current evidence, which reporter signals are most often associated with platforms that outperform alternatives? Please answer with three names, comma-separated.",
+      "metadata": {
+        "target_view": "ranking",
+        "theme": "signal_outperform"
+      }
+    },
+    {
+      "graph": "haiqu_biosensor_detection",
+      "family": "view_balance/biosensor/04",
+      "question": "Looking across the current evidence, how would you summarize the strongest-supported biosensor platforms by pathogen outcome? Please answer with three short records in the form 'platform | pathogen or overall | support count'.",
+      "metadata": {
+        "target_view": "grouped_summary",
+        "theme": "platform_pathogen_summary"
+      }
+    },
+    {
+      "graph": "haiqu_biosensor_detection",
+      "family": "view_balance/biosensor/05",
+      "question": "Looking across the current evidence, how would you summarize assay validation evidence by biosensor platform? Please answer with three short records in the form 'platform | validation outcome or overall | support count'.",
+      "metadata": {
+        "target_view": "grouped_summary",
+        "theme": "platform_validation_summary"
+      }
+    },
+    {
+      "graph": "haiqu_biosensor_detection",
+      "family": "view_balance/biosensor/06",
+      "question": "Looking across the current evidence, how would you summarize reporter-signal evidence by platform? Please answer with three short records in the form 'platform | signal or overall | support count'.",
+      "metadata": {
+        "target_view": "grouped_summary",
+        "theme": "signal_platform_summary"
+      }
+    },
+    {
+      "graph": "haiqu_biosensor_detection",
+      "family": "view_balance/biosensor/07",
+      "question": "Looking across the current evidence, what does the distribution of validation-support counts per biosensor platform look like? Please report the result as 'n=<n>; mean=<mean>; median=<median>'.",
+      "metadata": {
+        "target_view": "distribution",
+        "theme": "platform_validation_distribution"
+      }
+    },
+    {
+      "graph": "haiqu_biosensor_detection",
+      "family": "view_balance/biosensor/08",
+      "question": "Looking across the current evidence, what does the distribution of pathogen-target breadth per biosensor platform look like? Please report the result as 'n=<n>; mean=<mean>; median=<median>'.",
+      "metadata": {
+        "target_view": "distribution",
+        "theme": "pathogen_breadth_distribution"
+      }
+    },
+    {
+      "graph": "haiqu_biosensor_detection",
+      "family": "view_balance/biosensor/09",
+      "question": "Looking across the current evidence, what does the distribution of signal diversity per biosensor platform look like? Please report the result as 'n=<n>; mean=<mean>; median=<median>'.",
+      "metadata": {
+        "target_view": "distribution",
+        "theme": "signal_diversity_distribution"
+      }
+    },
+    {
+      "graph": "haiqu_biosensor_detection",
+      "family": "view_balance/biosensor/10",
+      "question": "Looking across the current evidence, how do the two most-supported biosensor platforms compare on validation support and pathogen-target breadth? Please give one short line per platform.",
+      "metadata": {
+        "target_view": "comparison",
+        "theme": "platform_compare"
+      }
+    },
+    {
+      "graph": "haiqu_biosensor_detection",
+      "family": "view_balance/biosensor/11",
+      "question": "Looking across the current evidence, how do the two most-supported assay validations compare on platform breadth and pathogen-target breadth? Please give one short line per validation.",
+      "metadata": {
+        "target_view": "comparison",
+        "theme": "validation_compare"
+      }
+    },
+    {
+      "graph": "haiqu_biosensor_detection",
+      "family": "view_balance/biosensor/12",
+      "question": "Looking across the current evidence, how do the two most-supported reporter signals compare on platform breadth and outperform evidence? Please give one short line per signal.",
+      "metadata": {
+        "target_view": "comparison",
+        "theme": "signal_compare"
+      }
+    },
+    {
+      "graph": "haiqu_biosensor_detection",
+      "family": "view_balance/biosensor/13",
+      "question": "Looking across the current evidence, which biosensor platforms lie on the tradeoff frontier between validation support and pathogen-target breadth? Please name up to five platforms, comma-separated.",
+      "metadata": {
+        "target_view": "frontier",
+        "theme": "platform_frontier"
+      }
+    },
+    {
+      "graph": "haiqu_biosensor_detection",
+      "family": "view_balance/biosensor/14",
+      "question": "Looking across the current evidence, which assay validations lie on the tradeoff frontier between platform breadth and signal diversity? Please name up to five validations, comma-separated.",
+      "metadata": {
+        "target_view": "frontier",
+        "theme": "validation_frontier"
+      }
+    },
+    {
+      "graph": "haiqu_biosensor_detection",
+      "family": "view_balance/biosensor/15",
+      "question": "Looking across the current evidence, which reporter signals lie on the tradeoff frontier between platform breadth and outperform evidence? Please name up to five signals, comma-separated.",
+      "metadata": {
+        "target_view": "frontier",
+        "theme": "signal_frontier"
+      }
+    },
+    {
+      "graph": "haiqu_biosensor_detection",
+      "family": "view_balance/biosensor/16",
+      "question": "For the strongest-supported biosensor platform, what evidence would you cite first? Please answer with up to three item names, comma-separated.",
+      "metadata": {
+        "target_view": "provenance",
+        "theme": "platform_provenance"
+      }
+    },
+    {
+      "graph": "haiqu_biosensor_detection",
+      "family": "view_balance/biosensor/17",
+      "question": "For the most-supported assay validation, what evidence would you cite first? Please answer with up to three item names, comma-separated.",
+      "metadata": {
+        "target_view": "provenance",
+        "theme": "validation_provenance"
+      }
+    },
+    {
+      "graph": "haiqu_biosensor_detection",
+      "family": "view_balance/biosensor/18",
+      "question": "For the most-supported reporter signal, what evidence would you cite first? Please answer with up to three item names, comma-separated.",
+      "metadata": {
+        "target_view": "provenance",
+        "theme": "signal_provenance"
+      }
+    },
+    {
+      "graph": "haiqu_aerosol_exposure",
+      "family": "view_balance/aerosol/01",
+      "question": "Looking across the current evidence, which airborne pathogens are most frequently found in indoor aerosol samples? Please answer with three names, comma-separated.",
+      "metadata": {
+        "target_view": "ranking",
+        "theme": "indoor_pathogens"
+      }
+    },
+    {
+      "graph": "haiqu_aerosol_exposure",
+      "family": "view_balance/aerosol/02",
+      "question": "Looking across the current evidence, which hospital settings show the richest combined aerosol, pathogen, and environmental-condition evidence? Please answer with three names, comma-separated.",
+      "metadata": {
+        "target_view": "ranking",
+        "theme": "hospital_settings"
+      }
+    },
+    {
+      "graph": "haiqu_aerosol_exposure",
+      "family": "view_balance/aerosol/03",
+      "question": "Looking across the current evidence, which sampling methods are linked to the broadest range of concentration measures and particle sizes? Please answer with three names, comma-separated.",
+      "metadata": {
+        "target_view": "ranking",
+        "theme": "sampling_measurement"
+      }
+    },
+    {
+      "graph": "haiqu_aerosol_exposure",
+      "family": "view_balance/aerosol/04",
+      "question": "Looking across the current evidence, how would you summarize the strongest-supported pathogens by environmental condition? Please answer with three short records in the form 'pathogen | condition or overall | support count'.",
+      "metadata": {
+        "target_view": "grouped_summary",
+        "theme": "pathogen_condition_summary"
+      }
+    },
+    {
+      "graph": "haiqu_aerosol_exposure",
+      "family": "view_balance/aerosol/05",
+      "question": "Looking across the current evidence, how would you summarize aerosol evidence by hospital setting? Please answer with three short records in the form 'setting | aerosol outcome or overall | support count'.",
+      "metadata": {
+        "target_view": "grouped_summary",
+        "theme": "setting_aerosol_summary"
+      }
+    },
+    {
+      "graph": "haiqu_aerosol_exposure",
+      "family": "view_balance/aerosol/06",
+      "question": "Looking across the current evidence, how would you summarize viability evidence by particle size? Please answer with three short records in the form 'particle size | viability outcome or overall | support count'.",
+      "metadata": {
+        "target_view": "grouped_summary",
+        "theme": "viability_size_summary"
+      }
+    },
+    {
+      "graph": "haiqu_aerosol_exposure",
+      "family": "view_balance/aerosol/07",
+      "question": "Looking across the current evidence, what does the distribution of pathogen-support counts per hospital setting look like? Please report the result as 'n=<n>; mean=<mean>; median=<median>'.",
+      "metadata": {
+        "target_view": "distribution",
+        "theme": "setting_pathogen_distribution"
+      }
+    },
+    {
+      "graph": "haiqu_aerosol_exposure",
+      "family": "view_balance/aerosol/08",
+      "question": "Looking across the current evidence, what does the distribution of concentration-measure diversity per sampling method look like? Please report the result as 'n=<n>; mean=<mean>; median=<median>'.",
+      "metadata": {
+        "target_view": "distribution",
+        "theme": "sampling_distribution"
+      }
+    },
+    {
+      "graph": "haiqu_aerosol_exposure",
+      "family": "view_balance/aerosol/09",
+      "question": "Looking across the current evidence, what does the distribution of environmental-condition breadth per pathogen look like? Please report the result as 'n=<n>; mean=<mean>; median=<median>'.",
+      "metadata": {
+        "target_view": "distribution",
+        "theme": "condition_breadth_distribution"
+      }
+    },
+    {
+      "graph": "haiqu_aerosol_exposure",
+      "family": "view_balance/aerosol/10",
+      "question": "Looking across the current evidence, how do the two most-supported pathogens compare on environmental-condition breadth and viability-state breadth? Please give one short line per pathogen.",
+      "metadata": {
+        "target_view": "comparison",
+        "theme": "pathogen_compare"
+      }
+    },
+    {
+      "graph": "haiqu_aerosol_exposure",
+      "family": "view_balance/aerosol/11",
+      "question": "Looking across the current evidence, how do the two most-supported hospital settings compare on pathogen breadth and sampling-method breadth? Please give one short line per setting.",
+      "metadata": {
+        "target_view": "comparison",
+        "theme": "setting_compare"
+      }
+    },
+    {
+      "graph": "haiqu_aerosol_exposure",
+      "family": "view_balance/aerosol/12",
+      "question": "Looking across the current evidence, how do the two most-supported sampling methods compare on concentration-measure breadth and particle-size breadth? Please give one short line per method.",
+      "metadata": {
+        "target_view": "comparison",
+        "theme": "method_compare"
+      }
+    },
+    {
+      "graph": "haiqu_aerosol_exposure",
+      "family": "view_balance/aerosol/13",
+      "question": "Looking across the current evidence, which pathogens lie on the tradeoff frontier between environmental-condition breadth and viability-state breadth? Please name up to five pathogens, comma-separated.",
+      "metadata": {
+        "target_view": "frontier",
+        "theme": "pathogen_frontier"
+      }
+    },
+    {
+      "graph": "haiqu_aerosol_exposure",
+      "family": "view_balance/aerosol/14",
+      "question": "Looking across the current evidence, which hospital settings lie on the tradeoff frontier between pathogen breadth and sampling-method breadth? Please name up to five settings, comma-separated.",
+      "metadata": {
+        "target_view": "frontier",
+        "theme": "setting_frontier"
+      }
+    },
+    {
+      "graph": "haiqu_aerosol_exposure",
+      "family": "view_balance/aerosol/15",
+      "question": "Looking across the current evidence, which sampling methods lie on the tradeoff frontier between concentration-measure breadth and particle-size breadth? Please name up to five methods, comma-separated.",
+      "metadata": {
+        "target_view": "frontier",
+        "theme": "method_frontier"
+      }
+    },
+    {
+      "graph": "haiqu_aerosol_exposure",
+      "family": "view_balance/aerosol/16",
+      "question": "For the strongest-supported pathogen, what evidence would you cite first? Please answer with up to three item names, comma-separated.",
+      "metadata": {
+        "target_view": "provenance",
+        "theme": "pathogen_provenance"
+      }
+    },
+    {
+      "graph": "haiqu_aerosol_exposure",
+      "family": "view_balance/aerosol/17",
+      "question": "For the most-supported hospital setting, what evidence would you cite first? Please answer with up to three item names, comma-separated.",
+      "metadata": {
+        "target_view": "provenance",
+        "theme": "setting_provenance"
+      }
+    },
+    {
+      "graph": "haiqu_aerosol_exposure",
+      "family": "view_balance/aerosol/18",
+      "question": "For the most-supported sampling method, what evidence would you cite first? Please answer with up to three item names, comma-separated.",
+      "metadata": {
+        "target_view": "provenance",
+        "theme": "method_provenance"
+      }
+    }
   ]
 }
