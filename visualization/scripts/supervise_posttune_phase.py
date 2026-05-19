@@ -15,9 +15,6 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from tools.prompt_lab.common import load_cases_from_observation_files, write_jsonl
-
-
 def _ts() -> str:
     return datetime.now().astimezone().isoformat(timespec="seconds")
 
@@ -39,19 +36,8 @@ def _completed_count(run_root: Path, pattern: str) -> int:
     return sum(1 for _ in run_root.glob(f"{pattern}/q*/gasl.json"))
 
 
-def _obs_files(run_root: Path, pattern: str) -> List[Path]:
-    return sorted(run_root.glob(f"{pattern}/q*/gasl_artifacts/prompt_observations.jsonl"))
-
-
 def _run_dirs(run_root: Path, pattern: str) -> List[Path]:
     return sorted([p for p in run_root.glob(pattern) if p.is_dir()])
-
-
-def _write_cases_from_runs(run_root: Path, pattern: str, out_path: Path, prompt_names: set[str] | None = None) -> int:
-    files = _obs_files(run_root, pattern)
-    cases = load_cases_from_observation_files(files, prompt_names=prompt_names)
-    write_jsonl(out_path, [c.to_dict() for c in cases])
-    return len(cases)
 
 
 def _launch_rerun(per_graph: int, run_tag: str, log_fh) -> int:
@@ -73,22 +59,22 @@ def _launch_rerun(per_graph: int, run_tag: str, log_fh) -> int:
     return pid
 
 
-def _launch_codex_exec(failure_json: Path, next_text: Path, out_dir: Path, log_fh) -> int:
+def _launch_codex_exec(context_json: Path, out_dir: Path, log_fh) -> int:
     prompt = f"""
 You are taking over an overnight post-tuning cycle in /home/chia/repos/nano-graphrag.
 
 Inputs:
-- failure summary JSON: {failure_json}
-- next-action text: {next_text}
+- context JSON: {context_json}
 
 Task:
-1. Read the failure summary and representative traces.
-2. Look for the dominant remaining failure pattern across the completed post-tuning runs.
+1. Read the context JSON and inspect many completed post-tuning traces under the staged trace root.
+2. Perform open-ended failure analysis across those traces. Do not rely on one query.
 3. Decide the next best fix using pattern-level evidence, not one-off query overfitting.
-4. Implement the fix.
-5. Commit and push.
-6. Start the next corpus rerun.
-7. Write a brief action summary to {out_dir / "codex_next_action.txt"}.
+4. If useful, run the prompt-lab and optimization scripts yourself. Choose the scripts, don't assume.
+5. Implement the fix.
+6. Commit and push.
+7. Start the next corpus rerun.
+8. Write a brief action summary to {out_dir / "codex_next_action.txt"}.
 
 Constraints:
 - Use many examples, not one trace.
@@ -132,11 +118,7 @@ def main() -> None:
     out_dir = Path(args.out_dir) if args.out_dir else run_root / "posttune_supervision"
     out_dir.mkdir(parents=True, exist_ok=True)
     selected_root = out_dir / "selected_traces"
-    cases_path = out_dir / "cases.jsonl"
-    seeded_path = out_dir / "seeded_candidates.jsonl"
-    verifications_path = out_dir / "verifications.jsonl"
-    accepted_path = out_dir / "accepted_repairs.jsonl"
-    dataset_path = out_dir / "prompt_dataset.json"
+    context_json = out_dir / "codex_context.json"
     failure_json = out_dir / "failure_summary.json"
     next_text = out_dir / "NEXT_ACTION.txt"
     log_path = out_dir / "supervisor.log"
@@ -153,41 +135,6 @@ def main() -> None:
             log_fh.flush()
 
             if completed >= args.threshold and not analysis_done:
-                _run(
-                    f".venv/bin/python visualization/scripts/analyze_posttune_failures.py "
-                    f"--run-root {shlex.quote(str(run_root))} "
-                    f"--pattern {shlex.quote(args.pattern)} "
-                    f"--out-json {shlex.quote(str(failure_json))} "
-                    f"--out-text {shlex.quote(str(next_text))}",
-                    log_fh,
-                )
-                case_count = _write_cases_from_runs(run_root, args.pattern, cases_path, prompt_names={"aggregate_repair", "plan_generation"})
-                log_fh.write(f"{_ts()} CASES wrote {case_count} to {cases_path}\n")
-                log_fh.flush()
-                _run(
-                    f".venv/bin/python tools/prompt_lab/seed_candidates_from_cases.py "
-                    f"--cases {shlex.quote(str(cases_path))} --only-positive --out {shlex.quote(str(seeded_path))}",
-                    log_fh,
-                )
-                _run(
-                    f".venv/bin/python tools/prompt_lab/verify_repair_candidates.py "
-                    f"--cases {shlex.quote(str(cases_path))} "
-                    f"--candidates {shlex.quote(str(seeded_path))} "
-                    f"--verifier-cmd "
-                    f"'.venv/bin/python tools/prompt_lab/verifiers/nano_graphrag_verifier.py --case {{case_path}} --candidate {{candidate_path}}' "
-                    f"--out {shlex.quote(str(verifications_path))} "
-                    f"--accepted-repairs-out {shlex.quote(str(accepted_path))} "
-                    f"--progress-every 25",
-                    log_fh,
-                )
-                _run(
-                    f".venv/bin/python tools/prompt_lab/build_labeled_prompt_dataset.py "
-                    f"--cases {shlex.quote(str(cases_path))} "
-                    f"--candidates {shlex.quote(str(seeded_path))} "
-                    f"--verifications {shlex.quote(str(verifications_path))} "
-                    f"--out {shlex.quote(str(dataset_path))}",
-                    log_fh,
-                )
                 selected_root.mkdir(parents=True, exist_ok=True)
                 for child in list(selected_root.iterdir()):
                     if child.is_symlink() or child.is_file():
@@ -196,18 +143,44 @@ def main() -> None:
                     link = selected_root / run_dir.name
                     if not link.exists():
                         link.symlink_to(run_dir.resolve(), target_is_directory=True)
-                _run(
-                    f".venv/bin/python visualization/scripts/optimize_aggregate_repair_prompt.py "
-                    f"--trace-root {shlex.quote(str(selected_root))} "
-                    f"--limit 40 "
-                    f"--run-dir {shlex.quote(str(out_dir / 'aggregate_repair_gepa_from_posttune'))}",
-                    log_fh,
+                context_json.write_text(
+                    __import__("json").dumps(
+                        {
+                            "repo_root": str(REPO_ROOT),
+                            "run_root": str(run_root),
+                            "pattern": args.pattern,
+                            "completed": completed,
+                            "threshold": args.threshold,
+                            "selected_trace_root": str(selected_root),
+                            "run_dirs": [str(p) for p in _run_dirs(run_root, args.pattern)],
+                            "suggested_scripts": [
+                                "visualization/scripts/analyze_posttune_failures.py",
+                                "tools/prompt_lab/collect_prompt_cases.py",
+                                "tools/prompt_lab/seed_candidates_from_cases.py",
+                                "tools/prompt_lab/verify_repair_candidates.py",
+                                "tools/prompt_lab/build_labeled_prompt_dataset.py",
+                                "visualization/scripts/optimize_aggregate_repair_prompt.py",
+                                "visualization/scripts/run_trace_corpus.py",
+                            ],
+                        },
+                        indent=2,
+                    ),
+                    encoding="utf-8",
                 )
                 analysis_done = True
                 if not alive:
                     current_pid = _launch_rerun(args.per_graph_rerun, "posttune_after_opt", log_fh)
                 if args.launch_codex_exec:
-                    _launch_codex_exec(failure_json, next_text, out_dir, log_fh)
+                    _launch_codex_exec(context_json, out_dir, log_fh)
+                else:
+                    _run(
+                        f".venv/bin/python visualization/scripts/analyze_posttune_failures.py "
+                        f"--run-root {shlex.quote(str(run_root))} "
+                        f"--pattern {shlex.quote(args.pattern)} "
+                        f"--out-json {shlex.quote(str(failure_json))} "
+                        f"--out-text {shlex.quote(str(next_text))}",
+                        log_fh,
+                    )
 
             if not alive and completed < args.threshold:
                 current_pid = _launch_rerun(args.per_graph_rerun, "posttune_chain", log_fh)
