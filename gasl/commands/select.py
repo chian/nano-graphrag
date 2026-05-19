@@ -5,6 +5,7 @@ SELECT command handler.
 from typing import Any, List, Dict
 from .base import CommandHandler
 from ..types import Command, ExecutionResult, Provenance
+from ..contracts import make_contract, merge_contract
 
 
 class SelectHandler(CommandHandler):
@@ -46,7 +47,21 @@ class SelectHandler(CommandHandler):
             result = self._select_fields(data, field_list)
             
             # Store result in context
-            self.context_store.set(target, result)
+            source_contract = self.state_manager.get_variable_contract(source) if self.state_manager else {}
+            select_contract = merge_contract(source_contract, make_contract(
+                payload_kind="selected_rows" if isinstance(result, list) else "selected_fields",
+                data=result,
+                label_field=field_list[0] if field_list else source_contract.get("label_field", ""),
+                metric_field=source_contract.get("metric_field", ""),
+                ordered=source_contract.get("ordered", False),
+                order_basis=source_contract.get("order_basis", ""),
+                order_field=source_contract.get("order_field", ""),
+                order_direction=source_contract.get("order_direction", "unknown"),
+                scope="current_rows_only",
+                usable_by=["PROCESS", "SHOW"],
+                confidence=0.96,
+            ))
+            self.context_store.set(target, result, contract=select_contract)
             
             # Create provenance
             provenance = [
@@ -64,7 +79,8 @@ class SelectHandler(CommandHandler):
                 status="success",
                 data=result,
                 count=len(result) if isinstance(result, list) else 1,
-                provenance=provenance
+                provenance=provenance,
+                contract=select_contract,
             )
             
         except Exception as e:

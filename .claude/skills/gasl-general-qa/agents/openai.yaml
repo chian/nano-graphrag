@@ -1,0 +1,7 @@
+version: 1
+display_name: GASL General QA
+short_description: Guardrail for generic GASL runtime engineering
+default_prompt: >-
+  Keep GASL generic: use state-driven, slot-based workflows, allow only
+  canonical engine slots as literals, and avoid domain-specific field names in
+  generic runtime code.

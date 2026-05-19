@@ -37,6 +37,9 @@ IMPORTANT: Before creating new variables, check if existing variables can be reu
 Execution History:
 {execution_history}
 
+Recently Produced Artifacts:
+{produced_artifacts}
+
 AVAILABLE GASL COMMANDS:
 
 CORE COMMANDS:
@@ -51,6 +54,8 @@ CORE COMMANDS:
     - COUNT person_nodes where starts_with_vowel = false AS non_vowel_count
 - AGGREGATE <var> by <EXACT_FIELD_NAME> with count|sum|avg|min|max
   CRITICAL: The field name must exist in the data (check "Available fields" above)
+- PROJECT <var> GRAIN node|edge|path|paper|chunk FIELDS <field1>[ AS alias],<field2>... [KEYS <field1>,<field2>...] [WEIGHT <field>] [PRESERVE_MULTIPLICITY] [AS <result_var>]
+- COLLAPSE <var> BY <field> [COUNT AS <weight_field>] [AS <result_var>]
 - UPDATE <var> with <source> [operation: replace|delete|merge|append] [where <condition>] - Modifies existing data
 
 FIELD CREATION COMMANDS:
@@ -108,6 +113,8 @@ Generate a JSON plan object with the following structure:
     "PROCESS person_nodes with instruction: extract author names AS author_names",
     "ADD_FIELD person_nodes field: author_name = author_names",
     "COUNT person_nodes where author_name is not null AS author_frequency",
+    "PROJECT relation_rows GRAIN edge FIELDS src_id,tgt_id,data.entity_name AS entity_name PRESERVE_MULTIPLICITY AS occurrence_rows",
+    "COLLAPSE occurrence_rows BY entity_name COUNT AS occurrence_count AS unique_entities",
     "AGGREGATE person_nodes by id with count",
     "CREATE_NODES from author_frequency with type: AUTHOR_GROUP",
     "CREATE_EDGES from relationships with type: BELONGS_TO",
@@ -160,5 +167,17 @@ IMPORTANT GASL SYNTAX RULES:
 - Only use ONE FIND command per plan - store results and process them with other commands
 - Commands end with semicolons or newlines
 
-Use GASL commands to systematically analyze the graph and build up state to answer the query.
+GRAPH-NATIVE PLANNING HEURISTICS:
+- If the query asks for "most frequent", "most common", "top", "rank", "widest range", "broadest", or graph-wide counts, prefer:
+  FIND source nodes -> GRAPHWALK exact relation_type -> AGGREGATE/COUNT -> RANK -> SHOW
+- Always bind GRAPHWALK outputs with `AS <result_var>` and use that variable in downstream AGGREGATE/PROCESS commands.
+- Use `Recently Produced Artifacts` aggressively. If an artifact lists `safe_for` and AGGREGATE is absent, or it carries a `path_warning`, do NOT aggregate it directly. Either PROJECT it to the correct grain first or choose a narrower traversal.
+- Avoid PROCESS or ITERATE over large node lists when the answer can be obtained directly from graph edges.
+- Prefer exact graph schema tokens from the query and schema (for example entity_type=RESPIRATORY_INFECTION, relation_type=AFFECTS) instead of paraphrases.
+- For multi-axis breadth questions, prefer multiple GRAPHWALK steps plus AGGREGATE over LLM processing of raw node descriptions.
+- For frequency questions, if a GRAPHWALK or PROCESS result may contain repeated occurrences, use PROJECT with GRAIN edge/path and PRESERVE_MULTIPLICITY before AGGREGATE.
+- Use COLLAPSE only when you intentionally want to deduplicate rows and carry multiplicity forward in an explicit weight field.
+- If a prior GRAPHWALK was semantically weak, repair the walk or narrow the source set before continuing. Do not hide weak traversal semantics behind later PROCESS/AGGREGATE steps.
+- Never use broad `FIND paths with entity_type=... and relation_type ...` patterns. `FIND paths` is only allowed when the query is explicitly anchored as `source entity_type=... edge relation_type=... target entity_type=...`. Otherwise use `FIND nodes` plus `GRAPHWALK`.
 
+Use GASL commands to systematically analyze the graph and build up state to answer the query.

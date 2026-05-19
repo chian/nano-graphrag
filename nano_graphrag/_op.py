@@ -1,6 +1,7 @@
 import re
 import json
 import asyncio
+from itertools import combinations
 from typing import Union
 from collections import Counter, defaultdict
 from ._splitter import SeparatorSplitter
@@ -26,6 +27,94 @@ from .base import (
     QueryParam,
 )
 from .prompt import GRAPH_FIELD_SEP, PROMPTS
+
+
+FALLBACK_STOPWORDS = {
+    "The", "A", "An", "This", "That", "These", "Those", "He", "She", "It", "They",
+    "His", "Her", "Their", "Its", "We", "I", "You", "Mr", "Mrs", "Ms", "Dr",
+    "In", "On", "At", "For", "From", "To", "And", "But", "Or", "If", "Then",
+    "As", "Of", "By", "With", "Without", "After", "Before", "During", "While",
+}
+
+
+def _heuristic_extract_records(content: str, chunk_key: str) -> tuple[dict[str, list[dict]], dict[tuple[str, str], list[dict]]]:
+    """Best-effort offline fallback when LLM-based indexing is unavailable.
+
+    Extract title-case spans as entities and connect entities that co-occur in the
+    same sentence. This is intentionally simple and only used when the indexing LLM
+    fails, so the graph remains usable rather than aborting the whole insert.
+    """
+    maybe_nodes: dict[str, list[dict]] = defaultdict(list)
+    maybe_edges: dict[tuple[str, str], list[dict]] = defaultdict(list)
+    sentence_spans = re.split(r"(?<=[.!?])\s+|\n{2,}", content)
+    candidate_freq: Counter[str] = Counter()
+    sentence_candidates: list[tuple[str, list[str]]] = []
+    for sentence in sentence_spans:
+        candidates = re.findall(r"\b(?:[A-Z][a-z]+(?:[-'][A-Za-z]+)?(?:\s+[A-Z][a-z]+(?:[-'][A-Za-z]+)?)*)\b", sentence)
+        normalized_names: list[str] = []
+        for candidate in candidates:
+            name = clean_str(candidate.upper())
+            if not name:
+                continue
+            if candidate in FALLBACK_STOPWORDS:
+                continue
+            if len(candidate) < 3:
+                continue
+            candidate_freq[name] += 1
+            normalized_names.append(name)
+        if normalized_names:
+            sentence_candidates.append((sentence, normalized_names))
+
+    top_names = {
+        name
+        for name, _ in sorted(candidate_freq.items(), key=lambda kv: (-kv[1], kv[0]))[:12]
+    }
+    for sentence, names in sentence_candidates:
+        sentence_entities = [name for name in names if name in top_names]
+        for name in sorted(set(sentence_entities)):
+            maybe_nodes[name].append(
+                {
+                    "entity_name": name,
+                    "entity_type": '"UNKNOWN"',
+                    "description": clean_str(sentence[:240]),
+                    "source_id": chunk_key,
+                }
+            )
+        for src, tgt in list(combinations(sorted(set(sentence_entities)), 2))[:24]:
+            maybe_edges[(src, tgt)].append(
+                {
+                    "src_id": src,
+                    "tgt_id": tgt,
+                    "weight": 1.0,
+                    "description": clean_str(sentence[:240]),
+                    "source_id": chunk_key,
+                }
+            )
+    return dict(maybe_nodes), dict(maybe_edges)
+
+
+def _fallback_community_report(community: SingleCommunitySchema, describe: str) -> dict:
+    top_nodes = ", ".join(community["nodes"][:5]) or "No major entities identified"
+    edge_count = len(community["edges"])
+    node_count = len(community["nodes"])
+    return {
+        "title": community.get("title", "Community Report"),
+        "summary": (
+            f"Fallback report for a community with {node_count} nodes and {edge_count} "
+            f"relationships. Top entities: {top_nodes}."
+        ),
+        "findings": [
+            {
+                "summary": "Top entities",
+                "explanation": top_nodes,
+            },
+            {
+                "summary": "Evidence summary",
+                "explanation": describe[:1200],
+            },
+        ],
+        "rating": 1,
+    }
 
 
 def chunking_by_token_size(
@@ -131,8 +220,16 @@ async def _handle_entity_relation_summary(
     )
     use_prompt = prompt_template.format(**context_base)
     logger.debug(f"Trigger summary: {entity_or_relation_name}")
-    summary = await use_llm_func(use_prompt, max_tokens=summary_max_tokens)
-    return summary
+    try:
+        summary = await use_llm_func(use_prompt, max_tokens=summary_max_tokens)
+        return summary
+    except Exception as exc:
+        logger.warning(
+            "Entity/relation summary LLM failed for %s, using truncated description: %s",
+            entity_or_relation_name,
+            exc,
+        )
+        return use_description
 
 
 async def _handle_single_entity_extraction(
@@ -293,18 +390,24 @@ async def extract_entities(
     ordered_chunks = list(chunks.items())
 
     entity_extract_prompt = PROMPTS["entity_extraction"]
-    # dynamic entity-type generation per user task (query-aware). Fall back to default list.
-    # generate entity types (must succeed; no fallback)
+    # dynamic entity-type generation per user task (query-aware). Fall back to
+    # default entity types when the LLM path is unavailable or returns nothing.
     from .entity_type_generator import generate_entity_types_for_chunks
-    task_text = global_config.get("user_query", "")
-    generated_entity_types = await generate_entity_types_for_chunks(
-        task=task_text,
-        chunks=chunks,
-        llm_func=use_llm_func,
-        per_chunk=True,
-    )
+    from .prompt_system import QueryAwarePromptSystem
+    task_text = (global_config.get("user_query", "") or "").strip()
+    generated_entity_types = []
+    if task_text:
+        try:
+            generated_entity_types = await generate_entity_types_for_chunks(
+                task=task_text,
+                chunks=chunks,
+                llm_func=use_llm_func,
+                per_chunk=True,
+            )
+        except Exception as exc:
+            logger.warning("Dynamic entity type generation failed, using defaults: %s", exc)
     if not generated_entity_types:
-        raise RuntimeError("Dynamic entity type generation returned empty list")
+        generated_entity_types = QueryAwarePromptSystem()._static_prompts["DEFAULT_ENTITY_TYPES"]
     entity_types_value = ",".join(generated_entity_types)
     print(f"Dynamic entity types selected: {generated_entity_types}")
 
@@ -320,32 +423,50 @@ async def extract_entities(
     already_processed = 0
     already_entities = 0
     already_relations = 0
+    used_heuristic_fallback = False
 
     async def _process_single_content(chunk_key_dp: tuple[str, TextChunkSchema]):
-        nonlocal already_processed, already_entities, already_relations
+        nonlocal already_processed, already_entities, already_relations, used_heuristic_fallback
         chunk_key = chunk_key_dp[0]
         chunk_dp = chunk_key_dp[1]
         content = chunk_dp["content"]
         hint_prompt = entity_extract_prompt.format(**context_base, input_text=content)
-        final_result = await use_llm_func(hint_prompt)
-        if isinstance(final_result, list):
-            final_result = final_result[0]["text"]
+        try:
+            final_result = await use_llm_func(hint_prompt)
+            if isinstance(final_result, list):
+                final_result = final_result[0]["text"]
 
-        history = pack_user_ass_to_openai_messages(hint_prompt, final_result, using_amazon_bedrock)
-        for now_glean_index in range(entity_extract_max_gleaning):
-            glean_result = await use_llm_func(continue_prompt, history_messages=history)
+            history = pack_user_ass_to_openai_messages(hint_prompt, final_result, using_amazon_bedrock)
+            for now_glean_index in range(entity_extract_max_gleaning):
+                glean_result = await use_llm_func(continue_prompt, history_messages=history)
 
-            history += pack_user_ass_to_openai_messages(continue_prompt, glean_result, using_amazon_bedrock)
-            final_result += glean_result
-            if now_glean_index == entity_extract_max_gleaning - 1:
-                break
+                history += pack_user_ass_to_openai_messages(continue_prompt, glean_result, using_amazon_bedrock)
+                final_result += glean_result
+                if now_glean_index == entity_extract_max_gleaning - 1:
+                    break
 
-            if_loop_result: str = await use_llm_func(
-                if_loop_prompt, history_messages=history
+                if_loop_result: str = await use_llm_func(
+                    if_loop_prompt, history_messages=history
+                )
+                if_loop_result = if_loop_result.strip().strip('"').strip("'").lower()
+                if if_loop_result != "yes":
+                    break
+        except Exception as exc:
+            logger.warning("Entity extraction LLM failed for chunk %s, using heuristic fallback: %s", chunk_key, exc)
+            used_heuristic_fallback = True
+            maybe_nodes, maybe_edges = _heuristic_extract_records(content, chunk_key)
+            already_processed += 1
+            already_entities += len(maybe_nodes)
+            already_relations += len(maybe_edges)
+            now_ticks = PROMPTS["process_tickers"][
+                already_processed % len(PROMPTS["process_tickers"])
+            ]
+            print(
+                f"{now_ticks} Processed {already_processed}({already_processed*100//len(ordered_chunks)}%) chunks,  {already_entities} entities(duplicated), {already_relations} relations(duplicated)\r",
+                end="",
+                flush=True,
             )
-            if_loop_result = if_loop_result.strip().strip('"').strip("'").lower()
-            if if_loop_result != "yes":
-                break
+            return maybe_nodes, maybe_edges
 
         records = split_string_by_multi_markers(
             final_result,
@@ -417,6 +538,8 @@ async def extract_entities(
     if not len(all_entities_data):
         logger.warning("Didn't extract any entities, maybe your LLM is not working")
         return None
+    if used_heuristic_fallback and hasattr(knwoledge_graph_inst, "_graph"):
+        knwoledge_graph_inst._graph.graph["heuristic_indexing"] = True
     if entity_vdb is not None:
         data_for_vdb = {
             compute_mdhash_id(dp["entity_name"], prefix="ent-"): {
@@ -670,8 +793,16 @@ async def generate_community_report(
         prompt = prompt_template.format(input_text=describe)
 
 
-        response = await use_llm_func(prompt, **llm_extra_kwargs)
-        data = use_string_json_convert_func(response)
+        try:
+            response = await use_llm_func(prompt, **llm_extra_kwargs)
+            data = use_string_json_convert_func(response)
+        except Exception as exc:
+            logger.warning(
+                "Community report LLM failed for community %s, using fallback: %s",
+                community.get("title", "<unknown>"),
+                exc,
+            )
+            data = _fallback_community_report(community, describe)
         already_processed += 1
         now_ticks = PROMPTS["process_tickers"][already_processed % len(PROMPTS["process_tickers"])]
         print(f"{now_ticks} Processed {already_processed} communities\r", end="", flush=True)

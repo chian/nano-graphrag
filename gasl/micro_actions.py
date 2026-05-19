@@ -201,15 +201,18 @@ class MicroActionFramework:
         self._save_manifest(manifest)
 
         # ── Build final tally by streaming batch files (bounded memory) ───────
+        all_items = list(self._iter_all_batch_results(var_key, total_batches))
         if target_variable:
             tally = self._build_tally_from_batches(var_key, total_batches)
             print(f"DEBUG: MICRO_ACTIONS - Tally: {tally}")
-            self._save_tally_to_state(target_variable, tally, command_type, total_processed)
+            # Keep the actual row records available to downstream commands.
+            self._save_to_state(target_variable, all_items, command_type)
+            # Persist the compact tally separately for diagnostics/reuse.
+            self._save_tally_to_state(f"{target_variable}__tally", tally, command_type, total_processed)
 
         # ── Versioned-graph update (if applicable) ────────────────────────────
         if target_variable and hasattr(self, 'versioned_graph') and self.versioned_graph:
             current_graph = self.versioned_graph.get_current_graph()
-            all_items = list(self._iter_all_batch_results(var_key, total_batches))
             self._apply_modifications_to_graph(current_graph, all_items, target_variable)
             self.versioned_graph.create_version_after_command(
                 command_type,
@@ -220,7 +223,7 @@ class MicroActionFramework:
 
         return self._create_result(
             status="success" if total_processed > 0 else "empty",
-            data={"processed_items": [], "_checkpoint_tally": tally if target_variable else {}},
+            data={"processed_items": all_items, "_checkpoint_tally": tally if target_variable else {}},
             count=total_processed
         )
     
@@ -542,7 +545,7 @@ class MicroActionFramework:
         )
     
     def _save_tally_to_state(self, target_variable: str, tally: Dict, command_type: str, total: int) -> None:
-        """Store a domain-tally dict in state/context stores (not the raw item list)."""
+        """Store a domain-tally dict in a dedicated side variable."""
         print(f"DEBUG: MICRO_ACTIONS - Saving tally for {target_variable}: {tally}")
         # Wrap tally as a list-of-one so existing readers work
         tally_record = {"tally": tally, "total": total, "variable": target_variable}

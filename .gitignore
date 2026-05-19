@@ -4,6 +4,7 @@ test_cache.json
 run_test*.py
 nano_graphrag_cache*/
 *.txt
+!prompts/*.txt
 examples/benchmarks/fixtures/
 tests/original_workflow.txt
 ### Python ###
@@ -131,6 +132,13 @@ celerybeat.pid
 
 # Environments
 .env
+.viz.local.env
+demo_videos/
+benchmark_results/
+gasl_checkpoints/
+gasl_artifacts/
+tmp/
+archives/
 .venv
 env/
 venv/

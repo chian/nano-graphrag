@@ -163,8 +163,9 @@ class Neo4jAdapter(GraphAdapter):
     def _build_path_query(self, filters: Dict[str, Any]) -> str:
         """Build Cypher query for finding paths."""
         max_length = self.capabilities.max_path_length
-        
-        query = f"MATCH p = (start)-[*1..{max_length}]->(end)"
+        relation_type = filters.get("relation_type")
+        relation_clause = f":{relation_type}" if relation_type else ""
+        query = f"MATCH p = (start)-[*1..{max_length}{relation_clause}]->(end)"
         conditions = []
         
         # Add source filter
@@ -184,7 +185,8 @@ class Neo4jAdapter(GraphAdapter):
         if conditions:
             query += " WHERE " + " AND ".join(conditions)
         
-        query += f" RETURN p LIMIT {self.capabilities.max_results}"
+        max_results = int(filters.get("_max_results", self.capabilities.max_results) or self.capabilities.max_results)
+        query += f" RETURN p LIMIT {max_results}"
         
         return query
     

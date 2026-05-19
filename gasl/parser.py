@@ -21,8 +21,11 @@ class GASLParser:
             "FIND": r"FIND\s+(nodes|edges|paths)\s+(?:with\s+)?(.+?)(?:\s+AS\s+([a-zA-Z_][a-zA-Z0-9_.]*))?$",
             "PROCESS": r"PROCESS\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+(?:with\s+)?([^;]+)(?:\s+AS\s+([a-zA-Z_][a-zA-Z0-9_.]*))?",
             "COUNT": r"COUNT.*AS.*",
-            "AGGREGATE": r"AGGREGATE\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+by\s+([^;]+?)\s+with\s+([^;]+)",
+            "AGGREGATE": r"AGGREGATE\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+by\s+(.+?)\s+with\s+(.+?)(?:\s+AS\s+([a-zA-Z_][a-zA-Z0-9_.]*))?$",
+            "PROJECT": r"PROJECT\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+GRAIN\s+(node|edge|path|paper|chunk)\s+FIELDS\s+(.+?)(?:\s+KEYS\s+(.+?))?(?:\s+WEIGHT\s+([a-zA-Z_][a-zA-Z0-9_.]*))?(?:\s+(PRESERVE_MULTIPLICITY))?(?:\s+AS\s+([a-zA-Z_][a-zA-Z0-9_.]*))?$",
+            "COLLAPSE": r"COLLAPSE\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+BY\s+(.+?)(?:\s+COUNT\s+AS\s+([a-zA-Z_][a-zA-Z0-9_.]*))?(?:\s+AS\s+([a-zA-Z_][a-zA-Z0-9_.]*))?$",
             "UPDATE": r"UPDATE\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+(?:with\s+)?([^;]+)",
+            "ON": r"ON\s+(success|error|empty)\s+do\s+(.+)$",
             
             # Graph modification commands
             "ADD_FIELD": r"ADD_FIELD\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+field:\s*([^;]+?)\s*=\s*([a-zA-Z_][a-zA-Z0-9_.]*)",
@@ -33,10 +36,10 @@ class GASLParser:
             # Analysis commands
             "CLASSIFY": r"CLASSIFY\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+(?:with\s+)?([^;]+)",
             "SCORE": r"SCORE\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+(?:with\s+)?([^;]+)",
-            "RANK": r"RANK\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+by\s+([^;]+?)(?:\s+order\s+(desc|asc))?",
+            "RANK": r"RANK\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+by\s+(.+?)(?:\s+order\s+(desc|asc))?$",
             
             # Graph navigation commands
-            "GRAPHWALK": r"GRAPHWALK\s+from\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+follow\s+([^;]+?)(?:\s+depth\s+(\d+))?",
+            "GRAPHWALK": r"GRAPHWALK\s+from\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+follow\s+(.+?)(?:\s+depth\s+(\d+))?(?:\s+AS\s+([a-zA-Z_][a-zA-Z0-9_.]*))?$",
             "SUBGRAPH": r"SUBGRAPH\s+around\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+radius\s+(\d+)(?:\s+include\s+([^;]+))?",
             "GRAPHPATTERN": r"GRAPHPATTERN\s+find\s+([^;]+?)\s+in\s+([a-zA-Z_][a-zA-Z0-9_.]*)",
             
@@ -155,14 +158,14 @@ class GASLParser:
         elif command_type == "SET":
             args["variable"] = groups[0]
             args["value"] = groups[1].strip()
-        
+
+        elif command_type == "ON":
+            args["status"] = groups[0].strip().lower()
+            args["action"] = groups[1].strip()
+
         elif command_type in ["REQUIRE", "ASSERT"]:
             args["variable"] = groups[0]
             args["condition"] = groups[1].strip()
-        
-        elif command_type == "ON":
-            args["status"] = groups[0]
-            args["action"] = groups[1].strip()
         
         elif command_type in ["TRY", "CATCH", "FINALLY"]:
             args["action"] = groups[0].strip()
@@ -173,16 +176,10 @@ class GASLParser:
         # Graph Navigation commands
         elif command_type == "GRAPHWALK":
             args["from_variable"] = groups[0]
-            # Handle case where relationship_types might include "depth X"
-            relationship_text = groups[1].strip()
-            if " depth " in relationship_text:
-                parts = relationship_text.split(" depth ")
-                args["relationship_types"] = parts[0].strip()
-                args["depth"] = parts[1].strip() if len(parts) > 1 else "1"
-            else:
-                args["relationship_types"] = relationship_text
-                args["depth"] = groups[2] if len(groups) > 2 and groups[2] else "1"
-            
+            args["relationship_types"] = groups[1].strip()
+            args["depth"] = groups[2] if len(groups) > 2 and groups[2] else "1"
+            if len(groups) > 3 and groups[3]:
+                args["result_var"] = groups[3]
             # Special handling for common relationship types
             if args["relationship_types"] in ["a", "an", "any"]:
                 args["relationship_types"] = "any"
@@ -232,6 +229,25 @@ class GASLParser:
             args["variable"] = groups[0]
             args["by_field"] = groups[1].strip()
             args["operation"] = groups[2].strip()
+            if len(groups) > 3 and groups[3]:
+                args["result_variable"] = groups[3]
+        
+        elif command_type == "PROJECT":
+            args["variable"] = groups[0]
+            args["grain"] = groups[1].strip().lower()
+            args["fields"] = groups[2].strip()
+            args["keys"] = groups[3].strip() if len(groups) > 3 and groups[3] else ""
+            args["weight_field"] = groups[4].strip() if len(groups) > 4 and groups[4] else ""
+            args["preserve_multiplicity"] = bool(len(groups) > 5 and groups[5])
+            if len(groups) > 6 and groups[6]:
+                args["result_variable"] = groups[6]
+
+        elif command_type == "COLLAPSE":
+            args["variable"] = groups[0]
+            args["by_field"] = groups[1].strip()
+            args["weight_field"] = groups[2].strip() if len(groups) > 2 and groups[2] else "occurrence_count"
+            if len(groups) > 3 and groups[3]:
+                args["result_variable"] = groups[3]
         
         elif command_type == "PIVOT":
             args["variable"] = groups[0]
@@ -315,7 +331,7 @@ class GASLParser:
             return self._validate_graph_nav(command)
         elif command.command_type in ["JOIN", "MERGE", "COMPARE"]:
             return self._validate_multi_var(command)
-        elif command.command_type in ["TRANSFORM", "RESHAPE", "AGGREGATE", "PIVOT"]:
+        elif command.command_type in ["TRANSFORM", "RESHAPE", "AGGREGATE", "PIVOT", "PROJECT", "COLLAPSE"]:
             return self._validate_data_transform(command)
         elif command.command_type in ["CALCULATE", "SCORE", "RANK", "WEIGHT"]:
             return self._validate_field_calc(command)
@@ -502,6 +518,10 @@ class GASLParser:
             return "variable" in args and "by_field" in args and "operation" in args
         elif command.command_type == "PIVOT":
             return "variable" in args and "pivot_field" in args and "value_field" in args
+        elif command.command_type == "PROJECT":
+            return "variable" in args and "grain" in args and "fields" in args
+        elif command.command_type == "COLLAPSE":
+            return "variable" in args and "by_field" in args
         return False
     
     def _validate_field_calc(self, command: Command) -> bool:

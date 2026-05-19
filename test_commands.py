@@ -4,6 +4,8 @@ Permanent test script for testing any GASL command input.
 Usage: python test_commands.py "FIND nodes with entity_type=PERSON"
 """
 
+__test__ = False
+
 import sys
 import os
 import argparse

@@ -228,6 +228,15 @@ class NetworkXStorage(BaseGraphStorage):
             self._graph.nodes[node_id]["clusters"] = json.dumps(clusters)
 
     async def _leiden_clustering(self):
+        if self._graph.graph.get("heuristic_indexing"):
+            logger.info("Using fallback clustering for heuristic-indexed graph")
+            node_communities: dict[str, list[dict[str, str]]] = defaultdict(list)
+            for cluster_id, component in enumerate(nx.connected_components(self._graph)):
+                for node in component:
+                    node_communities[node].append({"level": 0, "cluster": cluster_id})
+            self._cluster_data_to_subgraphs(dict(node_communities))
+            return
+
         from graspologic.partition import hierarchical_leiden
 
         graph = NetworkXStorage.stable_largest_connected_component(self._graph)

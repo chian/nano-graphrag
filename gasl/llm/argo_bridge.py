@@ -3,6 +3,7 @@ Argo Bridge LLM wrapper for GASL system.
 """
 
 import os
+import json
 import asyncio
 from typing import Any, Dict, List, Optional
 from openai import AsyncOpenAI
@@ -84,6 +85,8 @@ class ArgoBridgeLLM:
         m = (self.model or "").lower()
         if m.startswith(("o1", "o3", "o4", "o5")):
             return True
+        if "rosalind" in m:
+            return True
         # Hyphenated public names (gpt-5, gpt-5-mini, ...) and Argo internal IDs
         # (gpt5, gpt5mini, gpt5nano) — all three are reasoning baseline models
         if m in ("gpt-5", "gpt-5-mini", "gpt-5-nano", "gpt5", "gpt5mini", "gpt5nano"):
@@ -125,6 +128,24 @@ class ArgoBridgeLLM:
         if self._is_reasoning_model() and self.reasoning_effort in ("low", "medium", "high"):
             kwargs["reasoning_effort"] = self.reasoning_effort
         return kwargs
+
+    def clone(
+        self,
+        *,
+        model: Optional[str] = None,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        reasoning_effort: Optional[str] = None,
+    ) -> "ArgoBridgeLLM":
+        """Create a new client with the same credentials but different task-level defaults."""
+        return ArgoBridgeLLM(
+            model=model or self.model,
+            temperature=self.temperature if temperature is None else temperature,
+            max_tokens=self.max_tokens if max_tokens is None else max_tokens,
+            api_key=self._client_kwargs.get("api_key"),
+            base_url=self._client_kwargs.get("base_url"),
+            reasoning_effort=self.reasoning_effort if reasoning_effort is None else reasoning_effort,
+        )
 
     async def call_async(self, prompt: str) -> str:
         """Make async LLM call, streaming tokens if stream_callback is set."""
@@ -195,20 +216,45 @@ class ArgoBridgeLLM:
         
         # Get validation hint from state
         validation_hint = state.get("validation_hint", "")
+        strategy_insights = state.get("strategy_insights", "")
         
         # Format the prompt with the current context
         formatted_prompt = base_prompt.format(
             query=query,
-            hint_text=f"\n\nPrevious validation feedback: {validation_hint}" if validation_hint else "",
+            hint_text=(
+                (f"\n\nPrevious validation feedback: {validation_hint}" if validation_hint else "")
+                + (f"\n\nPrevious repair constraints:\n{strategy_insights}" if strategy_insights else "")
+            ),
             node_labels=schema.get('node_labels', []),
             edge_types=schema.get('edge_types', []),
             node_properties=schema.get('node_properties', []),
             edge_properties=schema.get('edge_properties', []),
-            state_variables=self._format_state(state),
-            execution_history=self._format_history(history)
+            state_variables=self._format_state(state.get("variables", {})),
+            execution_history=self._format_history(history),
+            produced_artifacts=self._format_produced_artifacts(state.get("produced_artifacts", [])),
         )
         
         return formatted_prompt
+
+    def create_plan_repair_prompt(
+        self,
+        query: str,
+        previous_plan: Dict[str, Any],
+        results: Dict[str, Any],
+        iteration: int,
+        state: Dict[str, Any],
+    ) -> str:
+        """Create prompt for directly patching the previous plan."""
+        base_prompt = self.prompt_system.get_prompt("plan_repair")
+        return base_prompt.format(
+            query=query,
+            previous_plan=json.dumps(previous_plan, indent=2),
+            results=self._format_results(results),
+            iteration=iteration,
+            execution_history=self._format_history(state.get("history", [])),
+            produced_artifacts=self._format_produced_artifacts(state.get("produced_artifacts", [])),
+            strategy_insights=state.get("strategy_insights", ""),
+        )
     
     def create_completion_validator_prompt(self, query: str, results: Dict[str, Any]) -> str:
         """Create prompt to validate if query was successfully answered."""
@@ -356,6 +402,31 @@ class ArgoBridgeLLM:
             count = entry.get("result_count", 0)
             formatted.append(f"- {status}: {command} (result count: {count})")
         
+        return "\n".join(formatted)
+
+    def _format_produced_artifacts(self, artifacts: list) -> str:
+        """Format recently produced artifacts for prompt context."""
+        if not artifacts:
+            return "No produced artifacts yet."
+        formatted = []
+        for art in artifacts[-8:]:
+            parts = [
+                f"- {art.get('variable','')}: {art.get('command_type','')} -> {art.get('payload_kind','')}"
+                f" ({art.get('item_count',0)} items)"
+            ]
+            if art.get("label_field"):
+                parts.append(f"label={art.get('label_field')}")
+            if art.get("metric_field"):
+                parts.append(f"metric={art.get('metric_field')}")
+            if art.get("grain_type"):
+                parts.append(f"grain={art.get('grain_type')}")
+            if art.get("row_schema"):
+                parts.append(f"fields={art.get('row_schema', [])[:8]}")
+            if art.get("safe_for"):
+                parts.append(f"safe_for={art.get('safe_for')}")
+            if art.get("semantic_valid") is False:
+                parts.append(f"path_warning={art.get('semantic_reason','')}")
+            formatted.append(", ".join(parts))
         return "\n".join(formatted)
     
     def _format_results(self, results: Dict[str, Any]) -> str:

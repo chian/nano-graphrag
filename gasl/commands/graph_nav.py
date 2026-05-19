@@ -2,11 +2,14 @@
 Graph Navigation command handlers.
 """
 
+import re
 from typing import Any, List, Dict
 from .base import CommandHandler
 from ..types import Command, ExecutionResult, Provenance
 from ..validation import LLMJudgeValidator
 from ..adapters.base import GraphAdapter
+from ..contracts import make_contract
+from ..retrieval_probe import RetrievalProbePolicy
 
 
 class GraphNavHandler(CommandHandler):
@@ -16,6 +19,7 @@ class GraphNavHandler(CommandHandler):
         super().__init__(state_store, context_store, state_manager)
         self.adapter = adapter
         self.validator = LLMJudgeValidator(llm_func) if llm_func else None
+        self.probe_policy = RetrievalProbePolicy()
     
     def can_handle(self, command: Command) -> bool:
         return command.command_type in ["GRAPHWALK", "GRAPHCONNECT", "SUBGRAPH", "GRAPHPATTERN"]
@@ -50,6 +54,7 @@ class GraphNavHandler(CommandHandler):
         from_var = args["from_variable"]
         follow_types = args["relationship_types"]
         depth = int(args.get("depth", 1))
+        result_var = args.get("result_var")
         
         print(f"DEBUG: GRAPHWALK - from: {from_var}, follow: {follow_types}, depth: {depth}")
         
@@ -65,48 +70,69 @@ class GraphNavHandler(CommandHandler):
                                          error_message=f"Variable {from_var} not found or empty, and no last_nodes_result available")
         
         # Perform graph walk with memory limit
-        walked_data = []
-        max_nodes = 10000  # Limit to prevent memory issues
+        effective_depth = depth
+        source_cap = 100
+        follow_filters = self._normalize_follow_types(follow_types)
+
+        if self.validator and (len(source_nodes) > 10 or depth > 1):
+            pilot = self._walk(source_nodes, follow_filters, depth, source_cap=10, max_nodes=60, edge_cap=15)
+            pilot_contract = make_contract(
+                payload_kind="walk_rows",
+                data=pilot,
+                label_field="data.entity_name",
+                scope="current_rows_only",
+                usable_by=["PROCESS", "AGGREGATE", "SHOW", "SELECT"],
+                confidence=0.9,
+                grain_type="edge",
+                grain_keys=["src_id", "tgt_id", "relation_type", "path_depth"],
+                multiplicity_preserved=True,
+            )
+            pilot_validation = self.validator.validate_graphwalk_semantics(
+                command.args,
+                source_nodes[:10],
+                pilot,
+                len(pilot),
+                contract=pilot_contract,
+            )
+            if depth > 1 and (not pilot or self.probe_policy.should_adapt(pilot_validation, len(pilot), min_count=25)):
+                effective_depth = 1
+                source_cap = min(25, len(source_nodes))
+
+        walked_data = self._walk(source_nodes, follow_filters, effective_depth, source_cap=source_cap, max_nodes=10000, edge_cap=50)
         
-        for node in source_nodes[:100]:  # Limit source nodes to first 100
-            if len(walked_data) >= max_nodes:
-                break
-                
-            node_id = node.get("id")
-            if node_id:
-                # Multi-hop traversal
-                current_nodes = [node]
-                for step in range(depth):
-                    next_nodes = []
-                    for current_node in current_nodes:
-                        if len(walked_data) >= max_nodes:
-                            break
-                            
-                        # Find edges from current node
-                        edges = self.adapter.find_edges({"source_filter": f"id={current_node['id']}"})
-                        for edge in edges[:50]:  # Limit edges per node to 50
-                            if len(walked_data) >= max_nodes:
-                                break
-                                
-                            # Since edges don't have relationship_name, follow all edges
-                            # or check if the relationship type matches the edge description
-                            should_follow = True
-                            if follow_types not in ["*", "all", "any"]:
-                                # Check if any of the follow types appear in the edge description
-                                edge_desc = edge.get("data", {}).get("description", "").lower()
-                                follow_types_list = [rt.strip().lower() for rt in follow_types.split(",")]
-                                should_follow = any(rt in edge_desc for rt in follow_types_list)
-                            
-                            if should_follow:
-                                # Get target node
-                                target_node = self.adapter.find_nodes({"id_filter": edge["target"]})
-                                if target_node:
-                                    next_nodes.extend(target_node)
-                    current_nodes = next_nodes
-                walked_data.extend(current_nodes)
-        
+        if result_var:
+            walk_contract = make_contract(
+                payload_kind="walk_rows",
+                data=walked_data,
+                label_field="data.entity_name",
+                scope="current_rows_only",
+                usable_by=["PROCESS", "AGGREGATE", "SHOW", "SELECT"],
+                confidence=0.9,
+                grain_type="edge",
+                grain_keys=["src_id", "tgt_id", "relation_type", "path_depth"],
+                multiplicity_preserved=True,
+            )
+            self.context_store.set(result_var, walked_data, contract=walk_contract)
+            if self.state_store.has_variable(result_var):
+                self.state_store.update_variable(result_var, walked_data)
+                self.state_store.set_variable_contract(result_var, walk_contract)
+
         # Store result in context
-        self.context_store.set("last_walk_result", walked_data)
+        walk_contract = make_contract(
+            payload_kind="walk_rows",
+            data=walked_data,
+            label_field="data.entity_name",
+            scope="current_rows_only",
+            usable_by=["PROCESS", "AGGREGATE", "SHOW", "SELECT"],
+            confidence=0.9,
+            grain_type="edge",
+            grain_keys=["src_id", "tgt_id", "relation_type", "path_depth"],
+            multiplicity_preserved=True,
+        )
+        self.context_store.set("last_walk_result", walked_data, contract=walk_contract)
+        # Compatibility: many plans expect the most recent graph navigation result
+        # to be accessible via last_nodes_result for downstream PROCESS/AGGREGATE.
+        self.context_store.set("last_nodes_result", walked_data, contract=walk_contract)
         print(f"DEBUG: GRAPHWALK - stored {len(walked_data)} nodes in last_walk_result")
         
         # Create initial result
@@ -115,25 +141,138 @@ class GraphNavHandler(CommandHandler):
             status="success",
             data=walked_data,
             count=len(walked_data),
+            contract=walk_contract,
             provenance=[self._create_provenance("graph-walk", "graphwalk", 
                                                from_variable=from_var, depth=depth)]
         )
         
-        # Validate with LLM judge if available
+        # Dedicated path-semantics validation with source-set context.
         if self.validator and len(walked_data) > 0:
-            validation = self.validator.validate_command_success(
-                command.command_type, command.args, walked_data, len(walked_data)
+            validation = self.validator.validate_graphwalk_semantics(
+                command.args,
+                source_nodes,
+                walked_data,
+                len(walked_data),
+                contract=walk_contract,
             )
-            
-            if not validation.get("valid", True):
-                # Override status if LLM judge says it failed
-                result_obj.status = "error"
-                result_obj.error_message = f"LLM Judge Validation Failed: {validation.get('reason', 'Unknown validation failure')}"
-                print(f"DEBUG: GRAPHWALK - LLM Judge validation failed: {validation}")
+            walk_contract["confidence"] = min(
+                float(walk_contract.get("confidence", 0.9)),
+                float(validation.get("confidence", walk_contract.get("confidence", 0.9)) or 0.9),
+            )
+            if validation.get("recommended_payload_kind"):
+                walk_contract["payload_kind"] = validation["recommended_payload_kind"]
+            if validation.get("recommended_grain"):
+                walk_contract["grain_type"] = validation["recommended_grain"]
+            if validation.get("downstream_safe_for"):
+                walk_contract["usable_by"] = list(validation["downstream_safe_for"])
+            notes = list(walk_contract.get("notes", []))
+            notes.append(f"path_semantics: {validation.get('reason', '')}".strip())
+            if effective_depth != depth:
+                notes.append(f"retrieval_probe: adapted GRAPHWALK depth {depth} -> {effective_depth}")
+            walk_contract["notes"] = notes
+            walk_contract["semantic_validation"] = validation
+
+            if result_var:
+                self.context_store.set(result_var, walked_data, contract=walk_contract)
+                if self.state_store.has_variable(result_var):
+                    self.state_store.set_variable_contract(result_var, walk_contract)
+            self.context_store.set("last_walk_result", walked_data, contract=walk_contract)
+            self.context_store.set("last_nodes_result", walked_data, contract=walk_contract)
+            result_obj.contract = walk_contract
+
+            if not validation.get("semantically_valid", True):
+                result_obj.error_message = (
+                    f"Path semantics warning: {validation.get('reason', 'Unknown path semantics warning')}"
+                )
+                print(f"DEBUG: GRAPHWALK - path semantics warning: {validation}")
             else:
-                print(f"DEBUG: GRAPHWALK - LLM Judge validation passed: {validation.get('reason', 'Valid')}")
+                print(f"DEBUG: GRAPHWALK - path semantics passed: {validation.get('reason', 'Valid')}")
         
         return result_obj
+
+    def _walk(
+        self,
+        source_nodes: list[dict],
+        follow_filters: list[str],
+        depth: int,
+        *,
+        source_cap: int,
+        max_nodes: int,
+        edge_cap: int,
+    ) -> list[dict]:
+        walked_data: list[dict] = []
+        visited_hops = set()
+        for node in source_nodes[:source_cap]:
+            if len(walked_data) >= max_nodes:
+                break
+            node_id = node.get("id")
+            if not node_id:
+                continue
+            current_nodes = [node]
+            for step in range(depth):
+                next_nodes = []
+                for current_node in current_nodes:
+                    if len(walked_data) >= max_nodes:
+                        break
+                    edges = self.adapter.find_edges({"source": current_node["id"]})
+                    for edge in edges[:edge_cap]:
+                        if len(walked_data) >= max_nodes:
+                            break
+                        edge_rel = (
+                            edge.get("data", {}).get("relation_type")
+                            or edge.get("data", {}).get("relationship_name")
+                            or ""
+                        )
+                        canonical_edge_rel = self._canonicalize_relation_token(edge_rel)
+                        if follow_filters and canonical_edge_rel not in follow_filters:
+                            continue
+                        target_nodes = self.adapter.find_nodes({"id_filter": edge["target"]})
+                        if not target_nodes:
+                            continue
+                        target_node = target_nodes[0]
+                        target_id = target_node["id"]
+                        hop_key = (current_node["id"], target_id, step + 1, canonical_edge_rel)
+                        if hop_key in visited_hops:
+                            continue
+                        visited_hops.add(hop_key)
+                        enriched_target = {
+                            **target_node,
+                            "src_id": current_node["id"],
+                            "tgt_id": target_id,
+                            "data": {
+                                **target_node.get("data", {}),
+                                "src_id": current_node["id"],
+                                "tgt_id": target_id,
+                                "relation_type": edge_rel,
+                                "path_depth": step + 1,
+                            },
+                        }
+                        next_nodes.append(enriched_target)
+                current_nodes = next_nodes
+            walked_data.extend(current_nodes)
+        return walked_data
+
+    @staticmethod
+    def _normalize_follow_types(follow_types: str) -> list[str]:
+        text = (follow_types or "").strip()
+        if not text or text.lower() in {"*", "all", "any"}:
+            return []
+        if "=" in text:
+            key, value = text.split("=", 1)
+            if key.strip().lower() in {"relation_type", "relationship_name"}:
+                text = value
+        return [
+            GraphNavHandler._canonicalize_relation_token(part)
+            for part in text.split(",")
+            if part.strip()
+        ]
+
+    @staticmethod
+    def _canonicalize_relation_token(text: str) -> str:
+        raw = str(text or "").strip().strip('"').strip("'").lower()
+        raw = re.sub(r"[\s\-\/]+", "_", raw)
+        raw = re.sub(r"__+", "_", raw)
+        return raw
     
     def _execute_graphconnect(self, command: Command) -> ExecutionResult:
         """Execute GRAPHCONNECT command."""

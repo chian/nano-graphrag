@@ -57,10 +57,36 @@ class StateManager:
         if self.debug:
             print(f"🔍 STATE_MANAGER: Variable '{variable_name}' not found in any store")
         return []
+
+    def get_variable_contract(self, variable_name: str, fallback_to_last_nodes: bool = True) -> Dict[str, Any]:
+        """Get contract metadata for a variable from context or state."""
+        if self.context_store.has(variable_name):
+            return self.context_store.get_contract(variable_name)
+        if self.state_store.has_variable(variable_name):
+            return self.state_store.get_variable_contract(variable_name)
+        if fallback_to_last_nodes and self.context_store.has("last_nodes_result"):
+            return self.context_store.get_contract("last_nodes_result")
+        return {}
+
+    def store_variable_contract(
+        self,
+        variable_name: str,
+        contract: Dict[str, Any],
+        *,
+        store_in_state: bool = True,
+        store_in_context: bool = True,
+    ) -> None:
+        """Store contract metadata for a variable in state/context."""
+        if store_in_context and self.context_store.has(variable_name):
+            value = self.context_store.get(variable_name)
+            provenance = self.context_store.get_provenance(variable_name)
+            self.context_store.set(variable_name, value, provenance=provenance, contract=contract)
+        if store_in_state and self.state_store.has_variable(variable_name):
+            self.state_store.set_variable_contract(variable_name, contract)
     
     def store_variable_data(self, variable_name: str, data: List[Dict], 
                           store_in_state: bool = True, store_in_context: bool = True,
-                          description: str = None) -> None:
+                          description: str = None, contract: Dict[str, Any] = None) -> None:
         """
         Store data in both state and context stores.
         
@@ -76,7 +102,7 @@ class StateManager:
         
         # Store in context store
         if store_in_context:
-            self.context_store.set(variable_name, data)
+            self.context_store.set(variable_name, data, contract=contract)
             if self.debug:
                 print(f"🔍 STATE_MANAGER: Stored in context store")
         
@@ -87,6 +113,8 @@ class StateManager:
                 var_data = self.state_store.get_variable(variable_name)
                 if isinstance(var_data, dict) and "_meta" in var_data:
                     var_data["items"] = data
+                    if contract is not None:
+                        var_data["_meta"]["contract"] = contract
                     self.state_store._save_state()
                 if self.debug:
                     print(f"🔍 STATE_MANAGER: Updated existing state store variable")
@@ -99,6 +127,8 @@ class StateManager:
                 if isinstance(var_data, dict) and "_meta" in var_data:
                     if var_type == "LIST":
                         var_data["items"] = data
+                    if contract is not None:
+                        var_data["_meta"]["contract"] = contract
                     self.state_store._save_state()
                 if self.debug:
                     print(f"🔍 STATE_MANAGER: Created new state store variable")

@@ -2,22 +2,27 @@
 FIND command handler.
 """
 
+import re
 from typing import Any, List
 from .base import CommandHandler
 from ..types import Command, ExecutionResult, Provenance
 from ..adapters.base import GraphAdapter
 from ..validation import LLMJudgeValidator
 from ..state_manager import StateManager
+from ..contracts import make_contract
+from ..retrieval_probe import RetrievalProbePolicy
 
 
 class FindHandler(CommandHandler):
     """Handles FIND commands for graph traversal."""
+    PATH_PROBE_PAIR_BUDGET = 120
     
     def __init__(self, state_store, context_store, adapter: GraphAdapter, llm_func=None, state_manager=None):
         super().__init__(state_store, context_store)
         self.adapter = adapter
         self.validator = LLMJudgeValidator(llm_func) if llm_func else None
         self.state_manager = state_manager or StateManager(state_store, context_store)
+        self.probe_policy = RetrievalProbePolicy()
     
     def can_handle(self, command: Command) -> bool:
         return command.command_type == "FIND"
@@ -32,13 +37,17 @@ class FindHandler(CommandHandler):
             # Parse criteria to extract filters
             filters = self._parse_criteria(criteria)
             
+            strategy = "default"
+            diagnostics = {}
             # Execute based on target type
             if target == "nodes":
                 result = self.adapter.find_nodes(filters)
             elif target == "edges":
                 result = self.adapter.find_edges(filters)
             elif target == "paths":
-                result = self.adapter.find_paths(filters)
+                result = self._find_paths_with_probe(command, filters)
+                strategy = filters.get("_strategy", "adapter_find_paths")
+                diagnostics = filters.get("_probe_diagnostics", {})
             else:
                 return self._create_result(
                     command=command,
@@ -46,12 +55,27 @@ class FindHandler(CommandHandler):
                     error_message=f"Unknown target type: {target}"
                 )
             
+            result_contract = make_contract(
+                payload_kind=target,
+                data=result,
+                label_field="data.entity_name" if target == "nodes" else "id",
+                scope="current_rows_only",
+                usable_by=["PROCESS", "GRAPHWALK", "AGGREGATE", "SHOW", "SELECT"],
+                confidence=0.95,
+                grain_type="node" if target == "nodes" else ("edge" if target == "edges" else "path"),
+                grain_keys=["id"] if target == "nodes" else (["src_id", "tgt_id", "relation_type"] if target == "edges" else ["path"]),
+                multiplicity_preserved=True,
+            )
+            if strategy != "default":
+                result_contract["notes"] = [f"retrieval_strategy: {strategy}"]
+            if diagnostics:
+                result_contract["retrieval_probe"] = diagnostics
             # Store result using centralized state manager
             result_key = f"find_{target}_{len(self.context_store.keys())}"
-            self.state_manager.store_variable_data(result_key, result, store_in_state=False, store_in_context=True)
+            self.state_manager.store_variable_data(result_key, result, store_in_state=False, store_in_context=True, contract=result_contract)
             
             # Also store as last_nodes_result for compatibility
-            self.state_manager.store_variable_data("last_nodes_result", result, store_in_state=False, store_in_context=True)
+            self.state_manager.store_variable_data("last_nodes_result", result, store_in_state=False, store_in_context=True, contract=result_contract)
             
             # Store with user-specified variable name if AS clause was used
             if "result_var" in args and args["result_var"]:
@@ -60,7 +84,8 @@ class FindHandler(CommandHandler):
                     result, 
                     store_in_state=True,  # Store in state for persistence
                     store_in_context=True,
-                    description=f"Nodes found with criteria: {criteria}"
+                    description=f"Nodes found with criteria: {criteria}",
+                    contract=result_contract,
                 )
                 print(f"DEBUG: FIND - Saved result to variable: {args['result_var']}")
             
@@ -92,11 +117,16 @@ class FindHandler(CommandHandler):
                 status=status,
                 data=result,
                 count=count,
-                provenance=provenance
+                provenance=provenance,
+                contract=result_contract,
             )
             
+            gate = diagnostics.get("gate", {}) if diagnostics else {}
+            if gate.get("valid") is False:
+                result_obj.status = "error"
+                result_obj.error_message = f"Path query blocked before launch: {gate.get('reason', 'unanchored path query')}"
             # Validate with LLM judge if available
-            if self.validator and status == "success":
+            elif self.validator and status == "success":
                 validation = self.validator.validate_command_success(
                     command.command_type, command.args, result, count
                 )
@@ -126,9 +156,19 @@ class FindHandler(CommandHandler):
         # Clean up the criteria string
         criteria = criteria.strip().rstrip(';')
         
+        # Path-style semantics: source entity_type=X edge relation_type=R target entity_type=Y
+        source_match = re.search(r"source\s+entity_type\s*=\s*['\"]?([A-Z_]+)['\"]?", criteria, re.IGNORECASE)
+        target_match = re.search(r"target\s+entity_type\s*=\s*['\"]?([A-Z_]+)['\"]?", criteria, re.IGNORECASE)
+        relation_match = re.search(r"edge\s+relation_type\s*=\s*['\"]?([A-Z_]+)['\"]?", criteria, re.IGNORECASE)
+        if source_match:
+            filters["source_filter"] = {"entity_type": f"\"{source_match.group(1).strip()}\""}
+        if target_match:
+            filters["target_filter"] = {"entity_type": f"\"{target_match.group(1).strip()}\""}
+        if relation_match:
+            filters["relation_type"] = relation_match.group(1).strip()
+
         # Entity type parsing - handle any variation of quotes, spaces, etc.
         if "entity_type" in criteria.lower():
-            import re
             # Handle OR conditions by splitting on OR and processing each part
             if " OR " in criteria.upper():
                 # Split on OR and process each part
@@ -172,7 +212,6 @@ class FindHandler(CommandHandler):
         
         # Relationship name parsing
         if "relationship_name" in criteria.lower():
-            import re
             patterns = [
                 r"relationship_name\s*=\s*['\"]?([A-Z_]+)['\"]?",
                 r"relationship_name\s*:\s*['\"]?([A-Z_]+)['\"]?",
@@ -189,7 +228,6 @@ class FindHandler(CommandHandler):
         
         # Description contains parsing
         if "description" in criteria.lower() and "contains" in criteria.lower():
-            import re
             patterns = [
                 r"description\s+contains\s+['\"]([^'\"]*)['\"]",
                 r"description\s*:\s*contains\s+['\"]([^'\"]*)['\"]",
@@ -209,3 +247,61 @@ class FindHandler(CommandHandler):
         
         print(f"DEBUG: Final filters: {filters}")
         return filters
+
+    def _find_paths_with_probe(self, command: Command, filters: dict) -> list[dict]:
+        criteria = command.args.get("criteria", "")
+        exact_path_semantics = bool(filters.get("source_filter") and filters.get("target_filter") and filters.get("relation_type"))
+        if not exact_path_semantics:
+            filters["_strategy"] = "blocked_unanchored_find_paths"
+            filters["_probe_diagnostics"] = {
+                "gate": {
+                    "valid": False,
+                    "reason": "FIND paths must be source/edge/target anchored. Use exact source entity_type=... edge relation_type=... target entity_type=... syntax or choose FIND nodes + GRAPHWALK instead.",
+                    "confidence": 0.98,
+                }
+            }
+            return []
+
+        sample_filters = dict(filters)
+        sample_filters["_max_pairs"] = self.PATH_PROBE_PAIR_BUDGET
+        strict_probe = self.adapter.find_paths(sample_filters)
+        if not strict_probe:
+            filters["_strategy"] = "strict_relation_paths_sampled_empty"
+            filters["_probe_diagnostics"] = {"validation": {"valid": False, "reason": "No relation-constrained paths found in probe sample."}, "sample_size": 0}
+            return []
+        sample = self.probe_policy.sample_rows(strict_probe, seed_text=criteria)
+        validation = self.validator.validate_command_success("FIND", command.args, sample, len(sample)) if self.validator else {}
+        filters["_probe_diagnostics"] = {"validation": validation, "sample_size": len(sample)}
+        if validation.get("valid", True):
+            filters["_strategy"] = "strict_relation_paths_sampled"
+            full_filters = dict(filters)
+            full_filters["_max_results"] = self.adapter.capabilities.max_results
+            return self.adapter.find_paths(full_filters)
+        filters["_strategy"] = "aborted_after_invalid_probe"
+        return []
+
+    def _strict_relation_paths(self, filters: dict, *, source_limit: int | None, max_results: int) -> list[dict]:
+        source_nodes = self.adapter.find_nodes(filters["source_filter"])
+        target_nodes = self.adapter.find_nodes(filters["target_filter"])
+        target_ids = {row["id"] for row in target_nodes}
+        selected_sources = source_nodes[:source_limit] if source_limit else source_nodes
+        source_ids = {row["id"] for row in selected_sources}
+        relation_type = filters.get("relation_type", "")
+        if not source_ids or not target_ids or not relation_type:
+            return []
+        matched = []
+        for edge in self.adapter.find_edges({"relation_type": relation_type}):
+            if edge["source"] in source_ids and edge["target"] in target_ids:
+                matched.append(
+                    {
+                        "source": edge["source"],
+                        "target": edge["target"],
+                        "path": [edge["source"], edge["target"]],
+                        "length": 1,
+                        "type": "path",
+                        "relation_type": relation_type,
+                    }
+                )
+                if len(matched) >= max_results:
+                    break
+        return matched

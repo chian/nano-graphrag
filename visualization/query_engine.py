@@ -17,6 +17,7 @@ if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
 
 from .graph_loader import GraphLoader
+from gasl.llm.runtime_config import resolve_runtime_llm_config
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -155,7 +156,9 @@ class RagQueryEngine:
                     "usage": empty_usage}
         try:
             from gasl.llm.argo_bridge import ArgoBridgeLLM
-            llm = ArgoBridgeLLM(model=model, api_key=api_key,
+            runtime_cfg = resolve_runtime_llm_config(explicit_api_key=api_key, explicit_model=model)
+            llm = ArgoBridgeLLM(model=runtime_cfg.model or model, api_key=runtime_cfg.api_key,
+                                base_url=runtime_cfg.base_url,
                                 reasoning_effort=reasoning_effort)
             prompt = (
                 "You are answering questions about a biomedical knowledge graph "
@@ -298,7 +301,9 @@ class GaslQueryEngine:
             from gasl.llm.argo_bridge import ArgoBridgeLLM
 
             adapter = NetworkXAdapter(self.loader.graph)
-            llm = ArgoBridgeLLM(model=model, api_key=api_key,
+            runtime_cfg = resolve_runtime_llm_config(explicit_api_key=api_key, explicit_model=model)
+            llm = ArgoBridgeLLM(model=runtime_cfg.model or model, api_key=runtime_cfg.api_key,
+                                base_url=runtime_cfg.base_url,
                                 reasoning_effort=reasoning_effort)
             executor = GASLExecutor(adapter, llm, job_id=job_id)
 

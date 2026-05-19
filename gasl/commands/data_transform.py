@@ -5,19 +5,19 @@ Data Transformation command handlers.
 from typing import Any, List, Dict
 from .base import CommandHandler
 from ..types import Command, ExecutionResult, Provenance
-from ..validation import LLMJudgeValidator
+from ..contracts import make_contract, merge_contract
+from nano_graphrag.graph_slots import get_source_refs
 
 
 class DataTransformHandler(CommandHandler):
-    """Handles data transformation commands: TRANSFORM, RESHAPE, AGGREGATE, PIVOT."""
+    """Handles data transformation commands: TRANSFORM, RESHAPE, AGGREGATE, PIVOT, PROJECT, COLLAPSE."""
     
     def __init__(self, state_store, context_store, llm_func=None, state_manager=None):
         super().__init__(state_store, context_store, state_manager)
         self.llm_func = llm_func
-        self.validator = LLMJudgeValidator(llm_func) if llm_func else None
     
     def can_handle(self, command: Command) -> bool:
-        return command.command_type in ["TRANSFORM", "RESHAPE", "AGGREGATE", "PIVOT"]
+        return command.command_type in ["TRANSFORM", "RESHAPE", "AGGREGATE", "PIVOT", "PROJECT", "COLLAPSE"]
     
     def execute(self, command: Command) -> ExecutionResult:
         """Execute data transformation command."""
@@ -30,6 +30,10 @@ class DataTransformHandler(CommandHandler):
                 return self._execute_aggregate(command)
             elif command.command_type == "PIVOT":
                 return self._execute_pivot(command)
+            elif command.command_type == "PROJECT":
+                return self._execute_project(command)
+            elif command.command_type == "COLLAPSE":
+                return self._execute_collapse(command)
             else:
                 return self._create_result(
                     command=command,
@@ -173,6 +177,7 @@ class DataTransformHandler(CommandHandler):
         variable = args["variable"]
         by_field = args["by_field"]
         operation = args["operation"]  # sum, count, avg, min, max
+        result_variable = args.get("result_variable") or variable
         
         print(f"DEBUG: AGGREGATE - variable: {variable}, by: {by_field}, operation: {operation}")
         
@@ -181,14 +186,21 @@ class DataTransformHandler(CommandHandler):
         if not data:
             return self._create_result(command=command, status="error",
                                      error_message=f"Variable {variable} not found or empty")
+        source_contract = {}
+        if self.state_manager:
+            source_contract = self.state_manager.get_variable_contract(variable)
+        resolved_by_field = self._resolve_aggregate_field(data, by_field, source_contract)
         
+        resolved_metric_field, metric_basis = self._resolve_aggregate_metric(data, operation, source_contract)
+        source_row_weight_field = source_contract.get("row_weight_field", "")
+
         # Perform aggregation
         aggregated_data = {}
         group_counter = 0
         
         for item in data:
-            group_key = self._get_nested_field(item, by_field)
-            print(f"DEBUG: AGGREGATE - item: {item}, by_field: {by_field}, group_key: {group_key}")
+            group_key = self._get_nested_field(item, resolved_by_field)
+            print(f"DEBUG: AGGREGATE - item: {item}, by_field: {by_field}, resolved_by_field: {resolved_by_field}, group_key: {group_key}")
             if group_key is None:
                 group_key = "unknown"
             
@@ -198,55 +210,109 @@ class DataTransformHandler(CommandHandler):
                     "group_id": f"group_{group_counter}",
                     "group_name": str(group_key),
                     "group_key": group_key,
+                    by_field: group_key,
+                    resolved_by_field: group_key,
                     "items": [],
                     "item_ids": [],
-                    "count": 0
+                    "row_count": 0,
+                    "count": 0,
+                    "result": 0,
                 }
+                simple_alias = by_field.split(".")[-1]
+                aggregated_data[group_key].setdefault(simple_alias, group_key)
             
             # Add item ID to tracking
             item_id = item.get("id", f"item_{len(aggregated_data[group_key]['items'])}")
             aggregated_data[group_key]["item_ids"].append(item_id)
             aggregated_data[group_key]["items"].append(item)
-            aggregated_data[group_key]["count"] += 1
+            aggregated_data[group_key]["row_count"] += 1
+
+            # Use an effective row weight so grouped counts remain meaningful even
+            # when upstream PROCESS has already deduplicated rows down to one row
+            # per entity but preserved evidence-bearing fields.
+            row_weight = self._infer_row_weight(
+                item,
+                resolved_metric_field=resolved_metric_field,
+                source_row_weight_field=source_row_weight_field,
+            )
+            aggregated_data[group_key]["count"] += row_weight
+            aggregated_data[group_key]["result"] += row_weight
         
         # Apply operation
         for group_key, group_data in aggregated_data.items():
             if operation == "count":
                 group_data["result"] = group_data["count"]
             elif operation == "sum":
-                # Sum numeric fields
-                total = 0
+                # Sum a resolved numeric metric when present, otherwise fall back
+                # to the same evidence-weight heuristic used for count.
+                total = 0.0
                 for item in group_data["items"]:
-                    for key, value in item.items():
-                        if isinstance(value, (int, float)):
-                            total += value
+                    metric_value = self._extract_numeric_metric(item, resolved_metric_field)
+                    total += metric_value if metric_value is not None else self._infer_row_weight(
+                        item,
+                        resolved_metric_field=resolved_metric_field,
+                        source_row_weight_field=source_row_weight_field,
+                    )
                 group_data["result"] = total
             elif operation == "avg":
-                # Average of counts or numeric fields
-                group_data["result"] = group_data["count"] / len(group_data["items"]) if group_data["items"] else 0
+                group_data["result"] = (
+                    group_data["count"] / group_data["row_count"] if group_data["row_count"] else 0
+                )
         
         # Convert to list format
         result_list = list(aggregated_data.values())
+        aggregate_contract = merge_contract(source_contract, make_contract(
+            payload_kind="grouped_rows",
+            data=result_list,
+            label_field=by_field.split(".")[-1] if by_field else "group_name",
+            metric_field="count" if operation == "count" else "result",
+            ordered=False,
+            order_basis=f"grouped by {resolved_by_field}",
+            scope="current_rows_only",
+            usable_by=["RANK", "PROCESS", "SHOW", "SELECT"],
+            confidence=0.95,
+            grain_type=source_contract.get("grain_type", ""),
+            grain_keys=source_contract.get("grain_keys", []),
+            multiplicity_preserved=False,
+            row_weight_field="count" if operation == "count" else ("result" if operation == "sum" else ""),
+            notes=[
+                f"requested_by_field={by_field}",
+                f"resolved_by_field={resolved_by_field}",
+                f"metric_basis={metric_basis}",
+                f"resolved_metric_field={resolved_metric_field}",
+            ],
+        ))
         
         # Store aggregated results
-        if self.state_store.has_variable(variable):
+        if self.state_store.has_variable(result_variable):
             # Update existing state variable
-            var_data = self.state_store.get_variable(variable)
+            var_data = self.state_store.get_variable(result_variable)
+            var_type = var_data.get("_meta", {}).get("type") if isinstance(var_data, dict) else None
             if isinstance(var_data, dict) and "items" in var_data:
                 var_data["items"] = result_list
+                var_data["_meta"]["contract"] = aggregate_contract
                 self.state_store._save_state()
-                print(f"DEBUG: AGGREGATE - Updated state variable {variable} with {len(result_list)} groups")
+                print(f"DEBUG: AGGREGATE - Updated state variable {result_variable} with {len(result_list)} groups")
+            elif var_type == "COUNTER":
+                # Planner often declares counters for eventual counts, but AGGREGATE
+                # returns grouped rows that downstream RANK/JOIN should read from
+                # context, not from the persisted counter slot.
+                self.context_store.set(result_variable, result_list, contract=aggregate_contract)
+                print(
+                    f"DEBUG: AGGREGATE - Stored {len(result_list)} groups in context as {result_variable} "
+                    f"because declared state variable is COUNTER"
+                )
             else:
                 # If it's not a LIST type, update it directly
-                self.state_store.update_variable(variable, result_list)
-                print(f"DEBUG: AGGREGATE - Updated state variable {variable} directly with {len(result_list)} groups")
+                self.state_store.update_variable(result_variable, result_list)
+                self.state_store.set_variable_contract(result_variable, aggregate_contract)
+                print(f"DEBUG: AGGREGATE - Updated state variable {result_variable} directly with {len(result_list)} groups")
         else:
-            # Store in context store if source variable is in context
-            self.context_store.set(variable, result_list)
-            print(f"DEBUG: AGGREGATE - Stored {len(result_list)} groups in context as {variable}")
+            self.context_store.set(result_variable, result_list, contract=aggregate_contract)
+            print(f"DEBUG: AGGREGATE - Stored {len(result_list)} groups in context as {result_variable}")
         
         # Also store as last_aggregate_result for consistency
-        self.context_store.set("last_aggregate_result", result_list)
+        self.context_store.set("last_aggregate_result", result_list, contract=aggregate_contract)
         print(f"DEBUG: AGGREGATE - Also stored as last_aggregate_result with {len(result_list)} groups")
         
         print(f"DEBUG: AGGREGATE - created {len(result_list)} aggregated groups")
@@ -257,25 +323,304 @@ class DataTransformHandler(CommandHandler):
             status="success",
             data=result_list,
             count=len(result_list),
+            contract=aggregate_contract,
             provenance=[self._create_provenance("aggregate", "aggregate",
                                                variable=variable, by_field=by_field, operation=operation)]
         )
         
-        # Validate with LLM judge if available
-        if self.validator and len(result_list) > 0:
-            validation = self.validator.validate_command_success(
-                command.command_type, command.args, result_list, len(result_list)
-            )
-            
-            if not validation.get("valid", True):
-                # Override status if LLM judge says it failed
-                result_obj.status = "error"
-                result_obj.error_message = f"LLM Judge Validation Failed: {validation.get('reason', 'Unknown validation failure')}"
-                print(f"DEBUG: AGGREGATE - LLM Judge validation failed: {validation}")
-            else:
-                print(f"DEBUG: AGGREGATE - LLM Judge validation passed: {validation.get('reason', 'Valid')}")
-        
         return result_obj
+
+    def _resolve_aggregate_field(self, data: List[Dict[str, Any]], requested_field: str, source_contract: Dict[str, Any]) -> str:
+        """Resolve the grouping field using row contents and contract metadata."""
+        if not requested_field:
+            return requested_field
+        if any(self._get_nested_field(item, requested_field) is not None for item in data[:25]):
+            return requested_field
+        label_field = source_contract.get("label_field", "")
+        if label_field and any(self._get_nested_field(item, label_field) is not None for item in data[:25]):
+            return label_field
+        if "." not in requested_field:
+            fallback = f"data.{requested_field}"
+            if any(self._get_nested_field(item, fallback) is not None for item in data[:25]):
+                return fallback
+        return requested_field
+
+    def _resolve_aggregate_metric(
+        self,
+        data: List[Dict[str, Any]],
+        operation: str,
+        source_contract: Dict[str, Any],
+    ) -> tuple[str, str]:
+        """Resolve the best numeric/evidence metric to aggregate."""
+        metric_field = source_contract.get("metric_field", "")
+        if metric_field and any(self._extract_numeric_metric(item, metric_field) is not None for item in data[:25]):
+            return metric_field, "contract_metric"
+
+        numeric_candidates = []
+        if data:
+            sample_fields = list(data[0].keys())
+            numeric_candidates = [field for field in sample_fields if field not in {"count", "row_count", "result"}]
+        for field in numeric_candidates:
+            if any(self._extract_numeric_metric(item, field) is not None for item in data[:25]):
+                return field, "row_numeric_field"
+
+        if source_contract.get("row_weight_field"):
+            return source_contract.get("row_weight_field", ""), "contract_row_weight"
+
+        if operation in {"count", "sum", "avg"}:
+            return "", "evidence_weight"
+        return "", "none"
+
+    def _extract_numeric_metric(self, item: Dict[str, Any], field_path: str) -> Any:
+        if not field_path:
+            return None
+        value = self._get_nested_field(item, field_path)
+        if isinstance(value, (int, float)):
+            return value
+        try:
+            return float(value)
+        except Exception:
+            return None
+
+    def _infer_row_weight(
+        self,
+        item: Dict[str, Any],
+        *,
+        resolved_metric_field: str = "",
+        source_row_weight_field: str = "",
+    ) -> float:
+        """Infer an evidence-bearing row weight for aggregation."""
+        if source_row_weight_field:
+            metric_value = self._extract_numeric_metric(item, source_row_weight_field)
+            if metric_value is not None:
+                return float(metric_value)
+        metric_value = self._extract_numeric_metric(item, resolved_metric_field)
+        if metric_value is not None:
+            return float(metric_value)
+
+        for list_field in ("item_ids", "items"):
+            value = item.get(list_field)
+            if isinstance(value, list) and value:
+                return float(len(value))
+
+        # Graph-linked rows often preserve evidence multiplicity in source metadata.
+        for path in ("data.source_chunks", "source_chunks"):
+            value = self._get_nested_field(item, path)
+            if isinstance(value, str) and value.strip():
+                parts = [part.strip() for part in value.split(",") if part.strip()]
+                if parts:
+                    return float(len(dict.fromkeys(parts)))
+        for container_path in ("data", ""):
+            container = self._get_nested_field(item, container_path) if container_path else item
+            if isinstance(container, dict):
+                refs = get_source_refs(container)
+                if refs:
+                    return float(len(dict.fromkeys(refs)))
+
+        return 1.0
+
+    def _execute_project(self, command: Command) -> ExecutionResult:
+        args = command.args
+        variable = args["variable"]
+        grain = args["grain"]
+        field_specs = self._parse_project_fields(args.get("fields", ""))
+        key_specs = [part.strip() for part in args.get("keys", "").split(",") if part.strip()]
+        weight_field = args.get("weight_field", "")
+        preserve = bool(args.get("preserve_multiplicity", False))
+        result_variable = args.get("result_variable") or variable
+
+        data = self._get_variable_data(variable)
+        if not data:
+            return self._create_result(command=command, status="error",
+                                     error_message=f"Variable {variable} not found or empty")
+        source_contract = self.state_manager.get_variable_contract(variable) if self.state_manager else {}
+
+        projected = []
+        for item in data:
+            grain_rows = self._project_rows_for_grain(item, grain, field_specs)
+            for row in grain_rows:
+                if not row.get("id") and item.get("id"):
+                    row["id"] = item["id"]
+                if not preserve:
+                    dedupe_key = tuple(row.get(key) for key in (key_specs or [alias for _, alias in field_specs]))
+                    row["_collapse_key"] = dedupe_key
+                if weight_field:
+                    row[weight_field] = self._infer_row_weight(item)
+                projected.append(row)
+
+        if not preserve:
+            seen = set()
+            deduped = []
+            for row in projected:
+                key = row.pop("_collapse_key", tuple(sorted(row.items())))
+                if key in seen:
+                    continue
+                seen.add(key)
+                deduped.append(row)
+            projected = deduped
+
+        contract = merge_contract(source_contract, make_contract(
+            payload_kind="projected_rows",
+            data=projected,
+            label_field=field_specs[0][1] if field_specs else "",
+            metric_field=weight_field,
+            scope="current_rows_only",
+            usable_by=["PROCESS", "AGGREGATE", "RANK", "SHOW", "SELECT", "COLLAPSE"],
+            confidence=0.98,
+            grain_type=grain,
+            grain_keys=key_specs or self._default_grain_keys(grain),
+            multiplicity_preserved=preserve,
+            row_weight_field=weight_field,
+            notes=[f"project_from={variable}"],
+        ))
+
+        if self.state_manager:
+            self.state_manager.store_variable_data(
+                result_variable,
+                projected,
+                store_in_state=self.state_store.has_variable(result_variable),
+                store_in_context=True,
+                description=f"Projected rows from {variable}",
+                contract=contract,
+            )
+        else:
+            self.context_store.set(result_variable, projected, contract=contract)
+
+        return self._create_result(
+            command=command,
+            status="success" if projected else "empty",
+            data=projected,
+            count=len(projected),
+            contract=contract,
+            provenance=[self._create_provenance("project", "project", variable=variable, grain=grain)],
+        )
+
+    def _execute_collapse(self, command: Command) -> ExecutionResult:
+        args = command.args
+        variable = args["variable"]
+        by_field = args["by_field"]
+        weight_field = args.get("weight_field") or "occurrence_count"
+        result_variable = args.get("result_variable") or variable
+
+        data = self._get_variable_data(variable)
+        if not data:
+            return self._create_result(command=command, status="error",
+                                     error_message=f"Variable {variable} not found or empty")
+        source_contract = self.state_manager.get_variable_contract(variable) if self.state_manager else {}
+
+        collapsed = {}
+        for item in data:
+            key = self._get_nested_field(item, by_field)
+            if key is None:
+                key = "unknown"
+            if key not in collapsed:
+                collapsed[key] = {
+                    "group_name": str(key),
+                    by_field.split(".")[-1]: key,
+                    "items": [],
+                    weight_field: 0,
+                }
+            collapsed[key]["items"].append(item)
+            collapsed[key][weight_field] += self._infer_row_weight(
+                item, source_row_weight_field=source_contract.get("row_weight_field", "")
+            )
+
+        result_rows = list(collapsed.values())
+        contract = merge_contract(source_contract, make_contract(
+            payload_kind="collapsed_rows",
+            data=result_rows,
+            label_field=by_field.split(".")[-1],
+            metric_field=weight_field,
+            scope="current_rows_only",
+            usable_by=["AGGREGATE", "RANK", "SHOW", "SELECT"],
+            confidence=0.98,
+            grain_type=source_contract.get("grain_type", ""),
+            grain_keys=source_contract.get("grain_keys", []),
+            multiplicity_preserved=False,
+            row_weight_field=weight_field,
+            notes=[f"collapsed_by={by_field}"],
+        ))
+
+        if self.state_manager:
+            self.state_manager.store_variable_data(
+                result_variable,
+                result_rows,
+                store_in_state=self.state_store.has_variable(result_variable),
+                store_in_context=True,
+                description=f"Collapsed rows from {variable}",
+                contract=contract,
+            )
+        else:
+            self.context_store.set(result_variable, result_rows, contract=contract)
+
+        return self._create_result(
+            command=command,
+            status="success" if result_rows else "empty",
+            data=result_rows,
+            count=len(result_rows),
+            contract=contract,
+            provenance=[self._create_provenance("collapse", "collapse", variable=variable, by_field=by_field)],
+        )
+
+    @staticmethod
+    def _parse_project_fields(fields_text: str) -> List[tuple[str, str]]:
+        field_specs: List[tuple[str, str]] = []
+        for raw in [part.strip() for part in fields_text.split(",") if part.strip()]:
+            parts = raw.split(" AS ")
+            if len(parts) == 2:
+                field_specs.append((parts[0].strip(), parts[1].strip()))
+            else:
+                source = raw.strip()
+                field_specs.append((source, source.split(".")[-1]))
+        return field_specs
+
+    @staticmethod
+    def _default_grain_keys(grain: str) -> List[str]:
+        if grain == "edge":
+            return ["src_id", "tgt_id", "relation_type", "path_depth"]
+        if grain == "path":
+            return ["src_id", "tgt_id", "path_depth"]
+        if grain == "paper":
+            return ["paper_id"]
+        if grain == "chunk":
+            return ["chunk_id"]
+        return ["id"]
+
+    def _project_rows_for_grain(
+        self,
+        item: Dict[str, Any],
+        grain: str,
+        field_specs: List[tuple[str, str]],
+    ) -> List[Dict[str, Any]]:
+        base_row = {}
+        for source_path, alias in field_specs:
+            base_row[alias] = self._get_nested_field(item, source_path)
+        if grain == "paper":
+            papers = self._extract_source_refs(item)
+            if not papers:
+                return [{**base_row, "paper_id": None}]
+            return [{**base_row, "paper_id": paper_id} for paper_id in papers]
+        if grain == "chunk":
+            chunks = self._explode_csv_field(item, ["data.source_chunks", "source_chunks"])
+            if not chunks:
+                return [{**base_row, "chunk_id": None}]
+            return [{**base_row, "chunk_id": chunk_id} for chunk_id in chunks]
+        return [base_row]
+
+    def _explode_csv_field(self, item: Dict[str, Any], candidate_paths: List[str]) -> List[str]:
+        for path in candidate_paths:
+            value = self._get_nested_field(item, path)
+            if isinstance(value, str) and value.strip():
+                return [part.strip() for part in value.split(",") if part.strip()]
+        return []
+
+    def _extract_source_refs(self, item: Dict[str, Any]) -> List[str]:
+        data_container = item.get("data")
+        if isinstance(data_container, dict):
+            refs = get_source_refs(data_container)
+            if refs:
+                return refs
+        return get_source_refs(item)
     
     def _get_nested_field(self, item: Dict, field_path: str) -> Any:
         """Get nested field value using dot notation with automatic path resolution."""
@@ -441,15 +786,30 @@ Apply the transformation consistently to all items.
         return []
     
     def _get_nested_field(self, item: Dict, field_path: str) -> Any:
-        """Get nested field value using dot notation."""
+        """Get nested field value using dot notation with common node-data fallbacks."""
         if not field_path:
             return None
-        
+
         fields = field_path.split(".")
         value = item
         for field in fields:
             if isinstance(value, dict) and field in value:
                 value = value[field]
             else:
-                return None
-        return value
+                break
+        else:
+            return value
+
+        if "." not in field_path:
+            for path in (f"data.{field_path}", f"properties.{field_path}", f"attributes.{field_path}"):
+                fields = path.split(".")
+                value = item
+                for field in fields:
+                    if isinstance(value, dict) and field in value:
+                        value = value[field]
+                    else:
+                        break
+                else:
+                    return value
+
+        return None

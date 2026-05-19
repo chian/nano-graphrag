@@ -1,6 +1,7 @@
 import json
 import numpy as np
 from typing import Optional, List, Any, Callable
+from unittest.mock import Mock
 
 import aioboto3
 from openai import AsyncOpenAI, AsyncAzureOpenAI, APIConnectionError, RateLimitError
@@ -21,16 +22,33 @@ global_azure_openai_async_client = None
 global_amazon_bedrock_async_client = None
 
 
+def _has_offline_openai_key() -> bool:
+    api_key = (os.getenv("OPENAI_API_KEY") or "").strip()
+    return api_key in {"", "FAKE", "DUMMY", "TEST"}
+
+
+def _is_mock_client(client: Any) -> bool:
+    return isinstance(client, Mock) or client.__class__.__module__.startswith("unittest.mock")
+
+
 def get_openai_async_client_instance():
     global global_openai_async_client
-    if global_openai_async_client is None:
+    if (
+        global_openai_async_client is None
+        or not hasattr(global_openai_async_client, "chat")
+        or not hasattr(global_openai_async_client, "embeddings")
+    ):
         global_openai_async_client = AsyncOpenAI()
     return global_openai_async_client
 
 
 def get_azure_openai_async_client_instance():
     global global_azure_openai_async_client
-    if global_azure_openai_async_client is None:
+    if (
+        global_azure_openai_async_client is None
+        or not hasattr(global_azure_openai_async_client, "chat")
+        or not hasattr(global_azure_openai_async_client, "embeddings")
+    ):
         global_azure_openai_async_client = AsyncAzureOpenAI()
     return global_azure_openai_async_client
 
@@ -62,6 +80,8 @@ async def openai_complete_if_cache(
         if_cache_return = await hashing_kv.get_by_id(args_hash)
         if if_cache_return is not None:
             return if_cache_return["return"]
+    if _has_offline_openai_key() and not _is_mock_client(openai_async_client):
+        raise RuntimeError("OpenAI completion unavailable: no usable API key configured")
 
     response = await openai_async_client.chat.completions.create(
         model=model, messages=messages, **kwargs
@@ -212,6 +232,8 @@ async def amazon_bedrock_embedding(texts: list[str]) -> np.ndarray:
 )
 async def openai_embedding(texts: list[str]) -> np.ndarray:
     openai_async_client = get_openai_async_client_instance()
+    if _has_offline_openai_key() and not _is_mock_client(openai_async_client):
+        raise RuntimeError("OpenAI embeddings unavailable: no usable API key configured")
     response = await openai_async_client.embeddings.create(
         model="text-embedding-3-small", input=texts, encoding_format="float"
     )
