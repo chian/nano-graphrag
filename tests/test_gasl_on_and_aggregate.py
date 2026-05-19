@@ -158,6 +158,31 @@ def test_project_paper_grain_explodes_source_papers():
     assert paper_ids == ["p1", "p2", "p3"]
 
 
+def test_apply_plan_patch_replaces_single_bad_line():
+    plan = {
+        "plan_id": "p1",
+        "why": "orig",
+        "commands": [
+            "FIND paths with source entity_type=ENGINEERING_CONTROL edge relation_type=VALIDATED_BY target entity_type=VALIDATION_STUDY AS engineering_validation_paths",
+            "PROCESS engineering_validation_paths with instruction: extract validation study names AS validation_rows",
+        ],
+        "config": {"stop_on_error": True, "continue_on_empty": False},
+    }
+    patch = {
+        "mode": "patch",
+        "reason": "narrow to graphwalk",
+        "replace_command": "FIND paths with source entity_type=ENGINEERING_CONTROL edge relation_type=VALIDATED_BY target entity_type=VALIDATION_STUDY AS engineering_validation_paths",
+        "replacement_command": "FIND nodes with entity_type=ENGINEERING_CONTROL AS engineering_controls",
+        "insert_after_command": "FIND nodes with entity_type=ENGINEERING_CONTROL AS engineering_controls",
+        "insert_command": "GRAPHWALK from engineering_controls follow VALIDATED_BY depth 1 AS engineering_validation_paths",
+    }
+    repaired = GASLExecutor._apply_plan_patch(plan, patch)
+    assert repaired is not None
+    assert repaired["commands"][0] == "FIND nodes with entity_type=ENGINEERING_CONTROL AS engineering_controls"
+    assert repaired["commands"][1] == "GRAPHWALK from engineering_controls follow VALIDATED_BY depth 1 AS engineering_validation_paths"
+    assert repaired["commands"][2].startswith("PROCESS engineering_validation_paths")
+
+
 def executor_command(text: str):
     from gasl.parser import GASLParser
 

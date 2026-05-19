@@ -3,6 +3,7 @@ Argo Bridge LLM wrapper for GASL system.
 """
 
 import os
+import json
 import asyncio
 from typing import Any, Dict, List, Optional
 from openai import AsyncOpenAI
@@ -215,11 +216,15 @@ class ArgoBridgeLLM:
         
         # Get validation hint from state
         validation_hint = state.get("validation_hint", "")
+        strategy_insights = state.get("strategy_insights", "")
         
         # Format the prompt with the current context
         formatted_prompt = base_prompt.format(
             query=query,
-            hint_text=f"\n\nPrevious validation feedback: {validation_hint}" if validation_hint else "",
+            hint_text=(
+                (f"\n\nPrevious validation feedback: {validation_hint}" if validation_hint else "")
+                + (f"\n\nPrevious repair constraints:\n{strategy_insights}" if strategy_insights else "")
+            ),
             node_labels=schema.get('node_labels', []),
             edge_types=schema.get('edge_types', []),
             node_properties=schema.get('node_properties', []),
@@ -230,6 +235,26 @@ class ArgoBridgeLLM:
         )
         
         return formatted_prompt
+
+    def create_plan_repair_prompt(
+        self,
+        query: str,
+        previous_plan: Dict[str, Any],
+        results: Dict[str, Any],
+        iteration: int,
+        state: Dict[str, Any],
+    ) -> str:
+        """Create prompt for directly patching the previous plan."""
+        base_prompt = self.prompt_system.get_prompt("plan_repair")
+        return base_prompt.format(
+            query=query,
+            previous_plan=json.dumps(previous_plan, indent=2),
+            results=self._format_results(results),
+            iteration=iteration,
+            execution_history=self._format_history(state.get("history", [])),
+            produced_artifacts=self._format_produced_artifacts(state.get("produced_artifacts", [])),
+            strategy_insights=state.get("strategy_insights", ""),
+        )
     
     def create_completion_validator_prompt(self, query: str, results: Dict[str, Any]) -> str:
         """Create prompt to validate if query was successfully answered."""

@@ -80,6 +80,8 @@ from .errors import ExecutionError, ParseError
 from .trace import GASLTraceLogger
 from .prompt_observations import PromptObservationLogger
 
+PLAN_REPAIR_ALLOWED_MODES = {"patch", "replan", "noop"}
+
 
 class GASLExecutor:
     """Main execution engine for GASL plans."""
@@ -474,59 +476,73 @@ class GASLExecutor:
         
         iteration = 0
         all_results = []
+        pending_plan_json: Optional[Dict[str, Any]] = None
         
         while iteration < max_iterations:
             iteration += 1
+            plan_json: Optional[Dict[str, Any]] = None
             
             # Get current state and schema
             current_state = self.state_store.get_state()
             schema = self.get_schema()
             history = current_state.get("history", [])
             
-            # Create plan prompt
-            plan_prompt = self.llm_func.create_plan_prompt(query, schema, current_state, history)
-            plan_obs_id = self.prompt_obs.record_invocation(
-                prompt_name="plan_generation",
-                prompt_text=plan_prompt,
-                model=getattr(self.llm_func, "model", None),
-                metadata={
+            if pending_plan_json is None:
+                # Create plan prompt
+                plan_prompt = self.llm_func.create_plan_prompt(query, schema, current_state, history)
+                plan_obs_id = self.prompt_obs.record_invocation(
+                    prompt_name="plan_generation",
+                    prompt_text=plan_prompt,
+                    model=getattr(self.llm_func, "model", None),
+                    metadata={
+                        "iteration": iteration,
+                        "query": query,
+                        "history_len": len(history),
+                        "state_var_count": len(current_state.get("variables", {})),
+                    },
+                )
+                self.trace.log("planner_prompt", {
                     "iteration": iteration,
                     "query": query,
-                    "history_len": len(history),
-                    "state_var_count": len(current_state.get("variables", {})),
-                },
-            )
-            self.trace.log("planner_prompt", {
-                "iteration": iteration,
-                "query": query,
-                "prompt": plan_prompt,
-                "schema": schema,
-                "state": current_state.get("variables", {}),
-                "history": history,
-            })
-            
-            # Get plan from LLM (prompt will be printed by the call method)
-            print(f"🔄 ITERATION {iteration} - Generating Plan...")
-            plan_response = self.llm_func.call(plan_prompt)
-            print(f"DEBUG: LLM Response:\n{plan_response}\n")
-            self.trace.log("planner_response", {
-                "iteration": iteration,
-                "raw_response": plan_response,
-                "extracted_json": _extract_json(plan_response),
-            })
+                    "prompt": plan_prompt,
+                    "schema": schema,
+                    "state": current_state.get("variables", {}),
+                    "history": history,
+                })
+                
+                # Get plan from LLM
+                print(f"🔄 ITERATION {iteration} - Generating Plan...")
+                plan_response = self.llm_func.call(plan_prompt)
+                print(f"DEBUG: LLM Response:\n{plan_response}\n")
+                self.trace.log("planner_response", {
+                    "iteration": iteration,
+                    "raw_response": plan_response,
+                    "extracted_json": _extract_json(plan_response),
+                })
+            else:
+                plan_json = pending_plan_json
+                pending_plan_json = None
+                plan_response = json.dumps(plan_json)
+                plan_obs_id = None
+                self.trace.log("planner_plan_reuse", {
+                    "iteration": iteration,
+                    "plan": plan_json,
+                })
             
             try:
                 # Parse JSON response — tolerant of markdown fences / prose
-                plan_json = json.loads(_extract_json(plan_response))
+                if plan_json is None:
+                    plan_json = json.loads(_extract_json(plan_response))
                 plan_json["query"] = query  # Ensure query is set
-                self.prompt_obs.record_outcome(
-                    plan_obs_id,
-                    prompt_name="plan_generation",
-                    response_text=plan_response,
-                    parsed=plan_json,
-                    labels={"parse_success": True},
-                    metadata={"iteration": iteration},
-                )
+                if plan_obs_id is not None:
+                    self.prompt_obs.record_outcome(
+                        plan_obs_id,
+                        prompt_name="plan_generation",
+                        response_text=plan_response,
+                        parsed=plan_json,
+                        labels={"parse_success": True},
+                        metadata={"iteration": iteration},
+                    )
                 self.trace.log("planner_plan", {
                     "iteration": iteration,
                     "plan": plan_json,
@@ -589,11 +605,22 @@ class GASLExecutor:
                             print(f"DEBUG: Reached max iterations ({max_iterations}) without answering query")
                             break
                         
-                        # Show results to LLM for strategy adaptation
-                        # Prepare results for analysis
+                        # First try direct plan repair. If patching fails, fall back to strategy notes.
+                        repaired_plan, plan_repair_response = self._attempt_plan_repair(
+                            query=query,
+                            previous_plan=plan_json,
+                            variables=variables,
+                            iteration=iteration,
+                        )
+                        self.state_store.set_validation_hint(validation_response)
+                        if repaired_plan is not None:
+                            pending_plan_json = repaired_plan
+                            self.state_store.set_strategy_insights(
+                                json.dumps(plan_repair_response.get("planner_constraints", []))
+                            )
+                            continue
+
                         current_schema = self.get_schema()
-                        
-                        # Create strategy adaptation prompt to help LLM learn from results
                         strategy_prompt = self.llm_func.create_strategy_adaptation_prompt(query, variables, iteration, current_schema, self.state_store.get_state())
                         strat_obs_id = self.prompt_obs.record_invocation(
                             prompt_name="strategy_adaptation",
@@ -610,28 +637,20 @@ class GASLExecutor:
                             metadata={"iteration": iteration},
                         )
                         print(f"DEBUG: Strategy Analysis (Iteration {iteration}):\n{strategy_response}\n")
-                        self.trace.log("strategy_prompt", {
-                            "iteration": iteration,
-                            "prompt": strategy_prompt,
-                        })
-                        self.trace.log("strategy_response", {
-                            "iteration": iteration,
-                            "response": strategy_response,
-                        })
-                        
-                        # Store validation hint and strategy insights for next iteration
-                        self.state_store.set_validation_hint(validation_response)
+                        self.trace.log("strategy_prompt", {"iteration": iteration, "prompt": strategy_prompt})
+                        self.trace.log("strategy_response", {"iteration": iteration, "response": strategy_response})
                         self.state_store.set_strategy_insights(strategy_response)
                 
             except json.JSONDecodeError:
                 # LLM didn't return valid JSON, try again
-                self.prompt_obs.record_outcome(
-                    plan_obs_id,
-                    prompt_name="plan_generation",
-                    response_text=plan_response,
-                    labels={"parse_success": False},
-                    metadata={"iteration": iteration},
-                )
+                if plan_obs_id is not None:
+                    self.prompt_obs.record_outcome(
+                        plan_obs_id,
+                        prompt_name="plan_generation",
+                        response_text=plan_response,
+                        labels={"parse_success": False},
+                        metadata={"iteration": iteration},
+                    )
                 continue
             except Exception as e:
                 # Plan execution failed, try again
@@ -670,6 +689,92 @@ class GASLExecutor:
             "final_answer": final_answer,
             "query_answered": query_answered,
         }
+
+    def _attempt_plan_repair(
+        self,
+        query: str,
+        previous_plan: Dict[str, Any],
+        variables: Dict[str, Any],
+        iteration: int,
+    ) -> tuple[Optional[Dict[str, Any]], Dict[str, Any]]:
+        """Try a structured patch to the prior plan before asking the planner again."""
+        repair_prompt = self.llm_func.create_plan_repair_prompt(
+            query=query,
+            previous_plan=previous_plan,
+            results=variables,
+            iteration=iteration,
+            state=self.state_store.get_state(),
+        )
+        repair_obs_id = self.prompt_obs.record_invocation(
+            prompt_name="plan_repair",
+            prompt_text=repair_prompt,
+            model=getattr(self.llm_func, "model", None),
+            metadata={"iteration": iteration, "query": query},
+        )
+        raw = self.llm_func.call(repair_prompt)
+        parsed = self._parse_plan_repair_response(raw)
+        self.prompt_obs.record_outcome(
+            repair_obs_id,
+            prompt_name="plan_repair",
+            response_text=raw,
+            parsed=parsed,
+            labels={"mode": parsed.get("mode", ""), "parse_success": bool(parsed)},
+            metadata={"iteration": iteration},
+        )
+        self.trace.log("plan_repair_prompt", {"iteration": iteration, "prompt": repair_prompt})
+        self.trace.log("plan_repair_response", {"iteration": iteration, "response": raw, "parsed": parsed})
+        if not parsed or parsed.get("mode") not in PLAN_REPAIR_ALLOWED_MODES:
+            return None, parsed
+        if parsed["mode"] == "patch":
+            repaired = self._apply_plan_patch(previous_plan, parsed)
+            return repaired, parsed
+        return None, parsed
+
+    @staticmethod
+    def _parse_plan_repair_response(text: str) -> Dict[str, Any]:
+        try:
+            parsed = json.loads(_extract_json(text))
+            if not isinstance(parsed, dict):
+                return {}
+            return parsed
+        except Exception:
+            return {}
+
+    @staticmethod
+    def _apply_plan_patch(plan_json: Dict[str, Any], patch: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        commands = list(plan_json.get("commands", []))
+        changed = False
+        replace_command = (patch.get("replace_command") or "").strip()
+        replacement_command = (patch.get("replacement_command") or "").strip()
+        insert_after = (patch.get("insert_after_command") or "").strip()
+        insert_command = (patch.get("insert_command") or "").strip()
+        delete_command = (patch.get("delete_command") or "").strip()
+
+        if replace_command and replacement_command:
+            for idx, cmd in enumerate(commands):
+                if cmd.strip() == replace_command:
+                    commands[idx] = replacement_command
+                    changed = True
+                    break
+        if delete_command:
+            new_commands = [cmd for cmd in commands if cmd.strip() != delete_command]
+            if len(new_commands) != len(commands):
+                commands = new_commands
+                changed = True
+        if insert_after and insert_command:
+            for idx, cmd in enumerate(commands):
+                if cmd.strip() == insert_after:
+                    commands.insert(idx + 1, insert_command)
+                    changed = True
+                    break
+        if not changed:
+            return None
+        updated = dict(plan_json)
+        updated["commands"] = commands
+        why = patch.get("reason")
+        if why:
+            updated["why"] = f"{plan_json.get('why', '')} | repaired: {why}".strip(" |")
+        return updated
     
     def _generate_final_answer(self, query: str, state: Dict[str, Any]) -> str:
         """Generate final answer from accumulated state."""
