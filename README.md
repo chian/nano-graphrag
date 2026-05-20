@@ -120,6 +120,7 @@ tailscale serve --bg --https=443 http://localhost:5050
 
 - [Graph Building](docs/GRAPH_BUILDING.md)
 - [GASL Guide](docs/GASL_GUIDE.md)
+- [GASL Behavior Eval](docs/GASL_BEHAVIOR_EVAL.md)
 - [Runtime Invariants](docs/RUNTIME_INVARIANTS.md)
 - [Architecture Notes](docs/ARCHITECTURE.md)
 
@@ -144,4 +145,3 @@ product is the question-answering loop built on top of the graph:
 - bounded LLM use where ambiguity actually requires semantics
 - explicit sidecars for traces, prompts, and answer-view decisions
 - an operator-friendly UI instead of hidden backend-only orchestration
-

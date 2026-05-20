@@ -23,7 +23,7 @@ Per query, capture at least:
 - command empty count
 - PROCESS status counts
 - error-category histogram
-- validation hint
+- refinement hint
 - trace event count
 - trace PROCESS step count
 
@@ -34,8 +34,8 @@ Current common categories:
 - `process_output_shape_mismatch`
 - `missing_handler_show`
 - `aggregate_field_resolution`
-- `path_semantics_validator`
-- `llm_judge_validation`
+- `graphwalk_refinement`
+- `aggregate_substrate_mismatch`
 
 ## Initial Trace Baseline
 
@@ -53,7 +53,7 @@ From the first six completed engineering-controls traces (`q001`..`q006`):
   - `process_output_shape_mismatch`: `7`
   - `missing_handler_show`: `3`
   - `aggregate_field_resolution`: `3`
-  - `path_semantics_validator`: `2`
+  - `graphwalk_refinement`: `2`
 
 These fixes were taken because the dominant debugging signal was contract
 mismatch, not answer quality:
@@ -70,7 +70,7 @@ mismatch, not answer quality:
 - Handler availability is part of the planner/executor contract. If the planner
   can emit `SHOW`, the executor must actually dispatch `SHOW`.
 - Aggregate failures should first be checked for upstream shape corruption before
-  changing the aggregate validator.
+  changing the aggregate or refinement prompts.
 
 ## Implementation Notes
 
@@ -78,3 +78,5 @@ mismatch, not answer quality:
 - Per-query `gasl.json` includes a `behavior` block.
 - Use the behavior summary to decide central fixes, then commit, rerun, and
   compare behavior deltas across the next corpus.
+
+Agent/operator run instructions live in `AGENTS.md`.

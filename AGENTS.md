@@ -1,0 +1,68 @@
+# AGENTS
+
+This file is for repository-local agent instructions. It is not end-user
+documentation.
+
+## Validation labels
+
+Do not say a change is "fixed" unless all four are true:
+
+1. coded
+2. focused-tested
+3. committed
+4. corpus-validated
+
+Use those labels explicitly in status updates.
+
+## Stable corpus run procedure
+
+In this environment, use this exact detached launch method unless the repo
+itself changes in a way that invalidates it:
+
+```bash
+run_id=corpus_YYYYMMDD_view_balanced_72
+mkdir -p benchmark_results/$run_id
+setsid .venv/bin/python visualization/scripts/run_trace_corpus.py \
+  --per-graph 18 \
+  --question-file visualization/question_sets/haiqu_view_balanced_18_per_graph.json \
+  --run-id "$run_id" \
+  > benchmark_results/$run_id/runner.log 2>&1 < /dev/null &
+echo $! > benchmark_results/$run_id/worker.pid
+```
+
+Do not invent alternate wrappers once this has been proven in-session.
+
+## First-run validation
+
+Before trusting a fresh corpus run, verify q001 has all of these:
+
+- OpenAI `200 OK` on the first planner call
+- `planner_prompt`
+- `planner_response`
+- `planner_plan`
+- at least one `command_result`
+
+Check these artifacts line by line:
+
+- `benchmark_results/<run_id>/q001/gasl_artifacts/traces/q001.jsonl`
+- `benchmark_results/<run_id>/q001/gasl_artifacts/prompt_observations.jsonl`
+- `benchmark_results/<run_id>/q001/gasl_state.json`
+
+If the worker is dead, `runner.log` is empty, or q001 stops before
+`planner_response`, the run is invalid. Fix the launch method first. Do not
+debug GASL from an invalid run.
+
+## Runtime workflow checklist
+
+For a healthy GASL run, the trace should show:
+
+- planner prompt emitted
+- planner response emitted
+- planner plan parsed
+- command start/result for each executed step
+- command-local repair response for commands that return `error` or `empty`
+- iteration failure summary when an iteration completes with defects
+- plan-iteration prompt/response when iteration-level defects remain after
+  command-local repair
+- produced artifacts recorded when commands materialize reusable state
+- final answer response emitted
