@@ -36,7 +36,12 @@ def _shim_from_claude_settings() -> tuple[Optional[str], Optional[str]]:
         return None, None
 
     helper = data.get("apiKeyHelper", "")
-    token = helper[5:] if isinstance(helper, str) and helper.startswith("echo ") else None
+    token = None
+    if helper.startswith("echo "):
+        candidate = helper[5:]
+        if candidate and candidate != "no-auth":
+            token = candidate
+
     base = data.get("env", {}).get("ANTHROPIC_BASE_URL", "")
     if base.endswith("/argoapi"):
         base = base[: -len("/argoapi")]

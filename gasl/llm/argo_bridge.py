@@ -6,8 +6,22 @@ import os
 import json
 import asyncio
 from typing import Any, Dict, List, Optional
+import httpx
 from openai import AsyncOpenAI
+from openai import (
+    APIConnectionError,
+    APIStatusError,
+    APITimeoutError,
+    AuthenticationError,
+    BadRequestError,
+    ContentFilterFinishReasonError,
+    InternalServerError,
+    PermissionDeniedError,
+    RateLimitError,
+    UnprocessableEntityError,
+)
 from ..errors import LLMError
+from .runtime_config import resolve_runtime_llm_config
 # `nano_graphrag.prompt_system` is imported lazily (see prompt_system property
 # below) — pulling it eagerly here drags in the entire nano_graphrag dep tree
 # (transformers, hnswlib, neo4j, etc.) which the RAG-only callers don't need.
@@ -22,19 +36,24 @@ class ArgoBridgeLLM:
         self.model = model or os.getenv("LLM_MODEL", "gpt41")
         self.temperature = temperature
         self.max_tokens = max_tokens
+        self._transport = os.getenv("NANOGRAPHRAG_LLM_TRANSPORT", "direct").strip().lower()
+        self._shim_user = os.getenv("NANOGRAPHRAG_SHIM_USER", "chia")
 
-        # If an api_key is supplied at construction time (e.g. user-supplied via UI),
-        # default to OpenAI's public endpoint unless base_url is also overridden.
-        # Otherwise fall back to env vars (legacy Argo path).
-        if api_key is not None:
-            client_kwargs = {"api_key": api_key}
-            if base_url is not None:
-                client_kwargs["base_url"] = base_url
-        else:
-            client_kwargs = {
-                "api_key": os.getenv("LLM_API_KEY", "api+key"),
-                "base_url": base_url or os.getenv(
-                    "LLM_ENDPOINT", "https://apps-dev.inside.anl.gov/argoapi/v1"),
+        runtime_cfg = resolve_runtime_llm_config(
+            explicit_api_key=api_key if api_key is not None else os.getenv("LLM_API_KEY"),
+            explicit_base_url=base_url or os.getenv("LLM_ENDPOINT"),
+            explicit_model=self.model,
+        )
+        if runtime_cfg.model:
+            self.model = runtime_cfg.model
+        client_kwargs = {
+            "api_key": runtime_cfg.api_key or "",
+            "base_url": runtime_cfg.base_url or "https://apps-dev.inside.anl.gov/argoapi/v1",
+        }
+        if self._transport == "shim":
+            client_kwargs["default_headers"] = {
+                **client_kwargs.get("default_headers", {}),
+                "x-api-key": client_kwargs.get("api_key", ""),
             }
         # Store credentials for creating fresh clients per call_async invocation.
         # A single AsyncOpenAI instance cannot be reused across multiple asyncio.run()
@@ -108,8 +127,9 @@ class ArgoBridgeLLM:
         kwargs = {
             "model": self.model,
             "messages": [{"role": "user", "content": prompt}],
-            "user": "chia",
         }
+        if self._transport == "shim":
+            kwargs["user"] = self._shim_user
         if stream:
             kwargs["stream"] = True
         # token cap: reasoning models include reasoning tokens in this budget,
@@ -153,6 +173,41 @@ class ArgoBridgeLLM:
             print(f"DEBUG: LLM PROMPT SENT:\n{prompt}\n")
             print("="*80)
         try:
+            if self._transport == "shim":
+                payload = self._build_create_kwargs(prompt, stream=False)
+                async with httpx.AsyncClient(headers={"x-api-key": self._client_kwargs.get("api_key", "")}) as client:
+                    response = await client.post(
+                        self._client_kwargs["base_url"].rstrip("/") + "/chat/completions",
+                        json=payload,
+                    )
+                if response.status_code == 401:
+                    raise LLMError(
+                        f"LLM call failed: Unauthorized: {response.text}",
+                        "argo_bridge",
+                        self.model,
+                        category="auth",
+                        status_code=401,
+                        original_type="AuthError",
+                        fatal=True,
+                    )
+                if response.status_code >= 400:
+                    raise LLMError(
+                        f"LLM call failed: {response.status_code}: {response.text}",
+                        "argo_bridge",
+                        self.model,
+                        category="endpoint" if response.status_code >= 500 else "request",
+                        status_code=response.status_code,
+                        original_type="HTTPStatusError",
+                        fatal=response.status_code >= 500,
+                    )
+                body = response.json()
+                result = (((body.get("choices") or [{}])[0].get("message") or {}).get("content")) or ""
+                usage = body.get("usage") or {}
+                self.usage["prompt_tokens"] += usage.get("prompt_tokens", 0) or 0
+                self.usage["completion_tokens"] += usage.get("completion_tokens", 0) or 0
+                self.usage["total_tokens"] += usage.get("total_tokens", 0) or 0
+                self.usage["calls"] += 1
+                return result
             # Create a fresh client bound to the current event loop.
             # Reusing self.client across asyncio.run() calls (each spawns a new
             # loop) causes [Errno 32] Broken Pipe on the underlying HTTP transport.
@@ -190,8 +245,78 @@ class ArgoBridgeLLM:
                         print(f"DEBUG: LLM RESPONSE RECEIVED:\n{result}\n")
                         print("="*80)
                     return result
+        except AuthenticationError as e:
+            raise LLMError(
+                f"LLM call failed: {e}",
+                "argo_bridge",
+                self.model,
+                category="auth",
+                status_code=getattr(e, "status_code", None),
+                original_type=type(e).__name__,
+                fatal=True,
+            )
+        except PermissionDeniedError as e:
+            raise LLMError(
+                f"LLM call failed: {e}",
+                "argo_bridge",
+                self.model,
+                category="auth",
+                status_code=getattr(e, "status_code", None),
+                original_type=type(e).__name__,
+                fatal=True,
+            )
+        except (APIConnectionError, APITimeoutError) as e:
+            raise LLMError(
+                f"LLM call failed: {e}",
+                "argo_bridge",
+                self.model,
+                category="endpoint",
+                status_code=getattr(e, "status_code", None),
+                original_type=type(e).__name__,
+                fatal=True,
+            )
+        except (RateLimitError, InternalServerError) as e:
+            raise LLMError(
+                f"LLM call failed: {e}",
+                "argo_bridge",
+                self.model,
+                category="endpoint",
+                status_code=getattr(e, "status_code", None),
+                original_type=type(e).__name__,
+                fatal=True,
+            )
+        except APIStatusError as e:
+            code = getattr(e, "status_code", None)
+            fatal = code is not None and code >= 500
+            raise LLMError(
+                f"LLM call failed: {e}",
+                "argo_bridge",
+                self.model,
+                category="endpoint" if fatal else "request",
+                status_code=code,
+                original_type=type(e).__name__,
+                fatal=fatal,
+            )
+        except (BadRequestError, UnprocessableEntityError, ContentFilterFinishReasonError) as e:
+            raise LLMError(
+                f"LLM call failed: {e}",
+                "argo_bridge",
+                self.model,
+                category="request",
+                status_code=getattr(e, "status_code", None),
+                original_type=type(e).__name__,
+                fatal=False,
+            )
         except Exception as e:
-            raise LLMError(f"LLM call failed: {e}", "argo_bridge", self.model)
+            raise LLMError(
+                f"LLM call failed: {e}",
+                "argo_bridge",
+                self.model,
+                category="unknown",
+                status_code=getattr(e, "status_code", None),
+                original_type=type(e).__name__,
+                fatal=False,
+            )
 
     def call(self, prompt: str) -> str:
         """Make synchronous LLM call (streams if stream_callback is set)."""
@@ -214,16 +339,13 @@ class ArgoBridgeLLM:
         # Get the base prompt from the centralized system with query optimization
         base_prompt = self.prompt_system.get_prompt("plan_generation", user_query=query, optimize=True)
         
-        # Get validation hint from state
-        validation_hint = state.get("validation_hint", "")
         strategy_insights = state.get("strategy_insights", "")
         
         # Format the prompt with the current context
         formatted_prompt = base_prompt.format(
             query=query,
             hint_text=(
-                (f"\n\nPrevious validation feedback: {validation_hint}" if validation_hint else "")
-                + (f"\n\nPrevious repair constraints:\n{strategy_insights}" if strategy_insights else "")
+                f"\n\nPrevious repair constraints:\n{strategy_insights}" if strategy_insights else ""
             ),
             node_labels=schema.get('node_labels', []),
             edge_types=schema.get('edge_types', []),
@@ -236,7 +358,7 @@ class ArgoBridgeLLM:
         
         return formatted_prompt
 
-    def create_plan_repair_prompt(
+    def create_plan_iteration_prompt(
         self,
         query: str,
         previous_plan: Dict[str, Any],
@@ -244,7 +366,7 @@ class ArgoBridgeLLM:
         iteration: int,
         state: Dict[str, Any],
     ) -> str:
-        """Create prompt for directly patching the previous plan."""
+        """Create prompt for the next planning iteration, optionally patching the previous plan."""
         base_prompt = self.prompt_system.get_prompt("plan_repair")
         return base_prompt.format(
             query=query,
@@ -254,21 +376,26 @@ class ArgoBridgeLLM:
             execution_history=self._format_history(state.get("history", [])),
             produced_artifacts=self._format_produced_artifacts(state.get("produced_artifacts", [])),
             strategy_insights=state.get("strategy_insights", ""),
+            failure_summary=json.dumps(state.get("last_failure_summary", {}), indent=2),
+        )
+
+    def create_plan_repair_prompt(
+        self,
+        query: str,
+        previous_plan: Dict[str, Any],
+        results: Dict[str, Any],
+        iteration: int,
+        state: Dict[str, Any],
+    ) -> str:
+        """Backward-compatible alias."""
+        return self.create_plan_iteration_prompt(
+            query=query,
+            previous_plan=previous_plan,
+            results=results,
+            iteration=iteration,
+            state=state,
         )
     
-    def create_completion_validator_prompt(self, query: str, results: Dict[str, Any]) -> str:
-        """Create prompt to validate if query was successfully answered."""
-        # Get the prompt from the centralized system
-        base_prompt = self.prompt_system.get_prompt("completion_validator")
-        
-        # Format the prompt with the current context
-        formatted_prompt = base_prompt.format(
-            query=query,
-            results=self._format_results(results)
-        )
-        
-        return formatted_prompt
-
     def create_analysis_prompt(self, query: str, results: Dict[str, Any]) -> str:
         """Create prompt for final analysis."""
         # Get the prompt from the centralized system
@@ -287,8 +414,6 @@ class ArgoBridgeLLM:
         # Get the prompt from the centralized system
         base_prompt = self.prompt_system.get_prompt("strategy_adaptation")
         
-        # Get validation hint and execution history from state
-        validation_hint = state.get("validation_hint", "")
         execution_history = state.get("execution_history", "")
         
         # Format the prompt with the current context
@@ -296,7 +421,6 @@ class ArgoBridgeLLM:
             query=query,
             iteration=iteration,
             results=self._format_results(results),
-            validation_hint=f"\n\nValidation Feedback: {validation_hint}" if validation_hint else "",
             execution_history=execution_history,
             node_labels=schema.get('node_labels', []),
             edge_types=schema.get('edge_types', []),
@@ -424,8 +548,10 @@ class ArgoBridgeLLM:
                 parts.append(f"fields={art.get('row_schema', [])[:8]}")
             if art.get("safe_for"):
                 parts.append(f"safe_for={art.get('safe_for')}")
-            if art.get("semantic_valid") is False:
-                parts.append(f"path_warning={art.get('semantic_reason','')}")
+            if art.get("refinement_hint"):
+                parts.append(f"refinement_hint={art.get('refinement_hint')}")
+            if art.get("refinement_reason"):
+                parts.append(f"refinement_note={art.get('refinement_reason')}")
             formatted.append(", ".join(parts))
         return "\n".join(formatted)
     

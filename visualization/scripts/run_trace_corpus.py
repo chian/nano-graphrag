@@ -3,7 +3,7 @@
 Run a large paired RAG/GASL corpus and archive every query's trace/output.
 
 This is the iterative debugging/evaluation harness:
-- generates many questions across HAIQU graphs
+- runs curated question sets across HAIQU graphs
 - runs RAG and GASL for each question
 - stores schema snapshot, answers, node visits, and GASL trace path per query
 - writes a run-level GASL behavior summary for later review before the next code-adjust cycle
@@ -17,8 +17,8 @@ import os
 import shutil
 import sys
 import time
+import traceback
 from collections import Counter
-from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
@@ -32,13 +32,11 @@ from visualization.query_engine import RagQueryEngine
 from visualization.scripts.benchmark_rag_vs_gasl import (
     DEFAULT_GRAPHS,
     QuestionSpec,
-    breadth_questions,
-    generate_questions,
     load_env_file,
-    run_gasl,
 )
 from gasl import GASLExecutor
 from gasl.adapters import NetworkXAdapter
+from gasl.errors import LLMError
 from gasl.llm.argo_bridge import ArgoBridgeLLM
 from gasl.llm.runtime_config import resolve_runtime_llm_config
 
@@ -47,7 +45,13 @@ def run_rag_with_trace(loader: GraphLoader, question: str, api_key: str, model: 
     engine = RagQueryEngine(loader)
     start = time.perf_counter()
     retrieval = engine.query(question)
-    answer = engine.generate_answer(question, retrieval["context"], api_key=api_key, model=model)
+    answer = engine.generate_answer(
+        question,
+        retrieval["context"],
+        api_key=api_key,
+        model=model,
+        strict_errors=True,
+    )
     return {
         "latency_s": round(time.perf_counter() - start, 3),
         "retrieval": retrieval,
@@ -61,7 +65,6 @@ def run_gasl_with_artifacts(
     question: str,
     api_key: str,
     model: str,
-    heartbeat_s: int,
     query_dir: Path,
     query_id: str,
 ) -> Dict[str, Any]:
@@ -100,6 +103,30 @@ def json_safe(value: Any) -> Any:
     if hasattr(value, "__dict__"):
         return json_safe(vars(value))
     return str(value)
+
+
+def _is_fatal_api_error(exc: Exception) -> bool:
+    return isinstance(exc, LLMError) and exc.fatal
+
+
+def _serialize_query_exception(exc: Exception) -> Dict[str, Any]:
+    payload = {
+        "type": type(exc).__name__,
+        "message": str(exc),
+        "traceback": traceback.format_exc(),
+    }
+    if isinstance(exc, LLMError):
+        payload.update(
+            {
+                "provider": exc.provider,
+                "model": exc.model,
+                "category": exc.category,
+                "status_code": exc.status_code,
+                "original_type": exc.original_type,
+                "fatal": exc.fatal,
+            }
+        )
+    return payload
 
 
 def summarize_gasl_trace(trace_file: Path) -> Dict[str, Any]:
@@ -160,7 +187,6 @@ def summarize_gasl_behavior(state_file: Path, gasl_result: Dict[str, Any], trace
             "command_empty_count": 0,
             "process_status_counts": {},
             "error_categories": {},
-            "validation_hint": None,
             "query_answered": gasl_result.get("query_answered"),
             "trace_events": trace_summary.get("events", 0),
             "trace_process_steps": trace_summary.get("process_steps", 0),
@@ -173,13 +199,19 @@ def summarize_gasl_behavior(state_file: Path, gasl_result: Dict[str, Any], trace
     command_error_count = 0
     for entry in history:
         status = entry.get("status")
-        command = entry.get("command", "")
+        command = entry.get("command") or ""
+        if not command:
+            for prov in entry.get("provenance", []) or []:
+                repl = ((prov.get("extraction") or {}).get("replacement_command") or "").strip()
+                if repl:
+                    command = repl
+                    break
         if status == "error":
             command_error_count += 1
             error_categories[_categorize_error(entry.get("error_message", ""))] += 1
         elif status == "empty":
             command_empty_count += 1
-        if command.startswith("PROCESS "):
+        if isinstance(command, str) and command.startswith("PROCESS "):
             process_status_counts[status] += 1
 
     return {
@@ -189,7 +221,6 @@ def summarize_gasl_behavior(state_file: Path, gasl_result: Dict[str, Any], trace
         "command_empty_count": command_empty_count,
         "process_status_counts": dict(process_status_counts),
         "error_categories": dict(error_categories),
-        "validation_hint": state.get("validation_hint"),
         "query_answered": gasl_result.get("query_answered"),
         "trace_events": trace_summary.get("events", 0),
         "trace_process_steps": trace_summary.get("process_steps", 0),
@@ -200,6 +231,13 @@ def load_curated_questions(question_file: Path, graph_path: str, per_graph: int)
     payload = json.loads(question_file.read_text(encoding="utf-8"))
     graph_name = Path(graph_path).parent.name
     rows = [row for row in payload.get("questions", []) if row.get("graph") == graph_name]
+    if not rows:
+        raise ValueError(f"No curated questions found for graph '{graph_name}' in {question_file}")
+    if len(rows) < per_graph:
+        raise ValueError(
+            f"Curated question file {question_file} has only {len(rows)} questions for graph '{graph_name}', "
+            f"but per_graph={per_graph} was requested."
+        )
     specs: List[QuestionSpec] = []
     for idx, row in enumerate(rows[:per_graph], start=1):
         specs.append(
@@ -222,15 +260,19 @@ def main() -> None:
     parser.add_argument("--model", default="gpt-5.5")
     parser.add_argument("--heartbeat", type=int, default=1800)
     parser.add_argument("--run-id", default="")
-    parser.add_argument("--breadth-only", action="store_true")
-    parser.add_argument("--question-file", default="", help="Optional curated question-set JSON file")
+    parser.add_argument("--question-file", required=True, help="Curated question-set JSON file")
     args = parser.parse_args()
 
     load_env_file(REPO_ROOT / ".viz.local.env")
-    if os.environ.get("NANOGRAPHRAG_LLM_TRANSPORT", "").strip().lower() == "shim":
-        api_key = os.environ.get("NANOGRAPHRAG_SHIM_TOKEN") or os.environ.get("LLM_API_KEY") or ""
-    else:
-        api_key = os.environ.get("VIZ_API_KEY") or os.environ.get("OPENAI_API_KEY") or os.environ.get("LLM_API_KEY")
+    explicit_api_key = (
+        os.environ.get("VIZ_API_KEY")
+        or os.environ.get("OPENAI_API_KEY")
+        or os.environ.get("LLM_API_KEY")
+        or os.environ.get("NANOGRAPHRAG_SHIM_TOKEN")
+        or ""
+    )
+    runtime_cfg = resolve_runtime_llm_config(explicit_api_key=explicit_api_key, explicit_model=args.model)
+    api_key = runtime_cfg.api_key or ""
     if not api_key:
         raise SystemExit("No API key found. Set VIZ_API_KEY or OPENAI_API_KEY.")
 
@@ -245,7 +287,6 @@ def main() -> None:
         "model": args.model,
         "graphs": graphs,
         "per_graph": args.per_graph,
-        "breadth_only": args.breadth_only,
         "question_file": args.question_file,
     }
     (run_dir / "manifest.json").write_text(json.dumps(manifest, indent=2))
@@ -256,13 +297,7 @@ def main() -> None:
         loader = GraphLoader(graph_path)
         graph = loader.graph
         graph.graph["graphml_path"] = str(graph_path)
-        questions: List[QuestionSpec]
-        if args.question_file:
-            questions = load_curated_questions(Path(args.question_file), graph_path, per_graph=args.per_graph)
-        elif args.breadth_only:
-            questions = breadth_questions(graph, limit=args.per_graph)
-        else:
-            questions = generate_questions(graph_path, per_graph=args.per_graph)
+        questions = load_curated_questions(Path(args.question_file), graph_path, per_graph=args.per_graph)
         schema = NetworkXAdapter(graph).get_schema()
 
         for spec in questions:
@@ -282,44 +317,71 @@ def main() -> None:
                 "schema": schema,
             }, indent=2))
 
-            rag = run_rag_with_trace(loader, spec.question, api_key, args.model)
-            (query_dir / "rag.json").write_text(json.dumps(rag, indent=2))
+            try:
+                rag = run_rag_with_trace(loader, spec.question, api_key, args.model)
+                (query_dir / "rag.json").write_text(json.dumps(rag, indent=2))
 
-            gasl = run_gasl_with_artifacts(
-                graph_path, spec.question, api_key, args.model, args.heartbeat, query_dir, query_id
-            )
-            trace_summary = summarize_gasl_trace(Path(gasl["trace_file"]))
-            gasl["trace_summary"] = trace_summary
-            gasl["behavior"] = summarize_gasl_behavior(Path(gasl["state_file"]), gasl["result"], trace_summary)
-            (query_dir / "gasl.json").write_text(json.dumps(json_safe(gasl), indent=2))
+                gasl = run_gasl_with_artifacts(
+                    graph_path, spec.question, api_key, args.model, query_dir, query_id
+                )
+                trace_summary = summarize_gasl_trace(Path(gasl["trace_file"]))
+                gasl["trace_summary"] = trace_summary
+                gasl["behavior"] = summarize_gasl_behavior(Path(gasl["state_file"]), gasl["result"], trace_summary)
+                (query_dir / "gasl.json").write_text(json.dumps(json_safe(gasl), indent=2))
 
-            row = {
-                "query_id": query_id,
-                "graph": spec.graph_name,
-                "family": spec.family,
-                "question": spec.question,
-                "rag_latency_s": rag["latency_s"],
-                "gasl_latency_s": gasl["latency_s"],
-                "gasl_behavior": gasl["behavior"],
-                "gasl_trace_file": gasl["trace_file"],
-            }
-            rows.append(row)
-            print(json.dumps(row, indent=2), flush=True)
+                row = {
+                    "query_id": query_id,
+                    "graph": spec.graph_name,
+                    "family": spec.family,
+                    "question": spec.question,
+                    "rag_latency_s": rag["latency_s"],
+                    "gasl_latency_s": gasl["latency_s"],
+                    "gasl_behavior": gasl["behavior"],
+                    "gasl_trace_file": gasl["trace_file"],
+                    "status": "completed",
+                }
+                rows.append(row)
+                print(json.dumps(row, indent=2), flush=True)
+            except Exception as e:
+                failure = _serialize_query_exception(e)
+                (query_dir / "failure.json").write_text(json.dumps(failure, indent=2))
+                row = {
+                    "query_id": query_id,
+                    "graph": spec.graph_name,
+                    "family": spec.family,
+                    "question": spec.question,
+                    "status": "failed",
+                    "error": {
+                        "type": failure["type"],
+                        "message": failure["message"],
+                        "category": failure.get("category", "unknown"),
+                        "fatal": failure.get("fatal", False),
+                    },
+                }
+                rows.append(row)
+                print(json.dumps(row, indent=2), flush=True)
+                if _is_fatal_api_error(e):
+                    raise
+                continue
 
+    completed_rows = [r for r in rows if r.get("status") == "completed"]
+    failed_rows = [r for r in rows if r.get("status") == "failed"]
     behavior_summary = {
         "run_id": run_id,
         "completed_at": datetime.now().isoformat(),
         "rows": rows,
         "aggregate": {
-            "planner_iterations_total": sum(r["gasl_behavior"]["planner_iterations"] for r in rows),
-            "history_len_total": sum(r["gasl_behavior"]["history_len"] for r in rows),
-            "command_error_count_total": sum(r["gasl_behavior"]["command_error_count"] for r in rows),
-            "command_empty_count_total": sum(r["gasl_behavior"]["command_empty_count"] for r in rows),
+            "completed_queries": len(completed_rows),
+            "failed_queries": len(failed_rows),
+            "planner_iterations_total": sum(r["gasl_behavior"]["planner_iterations"] for r in completed_rows),
+            "history_len_total": sum(r["gasl_behavior"]["history_len"] for r in completed_rows),
+            "command_error_count_total": sum(r["gasl_behavior"]["command_error_count"] for r in completed_rows),
+            "command_empty_count_total": sum(r["gasl_behavior"]["command_empty_count"] for r in completed_rows),
             "process_status_counts": dict(
-                sum((Counter(r["gasl_behavior"]["process_status_counts"]) for r in rows), Counter())
+                sum((Counter(r["gasl_behavior"]["process_status_counts"]) for r in completed_rows), Counter())
             ),
             "error_categories": dict(
-                sum((Counter(r["gasl_behavior"]["error_categories"]) for r in rows), Counter())
+                sum((Counter(r["gasl_behavior"]["error_categories"]) for r in completed_rows), Counter())
             ),
         },
     }
