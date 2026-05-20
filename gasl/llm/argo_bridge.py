@@ -175,7 +175,10 @@ class ArgoBridgeLLM:
         try:
             if self._transport == "shim":
                 payload = self._build_create_kwargs(prompt, stream=False)
-                async with httpx.AsyncClient(headers={"x-api-key": self._client_kwargs.get("api_key", "")}) as client:
+                async with httpx.AsyncClient(
+                    headers={"x-api-key": self._client_kwargs.get("api_key", "")},
+                    timeout=300.0,
+                ) as client:
                     response = await client.post(
                         self._client_kwargs["base_url"].rstrip("/") + "/chat/completions",
                         json=payload,
