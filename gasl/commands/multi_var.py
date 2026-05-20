@@ -41,7 +41,7 @@ class MultiVarHandler(CommandHandler):
         var1 = args["variable1"]
         var2 = args["variable2"]
         join_field = args["join_field"]
-        target_var = args["target_variable"]
+        target_var = args.get("target_variable") or args.get("result_variable")
         
         print(f"DEBUG: JOIN - {var1} with {var2} on {join_field} as {target_var}")
         
@@ -92,7 +92,7 @@ class MultiVarHandler(CommandHandler):
         """Execute MERGE command."""
         args = command.args
         variables = args["variables"]  # List of variable names
-        target_var = args["target_variable"]
+        target_var = args.get("target_variable") or args.get("result_variable")
         
         print(f"DEBUG: MERGE - variables: {variables} as {target_var}")
         
@@ -141,8 +141,8 @@ class MultiVarHandler(CommandHandler):
         args = command.args
         var1 = args["variable1"]
         var2 = args["variable2"]
-        criteria = args["criteria"]
-        target_var = args["target_variable"]
+        criteria = args.get("criteria") or args.get("comparison_field")
+        target_var = args.get("target_variable") or args.get("result_variable")
         
         print(f"DEBUG: COMPARE - {var1} with {var2} on {criteria} as {target_var}")
         
