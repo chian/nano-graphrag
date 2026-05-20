@@ -90,12 +90,11 @@ def resolve_runtime_llm_config(
             transport="direct",
         )
 
-    shim_token = os.getenv("NANOGRAPHRAG_SHIM_TOKEN")
-    shim_url = os.getenv("NANOGRAPHRAG_SHIM_URL")
-    if not shim_token or not shim_url:
-        auto_token, auto_url = _shim_from_claude_settings()
-        shim_token = shim_token or auto_token
-        shim_url = shim_url or auto_url
+    env_shim_token = os.getenv("NANOGRAPHRAG_SHIM_TOKEN")
+    env_shim_url = os.getenv("NANOGRAPHRAG_SHIM_URL")
+    auto_token, auto_url = _shim_from_claude_settings()
+    shim_token = auto_token or env_shim_token
+    shim_url = auto_url or env_shim_url
 
     return RuntimeLLMConfig(
         api_key=shim_token or explicit_api_key,
