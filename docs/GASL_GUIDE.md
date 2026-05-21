@@ -96,7 +96,7 @@ gasl/
 ├── state.py              # State management
 ├── state_manager.py      # Centralized state operations
 ├── graph_versioning.py   # Graph version control
-├── validation.py         # Input validation
+├── search_refinement_agent.py # Central runtime search refinement agent for iterative/output-adaptive commands
 ├── micro_actions.py      # LLM micro-operations
 ├── utils.py              # Utilities
 ├── commands/             # Command implementations
@@ -920,7 +920,6 @@ print(result)
       "finished_at": "2024-01-01T10:05:00"
     }
   ],
-  "validation_hint": null,
   "strategy_insights": "Successfully extracted authors using PERSON entity type"
 }
 ```
