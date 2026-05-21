@@ -144,7 +144,8 @@ class RagQueryEngine:
     def generate_answer(self, question: str, context: str,
                         api_key: Optional[str] = None,
                         model: Optional[str] = None,
-                        reasoning_effort: Optional[str] = None) -> Dict[str, Any]:
+                        reasoning_effort: Optional[str] = None,
+                        strict_errors: bool = False) -> Dict[str, Any]:
         """Generate a natural-language answer using ArgoBridgeLLM.
 
         Returns a dict {'text': str, 'usage': {prompt_tokens, completion_tokens,
@@ -156,6 +157,7 @@ class RagQueryEngine:
                     "usage": empty_usage}
         try:
             from gasl.llm.argo_bridge import ArgoBridgeLLM
+            from gasl.errors import LLMError
             runtime_cfg = resolve_runtime_llm_config(explicit_api_key=api_key, explicit_model=model)
             llm = ArgoBridgeLLM(model=runtime_cfg.model or model, api_key=runtime_cfg.api_key,
                                 base_url=runtime_cfg.base_url,
@@ -170,6 +172,8 @@ class RagQueryEngine:
             text = llm.call(prompt)
             return {"text": text, "usage": dict(llm.usage)}
         except Exception as e:
+            if strict_errors and isinstance(e, LLMError) and e.fatal:
+                raise
             return {
                 "text": f"(LLM answer unavailable: {e} – see highlighted nodes in the graph)",
                 "usage": empty_usage,

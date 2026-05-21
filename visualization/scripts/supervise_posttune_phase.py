@@ -9,7 +9,7 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Iterable, List
+from typing import List
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
@@ -40,11 +40,11 @@ def _run_dirs(run_root: Path, pattern: str) -> List[Path]:
     return sorted([p for p in run_root.glob(pattern) if p.is_dir()])
 
 
-def _launch_rerun(per_graph: int, run_tag: str, log_fh) -> int:
+def _launch_rerun(per_graph: int, question_file: str, run_tag: str, log_fh) -> int:
     run_id = datetime.now().strftime(f"corpus_%Y%m%dT%H%M%S_{run_tag}")
     cmd = (
         f"nohup .venv/bin/python visualization/scripts/run_trace_corpus.py "
-        f"--per-graph {per_graph} --run-id {shlex.quote(run_id)} "
+        f"--per-graph {per_graph} --question-file {shlex.quote(question_file)} --run-id {shlex.quote(run_id)} "
         f"> benchmark_results/{run_id}/runner.log 2>&1 & echo $!"
     )
     os.makedirs(REPO_ROOT / "benchmark_results" / run_id, exist_ok=True)
@@ -110,6 +110,11 @@ def main() -> None:
     parser.add_argument("--threshold", type=int, default=40)
     parser.add_argument("--poll", type=int, default=600)
     parser.add_argument("--per-graph-rerun", type=int, default=5)
+    parser.add_argument(
+        "--question-file",
+        default="visualization/question_sets/haiqu_breathe_20_per_graph.json",
+        help="Curated question-set JSON file passed through to reruns.",
+    )
     parser.add_argument("--out-dir", default="")
     parser.add_argument("--launch-codex-exec", action="store_true", help="After threshold analysis, hand off to codex exec for next-fix cycle")
     args = parser.parse_args()
@@ -169,7 +174,7 @@ def main() -> None:
                 )
                 analysis_done = True
                 if not alive:
-                    current_pid = _launch_rerun(args.per_graph_rerun, "posttune_after_opt", log_fh)
+                    current_pid = _launch_rerun(args.per_graph_rerun, args.question_file, "posttune_after_opt", log_fh)
                 if args.launch_codex_exec:
                     _launch_codex_exec(context_json, out_dir, log_fh)
                 else:
@@ -183,7 +188,7 @@ def main() -> None:
                     )
 
             if not alive and completed < args.threshold:
-                current_pid = _launch_rerun(args.per_graph_rerun, "posttune_chain", log_fh)
+                current_pid = _launch_rerun(args.per_graph_rerun, args.question_file, "posttune_chain", log_fh)
 
             time.sleep(args.poll)
 

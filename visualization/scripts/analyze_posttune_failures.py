@@ -25,6 +25,15 @@ def _load_question(path: Path) -> Dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _load_gasl_result(path: Path) -> Dict[str, Any]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if isinstance(payload.get("result"), dict):
+        return payload["result"]
+    if isinstance(payload.get("gasl"), dict) and isinstance(payload["gasl"].get("result"), dict):
+        return payload["gasl"]["result"]
+    return {}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Summarize post-tuning failure patterns across run dirs.")
     parser.add_argument("--run-root", default="benchmark_results")
@@ -48,11 +57,10 @@ def main() -> None:
             if not gasl_json.exists():
                 continue
             total += 1
-            gasl_payload = json.loads(gasl_json.read_text(encoding="utf-8"))
             trace_file = qdir / "gasl_artifacts" / "traces" / f"{qdir.name}.jsonl"
             trace_summary = summarize_gasl_trace(trace_file)
             state_file = qdir / "gasl_state.json"
-            behavior = summarize_gasl_behavior(state_file, gasl_payload["gasl"]["result"], trace_summary)
+            behavior = summarize_gasl_behavior(state_file, _load_gasl_result(gasl_json), trace_summary)
             if (
                 behavior["query_answered"]
                 and behavior["command_error_count"] == 0

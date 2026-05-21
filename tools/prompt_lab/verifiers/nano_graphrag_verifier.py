@@ -192,12 +192,6 @@ def _verify_process_interpretation(parsed: Dict[str, Any]) -> Tuple[Dict[str, An
     return labels, round(score, 4)
 
 
-def _verify_completion_validator(candidate: Dict[str, Any]) -> Tuple[Dict[str, Any], float]:
-    response = (candidate.get("response_text") or "").strip().upper()
-    labels = {"response_valid": response in {"YES", "NO"}}
-    return labels, float(labels["response_valid"])
-
-
 def _verify_strategy_adaptation(candidate: Dict[str, Any]) -> Tuple[Dict[str, Any], float]:
     response = (candidate.get("response_text") or "").strip()
     labels = {"nonempty": bool(response), "length_ok": len(response) >= 24}
@@ -223,9 +217,6 @@ def verify(case: Dict[str, Any], candidate: Dict[str, Any]) -> Dict[str, Any]:
         passed = bool(score >= 0.8)
     elif prompt_name == "process_interpretation":
         labels, score = _verify_process_interpretation(parsed)
-        passed = bool(score >= 0.8)
-    elif prompt_name == "completion_validator":
-        labels, score = _verify_completion_validator(candidate)
         passed = bool(score >= 0.8)
     elif prompt_name == "strategy_adaptation":
         labels, score = _verify_strategy_adaptation(candidate)

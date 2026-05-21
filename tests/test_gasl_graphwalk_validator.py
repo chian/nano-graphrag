@@ -1,6 +1,6 @@
 import unittest
 
-from gasl.validation import LLMJudgeValidator
+from gasl.search_refinement_agent import LLMSearchRefinementAgent
 
 
 class _StubLLM:
@@ -19,36 +19,35 @@ class _StubLLM:
         return self.response
 
 
-class TestGraphwalkValidator(unittest.TestCase):
-    def test_validate_graphwalk_semantics_returns_structured_json(self):
+class TestGraphwalkRefiner(unittest.TestCase):
+    def test_refine_graphwalk_sample_returns_structured_json(self):
         llm = _StubLLM(
             """```json
             {
-              "semantically_valid": true,
-              "reason": "anchored to sources and relation semantics look correct",
-              "anchor_strength": 0.9,
-              "relation_match_strength": 0.8,
-              "depth_match_strength": 0.9,
-              "recommended_payload_kind": "edge_rows",
-              "recommended_grain": "edge",
-              "downstream_safe_for": ["PROCESS", "AGGREGATE", "SHOW"],
+              "refinement_hint": "keep",
+              "refinement_reason": "anchored to sources and relation semantics look correct",
+              "refinement_anchor_strength": 0.9,
+              "refinement_relation_strength": 0.8,
+              "refinement_depth_strength": 0.9,
+              "refinement_payload_hint": "edge_rows",
+              "refinement_grain_hint": "edge",
+              "refinement_downstream_hint": ["PROCESS", "AGGREGATE", "SHOW"],
               "repair_hint": "",
-              "confidence": 0.88
+              "refinement_confidence": 0.88
             }
             ```"""
         )
-        validator = LLMJudgeValidator(llm)
-        result = validator.validate_graphwalk_semantics(
+        refiner = LLMSearchRefinementAgent(llm)
+        result = refiner.get_graphwalk_refinement(
             {"from_variable": "src_nodes", "relationship_types": "AFFECTS", "depth": "1"},
             [{"id": "s1", "data": {"entity_name": "SOURCE"}}],
-            [{"id": "t1", "src_id": "s1", "tgt_id": "t1", "data": {"entity_name": "TARGET"}}],
-            1,
+            iter([{"id": "t1", "src_id": "s1", "tgt_id": "t1", "data": {"entity_name": "TARGET"}}]),
             contract={"payload_kind": "walk_rows", "grain_type": "edge", "usable_by": ["PROCESS"]},
         )
-        self.assertTrue(result["semantically_valid"])
-        self.assertEqual(result["recommended_payload_kind"], "edge_rows")
-        self.assertEqual(result["recommended_grain"], "edge")
-        self.assertIn("AGGREGATE", result["downstream_safe_for"])
+        self.assertEqual(result["refinement_hint"], "keep")
+        self.assertEqual(result["refinement_payload_hint"], "edge_rows")
+        self.assertEqual(result["refinement_grain_hint"], "edge")
+        self.assertIn("AGGREGATE", result["refinement_downstream_hint"])
 
 
 if __name__ == "__main__":

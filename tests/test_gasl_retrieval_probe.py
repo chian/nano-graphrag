@@ -14,22 +14,21 @@ class _InvalidGraphwalkLLM:
         return self
 
     def call(self, prompt: str) -> str:
-        if "judging GRAPHWALK path semantics" in prompt:
+        if "refining a GRAPHWALK retrieval strategy" in prompt:
             return """
             {
-              "semantically_valid": false,
-              "reason": "pilot sample is too broad",
-              "anchor_strength": 0.2,
-              "relation_match_strength": 0.2,
-              "depth_match_strength": 0.2,
-              "recommended_payload_kind": "walk_rows",
-              "recommended_grain": "edge",
-              "downstream_safe_for": ["PROCESS", "SHOW", "SELECT"],
-              "repair_hint": "narrow depth",
-              "confidence": 0.2
+              "refinement_hint": "tighten_depth",
+              "refinement_reason": "pilot sample is too broad",
+              "refinement_anchor_strength": 0.2,
+              "refinement_relation_strength": 0.2,
+              "refinement_depth_strength": 0.2,
+              "refinement_payload_hint": "walk_rows",
+              "refinement_grain_hint": "edge",
+              "refinement_downstream_hint": ["PROCESS", "SHOW", "SELECT"],
+              "refinement_confidence": 0.2
             }
             """
-        return '{"valid": true, "reason": "ok", "issues": [], "confidence": 0.9}'
+        return '{"refinement_hint": "keep", "refinement_reason": "ok", "refinement_confidence": 0.9}'
 
 
 def _make_graph():
@@ -70,7 +69,7 @@ def test_find_strict_relation_paths_prefers_exact_relation():
     assert all("VALIDATED_BY" in row.get("edge_types", []) for row in rows)
 
 
-def test_find_paths_gate_blocks_unanchored_path_query():
+def test_find_paths_refinement_keeps_unanchored_query_when_no_semantics_are_parsed():
     handler = FindHandler(StateStore(), ContextStore(), NetworkXAdapter(_make_graph()))
     command = Command(
         command_type="FIND",
@@ -83,8 +82,11 @@ def test_find_paths_gate_blocks_unanchored_path_query():
         line_number=1,
     )
     result = handler.execute(command)
-    assert result.status == "error"
-    assert "source/edge/target anchored" in (result.error_message or "")
+    assert result.status == "success"
+    assert "retrieval_strategy: refinement_keep" in (result.contract.get("notes") or [])
+    probe = result.contract.get("refinement") or {}
+    assert probe.get("sample_size", 0) >= 0
+    assert probe.get("refinement", {}).get("refinement_hint") == "keep"
 
 
 def test_networkx_find_paths_respects_pair_budget():

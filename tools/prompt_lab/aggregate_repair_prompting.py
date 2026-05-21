@@ -1,5 +1,5 @@
 """
-Shared formatting helpers for AGGREGATE repair prompt optimization.
+Offline formatting helpers for aggregate-repair prompt optimization.
 """
 
 from __future__ import annotations
@@ -35,7 +35,7 @@ Previous command:
 Next command:
 {next_command}
 
-Observed error:
+Error message:
 {error_message}
 
 Sample rows:
@@ -57,7 +57,7 @@ def iter_scalar_fields(item: Any, prefix: str = "", *, depth: int = 0, max_depth
         yield prefix or "value", item
 
 
-def flatten_row(item: Dict[str, Any], *, limit: int = 18) -> Dict[str, Any]:
+def flatten_row(item: Dict[str, Any], *, limit: int = 16) -> Dict[str, Any]:
     flattened: Dict[str, Any] = {}
     for field_name, field_value in iter_scalar_fields(item):
         flattened[field_name] = field_value
