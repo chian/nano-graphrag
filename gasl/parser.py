@@ -431,19 +431,7 @@ class GASLParser:
     def _validate_count(self, command: Command) -> bool:
         """Validate COUNT commands."""
         args = command.args
-        
-        # Check required fields
-        if "field_name" not in args or not args["field_name"]:
-            return False
-        
-        if "result_var" not in args or not args["result_var"]:
-            return False
-        
-        # Either source variable or FIND criteria must be provided
-        if not args.get("source") and not args.get("criteria"):
-            return False
-        
-        return True
+        return bool(args.get("source")) and bool(args.get("result_var"))
     
     def _validate_select(self, command: Command) -> bool:
         """Validate SELECT command."""
@@ -532,7 +520,7 @@ class GASLParser:
         elif command.command_type in ["SCORE", "WEIGHT"]:
             return "variable" in args and "scoring_criteria" in args or "weighting_criteria" in args
         elif command.command_type == "RANK":
-            return "variable" in args and "rank_field" in args
+            return "variable" in args and ("field" in args or "rank_field" in args)
         return False
     
     def _validate_object_create(self, command: Command) -> bool:

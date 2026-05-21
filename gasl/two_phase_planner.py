@@ -49,6 +49,7 @@ class TwoPhasePlanner:
         history: List[Dict[str, Any]],
         iteration: int,
         existing_symbol_table: Optional[List[Dict[str, Any]]] = None,
+        initial_validation_defects: Optional[List[Dict[str, Any]]] = None,
     ) -> TwoPhasePlanResult:
         symbol_prompt = ""
         symbol_response = ""
@@ -89,12 +90,14 @@ class TwoPhasePlanner:
                     },
                 )
 
+        initial_validation_defects = initial_validation_defects or []
         plan_prompt = self.llm_func.create_plan_prompt(
             query,
             schema,
             state,
             history,
             symbol_table=symbol_table,
+            validation_defects=initial_validation_defects,
         )
         plan_obs_id = None
         if self.prompt_logger:
@@ -105,7 +108,7 @@ class TwoPhasePlanner:
                 metadata={
                     "iteration": iteration,
                     "query": query,
-                    "phase": "constrained",
+                    "phase": "constrained" if not initial_validation_defects else "constrained_repair",
                     "symbol_count": len(symbol_table),
                 },
             )
@@ -117,7 +120,7 @@ class TwoPhasePlanner:
                 prompt_name="plan_generation",
                 response_text=plan_response,
                 parsed=plan_json,
-                labels={"parse_success": True, "phase": "constrained"},
+                labels={"parse_success": True, "phase": "constrained" if not initial_validation_defects else "constrained_repair"},
                 metadata={"iteration": iteration},
             )
         validation = self.validate_plan(plan_json, symbol_table)
@@ -239,6 +242,15 @@ class TwoPhasePlanner:
         allowed = {symbol["name"] for symbol in symbol_table if symbol.get("name")}
         defined = {symbol["name"] for symbol in symbol_table if symbol.get("producer") == "input" and symbol.get("name")}
         for command in parsed:
+            if not self.parser.validate_command(command):
+                defects.append(
+                    {
+                        "kind": "schema",
+                        "command_type": command.command_type,
+                        "command": command.raw_text,
+                        "args": command.args,
+                    }
+                )
             required = _COMMAND_REQUIRED_ARGS.get(command.command_type, set())
             missing = sorted(required - set(command.args.keys()))
             if missing:

@@ -79,6 +79,14 @@ class TestGASLParser(unittest.TestCase):
         self.assertIn("create fields control_id from src_id", cmd.args["instruction"])
         self.assertNotIn("AS control_zone_rows", cmd.args["instruction"])
 
+    def test_validate_count_current_shape(self):
+        cmd = self.parser.parse_command("COUNT person_nodes AS total_count")
+        self.assertTrue(self.parser.validate_command(cmd))
+
+    def test_validate_rank_current_shape(self):
+        cmd = self.parser.parse_command("RANK people by score order desc")
+        self.assertTrue(self.parser.validate_command(cmd))
+
 
 if __name__ == "__main__":
     unittest.main()

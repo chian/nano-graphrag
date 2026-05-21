@@ -133,3 +133,25 @@ def test_two_phase_planner_reuses_existing_symbol_table():
     assert result.validation["ok"] is True
     assert result.symbol_prompt == ""
     assert result.symbol_response == ""
+
+
+def test_validate_plan_catches_schema_invalid_select_variant():
+    llm = FakeLLM([])
+    planner = TwoPhasePlanner(llm, GASLParser())
+    validation = planner.validate_plan(
+        {
+            "plan_id": "bad-select",
+            "why": "bad",
+            "commands": [
+                "SELECT DISTINCT src_id FROM control_support_rows AS top_controls",
+            ],
+            "config": {},
+        },
+        [
+            {"name": "control_support_rows", "role": "rows", "shape": "rows", "producer": "input", "rationale": "seed"},
+            {"name": "top_controls", "role": "rows", "shape": "rows", "producer": "SELECT", "rationale": "target"},
+        ],
+    )
+    assert validation["ok"] is False
+    kinds = {d["kind"] for d in validation["defects"]}
+    assert "schema" in kinds

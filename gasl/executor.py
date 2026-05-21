@@ -580,12 +580,52 @@ class GASLExecutor:
             else:
                 plan_json = pending_plan_json
                 pending_plan_json = None
-                plan_response = json.dumps(plan_json)
                 plan_obs_id = None
-                self.trace.log("planner_plan_reuse", {
-                    "iteration": iteration,
-                    "plan": plan_json,
-                })
+                current_symbol_table = self.state_store.get_plan_symbol_table()
+                reuse_validation = self.two_phase_planner.validate_plan(plan_json, current_symbol_table)
+                if not reuse_validation["ok"]:
+                    self.trace.log("planner_plan_reuse_invalid", {
+                        "iteration": iteration,
+                        "plan": plan_json,
+                        "validation": reuse_validation,
+                    })
+                    planning_result = self.two_phase_planner.generate_plan(
+                        query=query,
+                        schema=schema,
+                        state=current_state,
+                        history=history,
+                        iteration=iteration,
+                        existing_symbol_table=current_symbol_table,
+                        initial_validation_defects=reuse_validation["defects"],
+                    )
+                    self.state_store.set_plan_symbol_table(planning_result.symbol_table)
+                    plan_prompt = planning_result.plan_prompt
+                    plan_response = planning_result.plan_response
+                    plan_json = planning_result.plan_json
+                    self.trace.log("planner_prompt", {
+                        "iteration": iteration,
+                        "query": query,
+                        "prompt": plan_prompt,
+                        "schema": schema,
+                        "state": current_state.get("variables", {}),
+                        "history": history,
+                        "symbol_table": planning_result.symbol_table,
+                        "validation": planning_result.validation,
+                    })
+                    self.trace.log("planner_response", {
+                        "iteration": iteration,
+                        "raw_response": plan_response,
+                        "extracted_json": _extract_json(plan_response),
+                        "symbol_table": planning_result.symbol_table,
+                        "validation": planning_result.validation,
+                    })
+                else:
+                    plan_response = json.dumps(plan_json)
+                    plan_obs_id = None
+                    self.trace.log("planner_plan_reuse", {
+                        "iteration": iteration,
+                        "plan": plan_json,
+                    })
             
             try:
                 # Parse JSON response — tolerant of markdown fences / prose
