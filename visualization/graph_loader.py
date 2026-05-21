@@ -9,6 +9,7 @@ import networkx as nx
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
 from dataclasses import dataclass, field
+from nano_graphrag.graph_slots import get_salience_score
 
 
 # Colors pinned by hand for specific types that need a deliberate look.
@@ -67,7 +68,7 @@ class GraphStats:
     num_edges: int = 0
     entity_types: Dict[str, int] = field(default_factory=dict)
     relation_types: Dict[str, int] = field(default_factory=dict)
-    avg_importance: float = 0.0
+    avg_salience: float = 0.0
     connected_components: int = 0
 
 
@@ -117,14 +118,14 @@ class GraphLoader:
         stats.num_edges = self.graph.number_of_edges()
 
         # Count entity types
-        importance_sum = 0.0
+        salience_sum = 0.0
         for node_id, data in self.graph.nodes(data=True):
             entity_type = data.get('entity_type', 'UNKNOWN')
             stats.entity_types[entity_type] = stats.entity_types.get(entity_type, 0) + 1
-            importance_sum += float(data.get('importance_score', 0.5))
+            salience_sum += get_salience_score(data, 0.5)
 
         if stats.num_nodes > 0:
-            stats.avg_importance = importance_sum / stats.num_nodes
+            stats.avg_salience = salience_sum / stats.num_nodes
 
         # Count relation types
         for source, target, data in self.graph.edges(data=True):
@@ -143,7 +144,7 @@ class GraphLoader:
                       highlight_nodes: Optional[List[str]] = None,
                       highlight_edges: Optional[List[Tuple[str, str]]] = None,
                       filter_entity_types: Optional[List[str]] = None,
-                      min_importance: float = 0.0) -> Dict[str, Any]:
+                      min_salience: float = 0.0) -> Dict[str, Any]:
         """
         Convert the graph to vis.js format.
 
@@ -151,7 +152,7 @@ class GraphLoader:
             highlight_nodes: List of node IDs to highlight
             highlight_edges: List of (source, target) tuples to highlight
             filter_entity_types: Only include nodes of these entity types
-            min_importance: Minimum importance score for nodes
+            min_salience: Minimum salience score for nodes
 
         Returns:
             Dictionary with 'nodes' and 'edges' lists for vis.js
@@ -169,12 +170,12 @@ class GraphLoader:
         # Process nodes
         for node_id, data in self.graph.nodes(data=True):
             entity_type = data.get('entity_type', 'DEFAULT')
-            importance = float(data.get('importance_score', 0.5))
+            salience = get_salience_score(data, 0.5)
 
             # Apply filters
             if filter_entity_types and entity_type not in filter_entity_types:
                 continue
-            if importance < min_importance:
+            if salience < min_salience:
                 continue
 
             included_nodes.add(node_id)
@@ -183,8 +184,8 @@ class GraphLoader:
             color = get_entity_color(entity_type)
             shape = ENTITY_SHAPES.get(entity_type, ENTITY_SHAPES['DEFAULT'])
 
-            # Calculate size based on importance
-            size = 15 + (importance * 25)
+            # Calculate size based on salience
+            size = 15 + (salience * 25)
 
             # Check if highlighted
             is_highlighted = node_id in highlight_nodes
@@ -212,7 +213,7 @@ class GraphLoader:
                 'data': {
                     'entity_type': entity_type,
                     'description': data.get('description', ''),
-                    'importance_score': importance,
+                    'salience_score': salience,
                     'source_chunks': data.get('source_chunks', '')
                 }
             }
@@ -360,12 +361,12 @@ class GraphLoader:
                     'id': node_id,
                     'entity_type': data.get('entity_type', 'UNKNOWN'),
                     'description': data.get('description', '')[:200],
-                    'importance': float(data.get('importance_score', 0.5)),
+                    'salience': get_salience_score(data, 0.5),
                     'score': score
                 })
 
-        # Sort by score and importance
-        results.sort(key=lambda x: (-x['score'], -x['importance']))
+        # Sort by score and salience
+        results.sort(key=lambda x: (-x['score'], -x['salience']))
         return results[:limit]
 
     def get_node_details(self, node_id: str) -> Optional[Dict[str, Any]]:
@@ -408,7 +409,7 @@ class GraphLoader:
             'id': node_id,
             'entity_type': data.get('entity_type', 'UNKNOWN'),
             'description': data.get('description', ''),
-            'importance_score': float(data.get('importance_score', 0.5)),
+            'salience_score': get_salience_score(data, 0.5),
             'source_chunks': data.get('source_chunks', ''),
             'incoming_edges': incoming,
             'outgoing_edges': outgoing,
@@ -425,7 +426,7 @@ class GraphLoader:
         """Create an HTML tooltip for a node."""
         entity_type = data.get('entity_type', 'UNKNOWN')
         description = data.get('description', 'No description')[:300]
-        importance = float(data.get('importance_score', 0.5))
+        salience = get_salience_score(data, 0.5)
 
         return f"""
         <div style="max-width: 300px; padding: 8px;">
@@ -435,7 +436,7 @@ class GraphLoader:
             </span><br>
             <hr style="margin: 4px 0;">
             <p style="font-size: 12px; margin: 4px 0;">{description}</p>
-            <small>Importance: {importance:.2f}</small>
+            <small>Salience: {salience:.2f}</small>
         </div>
         """
 

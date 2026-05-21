@@ -5,6 +5,7 @@ Handles entity matching and merging across papers (e.g., "dolutegravir" = "DTG")
 
 from typing import Dict, List, Tuple, Optional
 from difflib import SequenceMatcher
+from nano_graphrag.graph_slots import add_alias, add_source_ref, get_salience_score, set_salience_score
 
 
 # Common synonyms and abbreviations for biological entities
@@ -157,10 +158,10 @@ def merge_entities(
     """
     merged = existing_entity.copy()
 
-    # Update importance score to the maximum
-    new_importance = new_entity.get('importance_score', 0)
-    existing_importance = merged.get('importance_score', 0)
-    merged['importance_score'] = max(new_importance, existing_importance)
+    # Update salience/ranking score to the maximum across sources
+    new_salience = get_salience_score(new_entity, 0.0)
+    existing_salience = get_salience_score(merged, 0.0)
+    set_salience_score(merged, max(new_salience, existing_salience))
 
     # Combine descriptions (avoid duplication)
     new_desc = new_entity.get('description', '').strip()
@@ -179,20 +180,11 @@ def merge_entities(
     if 'source_chunk' in new_entity:
         merged['source_chunks'].append(new_entity['source_chunk'])
 
-    # Track source papers via UUIDs
-    if 'source_papers' not in merged:
-        merged['source_papers'] = []
-
-    if source_uuid not in merged['source_papers']:
-        merged['source_papers'].append(source_uuid)
-
-    # Track alternative names
-    if 'alternative_names' not in merged:
-        merged['alternative_names'] = []
+    # Track source references via canonical slot
+    add_source_ref(merged, source_uuid)
 
     new_name = new_entity.get('entity_name', '')
-    if new_name and new_name not in merged['alternative_names']:
-        merged['alternative_names'].append(new_name)
+    add_alias(merged, new_name)
 
     return merged
 

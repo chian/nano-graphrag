@@ -89,7 +89,7 @@ def create_app(graph_path: Optional[str] = None,
 
         # Get query parameters for filtering
         entity_types = request.args.get('entity_types', '')
-        min_importance = float(request.args.get('min_importance', 0.0))
+        min_salience = float(request.args.get('min_salience', 0.0))
 
         filter_types = entity_types.split(',') if entity_types else None
 
@@ -97,7 +97,7 @@ def create_app(graph_path: Optional[str] = None,
             highlight_nodes=_gasl_state.get('highlighted_nodes', []),
             highlight_edges=_gasl_state.get('highlighted_edges', []),
             filter_entity_types=filter_types,
-            min_importance=min_importance
+            min_salience=min_salience
         )
         return jsonify(data)
 
@@ -286,7 +286,7 @@ def create_app(graph_path: Optional[str] = None,
             'num_edges': _current_loader.stats.num_edges,
             'entity_types': dict(_current_loader.stats.entity_types),
             'relation_types': dict(_current_loader.stats.relation_types),
-            'avg_importance': _current_loader.stats.avg_importance,
+            'avg_salience': _current_loader.stats.avg_salience,
             'connected_components': _current_loader.stats.connected_components
         })
 
@@ -338,13 +338,13 @@ def create_app(graph_path: Optional[str] = None,
             return
 
         filter_types = data.get('entity_types')
-        min_importance = data.get('min_importance', 0.0)
+        min_salience = data.get('min_salience', 0.0)
 
         graph_data = _current_loader.to_vis_format(
             highlight_nodes=_gasl_state.get('highlighted_nodes', []),
             highlight_edges=_gasl_state.get('highlighted_edges', []),
             filter_entity_types=filter_types,
-            min_importance=min_importance
+            min_salience=min_salience
         )
         emit('graph_data', graph_data)
 

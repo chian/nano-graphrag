@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).parent.absolute()))
 
 from domain_schemas.schema_loader import load_domain_schema
 from nano_graphrag.entity_extraction.typed_module import create_domain_extractor_from_schema
+from nano_graphrag.graph_slots import get_salience_score, set_salience_score
 from nano_graphrag._utils import compute_mdhash_id
 from gasl.llm import ArgoBridgeLLM
 
@@ -60,9 +61,9 @@ async def extract_from_chunk(
             global_entities[entity_name] = entity_dict
             global_entities[entity_name]['source_chunks'] = [chunk_id]
         else:
-            # Merge: take higher importance score, combine descriptions
-            if entity_dict['importance_score'] > global_entities[entity_name]['importance_score']:
-                global_entities[entity_name]['importance_score'] = entity_dict['importance_score']
+            # Merge: take higher salience score, combine descriptions
+            if get_salience_score(entity_dict, 0.0) > get_salience_score(global_entities[entity_name], 0.0):
+                set_salience_score(global_entities[entity_name], get_salience_score(entity_dict, 0.0))
 
             # Append chunk if new
             if chunk_id not in global_entities[entity_name]['source_chunks']:
@@ -92,7 +93,7 @@ async def build_graph_from_extractions(
             entity_name,
             entity_type=entity_data['entity_type'],
             description=entity_data['description'],
-            importance_score=entity_data['importance_score'],
+            salience_score=get_salience_score(entity_data, 0.5),
             source_chunks=source_chunks_str
         )
 

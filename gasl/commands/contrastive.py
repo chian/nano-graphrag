@@ -8,6 +8,7 @@ from .base import CommandHandler
 from ..types import Command, ExecutionResult, Provenance
 from ..adapters.base import GraphAdapter
 from ..state_manager import StateManager
+from nano_graphrag.graph_slots import get_source_refs
 from query_generation.graph_validator import get_causal_edge_types
 
 
@@ -71,7 +72,7 @@ class FindAlternativesHandler(CommandHandler):
                             "relation_type": edge_data.get("relation_type"),
                             "description": edge_data.get("description", ""),
                             "weight": edge_data.get("weight", 0),
-                            "source_papers": edge_data.get("source_papers", [])
+                            "source_refs": get_source_refs(edge_data)
                         })
 
             # Store result
@@ -166,7 +167,7 @@ class FindOpposingHandler(CommandHandler):
                     "target": target,
                     "description": edge_data.get("description", ""),
                     "weight": edge_data.get("weight", 0),
-                    "source_papers": edge_data.get("source_papers", [])
+                    "source_refs": get_source_refs(edge_data)
                 })
 
             # Find opposing pairs
@@ -372,7 +373,7 @@ class FindCompetingHandler(CommandHandler):
                     "entity_type": source_node[0].get("entity_type", "UNKNOWN") if source_node else "UNKNOWN",
                     "description": edge_data.get("description", ""),
                     "weight": edge_data.get("weight", 0),
-                    "source_papers": edge_data.get("source_papers", [])
+                    "source_refs": get_source_refs(edge_data)
                 })
 
             # Find relation types with multiple competitors

@@ -45,6 +45,7 @@ from graph_enrichment.graph_merger import (
     get_enrichment_statistics
 )
 from gasl.llm import ArgoBridgeLLM
+from nano_graphrag.graph_slots import get_salience_score, set_salience_score
 
 
 def chunk_text(text: str, chunk_size: int = 2000, overlap: int = 200) -> List[str]:
@@ -83,9 +84,9 @@ async def extract_from_chunk(
             global_entities[entity_name] = entity_dict
             global_entities[entity_name]['source_chunks'] = [chunk_id]
         else:
-            # Merge: take higher importance score
-            if entity_dict['importance_score'] > global_entities[entity_name]['importance_score']:
-                global_entities[entity_name]['importance_score'] = entity_dict['importance_score']
+            # Merge: take higher salience score
+            if get_salience_score(entity_dict, 0.0) > get_salience_score(global_entities[entity_name], 0.0):
+                set_salience_score(global_entities[entity_name], get_salience_score(entity_dict, 0.0))
 
             if chunk_id not in global_entities[entity_name]['source_chunks']:
                 global_entities[entity_name]['source_chunks'].append(chunk_id)
@@ -113,7 +114,7 @@ async def build_graph_from_extractions(
             entity_name,
             entity_type=entity_data.get('entity_type', 'UNKNOWN'),
             description=entity_data.get('description', ''),
-            importance_score=entity_data.get('importance_score', 0.5),
+            salience_score=get_salience_score(entity_data, 0.5),
             source_chunks=source_chunks_str
         )
 

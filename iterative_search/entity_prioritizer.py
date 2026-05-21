@@ -11,6 +11,7 @@ import networkx as nx
 
 from .search_state import IterativeSearchState
 from .config import HAIQUPipelineConfig
+from nano_graphrag.graph_slots import get_salience_score
 
 
 @dataclass
@@ -18,7 +19,7 @@ class EntityPriority:
     """Priority score for an entity."""
     entity_name: str
     entity_type: str
-    importance_score: float      # From extraction (0-1)
+    salience_score: float        # Optional generic ranking/salience (0-1)
     novelty_score: float         # Higher for newly discovered entities (0-1)
     connectivity_score: float    # Based on graph centrality (0-1)
     domain_relevance_score: float  # Based on priority entity types (0-1)
@@ -80,7 +81,7 @@ class EntityPriorityQueue:
             entity_type = node_data.get('entity_type', 'UNKNOWN')
 
             # Compute individual scores
-            importance = self._get_importance_score(entity_name, node_data)
+            salience = self._get_salience_score(entity_name, node_data)
             novelty = self._compute_novelty_score(entity_name)
             connectivity = self._compute_connectivity_score(entity_name)
             domain_relevance = self._compute_domain_relevance(entity_type)
@@ -88,7 +89,7 @@ class EntityPriorityQueue:
             # Weighted combination
             combined = (
                 self.WEIGHT_NOVELTY * novelty +
-                self.WEIGHT_IMPORTANCE * importance +
+                self.WEIGHT_IMPORTANCE * salience +
                 self.WEIGHT_CONNECTIVITY * connectivity +
                 self.WEIGHT_DOMAIN_RELEVANCE * domain_relevance
             )
@@ -96,7 +97,7 @@ class EntityPriorityQueue:
             priority = EntityPriority(
                 entity_name=entity_name,
                 entity_type=entity_type,
-                importance_score=importance,
+                salience_score=salience,
                 novelty_score=novelty,
                 connectivity_score=connectivity,
                 domain_relevance_score=domain_relevance,
@@ -124,13 +125,9 @@ class EntityPriorityQueue:
 
         return self.priorities[:n]
 
-    def _get_importance_score(self, entity_name: str, node_data: dict) -> float:
-        """Get importance score from node data, normalized to 0-1."""
-        score = node_data.get('importance_score', 0.5)
-        try:
-            score = float(score)
-        except (ValueError, TypeError):
-            score = 0.5
+    def _get_salience_score(self, entity_name: str, node_data: dict) -> float:
+        """Get optional salience score from node data, normalized to 0-1."""
+        score = get_salience_score(node_data, 0.5)
         return max(0.0, min(1.0, score))
 
     def _compute_novelty_score(self, entity_name: str) -> float:

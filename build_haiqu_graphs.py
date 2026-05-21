@@ -38,6 +38,7 @@ import traceback
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+from nano_graphrag.graph_slots import get_salience_score, set_salience_score
 
 import networkx as nx
 
@@ -159,8 +160,8 @@ async def extract_paper(
             if name not in entities:
                 entities[name] = data
             else:
-                if data["importance_score"] > entities[name]["importance_score"]:
-                    entities[name]["importance_score"] = data["importance_score"]
+                if get_salience_score(data, 0.0) > get_salience_score(entities[name], 0.0):
+                    set_salience_score(entities[name], get_salience_score(data, 0.0))
                 for sc in data.get("source_chunks", []):
                     if sc not in entities[name]["source_chunks"]:
                         entities[name]["source_chunks"].append(sc)

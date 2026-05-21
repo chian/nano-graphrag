@@ -6,10 +6,12 @@ from neo4j import AsyncGraphDatabase
 from dataclasses import dataclass
 from typing import Union
 from ..base import BaseGraphStorage, SingleCommunitySchema
+from ..graph_slots import get_cluster_memberships
 from .._utils import logger
 from ..prompt import GRAPH_FIELD_SEP
 
 neo4j_lock = asyncio.Lock()
+BACKEND_CLUSTER_PROPERTY = "communityIds"
 
 
 def make_path_idable(path):
@@ -79,7 +81,7 @@ class Neo4jStorage(BaseGraphStorage):
                 )
                 
                 await session.run(
-                    f"CREATE INDEX IF NOT EXISTS FOR (n:`{self.namespace}`) ON (n.communityIds)"
+                    f"CREATE INDEX IF NOT EXISTS FOR (n:`{self.namespace}`) ON (n.{BACKEND_CLUSTER_PROPERTY})"
                 )
                 
                 await session.run(
@@ -220,6 +222,7 @@ class Neo4jStorage(BaseGraphStorage):
                     raw_node_data = record["node_data"]
                     
                     if raw_node_data:
+                        memberships = get_cluster_memberships(raw_node_data)
                         raw_node_data["clusters"] = json.dumps(
                             [
                                 {
@@ -227,10 +230,12 @@ class Neo4jStorage(BaseGraphStorage):
                                     "cluster": cluster_id,
                                 }
                                 for index, cluster_id in enumerate(
-                                    raw_node_data.get("communityIds", [])
+                                    memberships
                                 )
                             ]
                         )
+                        if memberships:
+                            raw_node_data["cluster_memberships"] = memberships
                         result_dict[node_id] = raw_node_data
             return [result_dict[node_id] for node_id in node_ids]
         except Exception as e:
@@ -416,7 +421,7 @@ class Neo4jStorage(BaseGraphStorage):
                     CALL gds.leiden.write(
                         'graph_{self.namespace}',
                         {{
-                            writeProperty: 'communityIds',
+                            writeProperty: '{BACKEND_CLUSTER_PROPERTY}',
                             includeIntermediateCommunities: True,
                             relationshipWeightProperty: "weight",
                             maxLevels: {max_level},
@@ -457,7 +462,7 @@ class Neo4jStorage(BaseGraphStorage):
             result = await session.run(
                 f"""
                 MATCH (n:`{self.namespace}`)
-                WITH n, n.communityIds AS communityIds, [(n)-[]-(m:`{self.namespace}`) | m.id] AS connected_nodes
+                WITH n, n.{BACKEND_CLUSTER_PROPERTY} AS communityIds, [(n)-[]-(m:`{self.namespace}`) | m.id] AS connected_nodes
                 RETURN n.id AS node_id, n.source_id AS source_id, 
                        communityIds AS cluster_key,
                        connected_nodes

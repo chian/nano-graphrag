@@ -6,6 +6,7 @@ Functions for merging entities and relationships into existing graphs
 import networkx as nx
 from typing import Dict, List
 from .entity_merger import find_entity_matches, merge_entities, get_canonical_name
+from nano_graphrag.graph_slots import add_source_ref
 
 
 def add_entities_to_graph(
@@ -65,12 +66,9 @@ def add_entities_to_graph(
             canonical_name = new_name
             name_mapping[new_name] = canonical_name
 
-            # Add source tracking
+            # Add canonical provenance tracking
             new_entity_data = new_entity.copy()
-            if 'source_papers' not in new_entity_data:
-                new_entity_data['source_papers'] = [source_uuid]
-            else:
-                new_entity_data['source_papers'].append(source_uuid)
+            add_source_ref(new_entity_data, source_uuid)
 
             graph.add_node(
                 canonical_name,
@@ -133,17 +131,13 @@ def add_relationships_to_graph(
                 rel.get('weight', 0)
             )
 
-            # Track source papers
-            if 'source_papers' not in existing_edge:
-                existing_edge['source_papers'] = []
-
-            if source_uuid not in existing_edge['source_papers']:
-                existing_edge['source_papers'].append(source_uuid)
+            # Track source refs
+            add_source_ref(existing_edge, source_uuid)
 
         else:
             # Add new edge
             edge_data = rel.copy()
-            edge_data['source_papers'] = [source_uuid]
+            add_source_ref(edge_data, source_uuid)
 
             graph.add_edge(
                 src_canonical,
