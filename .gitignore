@@ -133,6 +133,7 @@ celerybeat.pid
 # Environments
 .env
 .viz.local.env
+.viz_runs/
 demo_videos/
 benchmark_results/
 gasl_checkpoints/

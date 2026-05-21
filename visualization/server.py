@@ -39,6 +39,40 @@ _gasl_state: Dict[str, Any] = {
     'history': []
 }
 
+_AUTO_SUBSET_ENABLED = os.environ.get("VIZ_AUTO_SUBSET", "1").strip().lower() not in {"0", "false", "no"}
+_AUTO_SUBSET_THRESHOLD = int(os.environ.get("VIZ_SUBSET_THRESHOLD", "4000"))
+_AUTO_SUBSET_MAX_NODES = int(os.environ.get("VIZ_SUBSET_MAX_NODES", "1500"))
+
+
+def _load_render_and_query_graphs(
+    graph_path: str,
+    full_graph_path: Optional[str] = None,
+) -> tuple[GraphLoader, GraphLoader]:
+    """Load a reduced render graph and a full query graph.
+
+    If an explicit reduced render graph is supplied, respect it.
+    Otherwise, when the full graph is large, derive a top-degree subset in memory
+    for rendering only while keeping the full graph for query execution.
+    """
+    full_loader = GraphLoader(full_graph_path or graph_path)
+    if graph_path and full_graph_path and graph_path != full_graph_path:
+        return GraphLoader(graph_path), full_loader
+
+    if _AUTO_SUBSET_ENABLED and full_loader.stats and full_loader.stats.num_nodes > _AUTO_SUBSET_THRESHOLD:
+        subset_graph = full_loader.top_degree_subgraph(_AUTO_SUBSET_MAX_NODES)
+        render_loader = GraphLoader.from_graph(
+            subset_graph,
+            graphml_path=f"{full_loader.graphml_path}#topdeg{_AUTO_SUBSET_MAX_NODES}",
+        )
+        print(
+            f"  Render graph auto-subset: {render_loader.stats.num_nodes} nodes, "
+            f"{render_loader.stats.num_edges} edges "
+            f"(from full {full_loader.stats.num_nodes} nodes)"
+        )
+        return render_loader, full_loader
+
+    return full_loader, full_loader
+
 
 def create_app(graph_path: Optional[str] = None,
                full_graph_path: Optional[str] = None) -> Flask:
@@ -65,9 +99,7 @@ def create_app(graph_path: Optional[str] = None,
 
     # Load initial graph if provided
     if graph_path:
-        _current_loader = GraphLoader(graph_path)
-        # Use a separate full-graph loader for queries if provided, else fall back to viz graph
-        _full_loader = GraphLoader(full_graph_path) if full_graph_path else _current_loader
+        _current_loader, _full_loader = _load_render_and_query_graphs(graph_path, full_graph_path)
         if full_graph_path:
             print(f"  Query graph: {full_graph_path} "
                   f"({_full_loader.stats.num_nodes} nodes, {_full_loader.stats.num_edges} edges)")
@@ -114,8 +146,7 @@ def create_app(graph_path: Optional[str] = None,
             return jsonify({'error': 'No path provided'}), 400
 
         try:
-            _current_loader = GraphLoader(path)
-            _full_loader = GraphLoader(full_graph_path) if full_graph_path != path else _current_loader
+            _current_loader, _full_loader = _load_render_and_query_graphs(path, full_graph_path)
             _rag_engine = RagQueryEngine(_full_loader)
             _gasl_engine = GaslQueryEngine(_full_loader, socketio)
             return jsonify({

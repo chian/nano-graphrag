@@ -108,6 +108,25 @@ class GraphLoader:
         self._compute_stats()
         return self.graph
 
+    @classmethod
+    def from_graph(cls, graph: nx.Graph, graphml_path: Optional[str] = None) -> "GraphLoader":
+        """Build a loader around an already-loaded graph."""
+        loader = cls()
+        loader.graph = graph
+        loader.graphml_path = graphml_path
+        loader._compute_stats()
+        return loader
+
+    def top_degree_subgraph(self, max_nodes: int) -> nx.Graph:
+        """Return an induced subgraph containing the top-degree nodes."""
+        if self.graph is None:
+            raise ValueError("No graph loaded. Call load() first.")
+        if max_nodes <= 0 or self.graph.number_of_nodes() <= max_nodes:
+            return self.graph.copy()
+        ranked = sorted(self.graph.degree(), key=lambda pair: (-pair[1], str(pair[0])))
+        keep = [node_id for node_id, _ in ranked[:max_nodes]]
+        return self.graph.subgraph(keep).copy()
+
     def _compute_stats(self) -> None:
         """Compute statistics about the loaded graph."""
         if self.graph is None:
@@ -423,38 +442,60 @@ class GraphLoader:
         return label[:max_length-3] + '...'
 
     def _create_tooltip(self, node_id: str, data: Dict[str, Any]) -> str:
-        """Create an HTML tooltip for a node."""
+        """Create a compact plain-text tooltip for a node."""
         entity_type = data.get('entity_type', 'UNKNOWN')
-        description = data.get('description', 'No description')[:300]
-        salience = get_salience_score(data, 0.5)
-
-        return f"""
-        <div style="max-width: 300px; padding: 8px;">
-            <strong>{node_id}</strong><br>
-            <span style="color: {get_entity_color(entity_type)};">
-                [{entity_type}]
-            </span><br>
-            <hr style="margin: 4px 0;">
-            <p style="font-size: 12px; margin: 4px 0;">{description}</p>
-            <small>Salience: {salience:.2f}</small>
-        </div>
-        """
+        description = self._tooltip_summary(data.get('description', ''))
+        lines = [node_id, f"[{entity_type}]"]
+        if description:
+            lines.append(description)
+        return "\n".join(lines)
 
     def _create_edge_tooltip(self, source: str, target: str, data: Dict[str, Any]) -> str:
-        """Create an HTML tooltip for an edge."""
+        """Create a compact plain-text tooltip for an edge."""
         relation = data.get('relation_type', 'RELATED')
-        description = data.get('description', 'No description')[:200]
-        weight = float(data.get('weight', 0.5))
+        description = self._tooltip_summary(data.get('description', ''), max_length=180)
+        lines = [relation, f"{source} → {target}"]
+        if description:
+            lines.append(description)
+        return "\n".join(lines)
 
-        return f"""
-        <div style="max-width: 250px; padding: 8px;">
-            <strong>{relation}</strong><br>
-            <small>{source} → {target}</small>
-            <hr style="margin: 4px 0;">
-            <p style="font-size: 11px; margin: 4px 0;">{description}</p>
-            <small>Weight: {weight:.2f}</small>
-        </div>
+    @staticmethod
+    def _tooltip_summary(text: str, max_length: int = 220) -> str:
+        """Return a single clean summary line for hover text.
+
+        Tooltips should stay light. Richer metadata belongs in the side panel.
         """
+        if not text:
+            return ""
+        normalized = " ".join(str(text).split())
+        # Prefer the first coherent segment before pipe-delimited alternates.
+        primary = normalized.split(" | ", 1)[0].strip()
+        if len(primary) <= max_length:
+            return GraphLoader._wrap_tooltip_text(primary)
+        truncated = primary[: max_length - 1].rsplit(" ", 1)[0].rstrip(",;:")
+        return GraphLoader._wrap_tooltip_text(truncated + "…")
+
+    @staticmethod
+    def _wrap_tooltip_text(text: str, width: int = 62) -> str:
+        """Insert hard wraps so native/plain-text tooltips stay readable on screen."""
+        if not text or len(text) <= width:
+            return text
+        words = text.split()
+        lines: list[str] = []
+        current: list[str] = []
+        current_len = 0
+        for word in words:
+            projected = current_len + (1 if current else 0) + len(word)
+            if projected > width and current:
+                lines.append(" ".join(current))
+                current = [word]
+                current_len = len(word)
+            else:
+                current.append(word)
+                current_len = projected
+        if current:
+            lines.append(" ".join(current))
+        return "\n".join(lines)
 
     def _darken_color(self, hex_color: str, factor: float = 0.7) -> str:
         """Darken a hex color."""
