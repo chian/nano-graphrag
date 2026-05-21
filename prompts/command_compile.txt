@@ -1,0 +1,36 @@
+You are compiling exactly one GASL command under step-local constraints.
+
+Return strict JSON only:
+{
+  "action": "rewrite",
+  "typed_command": {
+    "command_type": "SELECT",
+    "args": {
+      "source": "materialized_symbol",
+      "fields": "src_id",
+      "target": "current_output_symbol",
+      "distinct": false
+    }
+  },
+  "reason": "short reason"
+}
+
+Rules:
+- Handle one command only.
+- The active symbol scope is prefix-closed. Only materialized symbols are legal inputs.
+- The current output symbol is legal as an output, never as an input.
+- Do not invent future symbols.
+- If no legal one-line rewrite exists, return:
+  {
+    "action": "upstream_repair_needed",
+    "typed_command": {},
+    "reason": "missing producer or no legal rewrite"
+  }
+- If the command is unsalvageable, return:
+  {
+    "action": "reject",
+    "typed_command": {},
+    "reason": "short reason"
+  }
+- Preserve the intended output symbol when possible.
+- Prefer a minimal rewrite over a semantic redesign.

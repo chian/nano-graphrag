@@ -83,6 +83,7 @@ from .prompt_observations import PromptObservationLogger
 from .plan_iteration_agent import PlanIterationAgent, PlanIterationRequest
 from .command_repair_agent import LLMCommandRepairAgent, CommandFailureEnvelope, GenericCommandRepairRequest
 from .two_phase_planner import TwoPhasePlanner
+from .step_compiler import GASLStepCompiler
 
 
 class GASLExecutor:
@@ -110,6 +111,7 @@ class GASLExecutor:
         self.plan_iteration_agent = PlanIterationAgent(self.llm_func, prompt_logger=self.prompt_obs, trace=self.trace)
         self.two_phase_planner = TwoPhasePlanner(self.llm_func, self.parser, prompt_logger=self.prompt_obs, trace=self.trace)
         self.command_repair_agent = LLMCommandRepairAgent(self.llm_func)
+        self.step_compiler = GASLStepCompiler(self.llm_func, self.parser, prompt_logger=self.prompt_obs, trace=self.trace)
         self.trace.log("executor_init", {
             "model": getattr(llm_func, "model", None),
             "state_file": str(state_file) if state_file else None,
@@ -217,6 +219,35 @@ class GASLExecutor:
                         previous_result = on_result
                     continue
 
+                compiled_command, compile_failure = self._compile_command_before_execution(
+                    command=command,
+                    step_id=step_id,
+                    query=plan_json.get("query", self.state_store.get_state().get("query", "")),
+                )
+                if compile_failure is not None:
+                    result = compile_failure
+                    results.append(result)
+                    history_entry = HistoryEntry(
+                        step_id=step_id,
+                        command=command.raw_text,
+                        status=result.status,
+                        result_count=result.count,
+                        duration_ms=result.duration_ms,
+                        timestamp=result.timestamp,
+                        error_message=result.error_message,
+                        provenance=result.provenance,
+                        produced_artifact=None,
+                    )
+                    self.state_store.add_history_entry(history_entry)
+                    previous_result = result
+                    if result.status == "error" and plan.config.get("stop_on_error", True):
+                        break
+                    elif result.status == "empty" and not plan.config.get("continue_on_empty", False):
+                        break
+                    continue
+
+                command = compiled_command
+                command_inputs = self._capture_command_inputs(command)
                 result = self._execute_command(command, step_id)
                 results.append(result)
                 
@@ -447,6 +478,56 @@ class GASLExecutor:
             "context": referenced_context,
             "contracts": referenced_contracts,
         }
+
+    def _compile_command_before_execution(
+        self,
+        *,
+        command: Command,
+        step_id: str,
+        query: str,
+    ) -> tuple[Command, Optional[ExecutionResult]]:
+        compiled = self.step_compiler.compile_step(
+            command=command,
+            query=query,
+            state_store=self.state_store,
+            context_store=self.context_store,
+            history=self.state_store.get_state().get("history", []),
+        )
+        self.trace.log(
+            "command_compile",
+            {
+                "step_id": step_id,
+                "original_command": command.raw_text,
+                "action": compiled.action,
+                "compiled_command": compiled.rendered_command,
+                "reason": compiled.reason,
+                "defects": compiled.defects,
+                "symbol_scope": {
+                    name: {"availability": state.availability, "shape": state.shape}
+                    for name, state in compiled.symbol_scope.items()
+                },
+            },
+        )
+        if compiled.action in {"accept", "rewrite"} and compiled.command is not None:
+            return compiled.command, None
+        failure = ExecutionResult(
+            command=command.raw_text,
+            status="error",
+            error_message=f"step compiler blocked execution: {compiled.reason}",
+            duration_ms=0,
+            timestamp=datetime.now(),
+            provenance=[
+                Provenance(
+                    source_id="step_compiler",
+                    extraction={
+                        "action": compiled.action,
+                        "reason": compiled.reason,
+                        "defects": compiled.defects,
+                    },
+                )
+            ],
+        )
+        return command, failure
 
     @staticmethod
     def _count_rows_in_inputs(command_inputs: Dict[str, Any]) -> int:

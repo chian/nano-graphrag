@@ -156,6 +156,7 @@ class QueryAwarePromptSystem:
             'plan_generation',
             'plan_symbols',
             'plan_repair',
+            'command_compile',
             'process_batch',
             'process_repair',
             'classify_batch',
