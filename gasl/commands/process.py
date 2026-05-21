@@ -7,7 +7,6 @@ import re
 from typing import Any, List, Dict, Optional
 from .base import CommandHandler
 from ..types import Command, ExecutionResult, Provenance
-from ..validation import LLMJudgeValidator
 from ..utils import normalize_node_id
 from ..state_manager import StateManager
 from ..process_runtime import (
@@ -15,8 +14,8 @@ from ..process_runtime import (
     DerivedArtifactRegistry,
     ProcessSubtypeRouter,
 )
+from ..command_repair_agent import LLMCommandRepairAgent, CommandFailureEnvelope, ProcessAlignmentRequest
 from ..contracts import make_contract, merge_contract
-from ..process_repair_prompting import format_process_repair_case
 from ..prompt_observations import PromptObservationLogger
 
 
@@ -52,7 +51,6 @@ class ProcessHandler(CommandHandler):
         super().__init__(state_store, context_store)
         self.llm_func = llm_func
         self.micro_framework = micro_framework
-        self.validator = LLMJudgeValidator(llm_func)
         self.state_manager = state_manager or StateManager(state_store, context_store)
         self.adapter = adapter
         api_key = None
@@ -62,6 +60,7 @@ class ProcessHandler(CommandHandler):
             graph=getattr(adapter, "graph", None),
             api_key=api_key,
         )
+        self.command_repair_agent = LLMCommandRepairAgent(llm_func)
         self.subtype_router = ProcessSubtypeRouter()
         state_file = getattr(state_store, "state_file", None)
         self.artifact_registry = artifact_registry or DerivedArtifactRegistry(state_file=state_file)
@@ -145,12 +144,36 @@ class ProcessHandler(CommandHandler):
             )
             hit_density = diagnostics["probe_result_count"] / max(1, len(selection.probe_items))
             diagnostics["probe_hit_density"] = round(hit_density, 3)
+            alignment = self.command_repair_agent.get_process_alignment(
+                ProcessAlignmentRequest(
+                    data_iterator=iter(selection.probe_items),
+                    query=query,
+                    instruction=final_instruction,
+                    interpretation=interpretation,
+                    probe_result=probe_result,
+                    prompt_logger=self.prompt_logger,
+                )
+            )
+            diagnostics["alignment"] = alignment
+            if alignment.get("instruction_adjustment"):
+                final_instruction = f"{final_instruction}\n{alignment.get('instruction_adjustment')}"
+
+            failure = self._build_process_failure_envelope(
+                data=selection.probe_items,
+                query=query,
+                instruction=final_instruction,
+                incoming_contract=incoming_contract,
+                probe_result=probe_result,
+                stage="probe",
+            )
             repair = None
-            if self._should_attempt_repair(interpretation, hit_density):
+            if failure is not None:
+                diagnostics["failure"] = failure.__dict__
                 repair = self._repair_contract_and_strategy(
+                    failure=failure,
                     data=data,
                     query=query,
-                    instruction=instruction,
+                    instruction=final_instruction,
                     history=history,
                     incoming_contract=incoming_contract,
                     interpretation=interpretation,
@@ -309,20 +332,6 @@ class ProcessHandler(CommandHandler):
             contract=process_contract,
         )
         
-        # Validate with LLM judge if available
-        if self.validator and status == "success":
-            validation = self.validator.validate_command_success(
-                command.command_type, command.args, normalized_items, len(normalized_items)
-            )
-            
-            if not validation.get("valid", True):
-                # Override status if LLM judge says it failed
-                result_obj.status = "error"
-                result_obj.error_message = f"LLM Judge Validation Failed: {validation.get('reason', 'Unknown validation failure')}"
-                print(f"DEBUG: PROCESS - LLM Judge validation failed: {validation}")
-            else:
-                print(f"DEBUG: PROCESS - LLM Judge validation passed: {validation.get('reason', 'Valid')}")
-        
         return result_obj
 
     @staticmethod
@@ -401,19 +410,48 @@ class ProcessHandler(CommandHandler):
             return instruction
         return f"{instruction}\nContract: {contract}"
 
-    @staticmethod
-    def _should_attempt_repair(interpretation: Optional[Dict[str, Any]], hit_density: float) -> bool:
-        if interpretation is None:
-            return True
-        if interpretation.get("confidence", 0.0) < 0.65:
-            return True
-        if hit_density < 0.2:
-            return True
-        return False
+    def _build_process_failure_envelope(
+        self,
+        *,
+        data: List[Dict[str, Any]],
+        query: str,
+        instruction: str,
+        incoming_contract: Dict[str, Any],
+        probe_result: Dict[str, Any],
+        stage: str,
+    ) -> Optional[CommandFailureEnvelope]:
+        output_items = probe_result.get("filtered_items") or probe_result.get("processed_items") or []
+        processing_method = str(probe_result.get("processing_method", "") or "")
+        output_count = len(output_items)
+        input_count = len(data)
+        error_type = ""
+        error_message = ""
+        if processing_method == "error":
+            error_type = "parse_or_model_error"
+            error_message = str((probe_result.get("summary") or {}).get("error", "PROCESS batch error"))
+        elif input_count > 0 and output_count == 0:
+            error_type = "empty_output"
+            error_message = "PROCESS produced no rows from non-empty input."
+        if not error_type:
+            return None
+        return CommandFailureEnvelope(
+            command_name="PROCESS",
+            stage=stage,
+            status="error",
+            error_type=error_type,
+            error_message=error_message,
+            input_count=input_count,
+            output_count=output_count,
+            processing_method=processing_method,
+            instruction=instruction,
+            query=query,
+            incoming_contract=incoming_contract,
+        )
 
     def _repair_contract_and_strategy(
         self,
         *,
+        failure: CommandFailureEnvelope,
         data: List[Dict[str, Any]],
         query: str,
         instruction: str,
@@ -424,47 +462,26 @@ class ProcessHandler(CommandHandler):
         probe_result: Dict[str, Any],
     ) -> Optional[Dict[str, Any]]:
         try:
-            llm = self._llm_for_interpretation()
-            prompt = self._create_repair_prompt(
-                data=data,
+            parsed = self.command_repair_agent.get_process_repair(
+                failure=failure,
+                data_iterator=iter(data),
                 query=query,
                 instruction=instruction,
                 history=history,
                 incoming_contract=incoming_contract,
                 interpretation=interpretation,
-                selection=selection,
+                selection_diagnostics=selection.diagnostics,
                 probe_result=probe_result,
+                prompt_logger=self.prompt_logger,
             )
-            obs_id = None
-            if self.prompt_logger:
-                obs_id = self.prompt_logger.record_invocation(
-                    prompt_name="process_repair",
-                    prompt_text=prompt,
-                    model=getattr(llm, "model", None),
-                    metadata={
-                        "query": query,
-                        "instruction": instruction,
-                        "probe_result_count": len(probe_result.get("filtered_items") or probe_result.get("processed_items") or []),
-                    },
-                )
-            raw = llm.call(prompt)
-            parsed = self._parse_repair_response(raw)
-            if self.prompt_logger and obs_id:
-                self.prompt_logger.record_outcome(
-                    obs_id,
-                    prompt_name="process_repair",
-                    response_text=raw,
-                    parsed=parsed,
-                    labels={
-                        "parse_success": bool(parsed),
-                        "current_rows_sufficient": parsed.get("current_rows_sufficient"),
-                        "selector_valid": parsed.get("selector_hint") in {"keep_current", "lexical", "vector", "central", "broaden", "narrow"},
-                    },
-                )
             return parsed
         except Exception as exc:
             print(f"DEBUG: PROCESS repair skipped: {exc}")
             return None
+
+    @staticmethod
+    def _parse_repair_response(text: str) -> Dict[str, Any]:
+        return LLMCommandRepairAgent._parse_json(text)
 
     def _record_artifact_candidate(
         self,
@@ -644,32 +661,6 @@ Rules:
 - Do not answer the user query. Interpret the data shape and instruction only.
 """
 
-    def _create_repair_prompt(
-        self,
-        *,
-        data: List[Dict[str, Any]],
-        query: str,
-        instruction: str,
-        history: List[Dict[str, Any]],
-        incoming_contract: Dict[str, Any],
-        interpretation: Optional[Dict[str, Any]],
-        selection,
-        probe_result: Dict[str, Any],
-    ) -> str:
-        from nano_graphrag.prompt_system import get_prompt_system
-        base_prompt = get_prompt_system().get_prompt("process_repair", optimize=False)
-        case_text = format_process_repair_case(
-            data=data,
-            query=query,
-            instruction=instruction,
-            history=history,
-            incoming_contract=incoming_contract,
-            interpretation=interpretation,
-            selection_diagnostics=selection.diagnostics,
-            probe_result=probe_result,
-        )
-        return f"{base_prompt}\n\n{case_text}"
-
     def _format_data_for_llm(self, data: Any) -> str:
         """Format data for LLM consumption."""
         if not isinstance(data, list):
@@ -682,25 +673,18 @@ Rules:
         for i, item in enumerate(sample_data):
             if isinstance(item, dict):
                 node_id = item.get('id', f'item_{i}')
+                name = self._primary_label(item) or node_id
+                entity_type = (
+                    self._get_by_path(item, "data.entity_type")
+                    or item.get("entity_type")
+                    or "Unknown"
+                )
 
-                # Handle nested data structure from FIND command
-                if 'data' in item and isinstance(item['data'], dict):
-                    node_data = item['data']
-                    name = node_id
-                    description = node_data.get('description', 'No description')
-                    entity_type = node_data.get('entity_type', 'Unknown')
-                else:
-                    # Handle flat structure
-                    name = self._primary_label(item) or node_id
-                    description = item.get('description', 'No description')
-                    entity_type = item.get('entity_type', 'Unknown')
-                
-                formatted.append(f"Node {i+1} ({node_id}):")
-                formatted.append(f"  Name: {name}")
-                formatted.append(f"  Entity Type: {entity_type}")
-                formatted.append(f"  Description: {description}")
+                formatted.append(f"Row {i+1} ({node_id}):")
+                formatted.append(f"  label: {self._truncate_scalar(name)}")
+                formatted.append(f"  entity_type: {self._truncate_scalar(entity_type)}")
                 for field_name, field_value in self._scalar_preview(item):
-                    formatted.append(f"  {field_name}: {field_value}")
+                    formatted.append(f"  {field_name}: {self._truncate_scalar(field_value)}")
                 formatted.append("")
         
         if len(data) > 20:
@@ -755,12 +739,19 @@ Rules:
     def _scalar_preview(item: Dict[str, Any], *, limit: int = 6) -> List[tuple[str, Any]]:
         preview = []
         for field_name, field_value in ProcessHandler._iter_scalar_fields(item):
-            if field_name in {"id", "description"}:
+            if field_name in {"id", "description"} or field_name.endswith(".description"):
                 continue
             preview.append((field_name, field_value))
             if len(preview) >= limit:
                 break
         return preview
+
+    @staticmethod
+    def _truncate_scalar(value: Any, *, limit: int = 120) -> str:
+        text = str(value)
+        if len(text) <= limit:
+            return text
+        return text[: limit - 3] + "..."
 
     @staticmethod
     def _primary_label(item: Dict[str, Any]) -> str:
@@ -809,21 +800,6 @@ Rules:
                 "output_contract": "",
                 "confidence": 0.0,
             }
-
-    @staticmethod
-    def _parse_repair_response(text: str) -> Dict[str, Any]:
-        try:
-            import json
-            payload = json.loads(ProcessHandler._strip_json_fences(text))
-            return {
-                "refined_instruction": str(payload.get("refined_instruction", "") or ""),
-                "selector_hint": str(payload.get("selector_hint", "keep_current") or "keep_current"),
-                "current_rows_sufficient": bool(payload.get("current_rows_sufficient", True)),
-                "confidence": float(payload.get("confidence", 0.0) or 0.0),
-                "reason": str(payload.get("reason", "") or ""),
-            }
-        except Exception:
-            return {}
 
     @staticmethod
     def _get_by_path(item: Any, path: str) -> Any:

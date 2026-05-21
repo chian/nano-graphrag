@@ -5,7 +5,6 @@ Object Creation command handlers.
 from typing import Any, List, Dict
 from .base import CommandHandler
 from ..types import Command, ExecutionResult, Provenance
-from ..validation import LLMJudgeValidator
 
 
 class ObjectCreateHandler(CommandHandler):
@@ -14,7 +13,6 @@ class ObjectCreateHandler(CommandHandler):
     def __init__(self, state_store, context_store, llm_func=None, state_manager=None):
         super().__init__(state_store, context_store, state_manager)
         self.llm_func = llm_func
-        self.validator = LLMJudgeValidator(llm_func) if llm_func else None
     
     def can_handle(self, command: Command) -> bool:
         return command.command_type in ["CREATE", "GENERATE"]
@@ -148,20 +146,6 @@ class ObjectCreateHandler(CommandHandler):
                 provenance=[self._create_provenance("generate", "generate",
                                                    content_type=content_type, source_variable=source_variable)]
             )
-            
-            # Validate with LLM judge if available
-            if self.validator and len(generated_objects) > 0:
-                validation = self.validator.validate_command_success(
-                    command.command_type, command.args, generated_objects, len(generated_objects)
-                )
-                
-                if not validation.get("valid", True):
-                    # Override status if LLM judge says it failed
-                    result_obj.status = "error"
-                    result_obj.error_message = f"LLM Judge Validation Failed: {validation.get('reason', 'Unknown validation failure')}"
-                    print(f"DEBUG: GENERATE - LLM Judge validation failed: {validation}")
-                else:
-                    print(f"DEBUG: GENERATE - LLM Judge validation passed: {validation.get('reason', 'Valid')}")
             
             return result_obj
             

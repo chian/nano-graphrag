@@ -11,11 +11,13 @@ import json
 import os
 import random
 import re
+import httpx
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence
 
 from openai import AsyncOpenAI
+from .contracts import iter_scalar_fields
 from .llm.runtime_config import resolve_runtime_llm_config
 
 
@@ -120,6 +122,8 @@ class CandidateSelector:
         runtime_cfg = resolve_runtime_llm_config(explicit_api_key=api_key or os.getenv("OPENAI_API_KEY") or os.getenv("VIZ_API_KEY"))
         self.api_key = runtime_cfg.api_key
         self.base_url = runtime_cfg.base_url
+        self.transport = runtime_cfg.transport
+        self.shim_user = os.getenv("NANOGRAPHRAG_SHIM_USER", "chia")
         self._client: Optional[AsyncOpenAI] = None
 
     def select(
@@ -188,7 +192,7 @@ class CandidateSelector:
         if not positives:
             return selection.final_items
 
-        positive_ids = {str(item.get("id", "")) for item in positives if isinstance(item, dict)}
+        positive_ids = {self._stable_item_key(item) for item in positives if isinstance(item, dict)}
         positive_terms = self._positive_terms(positives)
         ranked = sorted(
             full_data,
@@ -230,18 +234,16 @@ class CandidateSelector:
         for tok in tokens:
             if tok in item_text:
                 score += 1
-        item_id = str(item.get("id", "")).lower() if isinstance(item, dict) else ""
-        entity = str(item.get("data", {}).get("entity_type", "")).lower() if isinstance(item, dict) else ""
-        alt_names = str(item.get("data", {}).get("alternative_names", "")).lower() if isinstance(item, dict) else ""
+        exact_fields = []
+        if isinstance(item, dict):
+            for field_name, value in iter_scalar_fields(item, max_depth=2):
+                if field_name.endswith(".id") or field_name == "id":
+                    exact_fields.append(str(value).lower())
         for tok in tokens:
-            if tok == item_id:
+            if any(tok == v for v in exact_fields):
                 score += 5
-            elif tok in item_id:
+            elif any(tok in v for v in exact_fields):
                 score += 2
-            if tok in entity:
-                score += 2
-            if tok in alt_names:
-                score += 1
         return score
 
     def _central_rank(self, data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -271,12 +273,30 @@ class CandidateSelector:
             return []
 
     async def _vector_rank_async(self, data: List[Dict[str, Any]], text: str, top_k: int) -> List[Dict[str, Any]]:
+        contents = [self._item_search_text(item)[:2000] for item in data]
+        if self.transport == "shim":
+            async with httpx.AsyncClient(headers={"x-api-key": self.api_key or ""}) as client:
+                query_resp = await client.post(
+                    self.base_url.rstrip("/") + "/embeddings",
+                    json={"model": "text-embedding-3-small", "input": [text], "encoding_format": "float", "user": self.shim_user},
+                )
+                item_resp = await client.post(
+                    self.base_url.rstrip("/") + "/embeddings",
+                    json={"model": "text-embedding-3-small", "input": contents, "encoding_format": "float", "user": self.shim_user},
+                )
+            q_json = query_resp.json()
+            i_json = item_resp.json()
+            q = q_json["data"][0]["embedding"]
+            sims = []
+            for item, emb in zip(data, i_json["data"]):
+                sims.append((item, self._cosine(q, emb["embedding"])))
+            sims.sort(key=lambda pair: pair[1], reverse=True)
+            return [item for item, _ in sims[:top_k]]
         if self._client is None:
             client_kwargs = {"api_key": self.api_key}
             if self.base_url:
                 client_kwargs["base_url"] = self.base_url
             self._client = AsyncOpenAI(**client_kwargs)
-        contents = [self._item_search_text(item)[:2000] for item in data]
         query_resp = await self._client.embeddings.create(model="text-embedding-3-small", input=[text], encoding_format="float")
         item_resp = await self._client.embeddings.create(model="text-embedding-3-small", input=contents, encoding_format="float")
         q = query_resp.data[0].embedding
@@ -337,19 +357,10 @@ class CandidateSelector:
         seen = set()
         for group in groups:
             for item in group:
-                if isinstance(item, dict):
-                    node_id = (
-                        item.get("id")
-                        or item.get("group_id")
-                        or item.get("group_key")
-                        or item.get("name")
-                        or id(item)
-                    )
-                else:
-                    node_id = id(item)
-                if node_id in seen:
+                item_key = CandidateSelector._stable_item_key(item)
+                if item_key in seen:
                     continue
-                seen.add(node_id)
+                seen.add(item_key)
                 merged.append(item)
         return merged
 
@@ -357,30 +368,26 @@ class CandidateSelector:
     def _item_search_text(item: Dict[str, Any]) -> str:
         if not isinstance(item, dict):
             return str(item).lower()
-        parts = [str(item.get("id", ""))]
-        parts.extend([
-            str(item.get("group_id", "")),
-            str(item.get("group_name", "")),
-            str(item.get("group_key", "")),
-            str(item.get("count", "")),
-            str(item.get("result", "")),
-            str(item.get("name", "")),
-        ])
-        if isinstance(item.get("data"), dict):
-            data = item["data"]
-            parts.extend([
-                str(data.get("entity_type", "")),
-                str(data.get("entity_name", "")),
-                str(data.get("alternative_names", "")),
-                str(data.get("description", "")),
-            ])
-        else:
-            parts.extend([
-                str(item.get("entity_type", "")),
-                str(item.get("name", "")),
-                str(item.get("description", "")),
-            ])
+        parts: list[str] = []
+        for field_name, value in iter_scalar_fields(item, max_depth=2):
+            if field_name.endswith(".id") or field_name == "id":
+                parts.append(str(value))
+                continue
+            parts.append(str(value))
         return " ".join(parts).lower()
+
+    @staticmethod
+    def _stable_item_key(item: Any) -> str:
+        if not isinstance(item, dict):
+            return str(item)
+        key_parts = []
+        for field_name, value in iter_scalar_fields(item, max_depth=2):
+            if isinstance(value, (str, int, float, bool)):
+                key_parts.append((field_name, str(value)))
+        if not key_parts:
+            return str(id(item))
+        encoded = json.dumps(sorted(key_parts), ensure_ascii=True)
+        return hashlib.sha1(encoded.encode("utf-8")).hexdigest()
 
     @staticmethod
     def _positive_terms(items: List[Dict[str, Any]]) -> set[str]:
@@ -393,7 +400,7 @@ class CandidateSelector:
         return terms
 
     def _positive_similarity(self, item: Dict[str, Any], positive_ids: set[str], positive_terms: set[str]) -> int:
-        node_id = str(item.get("id", "")) if isinstance(item, dict) else ""
+        node_id = self._stable_item_key(item)
         text = self._item_search_text(item)
         score = 0
         if node_id in positive_ids:

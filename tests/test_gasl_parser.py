@@ -69,6 +69,16 @@ class TestGASLParser(unittest.TestCase):
         self.assertEqual(cmd.args["weight_field"], "occurrence_count")
         self.assertEqual(cmd.args["result_variable"], "unique_pathogens")
 
+    def test_process_preserves_semicolons_and_target_var(self):
+        cmd = self.parser.parse_command(
+            "PROCESS control_zone_paths with instruction: extract rows where the source node is an ENGINEERING_CONTROL and the target node is a HOSPITAL_ZONE; create fields control_id from src_id, control_name from source entity_name, hospital_zone_id from tgt_id, and hospital_zone_name from target entity_name AS control_zone_rows"
+        )
+        self.assertEqual(cmd.command_type, "PROCESS")
+        self.assertEqual(cmd.args["variable"], "control_zone_paths")
+        self.assertEqual(cmd.args["target_variable"], "control_zone_rows")
+        self.assertIn("create fields control_id from src_id", cmd.args["instruction"])
+        self.assertNotIn("AS control_zone_rows", cmd.args["instruction"])
+
 
 if __name__ == "__main__":
     unittest.main()

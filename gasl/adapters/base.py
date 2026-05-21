@@ -3,7 +3,7 @@ Base graph adapter.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterator, List, Optional
 from ..types import AdapterCapabilities
 
 
@@ -33,6 +33,15 @@ class GraphAdapter(ABC):
     def find_paths(self, filters: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Find paths matching filters."""
         pass
+
+    def iter_paths(self, filters: Dict[str, Any]) -> Iterator[Dict[str, Any]]:
+        """Yield path results incrementally.
+
+        Adapters may override this with a true iterator. The default fallback
+        simply yields the materialized `find_paths` results.
+        """
+        for row in self.find_paths(filters):
+            yield row
     
     def get_schema(self) -> Dict[str, Any]:
         """Get graph schema information."""

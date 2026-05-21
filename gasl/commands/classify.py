@@ -5,7 +5,6 @@ CLASSIFY command handler.
 from typing import Any, List
 from .base import CommandHandler
 from ..types import Command, ExecutionResult, Provenance
-from ..validation import LLMJudgeValidator
 
 
 class ClassifyHandler(CommandHandler):
@@ -14,7 +13,6 @@ class ClassifyHandler(CommandHandler):
     def __init__(self, state_store, context_store, llm_func, state_manager=None):
         super().__init__(state_store, context_store, state_manager)
         self.llm_func = llm_func
-        self.validator = LLMJudgeValidator(llm_func) if llm_func else None
     
     def can_handle(self, command: Command) -> bool:
         return command.command_type == "CLASSIFY"
@@ -132,20 +130,6 @@ class ClassifyHandler(CommandHandler):
                 count=successful_classifications,
                 provenance=provenance
             )
-            
-            # Validate with LLM judge if available
-            if self.validator and successful_classifications > 0:
-                validation = self.validator.validate_command_success(
-                    command.command_type, command.args, result, successful_classifications
-                )
-                
-                if not validation.get("valid", True):
-                    # Override status if LLM judge says it failed
-                    result_obj.status = "error"
-                    result_obj.error_message = f"LLM Judge Validation Failed: {validation.get('reason', 'Unknown validation failure')}"
-                    print(f"DEBUG: CLASSIFY - LLM Judge validation failed: {validation}")
-                else:
-                    print(f"DEBUG: CLASSIFY - LLM Judge validation passed: {validation.get('reason', 'Valid')}")
             
             return result_obj
             

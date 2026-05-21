@@ -5,7 +5,6 @@ COUNT command handler.
 from typing import Any, List, Dict
 from .base import CommandHandler
 from ..types import Command, ExecutionResult, Provenance
-from ..validation import LLMJudgeValidator
 from ..utils import normalize_string
 
 
@@ -14,7 +13,6 @@ class CountHandler(CommandHandler):
     
     def __init__(self, state_store, context_store, llm_func=None, state_manager=None):
         super().__init__(state_store, context_store, state_manager)
-        self.validator = LLMJudgeValidator(llm_func) if llm_func else None
     
     def can_handle(self, command: Command) -> bool:
         return command.command_type == "COUNT"

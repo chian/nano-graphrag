@@ -370,10 +370,8 @@ class MicroActionFramework:
     
     def _count_batch(self, batch: List[Dict], instruction: str) -> ExecutionResult:
         """Core COUNT logic for a single batch."""
-        # For COUNT, we need to know what field to count
-        # This is a simplified version - real implementation would parse instruction
-        field_name = "entity_type"  # Default field
-        
+        field_name = self._infer_group_field(batch, instruction)
+
         count_results = []
         field_counts = {}
         
@@ -395,11 +393,17 @@ class MicroActionFramework:
     
     def _aggregate_batch(self, batch: List[Dict], instruction: str) -> ExecutionResult:
         """Core AGGREGATE logic for a single batch."""
-        # Simplified aggregation - group by entity_type
+        group_field = self._infer_group_field(batch, instruction)
+        if not group_field:
+            return self._create_result(
+                status="success",
+                data={"aggregated_groups": [{"group_key": "__all__", "count": len(batch), "items": batch}]},
+                count=1,
+            )
         groups = {}
-        
+
         for item in batch:
-            group_key = item.get("entity_type", "unknown")
+            group_key = item.get(group_field, "unknown")
             if group_key not in groups:
                 groups[group_key] = []
             groups[group_key].append(item)
@@ -417,6 +421,36 @@ class MicroActionFramework:
             data={"aggregated_groups": aggregated_groups},
             count=len(aggregated_groups)
         )
+
+    def _infer_group_field(self, batch: List[Dict], instruction: str) -> str | None:
+        if not batch or not isinstance(batch[0], dict):
+            return None
+        lower = instruction.lower()
+        for marker in (" by ", " per ", " each "):
+            if marker in lower:
+                candidate = lower.split(marker, 1)[1].split()[0].strip(" ,.")
+                for key in batch[0].keys():
+                    if key.lower() == candidate:
+                        return key
+        scored: list[tuple[tuple[float, int], str]] = []
+        total = len(batch)
+        for key in batch[0].keys():
+            vals = [row.get(key) for row in batch if row.get(key) is not None]
+            if not vals:
+                continue
+            scalar_ratio = sum(isinstance(v, (str, int, float, bool)) for v in vals) / len(vals)
+            if scalar_ratio < 0.8:
+                continue
+            distinct = len(set(map(str, vals)))
+            if distinct <= 1:
+                continue
+            uniqueness = distinct / total if total else 1.0
+            score = (1.0 - abs(0.35 - min(uniqueness, 1.0)), sum(isinstance(v, str) for v in vals))
+            scored.append((score, key))
+        if not scored:
+            return None
+        scored.sort(reverse=True)
+        return scored[0][1]
     
     def _calculate_optimal_batch_size(self, data: List[Dict], instruction: str) -> int:
         """Calculate optimal batch size based on token estimation."""
@@ -486,32 +520,47 @@ class MicroActionFramework:
         formatted = []
         for i, item in enumerate(data):
             if isinstance(item, dict):
-                # Get stable ID and name
-                if 'data' in item and isinstance(item['data'], dict):
-                    data_dict = item['data']
-                    stable_id = data_dict.get('stable_id', f'item_{i}')
-                    name = item.get('id', 'Unknown')  # The top-level ID is the entity name
-                    description = data_dict.get('description', 'No description')
-                    entity_type = data_dict.get('entity_type', 'Unknown')
-                else:
-                    # Handle flat structure (for processed data)
-                    stable_id = item.get('stable_id', f'item_{i}')
-                    name = item.get('name', item.get('id', 'Unknown'))
-                    description = item.get('description', 'No description')
-                    entity_type = item.get('entity_type', 'Unknown')
-                
-                processed_field = item.get('processed_field', 'No processed field')
-                
-                # Show both original and normalized IDs
+                name = item.get('name', item.get('id', 'Unknown'))
+                entity_type = (
+                    (item.get('data') or {}).get('entity_type')
+                    if isinstance(item.get('data'), dict)
+                    else item.get('entity_type', 'Unknown')
+                )
                 normalized_id = normalize_node_id(name)
-                formatted.append(f"Node {i+1} (ID: {name} -> normalized: {normalized_id}):")
-                formatted.append(f"  Name: {name}")
-                formatted.append(f"  Entity Type: {entity_type}")
-                formatted.append(f"  Description: {description}")
-                formatted.append(f"  Processed Field: {processed_field}")
+                formatted.append(f"Row {i+1} (ID: {name} -> normalized: {normalized_id}):")
+                formatted.append(f"  label: {self._truncate_scalar(name)}")
+                formatted.append(f"  entity_type: {self._truncate_scalar(entity_type)}")
+                for key, value in self._scalar_preview(item):
+                    formatted.append(f"  {key}: {self._truncate_scalar(value)}")
                 formatted.append("")
         
         return "\n".join(formatted)
+
+    def _scalar_preview(self, item: Dict[str, Any], *, limit: int = 8) -> List[tuple[str, Any]]:
+        preview: List[tuple[str, Any]] = []
+        def walk(obj: Any, prefix: str = "", depth: int = 0):
+            if depth > 2:
+                return
+            if isinstance(obj, dict):
+                for key, value in obj.items():
+                    name = f"{prefix}.{key}" if prefix else str(key)
+                    if isinstance(value, (str, int, float, bool)):
+                        if key == "description" or name.endswith(".description"):
+                            continue
+                        preview.append((name, value))
+                    elif isinstance(value, dict):
+                        walk(value, name, depth + 1)
+            elif isinstance(obj, (str, int, float, bool)) and prefix:
+                preview.append((prefix, obj))
+        walk(item)
+        return preview[:limit]
+
+    @staticmethod
+    def _truncate_scalar(value: Any, *, limit: int = 120) -> str:
+        text = str(value)
+        if len(text) <= limit:
+            return text
+        return text[: limit - 3] + "..."
     
     
     def _create_result(self, status: str, data: Dict, count: int) -> ExecutionResult:

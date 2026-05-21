@@ -214,16 +214,18 @@ class FlexibleParser:
             text = text[var_match.end():].strip()
         
         # Extract instruction
+        # Extract target variable (AS clause)
+        as_match = re.search(r'\s+AS\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s*$', text, re.IGNORECASE)
+        if as_match:
+            args["target_variable"] = as_match.group(1)
+            text = text[:as_match.start()].strip()
+
+        # Extract instruction
         if text.startswith("with"):
             instruction = text[4:].strip()
             args["instruction"] = instruction
         else:
             args["instruction"] = text
-        
-        # Extract target variable (AS clause)
-        as_match = re.search(r'AS\s+([a-zA-Z_][a-zA-Z0-9_.]*)', text)
-        if as_match:
-            args["target_variable"] = as_match.group(1)
         
         return args
     

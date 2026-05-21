@@ -19,7 +19,7 @@ class GASLParser:
             # Core commands
             "DECLARE": r"DECLARE\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+AS\s+(DICT|LIST|COUNTER)(?:\s+WITH_DESCRIPTION\s+\"([^\"]*)\")?",
             "FIND": r"FIND\s+(nodes|edges|paths)\s+(?:with\s+)?(.+?)(?:\s+AS\s+([a-zA-Z_][a-zA-Z0-9_.]*))?$",
-            "PROCESS": r"PROCESS\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+(?:with\s+)?([^;]+)(?:\s+AS\s+([a-zA-Z_][a-zA-Z0-9_.]*))?",
+            "PROCESS": r"PROCESS\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+(?:with\s+)?(.+?)(?:\s+AS\s+([a-zA-Z_][a-zA-Z0-9_.]*))?$",
             "COUNT": r"COUNT.*AS.*",
             "AGGREGATE": r"AGGREGATE\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+by\s+(.+?)\s+with\s+(.+?)(?:\s+AS\s+([a-zA-Z_][a-zA-Z0-9_.]*))?$",
             "PROJECT": r"PROJECT\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+GRAIN\s+(node|edge|path|paper|chunk)\s+FIELDS\s+(.+?)(?:\s+KEYS\s+(.+?))?(?:\s+WEIGHT\s+([a-zA-Z_][a-zA-Z0-9_.]*))?(?:\s+(PRESERVE_MULTIPLICITY))?(?:\s+AS\s+([a-zA-Z_][a-zA-Z0-9_.]*))?$",

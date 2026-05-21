@@ -6,10 +6,9 @@ import re
 from typing import Any, List, Dict
 from .base import CommandHandler
 from ..types import Command, ExecutionResult, Provenance
-from ..validation import LLMJudgeValidator
+from ..search_refinement_agent import LLMSearchRefinementAgent
 from ..adapters.base import GraphAdapter
 from ..contracts import make_contract
-from ..retrieval_probe import RetrievalProbePolicy
 
 
 class GraphNavHandler(CommandHandler):
@@ -18,8 +17,7 @@ class GraphNavHandler(CommandHandler):
     def __init__(self, state_store, context_store, adapter: GraphAdapter, llm_func=None, state_manager=None):
         super().__init__(state_store, context_store, state_manager)
         self.adapter = adapter
-        self.validator = LLMJudgeValidator(llm_func) if llm_func else None
-        self.probe_policy = RetrievalProbePolicy()
+        self.search_refinement_agent = LLMSearchRefinementAgent(llm_func)
     
     def can_handle(self, command: Command) -> bool:
         return command.command_type in ["GRAPHWALK", "GRAPHCONNECT", "SUBGRAPH", "GRAPHPATTERN"]
@@ -74,7 +72,8 @@ class GraphNavHandler(CommandHandler):
         source_cap = 100
         follow_filters = self._normalize_follow_types(follow_types)
 
-        if self.validator and (len(source_nodes) > 10 or depth > 1):
+        pilot_refinement = {}
+        if len(source_nodes) > 10 or depth > 1:
             pilot = self._walk(source_nodes, follow_filters, depth, source_cap=10, max_nodes=60, edge_cap=15)
             pilot_contract = make_contract(
                 payload_kind="walk_rows",
@@ -87,14 +86,13 @@ class GraphNavHandler(CommandHandler):
                 grain_keys=["src_id", "tgt_id", "relation_type", "path_depth"],
                 multiplicity_preserved=True,
             )
-            pilot_validation = self.validator.validate_graphwalk_semantics(
+            pilot_refinement = self.search_refinement_agent.get_graphwalk_refinement(
                 command.args,
                 source_nodes[:10],
-                pilot,
-                len(pilot),
+                iter(pilot),
                 contract=pilot_contract,
             )
-            if depth > 1 and (not pilot or self.probe_policy.should_adapt(pilot_validation, len(pilot), min_count=25)):
+            if depth > 1 and (not pilot or self.search_refinement_agent.should_apply_refinement(pilot_refinement, len(pilot), min_count=25)):
                 effective_depth = 1
                 source_cap = min(25, len(source_nodes))
 
@@ -146,47 +144,24 @@ class GraphNavHandler(CommandHandler):
                                                from_variable=from_var, depth=depth)]
         )
         
-        # Dedicated path-semantics validation with source-set context.
-        if self.validator and len(walked_data) > 0:
-            validation = self.validator.validate_graphwalk_semantics(
-                command.args,
-                source_nodes,
-                walked_data,
-                len(walked_data),
-                contract=walk_contract,
-            )
+        notes = list(walk_contract.get("notes", []))
+        if pilot_refinement:
+            notes.append(f"refinement: {pilot_refinement.get('refinement_reason', '').strip()}")
+            if effective_depth != depth:
+                notes.append(f"refinement: adapted GRAPHWALK depth {depth} -> {effective_depth}")
+            walk_contract["refinement"] = pilot_refinement
             walk_contract["confidence"] = min(
                 float(walk_contract.get("confidence", 0.9)),
-                float(validation.get("confidence", walk_contract.get("confidence", 0.9)) or 0.9),
+                float(pilot_refinement.get("refinement_confidence", walk_contract.get("confidence", 0.9)) or 0.9),
             )
-            if validation.get("recommended_payload_kind"):
-                walk_contract["payload_kind"] = validation["recommended_payload_kind"]
-            if validation.get("recommended_grain"):
-                walk_contract["grain_type"] = validation["recommended_grain"]
-            if validation.get("downstream_safe_for"):
-                walk_contract["usable_by"] = list(validation["downstream_safe_for"])
-            notes = list(walk_contract.get("notes", []))
-            notes.append(f"path_semantics: {validation.get('reason', '')}".strip())
-            if effective_depth != depth:
-                notes.append(f"retrieval_probe: adapted GRAPHWALK depth {depth} -> {effective_depth}")
-            walk_contract["notes"] = notes
-            walk_contract["semantic_validation"] = validation
-
-            if result_var:
-                self.context_store.set(result_var, walked_data, contract=walk_contract)
-                if self.state_store.has_variable(result_var):
-                    self.state_store.set_variable_contract(result_var, walk_contract)
-            self.context_store.set("last_walk_result", walked_data, contract=walk_contract)
-            self.context_store.set("last_nodes_result", walked_data, contract=walk_contract)
-            result_obj.contract = walk_contract
-
-            if not validation.get("semantically_valid", True):
-                result_obj.error_message = (
-                    f"Path semantics warning: {validation.get('reason', 'Unknown path semantics warning')}"
-                )
-                print(f"DEBUG: GRAPHWALK - path semantics warning: {validation}")
-            else:
-                print(f"DEBUG: GRAPHWALK - path semantics passed: {validation.get('reason', 'Valid')}")
+        walk_contract["notes"] = notes
+        if result_var:
+            self.context_store.set(result_var, walked_data, contract=walk_contract)
+            if self.state_store.has_variable(result_var):
+                self.state_store.set_variable_contract(result_var, walk_contract)
+        self.context_store.set("last_walk_result", walked_data, contract=walk_contract)
+        self.context_store.set("last_nodes_result", walked_data, contract=walk_contract)
+        result_obj.contract = walk_contract
         
         return result_obj
 

@@ -3,7 +3,7 @@ NetworkX adapter for GASL system.
 """
 
 import networkx as nx
-from typing import Any, Dict, List, Set
+from typing import Any, Dict, Iterator, List, Set
 from .base import GraphAdapter
 from ..types import AdapterCapabilities
 from ..errors import AdapterError
@@ -87,56 +87,62 @@ class NetworkXAdapter(GraphAdapter):
     def find_paths(self, filters: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Find paths matching filters."""
         try:
+            max_results = int(filters.get("_max_results", self.capabilities.max_results) or self.capabilities.max_results)
             paths = []
-            max_path_length = self.capabilities.max_path_length
-            max_pair_budget = int(filters.get("_max_pairs", 0) or 0)
-            relation_type = str(filters.get("relation_type", "") or "").strip('"').strip("'")
-            
-            # Extract source and target from filters
-            source_nodes = self._get_nodes_by_filter(filters.get("source_filter", {}))
-            target_nodes = self._get_nodes_by_filter(filters.get("target_filter", {}))
-            
-            if not source_nodes or not target_nodes:
-                return paths
-
-            search_graph = self._relation_filtered_graph(relation_type) if relation_type else self.graph
-            scanned_pairs = 0
-            
-            # Find paths between source and target nodes
-            for source in source_nodes:
-                for target in target_nodes:
-                    if source != target:
-                        scanned_pairs += 1
-                        if max_pair_budget and scanned_pairs > max_pair_budget:
-                            return paths
-                        try:
-                            # Use NetworkX shortest path
-                            path = nx.shortest_path(search_graph, source, target)
-                            
-                            if len(path) <= max_path_length:
-                                edge_types = self._path_edge_types(path)
-                                path_info = {
-                                    "source": source,
-                                    "target": target,
-                                    "path": path,
-                                    "length": len(path) - 1,
-                                    "type": "path",
-                                    "edge_types": edge_types,
-                                }
-                                paths.append(path_info)
-                        except nx.NetworkXNoPath:
-                            # No path exists
-                            continue
-            
-            # Apply max_results limit
-            max_results = self.capabilities.max_results
-            if len(paths) > max_results:
-                paths = paths[:max_results]
-            
+            for row in self.iter_paths(filters):
+                paths.append(row)
+                if len(paths) >= max_results:
+                    break
             return paths
             
         except Exception as e:
             raise AdapterError(f"Failed to find paths: {e}", "networkx", "find_paths")
+
+    def iter_paths(self, filters: Dict[str, Any]) -> Iterator[Dict[str, Any]]:
+        """Yield paths incrementally so callers can probe early results before widening."""
+        max_path_length = self.capabilities.max_path_length
+        max_pair_budget = int(filters.get("_max_pairs", 0) or 0)
+        relation_type = str(filters.get("relation_type", "") or "").strip('"').strip("'")
+
+        source_nodes = self._get_nodes_by_filter(filters.get("source_filter", {}))
+        target_nodes = self._get_nodes_by_filter(filters.get("target_filter", {}))
+        if not source_nodes or not target_nodes:
+            return
+
+        search_graph = self._relation_filtered_graph(relation_type) if relation_type else self.graph
+        scanned_pairs = 0
+        emitted = 0
+        max_results = int(filters.get("_max_results", self.capabilities.max_results) or self.capabilities.max_results)
+
+        for source in source_nodes:
+            for target in target_nodes:
+                if source == target:
+                    continue
+                scanned_pairs += 1
+                if max_pair_budget and scanned_pairs > max_pair_budget:
+                    return
+                try:
+                    path = nx.shortest_path(search_graph, source, target)
+                except nx.NetworkXNoPath:
+                    continue
+                if len(path) > max_path_length:
+                    continue
+                edge_types = self._path_edge_types(path)
+                source_entity = str((self.graph.nodes.get(source) or {}).get("entity_type") or "").strip('"').strip("'")
+                target_entity = str((self.graph.nodes.get(target) or {}).get("entity_type") or "").strip('"').strip("'")
+                yield {
+                    "source": source,
+                    "target": target,
+                    "path": path,
+                    "length": len(path) - 1,
+                    "type": "path",
+                    "edge_types": edge_types,
+                    "source_entity_type": source_entity,
+                    "target_entity_type": target_entity,
+                }
+                emitted += 1
+                if emitted >= max_results:
+                    return
 
     def _relation_filtered_graph(self, relation_type: str):
         """Return a graph view restricted to a specific relation type."""

@@ -1,7 +1,7 @@
 You are analyzing the results of iteration {iteration} for the query: "{query}"
 
 Current Results:
-{results}{validation_hint}
+{results}
 
 Execution History:
 {execution_history}

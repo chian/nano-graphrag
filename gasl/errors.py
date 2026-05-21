@@ -47,7 +47,21 @@ class StateError(GASLError):
 class LLMError(GASLError):
     """Raised when LLM interactions fail."""
     
-    def __init__(self, message: str, provider: str = None, model: str = None):
+    def __init__(
+        self,
+        message: str,
+        provider: str = None,
+        model: str = None,
+        *,
+        category: str = "unknown",
+        status_code: int | None = None,
+        original_type: str | None = None,
+        fatal: bool = False,
+    ):
         super().__init__(message)
         self.provider = provider
         self.model = model
+        self.category = category
+        self.status_code = status_code
+        self.original_type = original_type
+        self.fatal = fatal

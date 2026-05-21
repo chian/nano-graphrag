@@ -7,22 +7,21 @@ from typing import Any, List
 from .base import CommandHandler
 from ..types import Command, ExecutionResult, Provenance
 from ..adapters.base import GraphAdapter
-from ..validation import LLMJudgeValidator
+from ..search_refinement_agent import LLMSearchRefinementAgent
 from ..state_manager import StateManager
 from ..contracts import make_contract
-from ..retrieval_probe import RetrievalProbePolicy
 
 
 class FindHandler(CommandHandler):
     """Handles FIND commands for graph traversal."""
     PATH_PROBE_PAIR_BUDGET = 120
+    PATH_POST_PROBE_SIZE = 20
     
     def __init__(self, state_store, context_store, adapter: GraphAdapter, llm_func=None, state_manager=None):
         super().__init__(state_store, context_store)
         self.adapter = adapter
-        self.validator = LLMJudgeValidator(llm_func) if llm_func else None
+        self.search_refinement_agent = LLMSearchRefinementAgent(llm_func)
         self.state_manager = state_manager or StateManager(state_store, context_store)
-        self.probe_policy = RetrievalProbePolicy()
     
     def can_handle(self, command: Command) -> bool:
         return command.command_type == "FIND"
@@ -45,9 +44,9 @@ class FindHandler(CommandHandler):
             elif target == "edges":
                 result = self.adapter.find_edges(filters)
             elif target == "paths":
-                result = self._find_paths_with_probe(command, filters)
+                result = self._find_paths_with_refinement(command, filters)
                 strategy = filters.get("_strategy", "adapter_find_paths")
-                diagnostics = filters.get("_probe_diagnostics", {})
+                diagnostics = filters.get("_refinement", {})
             else:
                 return self._create_result(
                     command=command,
@@ -69,7 +68,7 @@ class FindHandler(CommandHandler):
             if strategy != "default":
                 result_contract["notes"] = [f"retrieval_strategy: {strategy}"]
             if diagnostics:
-                result_contract["retrieval_probe"] = diagnostics
+                result_contract["refinement"] = diagnostics
             # Store result using centralized state manager
             result_key = f"find_{target}_{len(self.context_store.keys())}"
             self.state_manager.store_variable_data(result_key, result, store_in_state=False, store_in_context=True, contract=result_contract)
@@ -120,24 +119,6 @@ class FindHandler(CommandHandler):
                 provenance=provenance,
                 contract=result_contract,
             )
-            
-            gate = diagnostics.get("gate", {}) if diagnostics else {}
-            if gate.get("valid") is False:
-                result_obj.status = "error"
-                result_obj.error_message = f"Path query blocked before launch: {gate.get('reason', 'unanchored path query')}"
-            # Validate with LLM judge if available
-            elif self.validator and status == "success":
-                validation = self.validator.validate_command_success(
-                    command.command_type, command.args, result, count
-                )
-                
-                if not validation.get("valid", True):
-                    # Override status if LLM judge says it failed
-                    result_obj.status = "error"
-                    result_obj.error_message = f"LLM Judge Validation Failed: {validation.get('reason', 'Unknown validation failure')}"
-                    print(f"DEBUG: FIND - LLM Judge validation failed: {validation}")
-                else:
-                    print(f"DEBUG: FIND - LLM Judge validation passed: {validation.get('reason', 'Valid')}")
             
             return result_obj
             
@@ -248,37 +229,32 @@ class FindHandler(CommandHandler):
         print(f"DEBUG: Final filters: {filters}")
         return filters
 
-    def _find_paths_with_probe(self, command: Command, filters: dict) -> list[dict]:
-        criteria = command.args.get("criteria", "")
-        exact_path_semantics = bool(filters.get("source_filter") and filters.get("target_filter") and filters.get("relation_type"))
-        if not exact_path_semantics:
-            filters["_strategy"] = "blocked_unanchored_find_paths"
-            filters["_probe_diagnostics"] = {
-                "gate": {
-                    "valid": False,
-                    "reason": "FIND paths must be source/edge/target anchored. Use exact source entity_type=... edge relation_type=... target entity_type=... syntax or choose FIND nodes + GRAPHWALK instead.",
-                    "confidence": 0.98,
-                }
-            }
-            return []
+    def _clean_type(self, value: str | None) -> str:
+        return str(value or "").strip('"').strip("'").strip()
 
-        sample_filters = dict(filters)
-        sample_filters["_max_pairs"] = self.PATH_PROBE_PAIR_BUDGET
-        strict_probe = self.adapter.find_paths(sample_filters)
-        if not strict_probe:
-            filters["_strategy"] = "strict_relation_paths_sampled_empty"
-            filters["_probe_diagnostics"] = {"validation": {"valid": False, "reason": "No relation-constrained paths found in probe sample."}, "sample_size": 0}
-            return []
-        sample = self.probe_policy.sample_rows(strict_probe, seed_text=criteria)
-        validation = self.validator.validate_command_success("FIND", command.args, sample, len(sample)) if self.validator else {}
-        filters["_probe_diagnostics"] = {"validation": validation, "sample_size": len(sample)}
-        if validation.get("valid", True):
-            filters["_strategy"] = "strict_relation_paths_sampled"
+    def _find_paths_with_refinement(self, command: Command, filters: dict) -> list[dict]:
+        initial_filters = dict(filters)
+        initial_filters["_max_results"] = self.PATH_POST_PROBE_SIZE
+        initial_filters["_max_pairs"] = self.PATH_PROBE_PAIR_BUDGET
+        initial_rows = list(self.adapter.iter_paths(initial_filters))
+        refinement = self.search_refinement_agent.get_find_refinement(command.args, iter(initial_rows))
+        filters["_refinement"] = {"refinement": refinement, "sample_size": len(initial_rows)}
+
+        if refinement.get("refinement_hint", "keep") == "keep":
+            filters["_strategy"] = "refinement_keep"
             full_filters = dict(filters)
             full_filters["_max_results"] = self.adapter.capabilities.max_results
             return self.adapter.find_paths(full_filters)
-        filters["_strategy"] = "aborted_after_invalid_probe"
-        return []
+
+        if filters.get("source_filter") and filters.get("target_filter") and filters.get("relation_type"):
+            filters["_strategy"] = "refinement_tighten_strict_relation"
+            full_filters = dict(filters)
+            full_filters["_max_results"] = self.adapter.capabilities.max_results
+            full_filters["_max_pairs"] = 0
+            return self._strict_relation_paths(full_filters, source_limit=None, max_results=self.adapter.capabilities.max_results)
+
+        filters["_strategy"] = "refinement_no_tightening_available"
+        return initial_rows
 
     def _strict_relation_paths(self, filters: dict, *, source_limit: int | None, max_results: int) -> list[dict]:
         source_nodes = self.adapter.find_nodes(filters["source_filter"])

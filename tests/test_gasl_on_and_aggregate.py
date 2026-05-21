@@ -15,6 +15,15 @@ class DummyLLM:
         return ""
 
 
+class RepairingLLM:
+    model = "dummy-repair"
+
+    def call(self, prompt: str) -> str:
+        if "You are repairing exactly one GASL command in isolation." in prompt:
+            return '{"retry": true, "replacement_command": "SET repaired_flag = true", "reason": "create the missing local variable", "confidence": 0.72}'
+        return ""
+
+
 def test_on_condition_matches_treats_success_zero_count_as_empty():
     result = ExecutionResult(command="GRAPHWALK", status="success", data=[], count=0)
     assert GASLExecutor._on_condition_matches("empty", result) is True
@@ -36,6 +45,28 @@ def test_on_executes_nested_action_on_success():
     result = executor.execute_plan(plan)
     assert result["status"] == "completed"
     assert executor.context_store.get("fired") is True
+
+
+def test_execute_plan_attempts_generic_command_repair_before_break():
+    graph = nx.MultiDiGraph()
+    executor = GASLExecutor(NetworkXAdapter(graph), RepairingLLM(), state_file=None, job_id="test_command_repair")
+    plan = {
+        "plan_id": "plan-command-repair",
+        "why": "test generic command repair",
+        "commands": [
+            "SHOW missing_rows",
+            "SHOW repaired_flag",
+        ],
+        "query": "repair a single failed command",
+        "config": {"stop_on_error": True, "continue_on_empty": False},
+    }
+    result = executor.execute_plan(plan)
+    statuses = [r.status for r in result["results"]]
+    commands = [r.command for r in result["results"]]
+    assert result["status"] == "completed"
+    assert statuses[:3] == ["error", "success", "success"]
+    assert commands[1] == "SET repaired_flag = true"
+    assert executor.context_store.get("repaired_flag") is True
 
 
 def test_aggregate_falls_back_to_contract_label_field_and_preserves_requested_alias():

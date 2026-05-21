@@ -96,7 +96,10 @@ class Neo4jAdapter(GraphAdapter):
                     "target": record["p"].end_node.id,
                     "path": [node.id for node in record["p"].nodes],
                     "length": len(record["p"].relationships),
-                    "type": "path"
+                    "type": "path",
+                    "edge_types": [rel.type for rel in record["p"].relationships],
+                    "source_entity_type": str(record["p"].start_node.get("entity_type") or "").strip('"').strip("'"),
+                    "target_entity_type": str(record["p"].end_node.get("entity_type") or "").strip('"').strip("'"),
                 }
                 paths.append(path_info)
             
