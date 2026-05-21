@@ -336,13 +336,36 @@ class ArgoBridgeLLM:
             result = asyncio.run(self.call_async(prompt))
             return result
     
-    def create_plan_prompt(self, query: str, schema: Dict[str, Any], 
-                          state: Dict[str, Any], history: list) -> str:
+    def create_plan_prompt(
+        self,
+        query: str,
+        schema: Dict[str, Any],
+        state: Dict[str, Any],
+        history: list,
+        symbol_table: Optional[list[Dict[str, Any]]] = None,
+        validation_defects: Optional[list[Dict[str, Any]]] = None,
+    ) -> str:
         """Create prompt for LLM to generate a plan using centralized prompt system."""
         # Get the base prompt from the centralized system with query optimization
         base_prompt = self.prompt_system.get_prompt("plan_generation", user_query=query, optimize=True)
         
         strategy_insights = state.get("strategy_insights", "")
+        symbol_table = symbol_table or []
+        validation_defects = validation_defects or []
+        symbol_table_guidance = ""
+        if symbol_table:
+            symbol_table_guidance = (
+                "PLAN SYMBOL TABLE:\n"
+                "- Use only the GASL variable names listed below.\n"
+                "- Every consumed symbol must either already exist in state/context or be produced earlier in the command list.\n"
+                "- Keep commands in standard GASL DSL strings.\n"
+                f"{json.dumps(symbol_table, indent=2)}\n"
+            )
+            if validation_defects:
+                symbol_table_guidance += (
+                    "Previous static validation defects to avoid:\n"
+                    f"{json.dumps(validation_defects, indent=2)}\n"
+                )
         
         # Format the prompt with the current context
         formatted_prompt = base_prompt.format(
@@ -355,11 +378,27 @@ class ArgoBridgeLLM:
             node_properties=schema.get('node_properties', []),
             edge_properties=schema.get('edge_properties', []),
             state_variables=self._format_state(state.get("variables", {})),
+            symbol_table_guidance=symbol_table_guidance,
             execution_history=self._format_history(history),
             produced_artifacts=self._format_produced_artifacts(state.get("produced_artifacts", [])),
         )
         
         return formatted_prompt
+
+    def create_plan_symbols_prompt(self, query: str, schema: Dict[str, Any],
+                                  state: Dict[str, Any], history: list) -> str:
+        """Create prompt for the first pass of two-phase planning."""
+        base_prompt = self.prompt_system.get_prompt("plan_symbols")
+        return base_prompt.format(
+            query=query,
+            node_labels=schema.get('node_labels', []),
+            edge_types=schema.get('edge_types', []),
+            node_properties=schema.get('node_properties', []),
+            edge_properties=schema.get('edge_properties', []),
+            state_variables=self._format_state(state.get("variables", {})),
+            execution_history=self._format_history(history),
+            produced_artifacts=self._format_produced_artifacts(state.get("produced_artifacts", [])),
+        )
 
     def create_plan_iteration_prompt(
         self,
@@ -378,6 +417,7 @@ class ArgoBridgeLLM:
             iteration=iteration,
             execution_history=self._format_history(state.get("history", [])),
             produced_artifacts=self._format_produced_artifacts(state.get("produced_artifacts", [])),
+            symbol_table=json.dumps(state.get("plan_symbol_table", []) or [], indent=2),
             strategy_insights=state.get("strategy_insights", ""),
             failure_summary=json.dumps(state.get("last_failure_summary", {}), indent=2),
         )

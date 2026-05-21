@@ -1,0 +1,4 @@
+For MERGE repair:
+- keep the repair local to one MERGE command
+- if one input variable is missing, return retry=false rather than inventing it
+- if duplicate variables or order are the issue, emit a corrected MERGE command

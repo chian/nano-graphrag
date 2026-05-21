@@ -1,0 +1,5 @@
+For JOIN repair:
+- keep the repair local to one JOIN command
+- if the join inputs are missing, return retry=false rather than inventing upstream variables
+- if the join key is wrong but available alternatives exist in the provided input summaries, emit a replacement JOIN with the corrected key
+- do not rewrite the whole plan

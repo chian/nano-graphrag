@@ -1,0 +1,5 @@
+For PROCESS repair:
+- keep the repair local to one PROCESS command
+- prefer instruction refinement over changing the target variable
+- if the current rows are obviously the wrong substrate, emit a replacement command that reshapes or narrows the rows first
+- preserve ordering when the current rows are already ranked

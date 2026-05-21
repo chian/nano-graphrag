@@ -1,0 +1,5 @@
+For AGGREGATE repair:
+- keep the repair local to one AGGREGATE command
+- if the rows are the wrong counting grain, prefer replacing AGGREGATE with a PROJECT or COLLAPSE command that preserves the needed multiplicity
+- do not assume deduplicated rows imply correct graph-wide counts
+- group_by and metric choices must come from the provided inputs only

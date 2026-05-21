@@ -11,6 +11,8 @@ Query: {query}{hint_text}
 🔍 AVAILABLE FIELDS from State Schema:
 {state_variables}
 
+{symbol_table_guidance}
+
 CRITICAL: FIELD NAME REQUIREMENTS
 - You MUST use the EXACT field names shown in "🔍 AVAILABLE FIELDS" sections above. Field names not in the list do not exist. Any attempt to use field names outside the above will fail.
 - Fields are one of three types: Graph, State, and Temporary Fields (placed in ContextStore object). 

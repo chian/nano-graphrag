@@ -66,3 +66,20 @@ For a healthy GASL run, the trace should show:
   command-local repair
 - produced artifacts recorded when commands materialize reusable state
 - final answer response emitted
+
+## Analysis rule
+
+For every analysis, separate outcomes from interpretation.
+
+Use a compact table or equivalent structure with:
+
+- outcome
+- what it means
+- interpretation
+
+Also mark whether each observed outcome is:
+
+- in scope for the tested mechanism
+- out of scope for the tested mechanism
+
+Do not treat out-of-scope defects as evidence against the target mechanism.

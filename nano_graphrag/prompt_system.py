@@ -154,8 +154,8 @@ class QueryAwarePromptSystem:
         # instead of Jinja2 to avoid template syntax conflicts
         if prompt_name in [
             'plan_generation',
+            'plan_symbols',
             'plan_repair',
-            'completion_validator',
             'process_batch',
             'process_repair',
             'classify_batch',

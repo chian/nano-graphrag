@@ -91,8 +91,9 @@ class StateStore:
             "variables": {},
             "history": [],
             "replay": [],
-            "validation_hint": None,
             "strategy_insights": None,
+            "last_failure_summary": None,
+            "plan_symbol_table": None,
             "produced_artifacts": []
         }
         self._save_state()
@@ -260,15 +261,6 @@ class StateStore:
         """Clear all state data."""
         self._initialize_empty_state()
     
-    def set_validation_hint(self, hint: str) -> None:
-        """Set validation hint for next iteration."""
-        self._state["validation_hint"] = hint
-        self._save_state()
-    
-    def get_validation_hint(self) -> str:
-        """Get validation hint from previous iteration."""
-        return self._state.get("validation_hint")
-    
     def set_strategy_insights(self, insights: str) -> None:
         """Set strategy insights from previous iteration."""
         self._state["strategy_insights"] = insights
@@ -277,6 +269,24 @@ class StateStore:
     def get_strategy_insights(self) -> str:
         """Get strategy insights from previous iteration."""
         return self._state.get("strategy_insights")
+
+    def set_last_failure_summary(self, summary: Dict[str, Any]) -> None:
+        """Persist the most recent structured iteration failure summary."""
+        self._state["last_failure_summary"] = summary
+        self._save_state()
+
+    def get_last_failure_summary(self) -> Dict[str, Any]:
+        """Get the most recent structured iteration failure summary."""
+        return self._state.get("last_failure_summary") or {}
+
+    def set_plan_symbol_table(self, symbol_table: List[Dict[str, Any]]) -> None:
+        """Persist the current query's plan-local symbol table."""
+        self._state["plan_symbol_table"] = symbol_table
+        self._save_state()
+
+    def get_plan_symbol_table(self) -> Optional[List[Dict[str, Any]]]:
+        """Get the current query's plan-local symbol table, if any."""
+        return self._state.get("plan_symbol_table")
     
     def add_field_metadata(self, variable_name: str, field_name: str, description: str, source: str = None) -> str:
         """Add field metadata with conflict resolution."""

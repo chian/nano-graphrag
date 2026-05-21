@@ -20,12 +20,18 @@ Execution History:
 Produced Artifacts:
 {produced_artifacts}
 
+Active Plan Symbol Table:
+{symbol_table}
+
+Current Iteration Failure Summary:
+{failure_summary}
+
 Previous Strategy Insights:
 {strategy_insights}
 
 Return strict JSON only:
-{
-  "mode": "patch|replan|noop",
+{{
+  "mode": "patch|pass",
   "reason": "<short reason>",
   "replace_command": "<exact previous command string or empty>",
   "replacement_command": "<new command string or empty>",
@@ -33,7 +39,7 @@ Return strict JSON only:
   "insert_command": "<new command string or empty>",
   "delete_command": "<exact previous command string or empty>",
   "planner_constraints": ["<short hard constraint>", "..."]
-}
+}}
 
 Rules:
 - Prefer mode=patch when a single command is malformed, semantically weak, or
@@ -42,16 +48,20 @@ Rules:
 - Use insert_after_command / insert_command when a missing PROJECT, COLLAPSE,
   GRAPHWALK, or AGGREGATE step should be added.
 - Use delete_command only when an existing command should be removed entirely.
-- Use mode=replan only if the current plan is conceptually wrong and a one-line
-  patch would be misleading.
-- Use mode=noop only if the previous plan is already the best next action.
+- Use mode=pass if the current plan should not be patched directly and the
+  executor should fall through to the next planning iteration / strategy path.
 
 Hard constraints:
+- Treat the active plan symbol table as the current variable contract.
+- Do not introduce new variable names during normal repair.
+- If you believe the current symbol table is insufficient, do not invent symbols here; use mode=pass and explain that the symbol table is insufficient in planner_constraints.
 - If repair hints or retrieval probes say current_rows_sufficient=false, do not
   continue reusing the same substrate unchanged.
 - If a prior traversal/path artifact is semantically invalid, patch the walk or
   source selection directly. Do not hide weak traversal semantics behind later
   PROCESS/AGGREGATE steps.
+- Use the structured failure summary first. Do not ignore concrete command
+  errors/empties in favor of vague plan rewrites.
 - If the failing line is a broad `FIND paths` query, replace it with either an
   anchored `FIND paths` source/edge/target query or with `FIND nodes` + `GRAPHWALK`.
 - If the issue is variable handoff, patch the plan so downstream commands

@@ -1,0 +1,38 @@
+You are planning a GASL query. First, define a compact plan-local symbol table.
+
+Query: {query}
+
+AVAILABLE GRAPH SCHEMA:
+- Node Labels: {node_labels}
+- Edge Types: {edge_types}
+- Node Properties: {node_properties}
+- Edge Properties: {edge_properties}
+
+AVAILABLE STATE VARIABLES:
+{state_variables}
+
+Execution History:
+{execution_history}
+
+Recently Produced Artifacts:
+{produced_artifacts}
+
+Return strict JSON only with this exact shape:
+{{
+  "symbols": [
+    {{
+      "name": "symbol_name",
+      "role": "what this symbol represents",
+      "shape": "rows|dict|counter|nodes|edges|paths",
+      "producer": "input|DECLARE|FIND|GRAPHWALK|PROJECT|PROCESS|AGGREGATE|COLLAPSE|JOIN|MERGE|COMPARE|SELECT|RANK|UPDATE",
+      "rationale": "short reason"
+    }}
+  ]
+}}
+
+Rules:
+- Prefer the smallest sufficient symbol table, but use additional symbols when query complexity or multi-stage plans require them.
+- Only include symbols you genuinely plan to use.
+- Prefer reusable intermediate symbols over many short-lived symbols.
+- If a symbol already exists in state/context and will be consumed directly, set producer to "input".
+- Use stable, descriptive GASL variable names.

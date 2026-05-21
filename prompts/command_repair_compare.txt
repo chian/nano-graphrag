@@ -1,0 +1,4 @@
+For COMPARE repair:
+- keep the repair local to one COMPARE command
+- prefer correcting the comparison field or variable choice using only the provided input summaries
+- if the compared variables are missing or empty, return retry=false

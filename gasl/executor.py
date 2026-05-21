@@ -81,6 +81,8 @@ from .trace import GASLTraceLogger
 from .answer_layer import AnswerLayerCompiler, DeterministicAnswerFinalizer
 from .prompt_observations import PromptObservationLogger
 from .plan_iteration_agent import PlanIterationAgent, PlanIterationRequest
+from .command_repair_agent import LLMCommandRepairAgent, CommandFailureEnvelope, GenericCommandRepairRequest
+from .two_phase_planner import TwoPhasePlanner
 
 
 class GASLExecutor:
@@ -106,6 +108,8 @@ class GASLExecutor:
         self.trace = GASLTraceLogger(trace_base_dir, job_id=job_id)
         self.prompt_obs = PromptObservationLogger(trace_base_dir, job_id=job_id)
         self.plan_iteration_agent = PlanIterationAgent(self.llm_func, prompt_logger=self.prompt_obs, trace=self.trace)
+        self.two_phase_planner = TwoPhasePlanner(self.llm_func, self.parser, prompt_logger=self.prompt_obs, trace=self.trace)
+        self.command_repair_agent = LLMCommandRepairAgent(self.llm_func)
         self.trace.log("executor_init", {
             "model": getattr(llm_func, "model", None),
             "state_file": str(state_file) if state_file else None,
@@ -177,6 +181,7 @@ class GASLExecutor:
             previous_result: Optional[ExecutionResult] = None
             for i, command in enumerate(commands):
                 step_id = f"{plan.plan_id}-step-{i+1}"
+                command_inputs = self._capture_command_inputs(command)
                 if command.command_type == "ON":
                     on_result, nested_result = self._execute_on(command, step_id, previous_result)
                     results.append(on_result)
@@ -232,6 +237,32 @@ class GASLExecutor:
                 if artifact:
                     self.state_store.append_produced_artifact(artifact)
                 previous_result = result
+
+                repaired_result = self._attempt_command_repair(
+                    command=command,
+                    step_id=step_id,
+                    result=result,
+                    command_inputs=command_inputs,
+                )
+                if repaired_result is not None:
+                    repaired_step_id = f"{step_id}.repair"
+                    results.append(repaired_result)
+                    repaired_artifact = self._build_produced_artifact(command, repaired_result)
+                    self.state_store.add_history_entry(HistoryEntry(
+                        step_id=repaired_step_id,
+                        command=repaired_result.command,
+                        status=repaired_result.status,
+                        result_count=repaired_result.count,
+                        duration_ms=repaired_result.duration_ms,
+                        timestamp=repaired_result.timestamp,
+                        error_message=repaired_result.error_message,
+                        provenance=repaired_result.provenance,
+                        produced_artifact=repaired_artifact,
+                    ))
+                    if repaired_artifact:
+                        self.state_store.append_produced_artifact(repaired_artifact)
+                    previous_result = repaired_result
+                    result = repaired_result
                 
                 # Check for early termination
                 if result.status == "error" and plan.config.get("stop_on_error", True):
@@ -417,6 +448,30 @@ class GASLExecutor:
             "contracts": referenced_contracts,
         }
 
+    @staticmethod
+    def _count_rows_in_inputs(command_inputs: Dict[str, Any]) -> int:
+        total = 0
+        for section in ("state", "context"):
+            for value in (command_inputs.get(section) or {}).values():
+                if isinstance(value, dict) and "items" in value:
+                    total += len(value.get("items", []))
+                elif isinstance(value, list):
+                    total += len(value)
+        return total
+
+    @staticmethod
+    def _iter_rows_from_inputs(command_inputs: Dict[str, Any]):
+        for section in ("state", "context"):
+            for value in (command_inputs.get(section) or {}).values():
+                if isinstance(value, dict) and "items" in value:
+                    for row in value.get("items", []):
+                        if isinstance(row, dict):
+                            yield row
+                elif isinstance(value, list):
+                    for row in value:
+                        if isinstance(row, dict):
+                            yield row
+
     def _build_produced_artifact(self, command: Command, result: ExecutionResult) -> Optional[Dict[str, Any]]:
         """Build a compact artifact record for future prompts and variable-flow debugging."""
         args = command.args or {}
@@ -490,19 +545,21 @@ class GASLExecutor:
             history = current_state.get("history", [])
             
             if pending_plan_json is None:
-                # Create plan prompt
-                plan_prompt = self.llm_func.create_plan_prompt(query, schema, current_state, history)
-                plan_obs_id = self.prompt_obs.record_invocation(
-                    prompt_name="plan_generation",
-                    prompt_text=plan_prompt,
-                    model=getattr(self.llm_func, "model", None),
-                    metadata={
-                        "iteration": iteration,
-                        "query": query,
-                        "history_len": len(history),
-                        "state_var_count": len(current_state.get("variables", {})),
-                    },
+                print(f"🔄 ITERATION {iteration} - Generating Plan...")
+                plan_obs_id = None
+                planning_result = self.two_phase_planner.generate_plan(
+                    query=query,
+                    schema=schema,
+                    state=current_state,
+                    history=history,
+                    iteration=iteration,
+                    existing_symbol_table=self.state_store.get_plan_symbol_table(),
                 )
+                self.state_store.set_plan_symbol_table(planning_result.symbol_table)
+                plan_prompt = planning_result.plan_prompt
+                plan_response = planning_result.plan_response
+                plan_json = planning_result.plan_json
+                print(f"DEBUG: LLM Response:\n{plan_response}\n")
                 self.trace.log("planner_prompt", {
                     "iteration": iteration,
                     "query": query,
@@ -510,16 +567,15 @@ class GASLExecutor:
                     "schema": schema,
                     "state": current_state.get("variables", {}),
                     "history": history,
+                    "symbol_table": planning_result.symbol_table,
+                    "validation": planning_result.validation,
                 })
-                
-                # Get plan from LLM
-                print(f"🔄 ITERATION {iteration} - Generating Plan...")
-                plan_response = self.llm_func.call(plan_prompt)
-                print(f"DEBUG: LLM Response:\n{plan_response}\n")
                 self.trace.log("planner_response", {
                     "iteration": iteration,
                     "raw_response": plan_response,
                     "extracted_json": _extract_json(plan_response),
+                    "symbol_table": planning_result.symbol_table,
+                    "validation": planning_result.validation,
                 })
             else:
                 plan_json = pending_plan_json
@@ -580,6 +636,7 @@ class GASLExecutor:
                         print(f"DEBUG: Reached max iterations ({max_iterations}) with unresolved execution defects")
                         break
 
+                    self.state_store.set_last_failure_summary(failure_summary)
                     self.state_store.set_strategy_insights(json.dumps(failure_summary["reasons"]))
                     repaired_plan, plan_repair_response = self._attempt_plan_repair(
                         query=query,
@@ -678,6 +735,77 @@ class GASLExecutor:
             "needs_repair": bool(failure_reasons),
             "reasons": failure_reasons,
         }
+
+    def _attempt_command_repair(
+        self,
+        *,
+        command: Command,
+        step_id: str,
+        result: ExecutionResult,
+        command_inputs: Dict[str, Any],
+    ) -> Optional[ExecutionResult]:
+        if result.status not in {"error", "empty"}:
+            return None
+        if command.command_type in {"DECLARE", "ON", "REQUIRE", "ASSERT", "TRY", "CATCH", "FINALLY", "CANCEL"}:
+            return None
+
+        state = self.state_store.get_state()
+        failure = CommandFailureEnvelope(
+            command_name=command.command_type,
+            stage="command_execution",
+            status=result.status,
+            error_type="empty_output" if result.status == "empty" else "execution_error",
+            error_message=result.error_message or "",
+            input_count=self._count_rows_in_inputs(command_inputs),
+            output_count=result.count,
+            processing_method="",
+            instruction=command.raw_text,
+            query=state.get("query", ""),
+            incoming_contract=command_inputs.get("contracts", {}),
+        )
+        repair = self.command_repair_agent.get_command_repair(
+            GenericCommandRepairRequest(
+                command_name=command.command_type,
+                command_text=command.raw_text,
+                failure=failure,
+                input_rows=self._iter_rows_from_inputs(command_inputs),
+                query=state.get("query", ""),
+                history=state.get("history", []),
+                inputs=command_inputs,
+                prompt_logger=self.prompt_obs,
+            )
+        )
+        self.trace.log("command_repair_response", {
+            "step_id": step_id,
+            "command": command.raw_text,
+            "repair": repair,
+            "failure": failure.__dict__,
+        })
+        replacement = (repair.get("replacement_command") or "").strip()
+        if not repair.get("retry") or not replacement:
+            return None
+        try:
+            repaired_command = self.parser.parse_command(replacement, command.line_number)
+        except Exception as exc:
+            self.trace.log("command_repair_parse_failed", {
+                "step_id": step_id,
+                "replacement_command": replacement,
+                "error": str(exc),
+            })
+            return None
+        repaired_result = self._execute_command(repaired_command, f"{step_id}.repair")
+        repaired_result.provenance.append(
+            Provenance(
+                source_id="command_repair",
+                extraction={
+                    "original_command": command.raw_text,
+                    "replacement_command": replacement,
+                    "reason": repair.get("reason", ""),
+                    "confidence": repair.get("confidence", 0.0),
+                },
+            )
+        )
+        return repaired_result
 
     def _attempt_plan_repair(
         self,
