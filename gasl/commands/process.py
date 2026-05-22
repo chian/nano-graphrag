@@ -16,6 +16,7 @@ from ..process_runtime import (
 )
 from ..command_repair_agent import LLMCommandRepairAgent, CommandFailureEnvelope, ProcessAlignmentRequest
 from ..contracts import make_contract, merge_contract
+from ..row_identity import IdentitySpec, materialize_row_identity
 from ..prompt_observations import PromptObservationLogger
 
 
@@ -236,13 +237,27 @@ class ProcessHandler(CommandHandler):
                 )
             finally:
                 self.micro_framework.llm_func = original_llm
+            identity_rows, identity_meta = materialize_row_identity(
+                result.data.get("processed_items", []),
+                spec=IdentitySpec(
+                    mode="preserve",
+                    grain_type=incoming_contract.get("grain_type", "row"),
+                    preserve_multiplicity=bool(incoming_contract.get("multiplicity_preserved", True)),
+                ),
+                source_contract=incoming_contract,
+                source_rows=final_data if isinstance(final_data, list) else [],
+            )
+            result.data["processed_items"] = identity_rows
+            if self.context_store:
+                self.context_store.set(target_variable, identity_rows)
             process_contract = self._build_process_contract(
                 source_contract=incoming_contract,
                 interpretation=interpretation,
-                output_data=result.data.get("processed_items", []),
+                output_data=identity_rows,
                 subtype=subtype,
                 strategy=diagnostics.get("strategy", ""),
             )
+            process_contract = merge_contract(process_contract, identity_meta)
             self.state_manager.store_variable_contract(target_variable, process_contract, store_in_state=True, store_in_context=True)
             result.contract = process_contract
             self._record_artifact_candidate(
@@ -283,6 +298,17 @@ class ProcessHandler(CommandHandler):
         """Execute PROCESS on a single batch (original logic)."""
         result = self._run_process_batch(data, instruction, subtype=subtype, phase="main")
         normalized_items = self._normalized_items(result)
+        incoming_contract = self.state_manager.get_variable_contract(command.args["variable"], fallback_to_last_nodes=True)
+        normalized_items, identity_meta = materialize_row_identity(
+            normalized_items,
+            spec=IdentitySpec(
+                mode="preserve",
+                grain_type=incoming_contract.get("grain_type", "row"),
+                preserve_multiplicity=bool(incoming_contract.get("multiplicity_preserved", True)),
+            ),
+            source_contract=incoming_contract,
+            source_rows=data if isinstance(data, list) else [],
+        )
         print(f"🔍 PROCESS DEBUG: Parsed result keys: {list(result.keys())}")
         print(f"🔍 PROCESS DEBUG: processed_items length: {len(normalized_items)}")
         print(f"🔍 PROCESS DEBUG: processing_method: {result.get('processing_method', 'unknown')}")
@@ -316,12 +342,13 @@ class ProcessHandler(CommandHandler):
         
         # Create initial result
         process_contract = self._build_process_contract(
-            source_contract=self.state_manager.get_variable_contract(command.args["variable"], fallback_to_last_nodes=True),
+            source_contract=incoming_contract,
             interpretation=None,
             output_data=normalized_items,
             subtype=subtype,
             strategy="single_batch",
         )
+        process_contract = merge_contract(process_contract, identity_meta)
         self.state_manager.store_variable_contract(target_variable, process_contract, store_in_state=True, store_in_context=True)
         result_obj = self._create_result(
             command=command,

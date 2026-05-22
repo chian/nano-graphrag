@@ -5,6 +5,8 @@ Multi-Variable Access command handlers.
 from typing import Any, List, Dict
 from .base import CommandHandler
 from ..types import Command, ExecutionResult, Provenance
+from ..contracts import make_contract, merge_contract
+from ..row_identity import IdentitySpec, derive_row_id_for_row, materialize_row_identity
 
 
 class MultiVarHandler(CommandHandler):
@@ -48,6 +50,8 @@ class MultiVarHandler(CommandHandler):
         # Get data from both variables
         data1 = self._get_variable_data(var1)
         data2 = self._get_variable_data(var2)
+        contract1 = self.state_manager.get_variable_contract(var1) if self.state_manager else {}
+        contract2 = self.state_manager.get_variable_contract(var2) if self.state_manager else {}
         
         if not data1 or not data2:
             return self._create_result(command=command, status="error",
@@ -67,15 +71,56 @@ class MultiVarHandler(CommandHandler):
                             joined_item[key] = value
                         else:
                             joined_item[f"{var2}_{key}"] = value
+                    joined_item["left_row_id"] = item1.get("row_id") or derive_row_id_for_row(
+                        item1,
+                        grain_type=contract1.get("grain_type", "row"),
+                        grain_keys=contract1.get("grain_keys", []),
+                    )
+                    joined_item["right_row_id"] = item2.get("row_id") or derive_row_id_for_row(
+                        item2,
+                        grain_type=contract2.get("grain_type", "row"),
+                        grain_keys=contract2.get("grain_keys", []),
+                    )
                     joined_data.append(joined_item)
-        
-        # Create or update target variable
-        if not self.state_store.has_variable(target_var):
-            self.state_store.declare_variable(target_var, "LIST", f"Join result of {var1} and {var2}")
-        
-        var_data = self.state_store.get_variable(target_var)
-        var_data["items"] = joined_data
-        self.state_store._save_state()
+
+        joined_data, identity_meta = materialize_row_identity(
+            joined_data,
+            spec=IdentitySpec(
+                mode="join",
+                grain_type="join",
+                key_fields=("left_row_id", "right_row_id", join_field),
+                preserve_multiplicity=True,
+            ),
+            source_contract=merge_contract(contract1, contract2),
+        )
+        join_contract = make_contract(
+            payload_kind="joined_rows",
+            data=joined_data,
+            row_schema=identity_meta["row_schema"],
+            label_field=contract1.get("label_field", "") or contract2.get("label_field", ""),
+            scope="current_rows_only",
+            usable_by=["PROCESS", "AGGREGATE", "SHOW", "SELECT", "JOIN"],
+            confidence=0.97,
+            grain_type=identity_meta["grain_type"],
+            grain_keys=identity_meta["grain_keys"],
+            multiplicity_preserved=identity_meta["multiplicity_preserved"],
+            notes=[f"join_field={join_field}"],
+        )
+        if self.state_manager:
+            self.state_manager.store_variable_data(
+                target_var,
+                joined_data,
+                store_in_state=self.state_store.has_variable(target_var),
+                store_in_context=True,
+                description=f"Join result of {var1} and {var2}",
+                contract=join_contract,
+            )
+        else:
+            if not self.state_store.has_variable(target_var):
+                self.state_store.declare_variable(target_var, "LIST", f"Join result of {var1} and {var2}")
+            var_data = self.state_store.get_variable(target_var)
+            var_data["items"] = joined_data
+            self.state_store._save_state()
         
         print(f"DEBUG: JOIN - created {len(joined_data)} joined items in {target_var}")
         
@@ -84,6 +129,7 @@ class MultiVarHandler(CommandHandler):
             status="success",
             data=joined_data,
             count=len(joined_data),
+            contract=join_contract,
             provenance=[self._create_provenance("join", "join",
                                                variable1=var1, variable2=var2, join_field=join_field)]
         )

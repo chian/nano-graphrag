@@ -47,6 +47,7 @@
             display: flex;
             align-items: center;
             gap: 8px;
+            order: -20;
         }
 
         .sidebar h1::before {
@@ -391,6 +392,9 @@
             display: flex;
             gap: 8px;
             z-index: 100;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            max-width: min(760px, calc(100% - 32px));
         }
 
         .control-btn {
@@ -412,6 +416,11 @@
         .control-btn.active {
             background: #e94560;
             border-color: #e94560;
+        }
+
+        .control-btn:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
         }
 
         /* GASL Status Bar */
@@ -486,46 +495,14 @@
             accent-color: #e94560;
         }
 
-        /* File Load Section */
-        .file-load {
-            margin-bottom: 16px;
-            padding: 12px;
-            background: #1a1a2e;
-            border-radius: 8px;
-        }
-
-        .file-load input {
-            width: 100%;
-            padding: 8px;
-            border: 1px solid #0f3460;
-            border-radius: 4px;
-            background: #16213e;
-            color: #eee;
-            font-size: 12px;
-            margin-bottom: 8px;
-        }
-
-        .file-load button {
-            width: 100%;
-            padding: 8px;
-            background: #e94560;
-            border: none;
-            border-radius: 4px;
-            color: white;
-            cursor: pointer;
-            font-size: 12px;
-        }
-
-        .file-load button:hover {
-            background: #c73e54;
-        }
-
         /* Legend */
         .legend {
             margin-top: 16px;
             padding: 12px;
             background: #1a1a2e;
             border-radius: 8px;
+            max-height: 164px;
+            overflow-y: auto;
         }
 
         .legend h3 {
@@ -543,6 +520,11 @@
             padding: 2px 0;
         }
 
+        #legendItems {
+            display: grid;
+            gap: 4px;
+        }
+
         .legend-color {
             width: 12px;
             height: 12px;
@@ -556,6 +538,11 @@
             background: #1a1a2e;
             border-radius: 8px;
             border: 1px solid #0f3460;
+        }
+
+        .qa-panel {
+            order: -19;
+            margin-top: 0;
         }
 
         .question-panel h3 {
@@ -737,12 +724,6 @@
         <div class="sidebar">
             <h1>Graph Viewer</h1>
 
-            <!-- File Load -->
-            <div class="file-load">
-                <input type="text" id="graphPath" placeholder="Enter GraphML file path...">
-                <button onclick="loadGraph()">Load Graph</button>
-            </div>
-
             <!-- Search -->
             <div class="search-container">
                 <input type="text" class="search-input" id="searchInput"
@@ -785,7 +766,7 @@
             </div>
 
             <!-- Question Panel -->
-            <div class="question-panel">
+            <div class="question-panel qa-panel">
                 <h3>Ask a Question</h3>
                 <!-- Password unlock -->
                 <div class="byok-row" style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px;">
@@ -863,7 +844,7 @@
                 </span>
             </div>
 
-            <div class="question-panel">
+            <div class="question-panel demo-panel">
                 <h3>Demo Scenarios</h3>
                 <div id="demoCards" style="display:grid; gap:8px;"></div>
             </div>
@@ -884,6 +865,8 @@
             <!-- Controls -->
             <div class="controls">
                 <button class="back-btn" id="backToFullBtn" onclick="backToFullGraph()">&#8592; Full Graph</button>
+                <button class="control-btn" id="focusSelectionBtn" onclick="focusSelection()" disabled>Focus Selection</button>
+                <button class="control-btn" id="relaxSelectionBtn" onclick="relaxSelection()" disabled>Relax Selection</button>
                 <button class="control-btn" onclick="fitGraph()">Fit View</button>
                 <button class="control-btn" onclick="togglePhysics()" id="physicsBtn">Physics: ON</button>
                 <button class="control-btn" onclick="resetFilters()">Reset Filters</button>
@@ -892,7 +875,7 @@
             <div class="story-panel" id="storyPanel">
                 <div class="story-kicker" id="storyKicker">Question</div>
                 <div class="story-title" id="storyTitle">Ready</div>
-                <div class="story-body" id="storyBody">Load a demo or ask a question.</div>
+                <div class="story-body" id="storyBody">Pick a demo or ask a question.</div>
                 <div class="story-meta" id="storyMeta"></div>
             </div>
 
@@ -955,6 +938,27 @@
         let _compareState = null;
         let _answerEntries = [];
         let _pendingGaslCompletion = null;
+        let _hasInitialGraphFit = false;
+        let _lastZoomScale = 1;
+        let _zoomRelaxTimeout = null;
+        let _pendingFitTimeout = null;
+
+        const GRAPH_PHYSICS = {
+            stabilizationIterations: 80,
+            zoomRelaxIterations: 36,
+            zoomRelaxThreshold: 1.08,
+            zoomRelaxDebounceMs: 140,
+            fitDelayMs: 260,
+        };
+
+        const BARNES_HUT = {
+            gravitationalConstant: -2600,
+            centralGravity: 0.07,
+            springLength: 180,
+            springConstant: 0.01,
+            damping: 0.55,
+            avoidOverlap: 0.42,
+        };
 
         const GASL_PHASE_STYLE = {
             INIT: {color: '#8b5cf6', label: 'Init'},
@@ -1154,7 +1158,6 @@
         }
 
         async function loadGraphFromPaths(graphPath, fullGraphPath) {
-            document.getElementById('graphPath').value = graphPath;
             const resp = await fetch('/api/graph/load', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
@@ -1162,6 +1165,7 @@
             });
             const data = await resp.json();
             if (data.error) throw new Error(data.error);
+            _hasInitialGraphFit = false;
             await fetchColors();
             await fetchGraph();
             await fetchStats();
@@ -1394,7 +1398,7 @@
         });
 
         socket.on('graph_data', (data) => {
-            updateGraph(data);
+            updateGraph(data, {fit: !_hasInitialGraphFit});
         });
 
         // Initialize on load
@@ -1432,15 +1436,10 @@
                 },
                 physics: {
                     enabled: true,
-                    barnesHut: {
-                        gravitationalConstant: -2000,
-                        centralGravity: 0.1,
-                        springLength: 150,
-                        springConstant: 0.01,
-                        damping: 0.5
-                    },
+                    barnesHut: BARNES_HUT,
                     stabilization: {
-                        iterations: 100
+                        iterations: GRAPH_PHYSICS.stabilizationIterations,
+                        fit: false
                     }
                 },
                 interaction: {
@@ -1479,6 +1478,112 @@
             network.on('stabilizationIterationsDone', () => {
                 console.log('Stabilization complete');
             });
+
+            network.on('zoom', (params) => {
+                cancelPendingGraphFit();
+                const scale = params.scale || 1;
+                const zoomingIn = scale > (_lastZoomScale * GRAPH_PHYSICS.zoomRelaxThreshold);
+                _lastZoomScale = scale;
+                if (!zoomingIn || !physicsEnabled) return;
+                clearTimeout(_zoomRelaxTimeout);
+                _zoomRelaxTimeout = setTimeout(() => {
+                    if (!network || !physicsEnabled) return;
+                    network.stabilize(GRAPH_PHYSICS.zoomRelaxIterations);
+                }, GRAPH_PHYSICS.zoomRelaxDebounceMs);
+            });
+
+            network.on('dragStart', () => {
+                cancelPendingGraphFit();
+            });
+
+            network.on('selectNode', updateSelectionControls);
+            network.on('deselectNode', updateSelectionControls);
+            network.on('selectEdge', updateSelectionControls);
+            network.on('deselectEdge', updateSelectionControls);
+        }
+
+        function cancelPendingGraphFit() {
+            if (_pendingFitTimeout !== null) {
+                clearTimeout(_pendingFitTimeout);
+                _pendingFitTimeout = null;
+            }
+        }
+
+        function scheduleGraphFit(fitAnimation) {
+            cancelPendingGraphFit();
+            _pendingFitTimeout = setTimeout(() => {
+                _pendingFitTimeout = null;
+                if (!network) return;
+                network.fit({
+                    animation: fitAnimation ? {duration: 700, easingFunction: 'easeInOutQuad'} : false,
+                });
+            }, GRAPH_PHYSICS.fitDelayMs);
+        }
+
+        function getVisibleSelectedNodes() {
+            if (!network) return [];
+            return network.getSelectedNodes().filter((id) => !!nodesDataset.get(id));
+        }
+
+        function updateSelectionControls() {
+            const selected = getVisibleSelectedNodes();
+            const hasSelection = selected.length > 0;
+            const focusBtn = document.getElementById('focusSelectionBtn');
+            const relaxBtn = document.getElementById('relaxSelectionBtn');
+            if (focusBtn) {
+                focusBtn.disabled = !hasSelection;
+                focusBtn.textContent = hasSelection ? `Focus Selection (${selected.length})` : 'Focus Selection';
+            }
+            if (relaxBtn) {
+                relaxBtn.disabled = !hasSelection;
+                relaxBtn.textContent = hasSelection ? `Relax Selection (${selected.length})` : 'Relax Selection';
+            }
+        }
+
+        function getSelectionNeighborhood() {
+            const selected = getVisibleSelectedNodes();
+            const selectedSet = new Set(selected);
+            const neighborSet = new Set();
+            const visibleEdges = edgesDataset.get();
+            visibleEdges.forEach((edge) => {
+                if (selectedSet.has(edge.from) && !selectedSet.has(edge.to)) neighborSet.add(edge.to);
+                if (selectedSet.has(edge.to) && !selectedSet.has(edge.from)) neighborSet.add(edge.from);
+            });
+            return {
+                selected,
+                neighbors: [...neighborSet].filter((id) => !!nodesDataset.get(id)),
+            };
+        }
+
+        function withPreservedNodePositions(nodes) {
+            if (!network || !nodesDataset) return nodes;
+            const positions = network.getPositions(nodesDataset.getIds());
+            return nodes.map((node) => {
+                const pos = positions[node.id];
+                if (!pos) return node;
+                return {...node, x: pos.x, y: pos.y};
+            });
+        }
+
+        function applyGraphData(data, options = {}) {
+            const {fit = false, fitAnimation = false} = options;
+            const incomingNodes = withPreservedNodePositions(data.nodes || []);
+            const incomingEdges = data.edges || [];
+
+            const nextNodeIds = new Set(incomingNodes.map((node) => node.id));
+            const nextEdgeIds = new Set(incomingEdges.map((edge) => edge.id));
+
+            const nodeRemovals = nodesDataset.getIds().filter((id) => !nextNodeIds.has(id));
+            const edgeRemovals = edgesDataset.getIds().filter((id) => !nextEdgeIds.has(id));
+
+            if (nodeRemovals.length) nodesDataset.remove(nodeRemovals);
+            if (edgeRemovals.length) edgesDataset.remove(edgeRemovals);
+            if (incomingNodes.length) nodesDataset.update(incomingNodes);
+            if (incomingEdges.length) edgesDataset.update(incomingEdges);
+
+            if (fit) {
+                scheduleGraphFit(fitAnimation);
+            }
         }
 
         async function fetchGraph() {
@@ -1500,7 +1605,7 @@
                 }
 
                 const data = await response.json();
-                updateGraph(data);
+                updateGraph(data, {fit: !_hasInitialGraphFit});
                 await fetchStats();
             } catch (error) {
                 console.error('Error fetching graph:', error);
@@ -1508,25 +1613,17 @@
             showLoading(false);
         }
 
-        function updateGraph(data) {
+        function updateGraph(data, options = {}) {
             currentGraphData = data;
-
-            // Clear existing data
-            nodesDataset.clear();
-            edgesDataset.clear();
-
-            // Add new data
-            nodesDataset.add(data.nodes);
-            edgesDataset.add(data.edges);
+            applyGraphData(data, options);
 
             // Update entity type filters
             updateEntityFilters(data.stats?.entity_types || {});
 
             // Update legend
             updateLegend(data.stats?.entity_types || {});
-
-            // Fit view
-            setTimeout(() => network.fit(), 500);
+            if (options.fit) _hasInitialGraphFit = true;
+            updateSelectionControls();
         }
 
         async function fetchStats() {
@@ -1544,7 +1641,9 @@
         }
 
         async function loadGraph() {
-            const path = document.getElementById('graphPath').value.trim();
+            const pathEl = document.getElementById('graphPath');
+            if (!pathEl) return;
+            const path = pathEl.value.trim();
             if (!path) return;
 
             showLoading(true);
@@ -1559,6 +1658,7 @@
                 if (result.error) {
                     alert('Error: ' + result.error);
                 } else {
+                    _hasInitialGraphFit = false;
                     await fetchColors();
                     await fetchGraph();
                 }
@@ -1577,7 +1677,7 @@
                 }
 
                 const data = await response.json();
-                updateGraph(data);
+                updateGraph(data, {fit: true, fitAnimation: true});
             } catch (error) {
                 console.error('Error focusing on node:', error);
             }
@@ -1743,9 +1843,88 @@
             network.fit({animation: true});
         }
 
+        function focusSelection() {
+            const {selected, neighbors} = getSelectionNeighborhood();
+            if (!selected.length) return;
+            const focusIds = selected.length > 1 ? selected : [...new Set([...selected, ...neighbors])];
+            cameraFitNodes(focusIds, 900, selected.length > 1 ? 1.16 : 1.08);
+        }
+
+        function relaxSelection() {
+            const {selected, neighbors} = getSelectionNeighborhood();
+            if (!selected.length) return;
+
+            cancelPendingGraphFit();
+            const allIds = [...new Set([...selected, ...neighbors])];
+            const selectedSet = new Set(selected);
+
+            if (currentGraphData) {
+                _lastQueryNodes = allIds;
+                _lastQueryColor = '#f7c948';
+                const nodeIdSet = new Set(allIds);
+                const subNodes = currentGraphData.nodes
+                    .filter((node) => nodeIdSet.has(node.id))
+                    .map((node) => ({
+                        ...node,
+                        color: selectedSet.has(node.id)
+                            ? {
+                                background: '#f7c948',
+                                border: '#ffffff',
+                                highlight: {background: '#f7c948', border: '#ffffff'},
+                            }
+                            : node.color,
+                        borderWidth: selectedSet.has(node.id) ? 4 : 2,
+                        opacity: 1.0,
+                    }));
+                const subEdges = currentGraphData.edges.filter(
+                    (edge) => nodeIdSet.has(edge.from) && nodeIdSet.has(edge.to)
+                );
+                applyGraphData({nodes: subNodes, edges: subEdges}, {fit: false});
+                _subgraphMode = true;
+                document.getElementById('backToFullBtn').style.display = 'inline-block';
+                _originalNodeColors = {};
+                _originalEdgeColors = {};
+            }
+
+            const updates = [];
+            const selectedRadius = selected.length === 1 ? 0 : Math.max(82, 44 + selected.length * 30);
+            selected.forEach((id, index) => {
+                const angle = selected.length === 1 ? 0 : (Math.PI * 2 * index) / selected.length;
+                updates.push({
+                    id,
+                    x: Math.cos(angle) * selectedRadius,
+                    y: Math.sin(angle) * selectedRadius,
+                    fixed: {x: true, y: true},
+                });
+            });
+
+            const neighborRadius = Math.max(260, 180 + neighbors.length * 18 + selected.length * 24);
+            neighbors.forEach((id, index) => {
+                const angle = (Math.PI * 2 * index) / Math.max(neighbors.length, 1);
+                updates.push({
+                    id,
+                    x: Math.cos(angle) * neighborRadius,
+                    y: Math.sin(angle) * neighborRadius,
+                    fixed: {x: true, y: true},
+                });
+            });
+
+            if (updates.length) {
+                nodesDataset.update(updates);
+            }
+            network.selectNodes(selected);
+            updateSelectionControls();
+            cameraFitNodes(allIds, 900, 1.08);
+        }
+
         function togglePhysics() {
             physicsEnabled = !physicsEnabled;
             network.setOptions({physics: {enabled: physicsEnabled}});
+            if (!physicsEnabled) {
+                clearTimeout(_zoomRelaxTimeout);
+            } else {
+                network.stabilize(GRAPH_PHYSICS.zoomRelaxIterations);
+            }
             document.getElementById('physicsBtn').textContent = `Physics: ${physicsEnabled ? 'ON' : 'OFF'}`;
         }
 
@@ -2105,11 +2284,9 @@
                 e => nodeIdSet.has(e.from) && nodeIdSet.has(e.to)
             );
 
-            // Swap dataset contents to the filtered view
-            nodesDataset.clear();
-            edgesDataset.clear();
-            nodesDataset.add(subNodes);
-            edgesDataset.add(subEdges);
+            applyGraphData({nodes: subNodes, edges: subEdges}, {fit: true, fitAnimation: true});
+            network.unselectAll();
+            updateSelectionControls();
 
             _subgraphMode = true;
             document.getElementById('backToFullBtn').style.display = 'inline-block';
@@ -2118,7 +2295,6 @@
             _originalNodeColors = {};
             _originalEdgeColors = {};
 
-            setTimeout(() => network.fit({animation: true}), 300);
         }
 
         /**

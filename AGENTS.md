@@ -14,6 +14,16 @@ Do not say a change is "fixed" unless all four are true:
 
 Use those labels explicitly in status updates.
 
+## Demo safety
+
+For visualization demo work in this repo, use the exact safe launcher and do not improvise:
+
+- Use `./launch_demo_viz_safe.sh` only.
+- Do not run `launch_viz.sh` or `python -m visualization.examples.demo` directly unless the user explicitly overrides the demo-safe path.
+- The safe launcher precomputes and serves a single engineering-controls subset graph at `.viz_cache/graphs/haiqu_engineering_controls_topdeg1500.graphml`.
+- Do not disable or bypass the subset path for demo launches.
+- If a demo-safe visualization restart is requested, restart via the safe launcher instead of changing graphs in place.
+
 ## Stable corpus run procedure
 
 In this environment, use this exact detached launch method unless the repo

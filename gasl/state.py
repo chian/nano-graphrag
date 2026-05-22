@@ -94,7 +94,11 @@ class StateStore:
             "strategy_insights": None,
             "last_failure_summary": None,
             "plan_symbol_table": None,
-            "produced_artifacts": []
+            "produced_artifacts": [],
+            "final_answer": None,
+            "query_answered": None,
+            "final_answer_at": None,
+            "final_answer_mode": None,
         }
         self._save_state()
     
@@ -113,6 +117,10 @@ class StateStore:
     def set_query(self, query: str) -> None:
         """Set the original query."""
         self._state["query"] = query
+        self._state["final_answer"] = None
+        self._state["query_answered"] = None
+        self._state["final_answer_at"] = None
+        self._state["final_answer_mode"] = None
         self._save_state()
     
     def set_config(self, config: Dict[str, Any]) -> None:
@@ -287,6 +295,20 @@ class StateStore:
     def get_plan_symbol_table(self) -> Optional[List[Dict[str, Any]]]:
         """Get the current query's plan-local symbol table, if any."""
         return self._state.get("plan_symbol_table")
+
+    def set_final_answer(
+        self,
+        answer: str,
+        *,
+        query_answered: bool,
+        mode: Optional[str] = None,
+    ) -> None:
+        """Persist the final answer immediately for crash-safe recovery."""
+        self._state["final_answer"] = answer
+        self._state["query_answered"] = bool(query_answered)
+        self._state["final_answer_at"] = datetime.now().isoformat()
+        self._state["final_answer_mode"] = mode or None
+        self._save_state()
     
     def add_field_metadata(self, variable_name: str, field_name: str, description: str, source: str = None) -> str:
         """Add field metadata with conflict resolution."""

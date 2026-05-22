@@ -12,11 +12,22 @@ def infer_row_schema(data: Any, *, sample_limit: int = 8, max_depth: int = 2) ->
     seen = set()
     rows = data if isinstance(data, list) else [data]
     for row in rows[:sample_limit]:
-        for field_name, _ in iter_scalar_fields(row, max_depth=max_depth):
+        for field_name in iter_row_fields(row, max_depth=max_depth):
             if field_name not in seen:
                 seen.add(field_name)
                 fields.append(field_name)
     return fields
+
+
+def iter_row_fields(item: Any, prefix: str = "", *, depth: int = 0, max_depth: int = 2):
+    if depth > max_depth:
+        return
+    if isinstance(item, dict):
+        for key, value in item.items():
+            next_prefix = f"{prefix}.{key}" if prefix else str(key)
+            yield next_prefix
+            if isinstance(value, dict):
+                yield from iter_row_fields(value, next_prefix, depth=depth + 1, max_depth=max_depth)
 
 
 def iter_scalar_fields(item: Any, prefix: str = "", *, depth: int = 0, max_depth: int = 2):

@@ -6,6 +6,7 @@ from typing import Any, List, Dict
 from .base import CommandHandler
 from ..types import Command, ExecutionResult, Provenance
 from ..contracts import make_contract, merge_contract
+from ..row_identity import IdentitySpec, materialize_row_identity
 
 
 class SelectHandler(CommandHandler):
@@ -48,9 +49,20 @@ class SelectHandler(CommandHandler):
             
             # Store result in context
             source_contract = self.state_manager.get_variable_contract(source) if self.state_manager else {}
+            result, identity_meta = materialize_row_identity(
+                result,
+                spec=IdentitySpec(
+                    mode="preserve",
+                    grain_type=source_contract.get("grain_type", "row"),
+                    preserve_multiplicity=bool(source_contract.get("multiplicity_preserved", True)),
+                ),
+                source_contract=source_contract,
+                source_rows=data if isinstance(data, list) else [],
+            )
             select_contract = merge_contract(source_contract, make_contract(
                 payload_kind="selected_rows" if isinstance(result, list) else "selected_fields",
                 data=result,
+                row_schema=identity_meta["row_schema"],
                 label_field=field_list[0] if field_list else source_contract.get("label_field", ""),
                 metric_field=source_contract.get("metric_field", ""),
                 ordered=source_contract.get("ordered", False),
@@ -58,10 +70,23 @@ class SelectHandler(CommandHandler):
                 order_field=source_contract.get("order_field", ""),
                 order_direction=source_contract.get("order_direction", "unknown"),
                 scope="current_rows_only",
-                usable_by=["PROCESS", "SHOW"],
+                usable_by=["PROCESS", "AGGREGATE", "SHOW", "SELECT", "JOIN"],
                 confidence=0.96,
+                grain_type=identity_meta["grain_type"],
+                grain_keys=identity_meta["grain_keys"],
+                multiplicity_preserved=identity_meta["multiplicity_preserved"],
             ))
-            self.context_store.set(target, result, contract=select_contract)
+            if self.state_manager:
+                self.state_manager.store_variable_data(
+                    target,
+                    result,
+                    store_in_state=self.state_store.has_variable(target),
+                    store_in_context=True,
+                    description=f"Selected fields from {source}",
+                    contract=select_contract,
+                )
+            else:
+                self.context_store.set(target, result, contract=select_contract)
             
             # Create provenance
             provenance = [

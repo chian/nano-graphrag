@@ -456,8 +456,10 @@ class ArgoBridgeLLM:
         """Create prompt for strategy adaptation between iterations."""
         # Get the prompt from the centralized system
         base_prompt = self.prompt_system.get_prompt("strategy_adaptation")
-        
-        execution_history = state.get("execution_history", "")
+
+        execution_history = self._format_history(state.get("history", []))
+        failure_summary = json.dumps(state.get("last_failure_summary", {}), indent=2)
+        expertise_context = json.dumps((state.get("last_failure_summary", {}) or {}).get("expertise_context", {}), indent=2)
         
         # Format the prompt with the current context
         prompt = base_prompt.format(
@@ -470,6 +472,10 @@ class ArgoBridgeLLM:
             node_properties=schema.get('node_properties', []),
             edge_properties=schema.get('edge_properties', [])
         )
+        if failure_summary and failure_summary != "{}":
+            prompt += f"\n\nCurrent Iteration Failure Summary:\n{failure_summary}"
+        if expertise_context and expertise_context != "{}":
+            prompt += f"\n\nExpertise Context:\n{expertise_context}"
         return prompt
     
     def _format_state(self, state: Dict[str, Any]) -> str:

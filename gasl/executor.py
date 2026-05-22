@@ -742,7 +742,7 @@ class GASLExecutor:
                     final_state = result["final_state"]
                     variables = final_state.get("variables", {})
                     print(f"DEBUG: Final state variables: {list(variables.keys())}")
-                    failure_summary = self._determine_iteration_failures(result["results"])
+                    failure_summary = self._summarize_iteration_outcomes(result["results"])
                     self.trace.log("iteration_failure_summary", {
                         "iteration": iteration,
                         "summary": failure_summary,
@@ -829,7 +829,14 @@ class GASLExecutor:
         else:
             final_answer = f"Query could not be answered cleanly after {iteration} iterations. Execution defects remain."
             query_answered = False
-        
+            self.state_store.set_final_answer(
+                final_answer,
+                query_answered=False,
+                mode="defect_summary",
+            )
+
+        final_state = self.state_store.get_state()
+
         return {
             "query": query,
             "iterations": iteration,
@@ -839,22 +846,64 @@ class GASLExecutor:
             "query_answered": query_answered,
         }
 
-    @staticmethod
-    def _determine_iteration_failures(results: List[ExecutionResult]) -> Dict[str, Any]:
-        """Summarize deterministic execution defects for the current iteration."""
-        failure_reasons: List[Dict[str, Any]] = []
+    def _summarize_iteration_outcomes(self, results: List[ExecutionResult]) -> Dict[str, Any]:
+        """Summarize iteration outcomes for planning while preserving the operational retry gate."""
+        errors: List[Dict[str, Any]] = []
+        empties: List[Dict[str, Any]] = []
         for result in results:
             status = getattr(result, "status", None)
             if status not in {"error", "empty"}:
                 continue
-            failure_reasons.append({
+            entry = {
                 "command": getattr(result, "command", ""),
                 "status": status,
                 "error_message": getattr(result, "error_message", ""),
-            })
+            }
+            if status == "error":
+                errors.append(entry)
+            else:
+                empties.append(entry)
+        expertise_context = self._build_expertise_context(results)
+        reasons = errors + empties
         return {
-            "needs_repair": bool(failure_reasons),
-            "reasons": failure_reasons,
+            "needs_repair": bool(reasons),
+            "errors": errors,
+            "empties": empties,
+            "expertise_context": expertise_context,
+            # Backward-compatible alias for older prompt/tests.
+            "reasons": reasons,
+        }
+
+    def _build_expertise_context(self, results: List[ExecutionResult]) -> Dict[str, Any]:
+        """Provide Gentner-like context for how much the current system should have been expected to know."""
+        schema = self.get_schema() or {}
+        produced_artifacts = self.state_store.get_state().get("produced_artifacts", []) or []
+        history = self.state_store.get_state().get("history", []) or []
+        command_types: Dict[str, int] = {}
+        for result in results:
+            command_text = (getattr(result, "command", "") or "").strip()
+            command_type = command_text.split(" ", 1)[0] if command_text else ""
+            if not command_type:
+                continue
+            command_types[command_type] = command_types.get(command_type, 0) + 1
+        artifact_fields = [set(art.get("row_schema", []) or []) for art in produced_artifacts]
+        return {
+            "kg_schema": {
+                "node_labels_count": len(schema.get("node_labels", []) or []),
+                "edge_types_count": len(schema.get("edge_types", []) or []),
+                "node_properties_count": len(schema.get("node_properties", []) or []),
+                "edge_properties_count": len(schema.get("edge_properties", []) or []),
+            },
+            "source_coverage": {
+                "artifacts_with_source_papers": sum(1 for fields in artifact_fields if "source_papers" in fields),
+                "artifacts_with_source_chunks": sum(1 for fields in artifact_fields if "source_chunks" in fields),
+                "history_entries_with_provenance": sum(1 for entry in history if entry.get("provenance")),
+            },
+            "operator_path": {
+                "direct_graph_ops": sum(command_types.get(name, 0) for name in ("FIND", "GRAPHWALK", "MERGE")),
+                "transform_ops": sum(command_types.get(name, 0) for name in ("PROCESS", "SELECT", "AGGREGATE", "RANK", "UPDATE")),
+                "command_types": command_types,
+            },
         }
 
     def _attempt_command_repair(
@@ -988,6 +1037,11 @@ class GASLExecutor:
         deterministic = DeterministicAnswerFinalizer().finalize(query, selection)
         if deterministic:
             self.trace.log("final_answer_response", {"query": query, "mode": "deterministic_view", "response": deterministic})
+            self.state_store.set_final_answer(
+                deterministic,
+                query_answered=True,
+                mode="deterministic_view",
+            )
             return deterministic
 
         results = {}
@@ -1041,6 +1095,11 @@ class GASLExecutor:
             "query": query,
             "response": final_answer,
         })
+        self.state_store.set_final_answer(
+            final_answer,
+            query_answered=True,
+            mode="llm_analysis",
+        )
         return final_answer
 
     def _summarize_list(self, items: list, max_items: int = 50) -> object:

@@ -8,6 +8,8 @@ from typing import Any
 
 from ..contracts import iter_scalar_fields
 
+_IDENTITY_FIELDS = {"row_id", "left_row_id", "right_row_id", "parent_row_id"}
+
 
 def tokenize_query(query: str) -> set[str]:
     return set(re.findall(r"[a-z0-9]+", query.lower()))
@@ -87,6 +89,8 @@ def candidate_group_fields(rows: list[dict[str, Any]], meta: dict[str, Any] | No
     scored: list[tuple[tuple[float, int], str]] = []
     total = len(rows)
     for key in keys:
+        if key in _IDENTITY_FIELDS:
+            continue
         vals = [row.get(key) for row in rows if row.get(key) is not None]
         if not vals:
             continue
@@ -111,6 +115,8 @@ def distinct_dimension_fields(rows: list[dict[str, Any]], meta: dict[str, Any] |
     scores: list[tuple[tuple[float, int], str]] = []
     total = len(rows)
     for key in rows[0].keys():
+        if key in _IDENTITY_FIELDS:
+            continue
         if key in exclude:
             continue
         vals = [row.get(key) for row in rows if row.get(key) is not None]

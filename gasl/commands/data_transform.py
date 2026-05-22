@@ -6,6 +6,7 @@ from typing import Any, List, Dict
 from .base import CommandHandler
 from ..types import Command, ExecutionResult, Provenance
 from ..contracts import make_contract, merge_contract
+from ..row_identity import IdentitySpec, materialize_row_identity
 from nano_graphrag.graph_slots import get_source_refs
 
 
@@ -261,9 +262,20 @@ class DataTransformHandler(CommandHandler):
         
         # Convert to list format
         result_list = list(aggregated_data.values())
+        result_list, identity_meta = materialize_row_identity(
+            result_list,
+            spec=IdentitySpec(
+                mode="group",
+                grain_type="group",
+                key_fields=("group_key",),
+                preserve_multiplicity=False,
+            ),
+            source_contract=source_contract,
+        )
         aggregate_contract = merge_contract(source_contract, make_contract(
             payload_kind="grouped_rows",
             data=result_list,
+            row_schema=identity_meta["row_schema"],
             label_field=by_field.split(".")[-1] if by_field else "group_name",
             metric_field="count" if operation == "count" else "result",
             ordered=False,
@@ -271,9 +283,9 @@ class DataTransformHandler(CommandHandler):
             scope="current_rows_only",
             usable_by=["RANK", "PROCESS", "SHOW", "SELECT"],
             confidence=0.95,
-            grain_type=source_contract.get("grain_type", ""),
-            grain_keys=source_contract.get("grain_keys", []),
-            multiplicity_preserved=False,
+            grain_type=identity_meta["grain_type"],
+            grain_keys=identity_meta["grain_keys"],
+            multiplicity_preserved=identity_meta["multiplicity_preserved"],
             row_weight_field="count" if operation == "count" else ("result" if operation == "sum" else ""),
             notes=[
                 f"requested_by_field={by_field}",
@@ -311,6 +323,9 @@ class DataTransformHandler(CommandHandler):
             self.context_store.set(result_variable, result_list, contract=aggregate_contract)
             print(f"DEBUG: AGGREGATE - Stored {len(result_list)} groups in context as {result_variable}")
         
+        # Keep context synchronized with the latest grouped rows even when state was updated.
+        self.context_store.set(result_variable, result_list, contract=aggregate_contract)
+
         # Also store as last_aggregate_result for consistency
         self.context_store.set("last_aggregate_result", result_list, contract=aggregate_contract)
         print(f"DEBUG: AGGREGATE - Also stored as last_aggregate_result with {len(result_list)} groups")
@@ -459,17 +474,29 @@ class DataTransformHandler(CommandHandler):
                 deduped.append(row)
             projected = deduped
 
+        projected, identity_meta = materialize_row_identity(
+            projected,
+            spec=IdentitySpec(
+                mode="rekey",
+                grain_type=grain,
+                key_fields=tuple(key_specs or self._default_grain_keys(grain)),
+                preserve_multiplicity=preserve,
+            ),
+            source_contract=source_contract,
+        )
+
         contract = merge_contract(source_contract, make_contract(
             payload_kind="projected_rows",
             data=projected,
+            row_schema=identity_meta["row_schema"],
             label_field=field_specs[0][1] if field_specs else "",
             metric_field=weight_field,
             scope="current_rows_only",
             usable_by=["PROCESS", "AGGREGATE", "RANK", "SHOW", "SELECT", "COLLAPSE"],
             confidence=0.98,
-            grain_type=grain,
-            grain_keys=key_specs or self._default_grain_keys(grain),
-            multiplicity_preserved=preserve,
+            grain_type=identity_meta["grain_type"],
+            grain_keys=identity_meta["grain_keys"],
+            multiplicity_preserved=identity_meta["multiplicity_preserved"],
             row_weight_field=weight_field,
             notes=[f"project_from={variable}"],
         ))
@@ -526,17 +553,28 @@ class DataTransformHandler(CommandHandler):
             )
 
         result_rows = list(collapsed.values())
+        result_rows, identity_meta = materialize_row_identity(
+            result_rows,
+            spec=IdentitySpec(
+                mode="group",
+                grain_type="group",
+                key_fields=("group_key",),
+                preserve_multiplicity=False,
+            ),
+            source_contract=source_contract,
+        )
         contract = merge_contract(source_contract, make_contract(
             payload_kind="collapsed_rows",
             data=result_rows,
+            row_schema=identity_meta["row_schema"],
             label_field=by_field.split(".")[-1],
             metric_field=weight_field,
             scope="current_rows_only",
             usable_by=["AGGREGATE", "RANK", "SHOW", "SELECT"],
             confidence=0.98,
-            grain_type=source_contract.get("grain_type", ""),
-            grain_keys=source_contract.get("grain_keys", []),
-            multiplicity_preserved=False,
+            grain_type=identity_meta["grain_type"],
+            grain_keys=identity_meta["grain_keys"],
+            multiplicity_preserved=identity_meta["multiplicity_preserved"],
             row_weight_field=weight_field,
             notes=[f"collapsed_by={by_field}"],
         ))

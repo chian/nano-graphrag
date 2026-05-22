@@ -1,3 +1,6 @@
+import json
+from types import SimpleNamespace
+
 import networkx as nx
 
 from gasl import GASLExecutor
@@ -28,6 +31,29 @@ def test_on_condition_matches_treats_success_zero_count_as_empty():
     result = ExecutionResult(command="GRAPHWALK", status="success", data=[], count=0)
     assert GASLExecutor._on_condition_matches("empty", result) is True
     assert GASLExecutor._on_condition_matches("success", result) is False
+
+
+def test_iteration_summary_separates_errors_empties_and_expertise_context():
+    graph = nx.MultiDiGraph()
+    executor = GASLExecutor(NetworkXAdapter(graph), DummyLLM(), state_file=None, job_id="test_iteration_summary")
+    executor.state_store.append_produced_artifact({
+        "variable": "evidence_rows",
+        "command_type": "FIND",
+        "status": "success",
+        "item_count": 2,
+        "row_schema": ["entity_name", "source_papers", "source_chunks"],
+    })
+    summary = executor._summarize_iteration_outcomes([
+        ExecutionResult(command='FIND edges with relation_type = "TARGETS" AS edges', status="empty", count=0),
+        ExecutionResult(command="JOIN a with b on id AS joined", status="error", count=0, error_message="Variables a or b not found or empty"),
+    ])
+    assert summary["needs_repair"] is True
+    assert len(summary["errors"]) == 1
+    assert len(summary["empties"]) == 1
+    assert summary["errors"][0]["status"] == "error"
+    assert summary["empties"][0]["status"] == "empty"
+    assert summary["expertise_context"]["kg_schema"]["edge_types_count"] >= 0
+    assert summary["expertise_context"]["source_coverage"]["artifacts_with_source_papers"] == 1
 
 
 def test_on_executes_nested_action_on_success():
@@ -67,6 +93,88 @@ def test_execute_plan_attempts_generic_command_repair_before_break():
     assert statuses[:3] == ["error", "success", "success"]
     assert commands[1] == "SET repaired_flag = true"
     assert executor.context_store.get("repaired_flag") is True
+
+
+def test_generate_final_answer_persists_deterministic_answer(tmp_path, monkeypatch):
+    import gasl.executor as executor_module
+
+    graph = nx.MultiDiGraph()
+    state_path = tmp_path / "gasl_state.json"
+    executor = GASLExecutor(
+        NetworkXAdapter(graph),
+        DummyLLM(),
+        state_file=str(state_path),
+        job_id="test_final_answer_persist",
+    )
+    executor.state_store.set_query("Which control ranks highest?")
+
+    class _Selection:
+        view = None
+        supporting_views = []
+        rationale = "deterministic test"
+
+    class _Compiler:
+        def build_views(self, runtime_view):
+            return []
+
+        def select_view(self, query, views, llm_func=None):
+            return _Selection()
+
+    class _Finalizer:
+        def finalize(self, query, selection):
+            return "SAFE ANSWER"
+
+    monkeypatch.setattr(executor_module, "AnswerLayerCompiler", lambda: _Compiler())
+    monkeypatch.setattr(executor_module, "DeterministicAnswerFinalizer", lambda: _Finalizer())
+
+    answer = executor._generate_final_answer(
+        "Which control ranks highest?",
+        executor.state_store.get_state(),
+    )
+
+    persisted = json.loads(state_path.read_text())
+    assert answer == "SAFE ANSWER"
+    assert persisted["final_answer"] == "SAFE ANSWER"
+    assert persisted["query_answered"] is True
+    assert persisted["final_answer_mode"] == "deterministic_view"
+
+
+def test_hdt_persists_defect_summary_and_returns_refreshed_state(tmp_path, monkeypatch):
+    graph = nx.MultiDiGraph()
+    state_path = tmp_path / "gasl_state.json"
+    executor = GASLExecutor(
+        NetworkXAdapter(graph),
+        DummyLLM(),
+        state_file=str(state_path),
+        job_id="test_defect_summary_persist",
+    )
+
+    planner_result = SimpleNamespace(
+        symbol_table=[],
+        plan_prompt="",
+        plan_response='{"plan_id":"p1","why":"test","commands":[],"config":{"stop_on_error":true,"continue_on_empty":false}}',
+        plan_json={"plan_id": "p1", "why": "test", "commands": [], "config": {"stop_on_error": True, "continue_on_empty": False}},
+        validation={},
+    )
+    monkeypatch.setattr(executor.two_phase_planner, "generate_plan", lambda **kwargs: planner_result)
+    monkeypatch.setattr(
+        executor,
+        "execute_plan",
+        lambda plan_json: {
+            "status": "completed",
+            "final_state": {"variables": {}},
+            "results": [],
+        },
+    )
+
+    result = executor.run_hypothesis_driven_traversal("Unanswerable query", max_iterations=1)
+
+    persisted = json.loads(state_path.read_text())
+    assert result["query_answered"] is False
+    assert result["final_answer"].startswith("Query could not be answered cleanly")
+    assert result["final_state"]["final_answer"] == result["final_answer"]
+    assert persisted["final_answer"] == result["final_answer"]
+    assert persisted["final_answer_mode"] == "defect_summary"
 
 
 def test_aggregate_falls_back_to_contract_label_field_and_preserves_requested_alias():
