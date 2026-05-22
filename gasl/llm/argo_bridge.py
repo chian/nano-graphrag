@@ -131,6 +131,8 @@ class ArgoBridgeLLM:
         }
         if self._transport == "shim":
             kwargs["user"] = self._shim_user
+        elif os.getenv("NANOGRAPHRAG_SEND_USER", "false").lower() == "true":
+            kwargs["user"] = self._shim_user
         if stream:
             kwargs["stream"] = True
         # token cap: reasoning models include reasoning tokens in this budget,

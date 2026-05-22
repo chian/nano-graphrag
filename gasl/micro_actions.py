@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Micro-action framework for handling large datasets with batching.
 

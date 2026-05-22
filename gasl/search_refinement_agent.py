@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 LLM-guided search refinement for GASL runtime probes.
 

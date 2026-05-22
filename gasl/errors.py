@@ -1,6 +1,7 @@
 """
 Custom exceptions for GASL system.
 """
+from __future__ import annotations
 
 
 class GASLError(Exception):
