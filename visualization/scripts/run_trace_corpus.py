@@ -258,12 +258,15 @@ def main() -> None:
     parser.add_argument("--graph", action="append", dest="graphs", default=[])
     parser.add_argument("--per-graph", type=int, default=10)
     parser.add_argument("--model", default="gpt-5.5")
+    parser.add_argument("--transport", choices=["direct", "shim"], default="", help="LLM transport override for this run")
     parser.add_argument("--heartbeat", type=int, default=1800)
     parser.add_argument("--run-id", default="")
     parser.add_argument("--question-file", required=True, help="Curated question-set JSON file")
     args = parser.parse_args()
 
     load_env_file(REPO_ROOT / ".viz.local.env")
+    if args.transport:
+        os.environ["NANOGRAPHRAG_LLM_TRANSPORT"] = args.transport
     explicit_api_key = (
         os.environ.get("VIZ_API_KEY")
         or os.environ.get("OPENAI_API_KEY")
@@ -285,6 +288,7 @@ def main() -> None:
         "run_id": run_id,
         "started_at": datetime.now().isoformat(),
         "model": args.model,
+        "transport": os.environ.get("NANOGRAPHRAG_LLM_TRANSPORT", "direct"),
         "graphs": graphs,
         "per_graph": args.per_graph,
         "question_file": args.question_file,

@@ -1,11 +1,13 @@
 import unittest
 
+from gasl.flexible_parser import FlexibleParser
 from gasl.parser import GASLParser
 
 
 class TestGASLParser(unittest.TestCase):
     def setUp(self):
         self.parser = GASLParser()
+        self.flexible_parser = FlexibleParser()
 
     def test_graphwalk_parses_relation_depth_and_result_var(self):
         cmd = self.parser.parse_command(
@@ -86,6 +88,16 @@ class TestGASLParser(unittest.TestCase):
     def test_validate_rank_current_shape(self):
         cmd = self.parser.parse_command("RANK people by score order desc")
         self.assertTrue(self.parser.validate_command(cmd))
+
+    def test_inspect_parses_in_primary_parser(self):
+        cmd = self.parser.parse_command("INSPECT top_controls")
+        self.assertEqual(cmd.command_type, "INSPECT")
+        self.assertEqual(cmd.args["variable"], "top_controls")
+
+    def test_inspect_parses_in_flexible_parser(self):
+        cmd = self.flexible_parser.parse_command("INSPECT top_controls")
+        self.assertEqual(cmd.command_type, "INSPECT")
+        self.assertEqual(cmd.args["variable"], "top_controls")
 
 
 if __name__ == "__main__":

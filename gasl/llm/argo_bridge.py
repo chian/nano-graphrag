@@ -21,6 +21,7 @@ from openai import (
     UnprocessableEntityError,
 )
 from ..errors import LLMError
+from ..contracts import infer_row_schema
 from .runtime_config import resolve_runtime_llm_config
 # `nano_graphrag.prompt_system` is imported lazily (see prompt_system property
 # below) — pulling it eagerly here drags in the entire nano_graphrag dep tree
@@ -349,7 +350,7 @@ class ArgoBridgeLLM:
         # Get the base prompt from the centralized system with query optimization
         base_prompt = self.prompt_system.get_prompt("plan_generation", user_query=query, optimize=True)
         
-        strategy_insights = state.get("strategy_insights", "")
+        planner_constraints = state.get("planner_constraints", []) or []
         symbol_table = symbol_table or []
         validation_defects = validation_defects or []
         symbol_table_guidance = ""
@@ -371,7 +372,10 @@ class ArgoBridgeLLM:
         formatted_prompt = base_prompt.format(
             query=query,
             hint_text=(
-                f"\n\nPrevious repair constraints:\n{strategy_insights}" if strategy_insights else ""
+                "\n\nPrevious planner constraints:\n"
+                + "\n".join(f"- {constraint}" for constraint in planner_constraints)
+                if planner_constraints
+                else ""
             ),
             node_labels=schema.get('node_labels', []),
             edge_types=schema.get('edge_types', []),
@@ -418,7 +422,7 @@ class ArgoBridgeLLM:
             execution_history=self._format_history(state.get("history", [])),
             produced_artifacts=self._format_produced_artifacts(state.get("produced_artifacts", [])),
             symbol_table=json.dumps(state.get("plan_symbol_table", []) or [], indent=2),
-            strategy_insights=state.get("strategy_insights", ""),
+            planner_constraints=json.dumps(state.get("planner_constraints", []) or [], indent=2),
             failure_summary=json.dumps(state.get("last_failure_summary", {}), indent=2),
         )
 
@@ -491,30 +495,29 @@ class ArgoBridgeLLM:
                 if var_type == "LIST":
                     count = len(value.get("items", []))
                     formatted.append(f"- {key} ({var_type}): {count} items - {description}")
-                    
-                    # Show available fields for LIST variables (schema only - no actual data)
+                    contract = value.get("_meta", {}).get("contract", {}) if isinstance(value, dict) else {}
+                    row_schema = list(contract.get("row_schema") or [])
+                    if contract.get("grain_type"):
+                        formatted.append(f"  🔹 GRAIN: {contract.get('grain_type')}")
+                    if contract.get("grain_keys"):
+                        formatted.append(f"  🔹 GRAIN KEYS: {', '.join(contract.get('grain_keys', []))}")
+
                     items = value.get("items", [])
-                    if items and isinstance(items, list) and len(items) > 0:
-                        # Analyze first few items to determine available fields
-                        sample_fields = self._analyze_item_fields(items[:3])
-                        if sample_fields:
-                            formatted.append(f"  🔍 AVAILABLE FIELDS (use these exact names in commands):")
-                            for field_name, field_type in sample_fields.items():
-                                formatted.append(f"    - {field_name}: {field_type}")
-                        else:
-                            # Fallback to standard graph entity schema
-                            formatted.append(f"  🔍 AVAILABLE FIELDS (use these exact names in commands):")
-                            formatted.append(f"    - entity_type: string")
-                            formatted.append(f"    - description: string")
-                            formatted.append(f"    - source_id: string")
-                            formatted.append(f"    - clusters: string")
+                    sample_fields = self._analyze_item_fields(items[:3], row_schema=row_schema)
+                    if sample_fields:
+                        formatted.append("  🔍 AVAILABLE FIELDS (use these exact names in commands):")
+                        for field_name, field_type in sample_fields.items():
+                            formatted.append(f"    - {field_name}: {field_type}")
+                    elif row_schema:
+                        formatted.append("  🔍 AVAILABLE FIELDS (use these exact names in commands):")
+                        for field_name in row_schema:
+                            formatted.append(f"    - {field_name}: unknown")
                     else:
-                        # If no items, show standard graph entity schema
-                        formatted.append(f"  🔍 AVAILABLE FIELDS (use these exact names in commands):")
-                        formatted.append(f"    - entity_type: string")
-                        formatted.append(f"    - description: string")
-                        formatted.append(f"    - source_id: string")
-                        formatted.append(f"    - clusters: string")
+                        formatted.append("  🔍 AVAILABLE FIELDS (use these exact names in commands):")
+                        formatted.append("    - entity_type: string")
+                        formatted.append("    - description: string")
+                        formatted.append("    - source_id: string")
+                        formatted.append("    - clusters: string")
                                 
                 elif var_type == "DICT":
                     keys = [k for k in value.keys() if k != "_meta"]
@@ -533,35 +536,52 @@ class ArgoBridgeLLM:
         
         return "\n".join(formatted)
     
-    def _analyze_item_fields(self, items: List[Dict]) -> Dict[str, str]:
+    def _analyze_item_fields(self, items: List[Dict], row_schema: Optional[List[str]] = None) -> Dict[str, str]:
         """Analyze sample items to determine available fields and their types."""
-        if not items:
+        if not items and not row_schema:
             return {}
-        
+
         field_types = {}
-        for item in items:
-            if isinstance(item, dict):
-                for field_name, field_value in item.items():
-                    if field_name == "_meta":
-                        continue
-                    
-                    # Determine field type
-                    if isinstance(field_value, bool):
-                        field_type = "boolean"
-                    elif isinstance(field_value, (int, float)):
-                        field_type = "number"
-                    elif isinstance(field_value, str):
-                        field_type = "string"
-                    elif field_value is None:
-                        field_type = "null"
-                    else:
-                        field_type = "unknown"
-                    
-                    # Store the most specific type we've seen for this field
-                    if field_name not in field_types or field_type != "unknown":
-                        field_types[field_name] = field_type
-        
+        schema = list(row_schema or [])
+        if not schema and items:
+            schema = infer_row_schema(items[:3], max_depth=2)
+
+        for field_name in schema:
+            if field_name == "_meta":
+                continue
+            field_type = "unknown"
+            for item in items:
+                field_value = self._get_path_value(item, field_name)
+                candidate = self._value_type(field_value)
+                if field_type == "unknown" or candidate not in {"unknown", "null"}:
+                    field_type = candidate
+                if field_type not in {"unknown", "null"}:
+                    break
+            field_types[field_name] = field_type
+
         return field_types
+
+    @staticmethod
+    def _get_path_value(item: Any, field_name: str) -> Any:
+        current = item
+        for part in field_name.split("."):
+            if isinstance(current, dict):
+                current = current.get(part)
+            else:
+                return None
+        return current
+
+    @staticmethod
+    def _value_type(value: Any) -> str:
+        if isinstance(value, bool):
+            return "boolean"
+        if isinstance(value, (int, float)):
+            return "number"
+        if isinstance(value, str):
+            return "string"
+        if value is None:
+            return "null"
+        return "unknown"
     
     def _format_history(self, history: list) -> str:
         """Format history for prompt."""
@@ -593,8 +613,10 @@ class ArgoBridgeLLM:
                 parts.append(f"metric={art.get('metric_field')}")
             if art.get("grain_type"):
                 parts.append(f"grain={art.get('grain_type')}")
+            if art.get("grain_keys"):
+                parts.append(f"grain_keys={art.get('grain_keys')}")
             if art.get("row_schema"):
-                parts.append(f"fields={art.get('row_schema', [])[:8]}")
+                parts.append(f"fields={art.get('row_schema', [])}")
             if art.get("safe_for"):
                 parts.append(f"safe_for={art.get('safe_for')}")
             if art.get("refinement_hint"):

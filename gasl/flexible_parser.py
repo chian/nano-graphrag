@@ -15,7 +15,7 @@ class FlexibleParser:
         # Command keywords for classification
         self.command_keywords = [
             "DECLARE", "FIND", "PROCESS", "CLASSIFY", "UPDATE", "COUNT",
-            "SELECT", "SET", "REQUIRE", "ASSERT", "ON", "TRY", "CATCH", "CANCEL",
+            "SHOW", "INSPECT", "SELECT", "SET", "REQUIRE", "ASSERT", "ON", "TRY", "CATCH", "CANCEL",
             "GRAPHWALK", "GRAPHCONNECT", "SUBGRAPH", "GRAPHPATTERN",
             "JOIN", "MERGE", "COMPARE", "AGGREGATE", "PROJECT", "COLLAPSE",
             "RANK", "CREATE", "GENERATE",
@@ -30,6 +30,8 @@ class FlexibleParser:
             "CLASSIFY": ["with", "instruction"],
             "UPDATE": ["with", "operation", "where"],
             "COUNT": ["where", "AS"],
+            "SHOW": ["limit"],
+            "INSPECT": [],
             "SELECT": ["FIELDS", "AS"],
             "SET": ["=", "to"],
             "REQUIRE": ["condition"],
@@ -97,6 +99,10 @@ class FlexibleParser:
             return self._parse_update_flexible(text)
         elif command_type == "CLASSIFY":
             return self._parse_classify_flexible(text)
+        elif command_type == "SHOW":
+            return self._parse_show_flexible(text)
+        elif command_type == "INSPECT":
+            return self._parse_inspect_flexible(text)
         else:
             # Fallback to basic parsing for other commands
             return self._parse_basic_command(command_type, text)
@@ -271,6 +277,32 @@ class FlexibleParser:
         else:
             args["instruction"] = text
         
+        return args
+
+    def _parse_show_flexible(self, text: str) -> Dict[str, Any]:
+        """Flexible SHOW command parser."""
+        args: Dict[str, Any] = {}
+        text = text.replace("SHOW", "").strip()
+        match = re.match(
+            r'^([a-zA-Z_][a-zA-Z0-9_.]*)(?:\s+limit\s+(\d+))?$',
+            text,
+            re.IGNORECASE,
+        )
+        if not match:
+            raise ParseError(f"Malformed SHOW command: {text}", text)
+        args["variable"] = match.group(1)
+        if match.group(2):
+            args["limit"] = int(match.group(2))
+        return args
+
+    def _parse_inspect_flexible(self, text: str) -> Dict[str, Any]:
+        """Flexible INSPECT command parser."""
+        args: Dict[str, Any] = {}
+        text = text.replace("INSPECT", "").strip()
+        match = re.match(r'^([a-zA-Z_][a-zA-Z0-9_.]*)$', text)
+        if not match:
+            raise ParseError(f"Malformed INSPECT command: {text}", text)
+        args["variable"] = match.group(1)
         return args
     
     def _extract_components(self, text: str, keywords: List[str]) -> Dict[str, str]:

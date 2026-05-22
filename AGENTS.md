@@ -27,12 +27,14 @@ For visualization demo work in this repo, use the exact safe launcher and do not
 ## Stable corpus run procedure
 
 In this environment, use this exact detached launch method unless the repo
-itself changes in a way that invalidates it:
+itself changes in a way that invalidates it. Choose transport explicitly with
+`--transport direct` or `--transport shim`; do not rely on shell env:
 
 ```bash
 run_id=corpus_YYYYMMDD_view_balanced_72
 mkdir -p benchmark_results/$run_id
 setsid .venv/bin/python visualization/scripts/run_trace_corpus.py \
+  --transport shim \
   --per-graph 18 \
   --question-file visualization/question_sets/haiqu_view_balanced_18_per_graph.json \
   --run-id "$run_id" \

@@ -580,6 +580,7 @@ class GASLExecutor:
             "label_field": contract.get("label_field", ""),
             "metric_field": contract.get("metric_field", ""),
             "grain_type": contract.get("grain_type", ""),
+            "grain_keys": contract.get("grain_keys", []),
             "multiplicity_preserved": contract.get("multiplicity_preserved"),
             "safe_for": contract.get("usable_by", []),
             "refinement_hint": refinement.get("refinement_hint"),
@@ -758,7 +759,7 @@ class GASLExecutor:
                         break
 
                     self.state_store.set_last_failure_summary(failure_summary)
-                    self.state_store.set_strategy_insights(json.dumps(failure_summary["reasons"]))
+                    self.state_store.set_planner_constraints([])
                     repaired_plan, plan_repair_response = self._attempt_plan_repair(
                         query=query,
                         previous_plan=plan_json,
@@ -767,8 +768,8 @@ class GASLExecutor:
                     )
                     if repaired_plan is not None:
                         pending_plan_json = repaired_plan
-                        self.state_store.set_strategy_insights(
-                            json.dumps(plan_repair_response.get("planner_constraints", []))
+                        self.state_store.set_planner_constraints(
+                            plan_repair_response.get("planner_constraints", [])
                         )
                         continue
 

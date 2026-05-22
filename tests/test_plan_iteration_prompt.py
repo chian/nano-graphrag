@@ -45,6 +45,32 @@ def test_plan_iteration_prompt_includes_structured_failure_summary():
     assert "\"name\": \"controls\"" in prompt
 
 
+def test_plan_generation_prompt_uses_planner_constraints_not_strategy_prose():
+    llm = ArgoBridgeLLM(api_key="test-key", base_url="http://localhost:9999")
+    prompt = llm.create_plan_prompt(
+        query="Which controls have the broadest validation footprint?",
+        schema={
+            "node_labels": ["ENGINEERING_CONTROL"],
+            "edge_types": ["VALIDATED_BY"],
+            "node_properties": [],
+            "edge_properties": [],
+        },
+        state={
+            "variables": {},
+            "produced_artifacts": [],
+            "planner_constraints": ["Use only declared symbols", "Do not add INSPECT steps"],
+            "strategy_insights": "If fields are unclear, INSPECT the rows before joining.",
+        },
+        history=[],
+        symbol_table=[],
+        validation_defects=[],
+    )
+    assert "Previous planner constraints:" in prompt
+    assert "- Use only declared symbols" in prompt
+    assert "- Do not add INSPECT steps" in prompt
+    assert "If fields are unclear, INSPECT the rows before joining." not in prompt
+
+
 def test_strategy_adaptation_prompt_uses_state_history_and_expertise_context():
     llm = ArgoBridgeLLM(api_key="test-key", base_url="http://localhost:9999")
     prompt = llm.create_strategy_adaptation_prompt(
@@ -71,3 +97,102 @@ def test_strategy_adaptation_prompt_uses_state_history_and_expertise_context():
     )
     assert "FIND edges with relation_type = \"TARGETS\" AS edges" in prompt
     assert "\"expertise_context\"" in prompt or "\"kg_schema\"" in prompt
+
+
+def test_plan_prompt_state_uses_contract_row_schema_and_grain_keys():
+    llm = ArgoBridgeLLM(api_key="test-key", base_url="http://localhost:9999")
+    prompt = llm.create_plan_prompt(
+        query="Which controls have the broadest validation footprint?",
+        schema={
+            "node_labels": ["ENGINEERING_CONTROL"],
+            "edge_types": ["VALIDATED_IN"],
+            "node_properties": [],
+            "edge_properties": [],
+        },
+        state={
+            "variables": {
+                "control_zone_validations": {
+                    "_meta": {
+                        "type": "LIST",
+                        "description": "validation walk rows",
+                        "contract": {
+                            "grain_type": "edge",
+                            "grain_keys": ["data.src_id", "data.tgt_id", "data.relation_type"],
+                            "row_schema": [
+                                "id",
+                                "type",
+                                "data",
+                                "data.src_id",
+                                "data.tgt_id",
+                                "data.relation_type",
+                                "data.path_depth",
+                            ],
+                        },
+                    },
+                    "items": [
+                        {
+                            "id": "n1",
+                            "type": "node",
+                            "data": {
+                                "src_id": "c1",
+                                "tgt_id": "z1",
+                                "relation_type": "VALIDATED_IN",
+                                "path_depth": 1,
+                            },
+                        }
+                    ],
+                }
+            },
+            "produced_artifacts": [],
+        },
+        history=[],
+        symbol_table=[],
+        validation_defects=[],
+    )
+    assert "GRAIN: edge" in prompt
+    assert "GRAIN KEYS: data.src_id, data.tgt_id, data.relation_type" in prompt
+    assert "- data.src_id: string" in prompt
+    assert "- data.tgt_id: string" in prompt
+    assert "- data.path_depth: number" in prompt
+
+
+def test_plan_prompt_produced_artifacts_do_not_truncate_shape():
+    llm = ArgoBridgeLLM(api_key="test-key", base_url="http://localhost:9999")
+    prompt = llm.create_plan_prompt(
+        query="Which controls have the broadest validation footprint?",
+        schema={
+            "node_labels": ["ENGINEERING_CONTROL"],
+            "edge_types": ["VALIDATED_IN"],
+            "node_properties": [],
+            "edge_properties": [],
+        },
+        state={
+            "variables": {},
+            "produced_artifacts": [
+                {
+                    "variable": "control_zone_validations",
+                    "command_type": "GRAPHWALK",
+                    "payload_kind": "walk_rows",
+                    "item_count": 12,
+                    "grain_type": "edge",
+                    "grain_keys": ["data.src_id", "data.tgt_id", "data.relation_type"],
+                    "row_schema": [
+                        "id",
+                        "type",
+                        "data",
+                        "data.src_id",
+                        "data.tgt_id",
+                        "data.relation_type",
+                        "data.path_depth",
+                        "data.weight",
+                        "data.source_id",
+                    ],
+                }
+            ],
+        },
+        history=[],
+        symbol_table=[],
+        validation_defects=[],
+    )
+    assert "grain_keys=['data.src_id', 'data.tgt_id', 'data.relation_type']" in prompt
+    assert "data.source_id" in prompt

@@ -36,6 +36,7 @@ def test_select_preserves_row_id_when_projection_drops_source_keys():
     result = handler.execute(command)
 
     assert result.status == "success"
+    assert result.contract["grain_type"] == "row"
     assert result.contract["grain_keys"] == ["row_id"]
     assert "src_id" in result.contract["row_schema"]
     assert "row_id" in result.contract["row_schema"]

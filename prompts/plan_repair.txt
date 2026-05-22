@@ -26,8 +26,8 @@ Active Plan Symbol Table:
 Current Iteration Failure Summary:
 {failure_summary}
 
-Previous Strategy Insights:
-{strategy_insights}
+Previous Planner Constraints:
+{planner_constraints}
 
 Return strict JSON only:
 {{

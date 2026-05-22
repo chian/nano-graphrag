@@ -50,6 +50,7 @@ class GASLParser:
             
             # Utility commands
             "SHOW": r"SHOW\s+([a-zA-Z_][a-zA-Z0-9_.]*)(?:\s+limit\s+(\d+))?",
+            "INSPECT": r"INSPECT\s+([a-zA-Z_][a-zA-Z0-9_.]*)",
             "SELECT": r"SELECT\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+FIELDS\s+([^;]+)\s+AS\s+([a-zA-Z_][a-zA-Z0-9_.]*)",
             "SET": r"SET\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s*=\s*([^;]+)"
         }

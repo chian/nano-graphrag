@@ -92,6 +92,7 @@ class StateStore:
             "history": [],
             "replay": [],
             "strategy_insights": None,
+            "planner_constraints": [],
             "last_failure_summary": None,
             "plan_symbol_table": None,
             "produced_artifacts": [],
@@ -121,6 +122,8 @@ class StateStore:
         self._state["query_answered"] = None
         self._state["final_answer_at"] = None
         self._state["final_answer_mode"] = None
+        self._state["strategy_insights"] = None
+        self._state["planner_constraints"] = []
         self._save_state()
     
     def set_config(self, config: Dict[str, Any]) -> None:
@@ -277,6 +280,15 @@ class StateStore:
     def get_strategy_insights(self) -> str:
         """Get strategy insights from previous iteration."""
         return self._state.get("strategy_insights")
+
+    def set_planner_constraints(self, constraints: List[str]) -> None:
+        """Persist structured planner constraints for the next planning call."""
+        self._state["planner_constraints"] = list(constraints or [])
+        self._save_state()
+
+    def get_planner_constraints(self) -> List[str]:
+        """Get structured planner constraints for the next planning call."""
+        return list(self._state.get("planner_constraints") or [])
 
     def set_last_failure_summary(self, summary: Dict[str, Any]) -> None:
         """Persist the most recent structured iteration failure summary."""

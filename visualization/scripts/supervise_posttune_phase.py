@@ -40,10 +40,11 @@ def _run_dirs(run_root: Path, pattern: str) -> List[Path]:
     return sorted([p for p in run_root.glob(pattern) if p.is_dir()])
 
 
-def _launch_rerun(per_graph: int, question_file: str, run_tag: str, log_fh) -> int:
+def _launch_rerun(per_graph: int, question_file: str, run_tag: str, transport: str, log_fh) -> int:
     run_id = datetime.now().strftime(f"corpus_%Y%m%dT%H%M%S_{run_tag}")
     cmd = (
         f"nohup .venv/bin/python visualization/scripts/run_trace_corpus.py "
+        f"--transport {shlex.quote(transport)} "
         f"--per-graph {per_graph} --question-file {shlex.quote(question_file)} --run-id {shlex.quote(run_id)} "
         f"> benchmark_results/{run_id}/runner.log 2>&1 & echo $!"
     )
@@ -110,6 +111,7 @@ def main() -> None:
     parser.add_argument("--threshold", type=int, default=40)
     parser.add_argument("--poll", type=int, default=600)
     parser.add_argument("--per-graph-rerun", type=int, default=5)
+    parser.add_argument("--transport", choices=["direct", "shim"], default="shim")
     parser.add_argument(
         "--question-file",
         default="visualization/question_sets/haiqu_breathe_20_per_graph.json",
@@ -174,7 +176,7 @@ def main() -> None:
                 )
                 analysis_done = True
                 if not alive:
-                    current_pid = _launch_rerun(args.per_graph_rerun, args.question_file, "posttune_after_opt", log_fh)
+                    current_pid = _launch_rerun(args.per_graph_rerun, args.question_file, "posttune_after_opt", args.transport, log_fh)
                 if args.launch_codex_exec:
                     _launch_codex_exec(context_json, out_dir, log_fh)
                 else:
@@ -188,7 +190,7 @@ def main() -> None:
                     )
 
             if not alive and completed < args.threshold:
-                current_pid = _launch_rerun(args.per_graph_rerun, args.question_file, "posttune_chain", log_fh)
+                current_pid = _launch_rerun(args.per_graph_rerun, args.question_file, "posttune_chain", args.transport, log_fh)
 
             time.sleep(args.poll)
 
