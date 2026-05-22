@@ -1,0 +1,75 @@
+# Evo-devo KG: Symmetry and Locomotion
+# Question: What is the relationship between body symmetry and locomotor
+# performance, manoeuvrability, and hydrodynamic efficiency across animal taxa?
+
+domain_name: "Symmetry and Locomotion"
+domain_description: "Entities and relationships capturing how bilateral, radial, and asymmetrical body plans constrain or enable locomotor performance, manoeuvrability, and hydrodynamic efficiency across animal taxa and robotic models."
+
+entity_types:
+  BODY_PLAN:
+    description: "A body symmetry type or overall organismal body organisation"
+    examples: ["bilateral symmetry", "radial symmetry", "asymmetrical body plan", "streamlined fusiform body", "dorso-ventrally flattened plan"]
+
+  LOCOMOTOR_SYSTEM:
+    description: "A mode or mechanism of animal locomotion"
+    examples: ["undulatory swimming", "pectoral fin rowing", "jet propulsion", "punting", "anguilliform locomotion", "carangiform locomotion"]
+
+  HYDRODYNAMIC_PROPERTY:
+    description: "A fluid-dynamic quantity or property associated with locomotion"
+    examples: ["drag coefficient", "thrust force", "lift generation", "yaw stability", "vortex shedding frequency", "Strouhal number"]
+
+  PERFORMANCE_METRIC:
+    description: "A quantified measure of locomotor performance"
+    examples: ["maximum swimming speed (BL/s)", "minimum turning radius (BL)", "cost of transport (J/m)", "acceleration rate (m/s²)", "manoeuvring efficiency"]
+
+  TAXON:
+    description: "An organism or taxonomic group studied"
+    examples: ["teleost fish", "elasmobranch", "cephalopod", "cetacean", "annelid", "ray (batoid)", "lamprey"]
+
+  NEURAL_CONTROLLER:
+    description: "A neural or sensory-motor system contributing to locomotor control"
+    examples: ["central pattern generator (CPG)", "mechanoreceptor feedback loop", "lateral line system", "spinal interneuron network", "muscle proprioception"]
+
+  SYMMETRY_TYPE:
+    description: "A specific type or degree of body symmetry"
+    examples: ["perfect bilateral symmetry", "slight bilateral asymmetry", "radial pentameral symmetry", "biradial symmetry", "directional asymmetry"]
+
+  BIOMECHANICAL_CONSTRAINT:
+    description: "A physical or structural constraint imposed by body form on movement"
+    examples: ["rigid body axis constrains lateral bending", "paired appendage requirement for roll stability", "fin span limits turning radius"]
+
+relationship_types:
+  CONSTRAINS_LOCOMOTION:
+    description: "A body plan or biomechanical feature limits or shapes a locomotor mode or metric"
+    inverse: "CONSTRAINED_BY"
+    examples: ["bilateral symmetry CONSTRAINS_LOCOMOTION yaw stability during straight swimming"]
+
+  ENABLES_MANOEUVRABILITY:
+    description: "A body plan or locomotor system confers a specific manoeuvrability advantage"
+    inverse: "MANOEUVRABILITY_ENABLED_BY"
+    examples: ["bilateral symmetry ENABLES_MANOEUVRABILITY rapid direction reversal"]
+
+  MEASURED_IN:
+    description: "A performance metric or hydrodynamic property was measured in a specific taxon or system"
+    inverse: "HAS_MEASUREMENT"
+    examples: ["minimum turning radius MEASURED_IN bluegill sunfish"]
+
+  COMPARED_TO:
+    description: "Two body plans or locomotor systems are directly compared in a study"
+    symmetric: true
+    examples: ["bilateral body plan COMPARED_TO radial body plan for turning performance"]
+
+  REQUIRES:
+    description: "A locomotor mode requires a specific neural controller or body feature"
+    inverse: "REQUIRED_BY"
+    examples: ["undulatory locomotion REQUIRES central pattern generator coordination"]
+
+  CONFERS_ADVANTAGE_OVER:
+    description: "One symmetry type confers a locomotor or hydrodynamic advantage over another"
+    inverse: "DISADVANTAGED_AGAINST"
+    examples: ["bilateral symmetry CONFERS_ADVANTAGE_OVER radial symmetry in directed propulsion"]
+
+  MEDIATED_BY:
+    description: "A locomotor effect is mechanistically mediated by a specific structure or process"
+    inverse: "MEDIATES"
+    examples: ["yaw stability MEDIATED_BY symmetric paired fins"]

@@ -1,0 +1,75 @@
+# Evo-devo KG: Chromatin Accessibility and Segment Identity
+# Question: Does chromatin state constrain Hox binding and segment identity,
+# or does Hox binding reshape chromatin — and what is the causal direction?
+
+domain_name: "Chromatin Accessibility and Segment Identity"
+domain_description: "Entities and relationships capturing the causal relationships between chromatin accessibility, Hox transcription factor binding, epigenetic marks, and segmental identity specification — with emphasis on timing, direction of causality, and experimental perturbation evidence."
+
+entity_types:
+  CHROMATIN_STATE:
+    description: "A characterised state of chromatin compaction or accessibility at a genomic locus"
+    examples: ["open chromatin (ATAC-seq peak)", "closed/repressed chromatin", "bivalent H3K4me3/H3K27me3 domain", "Polycomb-repressed domain", "constitutive heterochromatin", "active enhancer state (H3K27ac+)"]
+
+  HOX_FACTOR:
+    description: "A Hox transcription factor or Hox cofactor that binds chromatin to specify segment identity"
+    examples: ["Ubx (Ultrabithorax)", "Antp (Antennapedia)", "Abd-B", "HOXA13", "HOXD11", "Pbx1 (Hox cofactor)", "Meis1 (Hox cofactor)"]
+
+  SEGMENT_IDENTITY:
+    description: "The positional identity of a body segment or region specified by Hox activity"
+    examples: ["thoracic T2 identity in Drosophila", "cervical vertebral identity", "forelimb vs hindlimb identity", "bithorax segment identity", "lumbar vs sacral identity"]
+
+  ENHANCER:
+    description: "A cis-regulatory element that controls gene expression in a segment-specific manner"
+    examples: ["iab-7 enhancer of Abd-B", "ZRS limb enhancer", "Hoxd13 digit enhancer", "segment-specific Ubx enhancer", "HOX cluster CTCF-anchored TAD boundary"]
+
+  EPIGENETIC_MARK:
+    description: "A histone modification or chromatin feature that correlates with gene activity or repression"
+    examples: ["H3K27ac (active enhancer)", "H3K27me3 (Polycomb repression)", "H3K4me3 (active promoter)", "H3K9me3 (constitutive repression)", "ATAC-seq accessibility score"]
+
+  LINEAGE_COMMITMENT:
+    description: "The process or state in which a cell becomes committed to a specific developmental fate"
+    examples: ["hematopoietic stem cell commitment", "neural progenitor commitment", "mesoderm specification", "segment-specific progenitor commitment", "irreversible fate transition"]
+
+  DEVELOPMENTAL_STAGE:
+    description: "A defined stage of embryonic or larval development at which chromatin state is assessed"
+    examples: ["blastula stage", "gastrulation onset", "neurulation", "limb bud stage HH20", "Drosophila stage 10 embryo", "E8.5 mouse embryo"]
+
+  PLASTICITY_BARRIER:
+    description: "A molecular mechanism that resists reprogramming or cell fate change"
+    examples: ["Polycomb complex lock on Hox genes", "DNA methylation barrier", "chromatin compaction preventing TF access", "Ubx-mediated suppression of alternative fate genes"]
+
+relationship_types:
+  CONSTRAINS_BINDING:
+    description: "A chromatin state limits or permits transcription factor binding at a locus"
+    inverse: "BINDING_CONSTRAINED_BY"
+    examples: ["closed chromatin CONSTRAINS_BINDING of Ubx to iab-7 enhancer"]
+
+  RESHAPES_CHROMATIN:
+    description: "A transcription factor binding event alters local chromatin accessibility or histone marks"
+    inverse: "CHROMATIN_RESHAPED_BY"
+    examples: ["Ubx binding RESHAPES_CHROMATIN by recruiting Polycomb to repress alternative fate genes"]
+
+  SPECIFIES_IDENTITY:
+    description: "A Hox factor or chromatin state specifies or maintains a segment identity"
+    inverse: "IDENTITY_SPECIFIED_BY"
+    examples: ["Ubx SPECIFIES_IDENTITY T2 thoracic segment in Drosophila"]
+
+  LOCKS_IN_FATE:
+    description: "A chromatin mechanism stabilises a cell fate against reprogramming"
+    inverse: "FATE_LOCKED_IN_BY"
+    examples: ["H3K27me3 spreading LOCKS_IN_FATE committed progenitor identity"]
+
+  CAUSAL_UPSTREAM_OF:
+    description: "Evidence indicates one molecular event precedes and drives the other (timing-resolved)"
+    inverse: "CAUSAL_DOWNSTREAM_OF"
+    examples: ["chromatin opening CAUSAL_UPSTREAM_OF Hox factor binding at iab enhancers at stage 10"]
+
+  ACTIVATED_BY:
+    description: "An enhancer or gene is activated by a specific Hox factor or epigenetic mark"
+    inverse: "ACTIVATES"
+    examples: ["Ubx target gene ACTIVATED_BY Ubx binding with H3K27ac deposition"]
+
+  SUPPRESSES_PLASTICITY:
+    description: "A Hox factor or epigenetic mechanism reduces cellular reprogramming potential"
+    inverse: "PLASTICITY_SUPPRESSED_BY"
+    examples: ["Ubx SUPPRESSES_PLASTICITY of committed Drosophila wing disc cells"]

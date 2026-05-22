@@ -1,0 +1,75 @@
+# Evo-devo KG: Non-Hox Novelty Sweep
+# Question: What non-Hox mechanisms drive body-plan innovation — biomechanics,
+# ECM, planar cell polarity, Hippo, Notch, retinoic acid, heterochrony,
+# metabolic constraints, and ecological selection?
+
+domain_name: "Non-Hox Body Plan Innovation"
+domain_description: "Entities and relationships capturing non-Hox mechanisms of body-plan innovation including biomechanical forces, extracellular matrix remodelling, planar cell polarity, Hippo/YAP signalling, Notch dynamics, retinoic acid, heterochrony, metabolic constraints, and ecological selection pressures."
+
+entity_types:
+  MECHANICAL_CUE:
+    description: "A physical force or mechanical property of the cellular environment that influences development"
+    examples: ["ECM stiffness (Young's modulus)", "fluid shear stress", "compressive force", "tensile strain", "actomyosin cortical tension", "osmotic pressure"]
+
+  ECM_COMPONENT:
+    description: "An extracellular matrix molecule that contributes to tissue mechanics or signalling"
+    examples: ["collagen I fibre network", "fibronectin", "laminin", "hyaluronan", "proteoglycan versican", "elastin crosslinks"]
+
+  MECHANOTRANSDUCER:
+    description: "A molecular sensor or signalling component that converts mechanical input to biochemical output"
+    examples: ["integrin α5β1", "YAP/TAZ nuclear localisation", "Rho GTPase activation", "focal adhesion kinase (FAK)", "Piezo1 mechanosensitive channel", "E-cadherin tension sensor"]
+
+  SIGNALING_PATHWAY:
+    description: "A non-Hox signalling pathway implicated in body-plan innovation"
+    examples: ["Hippo-YAP/TAZ pathway", "Notch-Delta signalling", "retinoic acid (RAR/RXR)", "planar cell polarity (PCP/Wnt)", "PI3K-mTOR metabolic sensing", "cAMP-PKA pathway"]
+
+  HETEROCHRONY_EVENT:
+    description: "A evolutionary change in the timing or rate of a developmental process"
+    examples: ["paedomorphosis in axolotl", "peramorphosis in antler growth", "acceleration of digit condensation", "neoteny in cave fish pigmentation loss", "rate change in somitogenesis clock"]
+
+  BODY_PLAN_NOVELTY:
+    description: "A macroscopic evolutionary innovation in body organisation that is not primarily Hox-driven"
+    examples: ["origin of paired fins/limbs", "evolution of the turtle shell", "cnidarian polyp-medusa transition", "loss of body segmentation in mites", "origin of insect wings from tergal lobes"]
+
+  ECOLOGICAL_SELECTION_PRESSURE:
+    description: "An ecological factor that drives selection for body-plan change"
+    examples: ["predation pressure on speed/manoeuvrability", "resource competition for niche partitioning", "sexual selection on display structures", "abiotic thermal selection", "island dwarfism selection"]
+
+  METABOLIC_CONSTRAINT:
+    description: "A bioenergetic or metabolic limitation on developmental or evolutionary processes"
+    examples: ["oxygen limitation on body size scaling", "ATP cost of cytoskeletal remodelling", "mTOR nutrient sensing constraining growth", "metabolic rate scaling with temperature", "calcium budget for biomineralisation"]
+
+relationship_types:
+  DRIVES_INNOVATION:
+    description: "A non-Hox mechanism is proposed as the primary driver of a body-plan novelty"
+    inverse: "INNOVATION_DRIVEN_BY"
+    examples: ["ECM stiffness gradient DRIVES_INNOVATION limb bud outgrowth directionality"]
+
+  CONSTRAINS_MORPHOLOGY:
+    description: "A mechanical, metabolic, or ecological factor limits the morphological space accessible"
+    inverse: "MORPHOLOGY_CONSTRAINED_BY"
+    examples: ["oxygen diffusion limit CONSTRAINS_MORPHOLOGY maximum body size in insects"]
+
+  TRANSDUCES_CUE:
+    description: "A mechanotransducer converts a physical cue into an intracellular signalling event"
+    inverse: "CUE_TRANSDUCED_BY"
+    examples: ["integrin-FAK TRANSDUCES_CUE ECM stiffness to Rho GTPase activation"]
+
+  CONTRASTED_WITH_HOX:
+    description: "Evidence or argument explicitly contrasts a non-Hox mechanism with Hox-centred explanations"
+    examples: ["mechanical folding CONTRASTED_WITH_HOX for crocodilian scale spacing"]
+
+  GATES_LINEAGE_BIFURCATION:
+    description: "A signalling or mechanical state determines which of two developmental trajectories a cell follows"
+    inverse: "BIFURCATION_GATED_BY"
+    examples: ["YAP nuclear localisation GATES_LINEAGE_BIFURCATION between osteogenic and adipogenic fate"]
+
+  INTERACTS_WITH:
+    description: "Two non-Hox mechanisms synergise or antagonise in producing a developmental outcome"
+    symmetric: true
+    examples: ["PCP signalling INTERACTS_WITH ECM anisotropy during convergent extension"]
+
+  SELECTED_BY:
+    description: "An ecological pressure selects for or against a body-plan feature or developmental mechanism"
+    inverse: "SELECTS_FOR"
+    examples: ["predation pressure SELECTED_BY faster acceleration requiring bilateral symmetry reinforcement"]

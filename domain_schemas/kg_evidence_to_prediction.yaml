@@ -1,0 +1,75 @@
+# Evo-devo KG: Evidence to Prediction
+# Question: Which papers specify explicit predictions, discriminating experiments,
+# or measurable signatures that distinguish mechanism A from mechanism B?
+
+domain_name: "Evidence-to-Prediction in Developmental Biology"
+domain_description: "Entities and relationships capturing the logical structure of mechanistic predictions in developmental biology — specifically papers that specify what would be observed if hypothesis A were true instead of B, including perturbation designs, measurable readouts, and comparative signatures."
+
+entity_types:
+  MECHANISTIC_HYPOTHESIS:
+    description: "A specific causal explanation for a developmental or evolutionary phenomenon"
+    examples: ["Turing RD generates digit pattern", "chromatin state gates Hox binding", "YAP nuclear localisation drives lineage bifurcation", "heterochrony produces novelty without gene duplication"]
+
+  DISCRIMINATING_PREDICTION:
+    description: "A specific observable outcome that would be seen if a hypothesis is true but not if an alternative is true"
+    examples: ["RD predicts digit number changes monotonically with activator diffusion rate", "chromatin-first model predicts accessibility precedes Hox mRNA by >2h", "YAP model predicts rigid substrate increases osteogenic commitment >3-fold"]
+
+  PERTURBATION_DESIGN:
+    description: "An experimental intervention designed to test a mechanistic hypothesis"
+    examples: ["morphogen gradient inversion by ectopic bead implantation", "ATAC-seq time-course before/after Hox induction", "substrate stiffness titration (1–100 kPa)", "Hes7 period lengthening by transcriptional delay insertion", "chemical inhibitor of specific pathway component"]
+
+  MEASURABLE_OUTCOME:
+    description: "A quantifiable readout used to evaluate a prediction"
+    examples: ["digit count (1–5)", "chromatin accessibility score (ATAC-seq peak height)", "nuclear/cytoplasmic YAP ratio", "segment number after wavefront velocity perturbation", "cell fate marker expression fraction"]
+
+  ALTERNATIVE_HYPOTHESIS:
+    description: "A competing mechanistic explanation for the same phenomenon"
+    examples: ["mechanical folding as alternative to RD for scale patterning", "gene duplication as alternative to heterochrony for novelty", "epigenetic memory as alternative to ongoing morphogen signalling"]
+
+  CONFIDENCE_LEVEL:
+    description: "A measure of evidential support for a hypothesis or prediction"
+    examples: ["strong (multiple independent perturbations)", "moderate (single perturbation consistent)", "weak (correlational only)", "contradicted (perturbation gives opposite result)", "untested prediction"]
+
+  CONTEXT_PARAMETER:
+    description: "A variable that must be specified for a prediction to hold"
+    examples: ["tissue geometry (2D vs 3D)", "developmental stage", "species", "cell density", "initial morphogen concentration", "presence of specific cofactor"]
+
+  COMPARATIVE_SIGNATURE:
+    description: "A pattern expected across species or conditions if a mechanism is operating"
+    examples: ["digit number scales with activator/inhibitor ratio across tetrapod species", "segment clock period scales with body size across vertebrates", "chromatin accessibility precedes TF binding across all Hox loci"]
+
+relationship_types:
+  PREDICTS_OUTCOME:
+    description: "A mechanistic hypothesis predicts a specific measurable outcome"
+    inverse: "OUTCOME_PREDICTED_BY"
+    examples: ["Turing digit hypothesis PREDICTS_OUTCOME digit spacing proportional to sqrt(D_inhibitor/D_activator)"]
+
+  DISTINGUISHES_FROM_ALTERNATIVE:
+    description: "A prediction or experiment can discriminate between two competing hypotheses"
+    inverse: "DISTINGUISHED_BY"
+    examples: ["digit number invariance under stiffness perturbation DISTINGUISHES_FROM_ALTERNATIVE mechanical from RD mechanism"]
+
+  REQUIRES_PERTURBATION:
+    description: "Testing a prediction requires a specific experimental intervention"
+    inverse: "PERTURBATION_REQUIRED_FOR"
+    examples: ["chromatin-first prediction REQUIRES_PERTURBATION time-resolved ATAC-seq before Hox induction"]
+
+  WOULD_OBSERVE_IF_TRUE:
+    description: "A specific observation would be expected if and only if a hypothesis is correct"
+    inverse: "OBSERVATION_EXPECTED_UNDER"
+    examples: ["if Turing true, WOULD_OBSERVE_IF_TRUE digit duplication after activator diffusion reduction"]
+
+  TESTED_BY:
+    description: "A hypothesis or prediction is evaluated by a specific perturbation or comparative analysis"
+    inverse: "TESTS"
+    examples: ["Turing digit model TESTED_BY BMP bead implantation in mouse limb bud"]
+
+  REQUIRES_CONTEXT:
+    description: "A prediction only holds under specific contextual conditions"
+    inverse: "CONTEXT_REQUIRED_BY"
+    examples: ["YAP lineage prediction REQUIRES_CONTEXT substrate stiffness in physiological range 1-40 kPa"]
+
+  SUPPORTED_BY_SIGNATURE:
+    description: "A hypothesis gains support from a comparative or cross-species signature"
+    inverse: "SIGNATURE_SUPPORTS"
+    examples: ["RD hypothesis SUPPORTED_BY_SIGNATURE cross-species scaling of digit spacing with limb size"]

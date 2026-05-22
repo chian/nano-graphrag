@@ -1,0 +1,74 @@
+# Evo-devo KG: Plasticity, Modularity, and Gene Reuse
+# Question: How do phenotypic plasticity, modularity, and gene reuse interact
+# in context-dependent morphology, especially in marine invertebrates?
+
+domain_name: "Plasticity, Modularity, and Gene Reuse"
+domain_description: "Entities and relationships describing how phenotypic plasticity, modular gene regulatory networks, and gene/circuit co-option interact in producing context-dependent morphology, particularly in marine invertebrates and organisms with environmentally variable development."
+
+entity_types:
+  PLASTIC_TRAIT:
+    description: "A phenotypic character that shows environmentally contingent expression"
+    examples: ["shell thickness under predation", "spine number in Daphnia", "mantle secretome composition at low pH", "polyphenism in wing morphology", "cryptic coloration in cuttlefish"]
+
+  GENE_MODULE:
+    description: "A semi-autonomous unit of gene regulation with coordinated expression and reuse potential"
+    examples: ["pax6 eye development module", "Hox cluster segment identity module", "Wnt signalling cassette", "biomineralisation gene network in mollusc mantle", "notch lateral inhibition module"]
+
+  COPTION_EVENT:
+    description: "An evolutionary event in which a gene or circuit is recruited for a new function"
+    examples: ["Pax6 co-opted for lens in vertebrates", "insulin pathway co-opted for caste in social insects", "biomineralisation toolkit co-opted across phyla", "opsins co-opted for non-visual photoreception"]
+
+  ENVIRONMENTAL_TRIGGER:
+    description: "An environmental variable that induces a plastic response"
+    examples: ["ocean acidification (low pH)", "thermal stress", "predator kairomone", "photoperiod", "salinity change", "hypoxia"]
+
+  TRANSCRIPTOMIC_RESPONSE:
+    description: "A coordinated change in gene expression in response to an environmental trigger"
+    examples: ["upregulation of carbonic anhydrase at pH 7.6", "heat shock protein induction", "differential expression of secretory cell markers", "immune gene activation in stress"]
+
+  ECOLOGICAL_NICHE:
+    description: "An ecological role or habitat occupied by an organism"
+    examples: ["rocky intertidal zone", "deep-sea hydrothermal vent", "benthic demersal habitat", "pelagic open water", "coral reef microhabitat"]
+
+  TOOLKIT_GENE:
+    description: "A highly conserved gene reused across taxa in different developmental contexts"
+    examples: ["Pax6", "Hedgehog", "Notch", "Wnt", "VEGF", "BMP", "Hox genes as toolkit", "NK homeobox genes"]
+
+  MODULARITY_PROPERTY:
+    description: "A property quantifying or describing the modular organisation of a developmental network"
+    examples: ["high modularity score (Q > 0.3)", "low pleiotropy", "independent developmental compartment", "trait decoupling", "minimal epistasis between modules"]
+
+relationship_types:
+  ENABLES_COPTION:
+    description: "A modular property or gene regulatory feature permits co-option of a module for new function"
+    inverse: "COPTION_ENABLED_BY"
+    examples: ["modular Pax6 enhancer ENABLES_COPTION for lens development in vertebrates"]
+
+  RESPONDS_TO:
+    description: "A plastic trait or transcriptomic response is triggered by an environmental signal"
+    inverse: "TRIGGERS_RESPONSE_IN"
+    examples: ["mantle secretome RESPONDS_TO ocean acidification"]
+
+  DECOUPLES_FROM:
+    description: "Modularity allows one trait to evolve independently from another"
+    inverse: "DECOUPLED_FROM"
+    examples: ["wing venation pattern DECOUPLES_FROM wing shape due to modular GRN"]
+
+  REUSED_IN:
+    description: "A toolkit gene or gene module is deployed in multiple developmental contexts across taxa"
+    inverse: "CONTEXT_USES"
+    examples: ["Pax6 REUSED_IN eye development across arthropods, molluscs, and vertebrates"]
+
+  DISTINGUISHES_PLASTICITY_FROM_ADAPTATION:
+    description: "Evidence or experiment distinguishes reversible plastic response from fixed evolutionary adaptation"
+    examples: ["reciprocal transplant DISTINGUISHES_PLASTICITY_FROM_ADAPTATION in shell thickness"]
+
+  CONSTRAINS_PLASTICITY:
+    description: "A modularity property or genetic architecture limits the range or speed of plastic response"
+    inverse: "PLASTICITY_CONSTRAINED_BY"
+    examples: ["strong genetic correlation CONSTRAINS_PLASTICITY of correlated traits"]
+
+  RECRUITS_MODULE:
+    description: "An evolutionary or developmental process recruits a pre-existing gene module"
+    inverse: "MODULE_RECRUITED_BY"
+    examples: ["biomineralisation process RECRUITS_MODULE carbonic anhydrase network in molluscs"]

@@ -1,0 +1,75 @@
+# Evo-devo KG: Radial vs Bilateral Signaling Geometry
+# Question: How does body geometry (radial vs bilateral) constrain or enable
+# morphogen gradient formation, positional information, and long-range
+# developmental signaling?
+
+domain_name: "Radial vs Bilateral Signaling Geometry"
+domain_description: "Entities and relationships describing how body geometry (radial, bilateral, or axial) constrains morphogen gradient formation, positional information encoding, and long-range developmental signaling coordination in animals and plants."
+
+entity_types:
+  BODY_GEOMETRY:
+    description: "The geometric symmetry or coordinate system of a developing tissue or organism"
+    examples: ["bilateral symmetry", "radial symmetry", "biradial symmetry", "cylindrical geometry", "spherical geometry", "planar epithelium"]
+
+  MORPHOGEN_GRADIENT:
+    description: "A spatial gradient of a signaling molecule that carries positional information"
+    examples: ["BMP dorso-ventral gradient", "Wnt antero-posterior gradient", "Bicoid anterior gradient", "Dpp gradient in Drosophila wing disc", "auxin gradient in plant gynoecium"]
+
+  POSITIONAL_INFORMATION:
+    description: "The encoded spatial identity cells derive from their position in a gradient or field"
+    examples: ["French flag positional threshold", "neighbor-relative positional assessment", "morphogenetic field coordinates", "rotational positional identity"]
+
+  CELL_FATE:
+    description: "A specific cell type or developmental fate determined by positional signaling"
+    examples: ["dorsal ectoderm fate", "mesoderm induction", "neural plate border", "apical-basal organ identity", "stylar identity in Arabidopsis gynoecium"]
+
+  AXIS_TYPE:
+    description: "A developmental axis along which positional information is encoded"
+    examples: ["antero-posterior (AP) axis", "dorso-ventral (DV) axis", "medio-lateral (ML) axis", "radial axis", "orthogonal dual-axis system"]
+
+  SIGNALING_MOLECULE:
+    description: "A molecule that transmits positional or patterning information"
+    examples: ["BMP4", "Wnt3a", "Nodal", "FGF8", "retinoic acid", "Dpp", "auxin", "Sox9"]
+
+  TISSUE_CONTEXT:
+    description: "Local tissue properties that modulate gradient interpretation"
+    examples: ["epithelial topology", "cell polarity", "receptor expression domain", "tissue stiffness gradient", "neighboring cell identity"]
+
+  GRADIENT_GEOMETRY:
+    description: "A geometric property of a morphogen gradient"
+    examples: ["gradient slope (concentration/distance)", "wavelength of periodic gradient", "gradient orthogonality", "gradient range (cells)", "time-shifted sequential gradients"]
+
+relationship_types:
+  CONSTRAINS_GRADIENT_FORMATION:
+    description: "A body geometry limits how a morphogen gradient can be established or shaped"
+    inverse: "GRADIENT_CONSTRAINED_BY"
+    examples: ["radial body geometry CONSTRAINS_GRADIENT_FORMATION to rotationally symmetric profiles"]
+
+  DETERMINES_CELL_FATE:
+    description: "A morphogen gradient or positional information specifies a cell fate"
+    inverse: "FATE_DETERMINED_BY"
+    examples: ["BMP gradient DETERMINES_CELL_FATE dorsal vs ventral ectoderm"]
+
+  MODULATES_INTERPRETATION:
+    description: "Tissue context or local geometry alters how cells interpret a gradient signal"
+    inverse: "INTERPRETATION_MODULATED_BY"
+    examples: ["tissue curvature MODULATES_INTERPRETATION of Wnt gradient threshold"]
+
+  COORDINATED_WITH:
+    description: "Two gradients or axes are spatially or temporally coordinated in a body plan"
+    symmetric: true
+    examples: ["AP axis gradient COORDINATED_WITH DV axis gradient for 2D patterning"]
+
+  ORTHOGONAL_TO:
+    description: "Two gradient axes are arranged perpendicular to each other"
+    symmetric: true
+    examples: ["mediolateral gradient ORTHOGONAL_TO longitudinal gradient in gynoecium"]
+
+  ENCODES_POSITION_ALONG:
+    description: "A morphogen gradient encodes positional information along a specific axis"
+    inverse: "POSITION_ENCODED_BY"
+    examples: ["Bicoid gradient ENCODES_POSITION_ALONG AP axis"]
+
+  DIFFERS_BETWEEN_GEOMETRIES:
+    description: "A signaling property or outcome differs between radial and bilateral body geometries"
+    examples: ["gradient synchronization DIFFERS_BETWEEN_GEOMETRIES radial vs bilateral body plans"]

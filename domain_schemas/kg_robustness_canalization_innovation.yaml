@@ -1,0 +1,75 @@
+# Evo-devo KG: Robustness, Canalization, and Innovation
+# Question: Do robust, canalized developmental networks constrain morphological
+# innovation and ecological niche expansion, or do they enable it?
+
+domain_name: "Robustness, Canalization, and Innovation"
+domain_description: "Entities and relationships describing how developmental robustness and canalization interact with evolvability, morphological innovation, and ecological niche expansion — including whether buffering constrains or enables novel phenotypes."
+
+entity_types:
+  ROBUSTNESS_LEVEL:
+    description: "A quantitative or qualitative measure of developmental system robustness to perturbation"
+    examples: ["high canalization (low variance)", "low robustness (high variance)", "γ = 0.8 tight buffering", "broad-range robustness (α parameter)", "phenotypic stability index"]
+
+  CANALIZATION_MECHANISM:
+    description: "A molecular or genetic mechanism that buffers developmental outcomes against variation"
+    examples: ["Hsp90 chaperone buffering", "microRNA-mediated variance reduction", "redundant gene network topology", "dominance masking", "genetic assimilation", "developmental homeostasis"]
+
+  PHENOTYPE_VARIANCE:
+    description: "The observed variation in a phenotypic trait across individuals or environments"
+    examples: ["coefficient of variation in cranial morphology", "gene expression noise (CV²)", "fluctuating asymmetry", "reaction norm width", "morphological disparity"]
+
+  EVOLUTIONARY_RATE:
+    description: "The rate of phenotypic or molecular evolution in a lineage or trait"
+    examples: ["rapid morphological divergence", "stasis over 50 My", "accelerated substitution rate", "burst of phenotypic diversification", "phylogenetic rate shift"]
+
+  ADAPTIVE_ENVIRONMENT:
+    description: "An ecological or environmental context that selects for or against robustness"
+    examples: ["stable benthic habitat", "fluctuating thermal environment", "novel post-invasion niche", "hybrid zone", "island colonisation"]
+
+  DEVELOPMENTAL_BUFFER:
+    description: "A developmental process or property that absorbs genetic or environmental perturbation"
+    examples: ["embryonic regulation", "compensatory growth", "epigenetic buffering", "metabolic redundancy", "organ size homeostasis"]
+
+  INNOVATION_EVENT:
+    description: "A specific morphological or functional novelty that arose evolutionarily"
+    examples: ["novel jaw morphology in cichlids", "wing origin in insects", "novel digit number in tetrapods", "shell loss in nudibranchs", "feather origin"]
+
+  POPULATION:
+    description: "A biological population or evolutionary lineage studied"
+    examples: ["benthic Arctic charr morph", "limnetic Arctic charr morph", "Drosophila melanogaster lab population", "Darwin's finch species", "hybrid F2 cross"]
+
+relationship_types:
+  BUFFERS_AGAINST:
+    description: "A canalization mechanism absorbs a specific perturbation type"
+    inverse: "BUFFERED_BY"
+    examples: ["Hsp90 BUFFERS_AGAINST cryptic genetic variation expression"]
+
+  CONSTRAINS_EVOLVABILITY:
+    description: "High robustness limits the rate or scope of phenotypic evolution"
+    inverse: "EVOLVABILITY_CONSTRAINED_BY"
+    examples: ["strong canalization CONSTRAINS_EVOLVABILITY in stable environment"]
+
+  ENABLES_INNOVATION:
+    description: "A robustness mechanism or its breakdown releases variation enabling a novel phenotype"
+    inverse: "INNOVATION_ENABLED_BY"
+    examples: ["Hsp90 inhibition ENABLES_INNOVATION by revealing cryptic variation"]
+
+  TRADES_OFF_WITH:
+    description: "Two properties are inversely related such that increasing one reduces the other"
+    symmetric: true
+    examples: ["robustness TRADES_OFF_WITH evolvability in Boolean network models"]
+
+  MEASURED_BY:
+    description: "A robustness or innovation concept is operationalized by a specific metric"
+    inverse: "MEASURES"
+    examples: ["canalization MEASURED_BY coefficient of variation in gene expression"]
+
+  EVOLVES_IN:
+    description: "A robustness level or innovation event occurs in a specific population or lineage"
+    inverse: "HAS_EVOLVED"
+    examples: ["reduced canalization EVOLVES_IN limnetic charr morph under directional selection"]
+
+  DEPENDS_ON_ENVIRONMENT:
+    description: "The effect of robustness on innovation is contingent on environmental stability"
+    inverse: "ENVIRONMENT_MODULATES"
+    examples: ["robustness benefit DEPENDS_ON_ENVIRONMENT constant vs fluctuating conditions"]

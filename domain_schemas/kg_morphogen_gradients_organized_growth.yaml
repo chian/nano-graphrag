@@ -1,0 +1,75 @@
+# Evo-devo KG: Morphogen Gradients and Organized Growth
+# Question: How do morphogen gradients (SHH, FGF, BMP, Notch, Wnt) separately
+# control proliferation, differentiation, migration, and apoptosis to organize
+# tissue architecture?
+
+domain_name: "Morphogen Gradients and Organized Growth"
+domain_description: "Entities and relationships capturing how morphogen gradients (SHH, FGF, BMP, Notch, Wnt) separately or jointly control cell proliferation, differentiation, migration, and apoptosis to organise tissue architecture in limb, neural, and other developing tissues."
+
+entity_types:
+  MORPHOGEN:
+    description: "A secreted signalling molecule whose graded concentration specifies cell fates or behaviours"
+    examples: ["Sonic Hedgehog (SHH)", "BMP4", "FGF8", "Wnt3a", "Notch ligand Dll1", "retinoic acid", "Activin", "VEGF"]
+
+  CELL_BEHAVIOR:
+    description: "A distinct cellular activity controlled by morphogen concentration"
+    examples: ["proliferation (S-phase entry)", "apoptosis (caspase activation)", "directed migration", "epithelial-mesenchymal transition", "differentiation (lineage marker induction)", "cell cycle arrest"]
+
+  TISSUE_DOMAIN:
+    description: "A spatially defined region of a developing tissue with characteristic identity"
+    examples: ["zone of polarising activity (ZPA)", "apical ectodermal ridge (AER)", "neural plate", "limb bud mesenchyme", "floor plate", "dorsal root ganglion primordium"]
+
+  SIGNALING_THRESHOLD:
+    description: "A concentration or activity level at which a morphogen switches cell fate or behaviour"
+    examples: ["SHH > 2 nM induces floor plate fate", "BMP < 0.1 nM permits neural induction", "FGF8 threshold for distal limb identity", "Notch threshold for lateral inhibition toggle"]
+
+  GROWTH_ZONE:
+    description: "A region of active cell proliferation that drives tissue expansion"
+    examples: ["progress zone in limb bud", "subventricular zone in cortex", "apical meristem analogue", "intestinal crypt", "growth plate in long bone"]
+
+  BOUNDARY:
+    description: "A sharp interface between adjacent tissue domains with distinct signalling states"
+    examples: ["digit/interdigit boundary", "dorsal-ventral boundary in wing disc", "rhombomere boundary", "floor plate/lateral neural plate boundary"]
+
+  FEEDBACK_LOOP:
+    description: "A molecular feedback interaction that shapes gradient dynamics or cell fate stability"
+    examples: ["SHH-PTCH1 negative feedback", "BMP-NOGGIN antagonism", "Notch-Delta lateral inhibition", "Wnt-Axin degradation complex", "FGF-DUSP6 negative feedback"]
+
+  TISSUE_ARCHITECTURE:
+    description: "The organised spatial arrangement of cell types within a tissue"
+    examples: ["digit pattern (5 digits, spacing)", "cortical layer organisation (6 layers)", "intestinal villus-crypt organisation", "retinal layer stacking", "nephron tubular structure"]
+
+relationship_types:
+  CONTROLS_BEHAVIOR:
+    description: "A morphogen or signalling threshold controls a specific cell behaviour"
+    inverse: "BEHAVIOR_CONTROLLED_BY"
+    examples: ["SHH high concentration CONTROLS_BEHAVIOR floor plate cell differentiation"]
+
+  SHARPENS_BOUNDARY:
+    description: "A morphogen gradient or feedback mechanism creates or maintains a sharp tissue boundary"
+    inverse: "BOUNDARY_SHARPENED_BY"
+    examples: ["Notch-Delta lateral inhibition SHARPENS_BOUNDARY between neural and non-neural ectoderm"]
+
+  COUPLED_WITH_GROWTH:
+    description: "A patterning process is mechanistically coupled to tissue growth or cell proliferation"
+    symmetric: true
+    examples: ["digit patterning COUPLED_WITH_GROWTH limb bud elongation rate"]
+
+  ACTIVATES:
+    description: "A morphogen or signalling event activates gene expression or a cellular program"
+    inverse: "ACTIVATED_BY"
+    examples: ["SHH ACTIVATES Gli2 transcriptional program in floor plate precursors"]
+
+  INHIBITS:
+    description: "A morphogen or signalling event represses gene expression or cellular program"
+    inverse: "INHIBITED_BY"
+    examples: ["BMP INHIBITS neural induction below threshold concentration"]
+
+  PATTERNS:
+    description: "A morphogen gradient establishes the spatial organisation of a tissue domain"
+    inverse: "PATTERNED_BY"
+    examples: ["SHH gradient PATTERNS digit identity across the AP axis of the limb"]
+
+  SEPARATES_BEHAVIORS:
+    description: "Evidence or experiment distinguishes the contributions of two cell behaviours to tissue organisation"
+    examples: ["clonal analysis SEPARATES_BEHAVIORS proliferation from migration in cortical expansion"]

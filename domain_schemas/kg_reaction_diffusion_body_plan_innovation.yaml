@@ -1,0 +1,75 @@
+# Evo-devo KG: Reaction-Diffusion and Body Plan Innovation
+# Question: How do reaction-diffusion and Turing patterning mechanisms contribute
+# to periodic structures, segmentation, and early animal body-plan innovation?
+
+domain_name: "Reaction-Diffusion and Body Plan Innovation"
+domain_description: "Entities and relationships capturing how reaction-diffusion systems, Turing instabilities, segmentation clocks, and mechanical patterning contribute to periodic structures, segmentation, and evolutionary body-plan innovation — including comparisons with alternative mechanisms."
+
+entity_types:
+  PATTERNING_MECHANISM:
+    description: "A physical or molecular mechanism that generates spatial pattern in a developing tissue"
+    examples: ["Turing reaction-diffusion", "clock-and-wavefront", "mechanical buckling/folding", "sequential induction cascade", "positional information model", "Notch-Delta lateral inhibition"]
+
+  PATTERN_ELEMENT:
+    description: "A discrete spatial unit of pattern produced by a patterning mechanism"
+    examples: ["somite", "stripe", "digit", "scale", "segment", "appendage primordium", "hair follicle", "feather bud"]
+
+  MOLECULAR_COMPONENT:
+    description: "A gene, protein, or signaling molecule that participates in a patterning network"
+    examples: ["Notch1 (oscillating)", "FGF8 wavefront gradient", "Wnt3a", "HES7 oscillator", "BMP activator", "WNT inhibitor Dkk", "retinoic acid"]
+
+  OSCILLATION_PARAMETER:
+    description: "A quantitative property of a molecular oscillator or periodic patterning process"
+    examples: ["somitogenesis clock period (90 min in mouse)", "oscillation phase", "wavefront velocity (µm/min)", "synchronisation window", "period-scaling with temperature"]
+
+  MECHANICAL_PROPERTY:
+    description: "A physical or mechanical property of tissue that contributes to pattern formation"
+    examples: ["tissue stiffness differential", "compressive stress field", "collagen fibre anisotropy", "epithelial bending stiffness", "growth-induced buckling stress"]
+
+  BODY_PLAN_FEATURE:
+    description: "A macroscopic anatomical feature of an animal body plan"
+    examples: ["vertebral column segment number", "paired appendages", "tagmatisation", "head-trunk boundary", "limb bud position", "dorsal-ventral polarity reversal"]
+
+  EVOLUTIONARY_INNOVATION:
+    description: "A phylogenetically novel body-plan feature or transition"
+    examples: ["origin of tetrapod limbs", "Cambrian explosion body plans", "arthropod tagmatisation", "vertebrate neck evolution", "novel segment identity"]
+
+  ALTERNATIVE_MECHANISM:
+    description: "A non-RD mechanism proposed to explain the same patterning phenomenon"
+    examples: ["gene duplication cascade", "heterochrony shift", "ecological release", "growth-rate differential", "purely mechanical compressive folding"]
+
+relationship_types:
+  GENERATES_PATTERN:
+    description: "A patterning mechanism produces a specific pattern element"
+    inverse: "PATTERN_GENERATED_BY"
+    examples: ["clock-and-wavefront GENERATES_PATTERN somites"]
+
+  COUPLED_WITH:
+    description: "Two patterning mechanisms act together or are physically linked"
+    symmetric: true
+    examples: ["Turing RD COUPLED_WITH tissue growth to scale pattern wavelength"]
+
+  CONTRASTED_WITH:
+    description: "Two mechanisms are explicitly compared as alternative explanations for the same pattern"
+    symmetric: true
+    examples: ["RD Turing mechanism CONTRASTED_WITH mechanical buckling for crocodilian scales"]
+
+  REQUIRES_TIMING:
+    description: "A patterning mechanism depends on a specific temporal parameter or phase relationship"
+    inverse: "TIMING_REQUIRED_BY"
+    examples: ["clock-and-wavefront REQUIRES_TIMING precise oscillation period-to-wavefront ratio"]
+
+  SCALES_WITH:
+    description: "A pattern property (e.g. wavelength) scales with a physical quantity"
+    inverse: "DETERMINES_SCALING_OF"
+    examples: ["segment number SCALES_WITH embryo elongation rate in spider segmentation"]
+
+  UNDERLIES_INNOVATION:
+    description: "A patterning mechanism is proposed to underlie an evolutionary body-plan innovation"
+    inverse: "INNOVATION_UNDERLAIN_BY"
+    examples: ["Turing mechanism UNDERLIES_INNOVATION origin of digit patterning in tetrapods"]
+
+  REQUIRES_MOLECULE:
+    description: "A patterning mechanism requires a specific molecular component to function"
+    inverse: "MOLECULE_REQUIRED_BY"
+    examples: ["HES7 oscillation REQUIRES_MOLECULE Notch signalling for synchronisation"]

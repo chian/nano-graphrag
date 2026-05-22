@@ -1,0 +1,74 @@
+# Evo-devo KG: Contradictions and Null Results
+# Question: Where do dominant developmental and evolutionary explanations of
+# body-plan innovation fail, produce null results, or face credible alternatives?
+
+domain_name: "Contradictions and Null Results in Evo-Devo"
+domain_description: "Entities and relationships capturing where dominant models of developmental and evolutionary body-plan innovation fail, produce null or inconsistent results, are context-limited, or face credible mechanistic alternatives — enabling identification of the evidential boundaries of popular frameworks."
+
+entity_types:
+  DOMINANT_MODEL:
+    description: "A widely accepted mechanistic explanation or framework for a developmental or evolutionary phenomenon"
+    examples: ["Hox-centric segment identity model", "French flag morphogen threshold model", "reaction-diffusion Turing mechanism for digit patterning", "neo-Darwinian gradualism", "linear signalling pathway model for limb patterning"]
+
+  NULL_RESULT:
+    description: "An experimental or comparative finding that failed to support a prediction of a dominant model"
+    examples: ["Hox knockout fails to eliminate segment in beetle", "morphogen overexpression does not shift digit number", "canalization measure shows no correlation with evolvability", "turing parameter fit fails in vivo validation"]
+
+  ALTERNATIVE_MECHANISM:
+    description: "A mechanistic explanation proposed as a replacement for or challenge to a dominant model"
+    examples: ["mechanical compressive folding as alternative to RD for scale patterning", "neutral evolution as alternative to positive selection for gene reuse", "heterochrony as alternative to gene duplication for novelty"]
+
+  CONTEXT_LIMITATION:
+    description: "A condition or boundary under which a proposed mechanism is shown to be insufficient or inapplicable"
+    examples: ["Turing mechanism only sufficient in 2D culture, fails in 3D tissue", "canalization buffering model only applies in constant environment", "morphogen gradient model breaks down at tissue boundaries"]
+
+  FAILURE_MODE:
+    description: "A specific way in which a developmental mechanism or model produces incorrect or unexpected outcomes"
+    examples: ["threshold model predicts sharp boundary but gradient is graded", "clock mechanism produces wrong period after Hes7 knockdown", "developmental programme fails due to heterochrony mismatch"]
+
+  REBUTTAL_ARGUMENT:
+    description: "An explicit argument or analysis that challenges the primacy or sufficiency of a proposed mechanism"
+    examples: ["Davidson 2006 rebuttal of GRN sufficiency for body plan evolution", "Müller critique of neo-Darwinian account of novelty", "challenge to Hsp90 as primary capacitor of evolution"]
+
+  ORIGINAL_CLAIM:
+    description: "The specific mechanistic claim or prediction being challenged"
+    examples: ["Turing activator-inhibitor sufficient to generate digit pattern", "Hox gene collinearity explains segment identity ordering", "Hsp90 release of cryptic variation enables rapid evolution"]
+
+  EXPERIMENTAL_SYSTEM:
+    description: "The biological or computational system in which a contradiction or null result was observed"
+    examples: ["Drosophila Ubx loss-of-function", "mouse Hoxa11/Hoxd11 compound mutant", "in vitro human gastruloid", "zebrafish somitogenesis mutant", "Boolean GRN simulation"]
+
+relationship_types:
+  CONTRADICTS:
+    description: "A null result or alternative mechanism directly contradicts the prediction of a dominant model"
+    inverse: "CONTRADICTED_BY"
+    examples: ["mechanical folding evidence CONTRADICTS RD Turing model for crocodilian scales"]
+
+  LIMITS_TO_CONTEXT:
+    description: "Evidence restricts the applicability of a dominant model to a specific context"
+    inverse: "CONTEXTUALLY_LIMITED_BY"
+    examples: ["in vitro validation LIMITS_TO_CONTEXT Turing mechanism applicability"]
+
+  FAILS_UNDER_CONDITION:
+    description: "A mechanism or model produces incorrect or absent results under a defined condition"
+    inverse: "CONDITION_CAUSING_FAILURE"
+    examples: ["French flag model FAILS_UNDER_CONDITION noisy gradient input beyond 10% CV"]
+
+  PROVIDES_ALTERNATIVE_TO:
+    description: "An alternative mechanism can explain the same phenomenon without invoking the dominant model"
+    inverse: "HAS_ALTERNATIVE"
+    examples: ["heterochrony PROVIDES_ALTERNATIVE_TO gene duplication for morphological novelty"]
+
+  IS_DOWNSTREAM_OF:
+    description: "Evidence shows a proposed primary mechanism is actually secondary or downstream of another"
+    inverse: "IS_UPSTREAM_OF"
+    examples: ["Hox expression shown to be IS_DOWNSTREAM_OF chromatin accessibility changes, not the cause"]
+
+  REPLICATES_FAILURE:
+    description: "A null result was observed in an independent experimental system, strengthening the challenge"
+    examples: ["digit patterning RD failure REPLICATES_FAILURE across mouse and chick experimental systems"]
+
+  TESTED_IN:
+    description: "A claim, model, or alternative mechanism was tested in a specific experimental system"
+    inverse: "SYSTEM_TESTS"
+    examples: ["Turing digit model TESTED_IN mouse limb bud explant culture with BMP perturbation"]
