@@ -5,11 +5,15 @@ Loads GraphML files and converts them to formats suitable for vis.js visualizati
 """
 
 import json
+import sys
 import networkx as nx
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
 from dataclasses import dataclass, field
 from nano_graphrag.graph_slots import get_salience_score
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from graph_metadata import load_graph_metadata
 
 
 # Colors pinned by hand for specific types that need a deliberate look.
@@ -84,6 +88,7 @@ class GraphLoader:
         """
         self.graph: Optional[nx.Graph] = None
         self.graphml_path: Optional[str] = None
+        self.graph_metadata: Optional[Dict[str, Any]] = None
         self.stats: Optional[GraphStats] = None
 
         if graphml_path:
@@ -105,6 +110,7 @@ class GraphLoader:
 
         self.graphml_path = str(path.absolute())
         self.graph = nx.read_graphml(graphml_path)
+        self.graph_metadata = load_graph_metadata(path.parent)
         self._compute_stats()
         return self.graph
 

@@ -1,0 +1,129 @@
+{
+  "kg_id": "haiqu_cognitive_impact",
+  "kg_version": "v1",
+  "built_at": "2026-05-22T00:26:56.761898+00:00",
+  "domain": {
+    "name": "HAIQU Cognitive Impact",
+    "description": "Entities and relationships needed to characterize how respiratory infections — including acute illness and long-term sequelae — affect cognitive function in healthcare workers, drawing on neuropsychological, epidemiological, and mechanistic evidence.",
+    "guiding_question": "How do respiratory infections affect cognitive function in healthcare workers?"
+  },
+  "schema": {
+    "entity_types": [
+      {
+        "name": "RESPIRATORY_INFECTION",
+        "description": "The infectious disease causing or associated with cognitive effects"
+      },
+      {
+        "name": "DISEASE_SEVERITY",
+        "description": "Clinical severity category of the infection"
+      },
+      {
+        "name": "HEALTHCARE_WORKER_COHORT",
+        "description": "The study population of healthcare workers"
+      },
+      {
+        "name": "COGNITIVE_DOMAIN",
+        "description": "A specific cognitive function assessed"
+      },
+      {
+        "name": "NEUROPSYCH_TEST",
+        "description": "A validated instrument measuring a cognitive domain"
+      },
+      {
+        "name": "EFFECT_SIZE",
+        "description": "A quantitative measure of cognitive change attributed to infection"
+      },
+      {
+        "name": "FOLLOW_UP_TIMEPOINT",
+        "description": "The time after infection at which cognition is assessed"
+      },
+      {
+        "name": "CONFOUNDING_FACTOR",
+        "description": "A variable that may explain cognitive change independently of infection"
+      },
+      {
+        "name": "BIOLOGICAL_MECHANISM",
+        "description": "A proposed mechanistic pathway linking infection to cognitive deficit"
+      },
+      {
+        "name": "OCCUPATIONAL_EXPOSURE",
+        "description": "A work-related factor that modulates infection risk or cognitive impact"
+      }
+    ],
+    "relationship_types": [
+      {
+        "name": "AFFECTS",
+        "description": "A respiratory infection affects a specific cognitive domain in a cohort"
+      },
+      {
+        "name": "MEASURED_BY",
+        "description": "A cognitive domain is measured using a specific neuropsychological test"
+      },
+      {
+        "name": "HAS_EFFECT_SIZE",
+        "description": "A cognitive change has a quantified effect size in a study"
+      },
+      {
+        "name": "OBSERVED_AT",
+        "description": "An effect is measured at a specific follow-up timepoint"
+      },
+      {
+        "name": "VARIES_WITH_SEVERITY",
+        "description": "An effect size differs by disease severity category"
+      },
+      {
+        "name": "CONFOUNDED_BY",
+        "description": "A cognitive effect may be partially explained by a confounding factor"
+      },
+      {
+        "name": "MEDIATED_BY",
+        "description": "A biological mechanism mediates the infection-cognition relationship"
+      },
+      {
+        "name": "MODULATED_BY_EXPOSURE",
+        "description": "An occupational exposure modulates the severity or likelihood of cognitive impact"
+      },
+      {
+        "name": "COMPARED_TO",
+        "description": "A cognitive outcome in an infected cohort is compared to a control cohort"
+      },
+      {
+        "name": "PERSISTS_AT",
+        "description": "A cognitive deficit that was present acutely persists at a later timepoint"
+      }
+    ]
+  },
+  "search_strategy": {
+    "queries": [
+      "post-COVID cognitive impairment healthcare worker neuropsychological assessment site:pubmed.ncbi.nlm.nih.gov OR site:nature.com",
+      "long COVID cognitive function executive memory processing speed longitudinal site:pubmed.ncbi.nlm.nih.gov OR site:medrxiv.org",
+      "respiratory infection cognitive deficit attention working memory site:pubmed.ncbi.nlm.nih.gov",
+      "neuropsychological test healthcare worker respiratory infection cognitive outcome site:pubmed.ncbi.nlm.nih.gov",
+      "ICU healthcare worker cognitive sequelae occupational exposure site:pubmed.ncbi.nlm.nih.gov"
+    ],
+    "sources": [
+      "pubmed.ncbi.nlm.nih.gov",
+      "nature.com",
+      "medrxiv.org"
+    ]
+  },
+  "corpus_stats": {
+    "paper_count": 138
+  },
+  "scope": {
+    "in_scope": [
+      "RESPIRATORY_INFECTION: The infectious disease causing or associated with cognitive effects",
+      "DISEASE_SEVERITY: Clinical severity category of the infection",
+      "HEALTHCARE_WORKER_COHORT: The study population of healthcare workers",
+      "COGNITIVE_DOMAIN: A specific cognitive function assessed",
+      "NEUROPSYCH_TEST: A validated instrument measuring a cognitive domain",
+      "EFFECT_SIZE: A quantitative measure of cognitive change attributed to infection",
+      "FOLLOW_UP_TIMEPOINT: The time after infection at which cognition is assessed",
+      "CONFOUNDING_FACTOR: A variable that may explain cognitive change independently of infection",
+      "BIOLOGICAL_MECHANISM: A proposed mechanistic pathway linking infection to cognitive deficit",
+      "OCCUPATIONAL_EXPOSURE: A work-related factor that modulates infection risk or cognitive impact"
+    ],
+    "out_of_scope": []
+  },
+  "notes": "Generated automatically at build time from domain schema and corpus metadata."
+}

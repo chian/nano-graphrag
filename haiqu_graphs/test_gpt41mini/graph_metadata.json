@@ -1,0 +1,126 @@
+{
+  "kg_id": "haiqu_engineering_controls",
+  "kg_version": "test_gpt41mini",
+  "built_at": "2026-05-22T00:26:59.925028+00:00",
+  "domain": {
+    "name": "HAIQU Engineering Controls",
+    "description": "Entities and relationships needed to evaluate which engineering and operational interventions reduce airborne pathogen burden in hospital settings, and the evidence for their effectiveness.",
+    "guiding_question": "Which engineering controls reduce airborne pathogen exposure and by how much?"
+  },
+  "schema": {
+    "entity_types": [
+      {
+        "name": "ENGINEERING_CONTROL",
+        "description": "An engineering or operational measure to reduce airborne pathogen exposure"
+      },
+      {
+        "name": "DOSE_OR_RATE",
+        "description": "Quantitative operating parameter of a control"
+      },
+      {
+        "name": "AIRBORNE_PATHOGEN",
+        "description": "The pathogen or pathogen class the control targets"
+      },
+      {
+        "name": "EFFECTIVENESS_MEASURE",
+        "description": "Quantified reduction in pathogen concentration or infection risk"
+      },
+      {
+        "name": "HOSPITAL_ZONE",
+        "description": "The clinical area where the control is deployed"
+      },
+      {
+        "name": "VALIDATION_STUDY",
+        "description": "A study providing evidence for control effectiveness"
+      },
+      {
+        "name": "COST_PROXY",
+        "description": "Capital or operating cost associated with a control"
+      },
+      {
+        "name": "COMPLIANCE_RATE",
+        "description": "Observed adherence to an operational control or protocol"
+      },
+      {
+        "name": "ADVERSE_EFFECT",
+        "description": "An unintended negative consequence of a control"
+      }
+    ],
+    "relationship_types": [
+      {
+        "name": "APPLIED_TO",
+        "description": "A control is deployed in a specific hospital zone"
+      },
+      {
+        "name": "TARGETS",
+        "description": "A control is specifically aimed at reducing a pathogen or class"
+      },
+      {
+        "name": "HAS_DOSE",
+        "description": "A control operates at a specific dose or rate"
+      },
+      {
+        "name": "REDUCES",
+        "description": "A control reduces pathogen concentration or infection risk by a measured amount"
+      },
+      {
+        "name": "VALIDATED_BY",
+        "description": "A control's effectiveness is established by a study"
+      },
+      {
+        "name": "INCURS_COST",
+        "description": "A control has an associated cost"
+      },
+      {
+        "name": "HAS_COMPLIANCE",
+        "description": "An operational control has an observed compliance rate"
+      },
+      {
+        "name": "HAS_ADVERSE_EFFECT",
+        "description": "A control has a documented adverse or unintended consequence"
+      },
+      {
+        "name": "OUTPERFORMS",
+        "description": "One control achieves greater reduction than another against the same target"
+      },
+      {
+        "name": "COMPLEMENTS",
+        "description": "Two controls together provide greater reduction than either alone"
+      }
+    ]
+  },
+  "search_strategy": {
+    "queries": [
+      "upper room UV-C UVGI airborne tuberculosis disinfection efficacy site:pubmed.ncbi.nlm.nih.gov",
+      "HEPA portable air cleaner hospital airborne pathogen reduction site:pubmed.ncbi.nlm.nih.gov OR site:biorxiv.org",
+      "engineering control airborne infection reduction hospital log reduction effectiveness site:pubmed.ncbi.nlm.nih.gov",
+      "increased ventilation ACH airborne infection risk reduction site:pubmed.ncbi.nlm.nih.gov OR site:plos.org",
+      "source control masking N95 respirator airborne hospital site:pubmed.ncbi.nlm.nih.gov OR site:cdc.gov",
+      "UV-C HEPA ventilation combined effectiveness hospital site:pubmed.ncbi.nlm.nih.gov"
+    ],
+    "sources": [
+      "pubmed.ncbi.nlm.nih.gov",
+      "biorxiv.org",
+      "plos.org",
+      "cdc.gov"
+    ]
+  },
+  "corpus_stats": {
+    "paper_count": 74
+  },
+  "scope": {
+    "in_scope": [
+      "ENGINEERING_CONTROL: An engineering or operational measure to reduce airborne pathogen exposure",
+      "DOSE_OR_RATE: Quantitative operating parameter of a control",
+      "AIRBORNE_PATHOGEN: The pathogen or pathogen class the control targets",
+      "EFFECTIVENESS_MEASURE: Quantified reduction in pathogen concentration or infection risk",
+      "HOSPITAL_ZONE: The clinical area where the control is deployed",
+      "VALIDATION_STUDY: A study providing evidence for control effectiveness",
+      "COST_PROXY: Capital or operating cost associated with a control",
+      "COMPLIANCE_RATE: Observed adherence to an operational control or protocol",
+      "ADVERSE_EFFECT: An unintended negative consequence of a control"
+    ],
+    "out_of_scope": []
+  },
+  "notes": "Generated automatically at build time from domain schema and corpus metadata."
+}

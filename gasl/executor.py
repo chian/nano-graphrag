@@ -887,7 +887,8 @@ class GASLExecutor:
                 continue
             command_types[command_type] = command_types.get(command_type, 0) + 1
         artifact_fields = [set(art.get("row_schema", []) or []) for art in produced_artifacts]
-        return {
+
+        ctx: Dict[str, Any] = {
             "kg_schema": {
                 "node_labels_count": len(schema.get("node_labels", []) or []),
                 "edge_types_count": len(schema.get("edge_types", []) or []),
@@ -905,6 +906,33 @@ class GASLExecutor:
                 "command_types": command_types,
             },
         }
+
+        # Fold in domain metadata if the adapter carries it.
+        graph_metadata = getattr(self.adapter, "graph_metadata", None) or {}
+        if graph_metadata:
+            domain = graph_metadata.get("domain", {})
+            kg_schema_meta = graph_metadata.get("schema", {})
+            search = graph_metadata.get("search_strategy", {})
+            scope = graph_metadata.get("scope", {})
+            corpus = graph_metadata.get("corpus_stats", {})
+            ctx["domain_expertise"] = {
+                "kg_id": graph_metadata.get("kg_id", ""),
+                "domain_name": domain.get("name", ""),
+                "domain_description": domain.get("description", ""),
+                "guiding_question": domain.get("guiding_question", ""),
+                "entity_types": [
+                    et.get("name", "") for et in (kg_schema_meta.get("entity_types") or [])
+                ],
+                "relationship_types": [
+                    rt.get("name", "") for rt in (kg_schema_meta.get("relationship_types") or [])
+                ],
+                "search_sources": search.get("sources", []),
+                "paper_count": corpus.get("paper_count", 0),
+                "in_scope": scope.get("in_scope", []),
+                "out_of_scope": scope.get("out_of_scope", []),
+            }
+
+        return ctx
 
     def _attempt_command_repair(
         self,

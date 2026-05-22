@@ -1,0 +1,85 @@
+{
+  "kg_id": "ldr_physics_biology",
+  "kg_version": "v1",
+  "built_at": "2026-05-22T00:27:04.748399+00:00",
+  "domain": {
+    "name": "Low-Dose Radiation Physics and Radiobiology",
+    "description": "Entities and relationships connecting the physical properties of low-dose ionising radiation to its biological effects at the cellular and tissue level.",
+    "guiding_question": "What are the physical mechanisms and radiobiological principles governing the effects of low-dose ionising radiation on living systems?"
+  },
+  "schema": {
+    "entity_types": [
+      {
+        "name": "RADIATION_TYPE",
+        "description": "Type of ionising radiation (X-ray, gamma, alpha, neutron, beta)"
+      },
+      {
+        "name": "LET",
+        "description": "Linear energy transfer — energy deposited per unit track length"
+      },
+      {
+        "name": "TRACK_STRUCTURE",
+        "description": "Spatial pattern of ionisation events along a radiation track"
+      },
+      {
+        "name": "BIOLOGICAL_EFFECT",
+        "description": "Observable biological outcome (cell death, mutation, transformation)"
+      },
+      {
+        "name": "RBE",
+        "description": "Relative biological effectiveness of a radiation type"
+      },
+      {
+        "name": "BYSTANDER_EFFECT",
+        "description": "Radiation effects in cells not directly irradiated"
+      }
+    ],
+    "relationship_types": [
+      {
+        "name": "HAS_LET",
+        "description": "A radiation type has a characteristic LET value"
+      },
+      {
+        "name": "PRODUCES",
+        "description": "A radiation track produces a biological effect"
+      },
+      {
+        "name": "SCALES_WITH",
+        "description": "RBE scales with LET or dose"
+      },
+      {
+        "name": "TRIGGERS",
+        "description": "Direct irradiation triggers bystander signalling"
+      }
+    ]
+  },
+  "search_strategy": {
+    "queries": [
+      "low LET ionising radiation radiobiology RBE cellular effects site:pubmed.ncbi.nlm.nih.gov",
+      "radiation track structure Monte Carlo simulation low dose site:pubmed.ncbi.nlm.nih.gov"
+    ],
+    "sources": [
+      "pubmed.ncbi.nlm.nih.gov"
+    ]
+  },
+  "corpus_stats": {
+    "paper_count": 120
+  },
+  "scope": {
+    "in_scope": [
+      "RADIATION_TYPE: Type of ionising radiation (X-ray, gamma, alpha, neutron, beta)",
+      "LET: Linear energy transfer — energy deposited per unit track length",
+      "TRACK_STRUCTURE: Spatial pattern of ionisation events along a radiation track",
+      "BIOLOGICAL_EFFECT: Observable biological outcome (cell death, mutation, transformation)",
+      "RBE: Relative biological effectiveness of a radiation type",
+      "BYSTANDER_EFFECT: Radiation effects in cells not directly irradiated"
+    ],
+    "out_of_scope": [
+      "Vaccine efficacy or immunisation schedules",
+      "High-dose radiation therapy (clinical radiotherapy)",
+      "Non-radiation carcinogen exposures",
+      "Epidemiological population-level cancer statistics unrelated to radiation"
+    ]
+  },
+  "notes": "Approximate metadata — original schema YAMLs not retained in repo."
+}

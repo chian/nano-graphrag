@@ -304,7 +304,7 @@ class GaslQueryEngine:
             from gasl.adapters import NetworkXAdapter
             from gasl.llm.argo_bridge import ArgoBridgeLLM
 
-            adapter = NetworkXAdapter(self.loader.graph)
+            adapter = NetworkXAdapter(self.loader.graph, graph_metadata=self.loader.graph_metadata)
             runtime_cfg = resolve_runtime_llm_config(explicit_api_key=api_key, explicit_model=model)
             llm = ArgoBridgeLLM(model=runtime_cfg.model or model, api_key=runtime_cfg.api_key,
                                 base_url=runtime_cfg.base_url,

@@ -1,0 +1,81 @@
+{
+  "kg_id": "ldr_somatic_mutation",
+  "kg_version": "v1",
+  "built_at": "2026-05-22T00:27:04.749014+00:00",
+  "domain": {
+    "name": "Radiation-Induced Somatic Mutation",
+    "description": "Entities and relationships describing the somatic mutations produced by low-dose ionising radiation, their mutational signatures, and their role in clonal evolution.",
+    "guiding_question": "What somatic mutations does low-dose radiation induce and how do they contribute to clonal expansion and cancer initiation?"
+  },
+  "schema": {
+    "entity_types": [
+      {
+        "name": "MUTATION_TYPE",
+        "description": "Class of somatic mutation (SNV, indel, SV, CNV)"
+      },
+      {
+        "name": "MUTATIONAL_SIGNATURE",
+        "description": "COSMIC or de novo signature associated with radiation"
+      },
+      {
+        "name": "DRIVER_GENE",
+        "description": "Gene whose mutation confers clonal fitness advantage"
+      },
+      {
+        "name": "CLONE",
+        "description": "Clonally expanded cell population carrying shared mutations"
+      },
+      {
+        "name": "TISSUE",
+        "description": "Tissue or organ in which somatic mutations accumulate"
+      }
+    ],
+    "relationship_types": [
+      {
+        "name": "INDUCES_SIGNATURE",
+        "description": "Radiation induces a specific mutational signature"
+      },
+      {
+        "name": "MUTATES",
+        "description": "Radiation mutates a driver gene"
+      },
+      {
+        "name": "EXPANDS",
+        "description": "A driver mutation causes clonal expansion"
+      },
+      {
+        "name": "ENRICHED_IN",
+        "description": "A mutation type is enriched in a specific tissue after radiation"
+      }
+    ]
+  },
+  "search_strategy": {
+    "queries": [
+      "radiation induced somatic mutation clonal expansion COSMIC signature site:pubmed.ncbi.nlm.nih.gov",
+      "ionising radiation mutational spectrum whole genome sequencing site:pubmed.ncbi.nlm.nih.gov OR site:nature.com"
+    ],
+    "sources": [
+      "pubmed.ncbi.nlm.nih.gov",
+      "nature.com"
+    ]
+  },
+  "corpus_stats": {
+    "paper_count": 180
+  },
+  "scope": {
+    "in_scope": [
+      "MUTATION_TYPE: Class of somatic mutation (SNV, indel, SV, CNV)",
+      "MUTATIONAL_SIGNATURE: COSMIC or de novo signature associated with radiation",
+      "DRIVER_GENE: Gene whose mutation confers clonal fitness advantage",
+      "CLONE: Clonally expanded cell population carrying shared mutations",
+      "TISSUE: Tissue or organ in which somatic mutations accumulate"
+    ],
+    "out_of_scope": [
+      "Vaccine efficacy or immunisation schedules",
+      "High-dose radiation therapy (clinical radiotherapy)",
+      "Non-radiation carcinogen exposures",
+      "Epidemiological population-level cancer statistics unrelated to radiation"
+    ]
+  },
+  "notes": "Approximate metadata — original schema YAMLs not retained in repo."
+}

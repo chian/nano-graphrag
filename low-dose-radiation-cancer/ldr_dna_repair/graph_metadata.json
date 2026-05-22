@@ -1,0 +1,85 @@
+{
+  "kg_id": "ldr_dna_repair",
+  "kg_version": "v1",
+  "built_at": "2026-05-22T00:27:04.747884+00:00",
+  "domain": {
+    "name": "Radiation-Induced DNA Damage and Repair",
+    "description": "Entities and relationships describing how low-dose ionising radiation damages DNA and the cellular mechanisms that detect, signal, and repair that damage.",
+    "guiding_question": "What DNA damage does low-dose radiation cause and how do cells repair it?"
+  },
+  "schema": {
+    "entity_types": [
+      {
+        "name": "DNA_LESION",
+        "description": "Type of DNA damage (DSB, SSB, base oxidation, clustered damage)"
+      },
+      {
+        "name": "REPAIR_PATHWAY",
+        "description": "DNA repair mechanism (NHEJ, HR, BER, MMR)"
+      },
+      {
+        "name": "REPAIR_PROTEIN",
+        "description": "Protein involved in damage recognition or repair"
+      },
+      {
+        "name": "DOSE_RATE",
+        "description": "Rate at which dose is delivered (acute vs chronic)"
+      },
+      {
+        "name": "CELL_TYPE",
+        "description": "Cell or tissue type in which damage occurs"
+      },
+      {
+        "name": "FIDELITY",
+        "description": "Accuracy of repair (error-free vs error-prone)"
+      }
+    ],
+    "relationship_types": [
+      {
+        "name": "CAUSES",
+        "description": "Radiation causes a DNA lesion type"
+      },
+      {
+        "name": "REPAIRED_BY",
+        "description": "A lesion is repaired by a pathway"
+      },
+      {
+        "name": "REQUIRES",
+        "description": "A repair pathway requires a specific protein"
+      },
+      {
+        "name": "MODULATES",
+        "description": "Dose rate modulates repair fidelity or pathway choice"
+      }
+    ]
+  },
+  "search_strategy": {
+    "queries": [
+      "low dose radiation DNA double strand break repair NHEJ HR site:pubmed.ncbi.nlm.nih.gov",
+      "ionising radiation DNA damage response checkpoint ATM site:pubmed.ncbi.nlm.nih.gov"
+    ],
+    "sources": [
+      "pubmed.ncbi.nlm.nih.gov"
+    ]
+  },
+  "corpus_stats": {
+    "paper_count": 150
+  },
+  "scope": {
+    "in_scope": [
+      "DNA_LESION: Type of DNA damage (DSB, SSB, base oxidation, clustered damage)",
+      "REPAIR_PATHWAY: DNA repair mechanism (NHEJ, HR, BER, MMR)",
+      "REPAIR_PROTEIN: Protein involved in damage recognition or repair",
+      "DOSE_RATE: Rate at which dose is delivered (acute vs chronic)",
+      "CELL_TYPE: Cell or tissue type in which damage occurs",
+      "FIDELITY: Accuracy of repair (error-free vs error-prone)"
+    ],
+    "out_of_scope": [
+      "Vaccine efficacy or immunisation schedules",
+      "High-dose radiation therapy (clinical radiotherapy)",
+      "Non-radiation carcinogen exposures",
+      "Epidemiological population-level cancer statistics unrelated to radiation"
+    ]
+  },
+  "notes": "Approximate metadata — original schema YAMLs not retained in repo."
+}

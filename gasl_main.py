@@ -15,6 +15,7 @@ from gasl.adapters import NetworkXAdapter
 from gasl.llm import ArgoBridgeLLM
 from gasl.graph_versioning import VersionedGraph, GraphVersionDebugger
 from gasl.errors import GASLError
+from graph_metadata import load_graph_metadata
 
 
 def load_graph_from_nano_graphrag(working_dir: str):
@@ -39,13 +40,17 @@ def load_graph_from_nano_graphrag(working_dir: str):
         
         # Load the graph directly
         graph = nx.read_graphml(graph_file)
-        
+
         # Auto-discover GraphML key mapping and apply it
         graph = _apply_graphml_key_mapping(graph, graph_file)
-        
+
+        # Load domain metadata if available (checks both cache_dir and working_dir)
+        graph_metadata = load_graph_metadata(cache_dir) or load_graph_metadata(working_dir)
+
         # Wrap in versioned graph system
         versioned_graph = VersionedGraph(graph, working_dir)
-        
+        versioned_graph._graph_metadata = graph_metadata
+
         return versioned_graph, "networkx"
         
     except Exception as e:
@@ -208,7 +213,8 @@ def main():
         print(f"DEBUG: Creating NetworkX adapter...")
         # Pass the current graph from versioned graph to adapter
         current_graph = graph.get_current_graph()
-        adapter = NetworkXAdapter(current_graph)
+        graph_metadata = getattr(graph, "_graph_metadata", None)
+        adapter = NetworkXAdapter(current_graph, graph_metadata=graph_metadata)
         # Store reference to versioned graph for updates
         adapter.versioned_graph = graph
         print(f"DEBUG: Adapter created successfully")

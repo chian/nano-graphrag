@@ -9,9 +9,10 @@ from ..types import AdapterCapabilities
 
 class GraphAdapter(ABC):
     """Base class for graph adapters."""
-    
-    def __init__(self, graph_instance: Any):
+
+    def __init__(self, graph_instance: Any, graph_metadata: Optional[Dict[str, Any]] = None):
         self.graph = graph_instance
+        self.graph_metadata: Optional[Dict[str, Any]] = graph_metadata
         self.capabilities = self._get_capabilities()
     
     @abstractmethod

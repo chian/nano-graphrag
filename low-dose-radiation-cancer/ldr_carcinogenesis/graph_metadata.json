@@ -1,0 +1,92 @@
+{
+  "kg_id": "ldr_carcinogenesis",
+  "kg_version": "v1",
+  "built_at": "2026-05-22T00:27:04.747113+00:00",
+  "domain": {
+    "name": "Radiation Carcinogenesis and Cancer Risk",
+    "description": "Entities and relationships capturing how low-dose ionising radiation causes cancer, dose-response relationships, and the accuracy of current risk models.",
+    "guiding_question": "How does low-dose radiation cause cancer, what are the dose-response relationships, and how well do current risk models predict outcomes?"
+  },
+  "schema": {
+    "entity_types": [
+      {
+        "name": "RADIATION_SOURCE",
+        "description": "Source of ionising radiation exposure"
+      },
+      {
+        "name": "DOSE",
+        "description": "Quantitative radiation dose (Gy, mSv, cGy)"
+      },
+      {
+        "name": "CANCER_TYPE",
+        "description": "Specific cancer or tumour type induced"
+      },
+      {
+        "name": "DOSE_RESPONSE_MODEL",
+        "description": "Mathematical model relating dose to cancer risk (LNT, threshold, hormesis)"
+      },
+      {
+        "name": "POPULATION",
+        "description": "Exposed human or animal population studied"
+      },
+      {
+        "name": "RISK_ESTIMATE",
+        "description": "Excess relative or absolute cancer risk estimate"
+      },
+      {
+        "name": "LATENCY",
+        "description": "Time between exposure and tumour development"
+      }
+    ],
+    "relationship_types": [
+      {
+        "name": "INDUCES",
+        "description": "Radiation dose induces a cancer type"
+      },
+      {
+        "name": "MODELLED_BY",
+        "description": "A dose-response relationship is described by a model"
+      },
+      {
+        "name": "OBSERVED_IN",
+        "description": "A risk estimate was observed in a population"
+      },
+      {
+        "name": "PREDICTS",
+        "description": "A model predicts risk for a population"
+      }
+    ]
+  },
+  "search_strategy": {
+    "queries": [
+      "low dose radiation cancer risk dose response site:pubmed.ncbi.nlm.nih.gov",
+      "linear no-threshold model radiation carcinogenesis epidemiology site:pubmed.ncbi.nlm.nih.gov",
+      "radiation hormesis low dose cancer incidence site:pubmed.ncbi.nlm.nih.gov OR site:ncbi.nlm.nih.gov/pmc"
+    ],
+    "sources": [
+      "pubmed.ncbi.nlm.nih.gov",
+      "ncbi.nlm.nih.gov"
+    ]
+  },
+  "corpus_stats": {
+    "paper_count": 229
+  },
+  "scope": {
+    "in_scope": [
+      "RADIATION_SOURCE: Source of ionising radiation exposure",
+      "DOSE: Quantitative radiation dose (Gy, mSv, cGy)",
+      "CANCER_TYPE: Specific cancer or tumour type induced",
+      "DOSE_RESPONSE_MODEL: Mathematical model relating dose to cancer risk (LNT, threshold, hormesis)",
+      "POPULATION: Exposed human or animal population studied",
+      "RISK_ESTIMATE: Excess relative or absolute cancer risk estimate",
+      "LATENCY: Time between exposure and tumour development"
+    ],
+    "out_of_scope": [
+      "Vaccine efficacy or immunisation schedules",
+      "High-dose radiation therapy (clinical radiotherapy)",
+      "Non-radiation carcinogen exposures",
+      "Epidemiological population-level cancer statistics unrelated to radiation"
+    ]
+  },
+  "notes": "Approximate metadata — original schema YAMLs not retained in repo."
+}

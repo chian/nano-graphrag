@@ -55,6 +55,7 @@ from graph_enrichment.graph_merger import (
 )
 from create_domain_typed_graph import chunk_text, extract_from_chunk
 from gasl.llm import ArgoBridgeLLM
+from graph_metadata import metadata_from_schema_and_corpus, save_graph_metadata
 
 
 @dataclass
@@ -313,6 +314,19 @@ async def build_group(
         "papers_failed": failed,
         "papers_skipped_short": skipped_short,
     })
+
+    # Write domain expertise metadata alongside the graph
+    try:
+        gm = metadata_from_schema_and_corpus(
+            kg_id=group,
+            kg_version=output_dir.name,
+            schema=schema,
+            corpus_metadata=metadata,
+        )
+        meta_path = save_graph_metadata(group_out_dir, gm)
+        print(f"  → wrote {meta_path.name}")
+    except Exception as exc:
+        print(f"  ! graph_metadata write failed (non-fatal): {exc}")
 
     elapsed = time.time() - t0
     print(f"\n  → wrote {out_graph}")

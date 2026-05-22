@@ -1,0 +1,128 @@
+{
+  "kg_id": "haiqu_aerosol_exposure",
+  "kg_version": "v1_gpt51",
+  "built_at": "2026-05-22T00:26:58.333900+00:00",
+  "domain": {
+    "name": "HAIQU Aerosol Exposure",
+    "description": "Entities and relationships needed to characterize what pathogens exist in hospital air, their concentrations, particle sizes, viability, and the environmental conditions that modulate them.",
+    "guiding_question": "What pathogens are present in hospital air, at what concentrations, and under what environmental conditions?"
+  },
+  "schema": {
+    "entity_types": [
+      {
+        "name": "AIRBORNE_PATHOGEN",
+        "description": "A pathogen in its aerosolized or airborne form, as detected in a sample"
+      },
+      {
+        "name": "AEROSOL_SAMPLE",
+        "description": "A single air-sampling event at a specific location and time"
+      },
+      {
+        "name": "CONCENTRATION_MEASURE",
+        "description": "A quantitative airborne concentration for a pathogen in a sample"
+      },
+      {
+        "name": "PARTICLE_SIZE",
+        "description": "The aerodynamic particle size class carrying the pathogen"
+      },
+      {
+        "name": "VIABILITY",
+        "description": "Whether sampled organisms retain infectivity"
+      },
+      {
+        "name": "ENVIRONMENTAL_CONDITION",
+        "description": "An environmental parameter measured at the time and place of sampling"
+      },
+      {
+        "name": "SAMPLING_METHOD",
+        "description": "The air-sampling instrument or technique used"
+      },
+      {
+        "name": "HOSPITAL_SETTING",
+        "description": "The clinical area where sampling took place"
+      },
+      {
+        "name": "DECAY_RATE",
+        "description": "Rate of airborne concentration loss over time (biological or physical)"
+      }
+    ],
+    "relationship_types": [
+      {
+        "name": "CONTAINS",
+        "description": "An aerosol sample contains detectable quantities of a pathogen"
+      },
+      {
+        "name": "HAS_CONCENTRATION",
+        "description": "A sample has a measured concentration for a specific pathogen"
+      },
+      {
+        "name": "HAS_SIZE",
+        "description": "An airborne pathogen is predominantly associated with a particle size class"
+      },
+      {
+        "name": "HAS_VIABILITY",
+        "description": "A sampled pathogen has a characterized viability state"
+      },
+      {
+        "name": "COLLECTED_IN",
+        "description": "An aerosol sample was collected in a specific hospital setting"
+      },
+      {
+        "name": "COLLECTED_BY",
+        "description": "A sample was collected using a specific sampling method"
+      },
+      {
+        "name": "MEASURED_UNDER",
+        "description": "A sample was taken under specific environmental conditions"
+      },
+      {
+        "name": "AFFECTS_VIABILITY",
+        "description": "An environmental condition modulates pathogen viability"
+      },
+      {
+        "name": "HAS_DECAY_RATE",
+        "description": "A pathogen under specific conditions has a measured airborne decay rate"
+      },
+      {
+        "name": "CO_DETECTED_WITH",
+        "description": "Two pathogens were detected simultaneously in the same sample"
+      }
+    ]
+  },
+  "search_strategy": {
+    "queries": [
+      "bioaerosol sampling hospital airborne pathogen concentration site:pubmed.ncbi.nlm.nih.gov OR site:ncbi.nlm.nih.gov/pmc",
+      "SARS-CoV-2 airborne concentration hospital sampling impactor cyclone site:pubmed.ncbi.nlm.nih.gov OR site:medrxiv.org OR site:biorxiv.org",
+      "aerosol viability respiratory pathogen relative humidity temperature site:pubmed.ncbi.nlm.nih.gov OR site:nature.com",
+      "particle size distribution respiratory aerosol droplet nucleus hospital infection site:pubmed.ncbi.nlm.nih.gov",
+      "Mycobacterium tuberculosis Aspergillus airborne hospital sampling concentration CFU copies site:pubmed.ncbi.nlm.nih.gov",
+      "influenza RSV MRSA airborne hospital environmental sampling site:pubmed.ncbi.nlm.nih.gov OR site:cdc.gov"
+    ],
+    "sources": [
+      "pubmed.ncbi.nlm.nih.gov",
+      "ncbi.nlm.nih.gov",
+      "medrxiv.org",
+      "biorxiv.org",
+      "nature.com",
+      "cdc.gov"
+    ]
+  },
+  "corpus_stats": {
+    "paper_count": 115
+  },
+  "scope": {
+    "in_scope": [
+      "AIRBORNE_PATHOGEN: A pathogen in its aerosolized or airborne form, as detected in a sample",
+      "AEROSOL_SAMPLE: A single air-sampling event at a specific location and time",
+      "CONCENTRATION_MEASURE: A quantitative airborne concentration for a pathogen in a sample",
+      "PARTICLE_SIZE: The aerodynamic particle size class carrying the pathogen",
+      "VIABILITY: Whether sampled organisms retain infectivity",
+      "ENVIRONMENTAL_CONDITION: An environmental parameter measured at the time and place of sampling",
+      "SAMPLING_METHOD: The air-sampling instrument or technique used",
+      "HOSPITAL_SETTING: The clinical area where sampling took place",
+      "DECAY_RATE: Rate of airborne concentration loss over time (biological or physical)"
+    ],
+    "out_of_scope": []
+  },
+  "notes": "Generated automatically at build time from domain schema and corpus metadata."
+}

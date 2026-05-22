@@ -1,0 +1,126 @@
+{
+  "kg_id": "haiqu_hospital_environment",
+  "kg_version": "v1",
+  "built_at": "2026-05-22T00:26:57.766656+00:00",
+  "domain": {
+    "name": "HAIQU Hospital Environment",
+    "description": "Entities and relationships needed to understand how hospital physical layout and air-handling infrastructure create the conditions for airborne pathogen movement and accumulation.",
+    "guiding_question": "How does hospital room configuration and HVAC design affect airborne pathogen distribution?"
+  },
+  "schema": {
+    "entity_types": [
+      {
+        "name": "HOSPITAL_ZONE",
+        "description": "A functional clinical area with defined air-handling characteristics"
+      },
+      {
+        "name": "HVAC_UNIT",
+        "description": "An air-handling unit serving one or more clinical zones"
+      },
+      {
+        "name": "AIR_PATH",
+        "description": "A duct or flow path connecting HVAC units and zones"
+      },
+      {
+        "name": "ACH_RATE",
+        "description": "Air changes per hour attributed to a zone"
+      },
+      {
+        "name": "PRESSURE_RELATIONSHIP",
+        "description": "Static-pressure differential between a zone and its surroundings"
+      },
+      {
+        "name": "AIR_DISTRIBUTION_PATTERN",
+        "description": "How air moves within a room as characterized by tracer gas or CFD"
+      },
+      {
+        "name": "TRACER_GAS",
+        "description": "An inert gas used to characterize air movement in studies"
+      },
+      {
+        "name": "AIRBORNE_PATHOGEN",
+        "description": "A pathogen whose spatial distribution is shaped by the built environment"
+      },
+      {
+        "name": "OCCUPANCY_LOAD",
+        "description": "Number and type of occupants in a zone, affecting CO2 and pathogen shedding"
+      }
+    ],
+    "relationship_types": [
+      {
+        "name": "SERVES",
+        "description": "An HVAC unit supplies/returns air to a zone"
+      },
+      {
+        "name": "HAS_ACH",
+        "description": "A zone has a specified ACH rate"
+      },
+      {
+        "name": "HAS_PRESSURE",
+        "description": "A zone has a defined pressure relationship to adjacent spaces"
+      },
+      {
+        "name": "ADJACENT_TO",
+        "description": "Two zones share a physical boundary with potential for air transfer"
+      },
+      {
+        "name": "CONNECTS_TO",
+        "description": "An air path connects two zones or units"
+      },
+      {
+        "name": "HAS_DISTRIBUTION_PATTERN",
+        "description": "A zone has a characterized air distribution pattern"
+      },
+      {
+        "name": "PATTERN_MEASURED_BY",
+        "description": "An air distribution pattern was characterized using a tracer gas"
+      },
+      {
+        "name": "ACH_AFFECTS",
+        "description": "ACH rate affects pathogen concentration in a zone"
+      },
+      {
+        "name": "PRESSURE_CONTAINS",
+        "description": "A pressure relationship contains pathogen spread from one zone to another"
+      },
+      {
+        "name": "OCCUPANCY_INCREASES",
+        "description": "Occupancy load increases pathogen shedding or CO2 in a zone"
+      }
+    ]
+  },
+  "search_strategy": {
+    "queries": [
+      "hospital HVAC design airborne pathogen distribution air changes site:pubmed.ncbi.nlm.nih.gov OR site:ashrae.org",
+      "negative pressure isolation room AIIR airborne infection control site:pubmed.ncbi.nlm.nih.gov OR site:cdc.gov",
+      "operating room ventilation airflow pathogen contamination site:pubmed.ncbi.nlm.nih.gov",
+      "tracer gas air distribution hospital ward CFD airflow site:pubmed.ncbi.nlm.nih.gov OR site:nature.com",
+      "hospital room configuration recirculation dead zone infection site:pubmed.ncbi.nlm.nih.gov",
+      "ASHRAE 170 ventilation healthcare facility infection control site:ashrae.org OR site:pubmed.ncbi.nlm.nih.gov"
+    ],
+    "sources": [
+      "pubmed.ncbi.nlm.nih.gov",
+      "ashrae.org",
+      "cdc.gov",
+      "nature.com"
+    ]
+  },
+  "corpus_stats": {
+    "paper_count": 36
+  },
+  "scope": {
+    "in_scope": [
+      "HOSPITAL_ZONE: A functional clinical area with defined air-handling characteristics",
+      "HVAC_UNIT: An air-handling unit serving one or more clinical zones",
+      "AIR_PATH: A duct or flow path connecting HVAC units and zones",
+      "ACH_RATE: Air changes per hour attributed to a zone",
+      "PRESSURE_RELATIONSHIP: Static-pressure differential between a zone and its surroundings",
+      "AIR_DISTRIBUTION_PATTERN: How air moves within a room as characterized by tracer gas or CFD",
+      "TRACER_GAS: An inert gas used to characterize air movement in studies",
+      "AIRBORNE_PATHOGEN: A pathogen whose spatial distribution is shaped by the built environment",
+      "OCCUPANCY_LOAD: Number and type of occupants in a zone, affecting CO2 and pathogen shedding"
+    ],
+    "out_of_scope": []
+  },
+  "notes": "Generated automatically at build time from domain schema and corpus metadata."
+}

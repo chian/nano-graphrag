@@ -1,0 +1,137 @@
+{
+  "kg_id": "haiqu_biosensor_detection",
+  "kg_version": "v1_gpt51",
+  "built_at": "2026-05-22T00:26:58.849650+00:00",
+  "domain": {
+    "name": "HAIQU Biosensor Detection",
+    "description": "Entities and relationships needed to answer whether CRISPR-based microfluidic biosensors can detect airborne pathogens in hospital settings, including the detection chemistry, target pathogens, performance limits, and validation evidence.",
+    "guiding_question": "Can microfluidic droplet CRISPR biosensors detect pathogenic agents in hospital air, and at what limits?"
+  },
+  "schema": {
+    "entity_types": [
+      {
+        "name": "BIOSENSOR_PLATFORM",
+        "description": "A biosensor device or system designed to detect pathogens in air samples"
+      },
+      {
+        "name": "CAS_VARIANT",
+        "description": "A CRISPR effector enzyme used as the detection mechanism"
+      },
+      {
+        "name": "GUIDE_RNA",
+        "description": "A targeting guide RNA designed against a specific pathogen sequence"
+      },
+      {
+        "name": "AMPLIFICATION_METHOD",
+        "description": "Isothermal or thermal amplification step used before or coupled to CRISPR detection"
+      },
+      {
+        "name": "AIRBORNE_PATHOGEN",
+        "description": "A pathogen being detected in its airborne form"
+      },
+      {
+        "name": "LIMIT_OF_DETECTION",
+        "description": "The minimum detectable quantity with statistical confidence"
+      },
+      {
+        "name": "SPECIFICITY_PROFILE",
+        "description": "Cross-reactivity and false-positive characterization against a panel"
+      },
+      {
+        "name": "SAMPLE_PREP_STEP",
+        "description": "A processing step applied to air sample before detection"
+      },
+      {
+        "name": "ASSAY_VALIDATION",
+        "description": "A validation study establishing performance characteristics"
+      },
+      {
+        "name": "ASSAY_RUN",
+        "description": "A single execution of the detection assay on a specific sample"
+      },
+      {
+        "name": "REPORTER_SIGNAL",
+        "description": "The measurable signal produced when the assay detects its target"
+      }
+    ],
+    "relationship_types": [
+      {
+        "name": "DETECTS",
+        "description": "A biosensor platform detects a specific airborne pathogen"
+      },
+      {
+        "name": "USES_VARIANT",
+        "description": "A platform uses a specific Cas variant as its detection enzyme"
+      },
+      {
+        "name": "USES_GUIDE",
+        "description": "A platform targets a pathogen via a specific guide RNA"
+      },
+      {
+        "name": "USES_AMPLIFICATION",
+        "description": "A platform uses an amplification method before or during detection"
+      },
+      {
+        "name": "REQUIRES_PREP",
+        "description": "A platform requires a sample preparation step before the assay"
+      },
+      {
+        "name": "HAS_LOD",
+        "description": "A platform has a measured or claimed limit of detection for a pathogen"
+      },
+      {
+        "name": "HAS_SPECIFICITY",
+        "description": "A platform has a specificity profile against a defined reference panel"
+      },
+      {
+        "name": "VALIDATED_BY",
+        "description": "A platform's performance is established by a validation study"
+      },
+      {
+        "name": "PRODUCES_SIGNAL",
+        "description": "A platform produces a specific type of reporter signal on positive detection"
+      },
+      {
+        "name": "OUTPERFORMS",
+        "description": "One platform achieves better detection performance than another on the same target"
+      }
+    ]
+  },
+  "search_strategy": {
+    "queries": [
+      "microfluidic droplet CRISPR Cas13 airborne pathogen detection limit of detection site:pubmed.ncbi.nlm.nih.gov OR site:nature.com OR site:cell.com",
+      "SHERLOCK DETECTR CRISPR biosensor aerosol pathogen hospital site:pubmed.ncbi.nlm.nih.gov OR site:biorxiv.org",
+      "Cas13a Cas12a airborne virus detection sensitivity specificity site:pubmed.ncbi.nlm.nih.gov OR site:nature.com",
+      "digital droplet PCR airborne respiratory pathogen quantification hospital site:pubmed.ncbi.nlm.nih.gov OR site:plos.org",
+      "isothermal amplification RPA LAMP airborne pathogen point-of-care site:pubmed.ncbi.nlm.nih.gov OR site:biorxiv.org",
+      "biosensor validation aerosol spiked chamber clinical specimen respiratory pathogen site:pubmed.ncbi.nlm.nih.gov"
+    ],
+    "sources": [
+      "pubmed.ncbi.nlm.nih.gov",
+      "nature.com",
+      "cell.com",
+      "biorxiv.org",
+      "plos.org"
+    ]
+  },
+  "corpus_stats": {
+    "paper_count": 50
+  },
+  "scope": {
+    "in_scope": [
+      "BIOSENSOR_PLATFORM: A biosensor device or system designed to detect pathogens in air samples",
+      "CAS_VARIANT: A CRISPR effector enzyme used as the detection mechanism",
+      "GUIDE_RNA: A targeting guide RNA designed against a specific pathogen sequence",
+      "AMPLIFICATION_METHOD: Isothermal or thermal amplification step used before or coupled to CRISPR detection",
+      "AIRBORNE_PATHOGEN: A pathogen being detected in its airborne form",
+      "LIMIT_OF_DETECTION: The minimum detectable quantity with statistical confidence",
+      "SPECIFICITY_PROFILE: Cross-reactivity and false-positive characterization against a panel",
+      "SAMPLE_PREP_STEP: A processing step applied to air sample before detection",
+      "ASSAY_VALIDATION: A validation study establishing performance characteristics",
+      "ASSAY_RUN: A single execution of the detection assay on a specific sample",
+      "REPORTER_SIGNAL: The measurable signal produced when the assay detects its target"
+    ],
+    "out_of_scope": []
+  },
+  "notes": "Generated automatically at build time from domain schema and corpus metadata."
+}
