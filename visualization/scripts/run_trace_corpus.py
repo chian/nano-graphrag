@@ -60,6 +60,13 @@ def run_rag_with_trace(loader: GraphLoader, question: str, api_key: str, model: 
     }
 
 
+def load_reused_rag(run_id: str, query_id: str) -> Dict[str, Any]:
+    rag_path = REPO_ROOT / "benchmark_results" / run_id / query_id / "rag.json"
+    if not rag_path.exists():
+        raise FileNotFoundError(f"Missing reused RAG artifact: {rag_path}")
+    return json.loads(rag_path.read_text())
+
+
 def run_gasl_with_artifacts(
     graph_path: str,
     question: str,
@@ -262,6 +269,11 @@ def main() -> None:
     parser.add_argument("--heartbeat", type=int, default=1800)
     parser.add_argument("--run-id", default="")
     parser.add_argument("--question-file", required=True, help="Curated question-set JSON file")
+    parser.add_argument(
+        "--reuse-rag-from",
+        default="",
+        help="Reuse per-question rag.json from a previous run_id instead of recomputing RAG",
+    )
     args = parser.parse_args()
 
     load_env_file(REPO_ROOT / ".viz.local.env")
@@ -292,6 +304,7 @@ def main() -> None:
         "graphs": graphs,
         "per_graph": args.per_graph,
         "question_file": args.question_file,
+        "reuse_rag_from": args.reuse_rag_from or None,
     }
     (run_dir / "manifest.json").write_text(json.dumps(manifest, indent=2))
 
@@ -322,7 +335,10 @@ def main() -> None:
             }, indent=2))
 
             try:
-                rag = run_rag_with_trace(loader, spec.question, api_key, args.model)
+                if args.reuse_rag_from:
+                    rag = load_reused_rag(args.reuse_rag_from, query_id)
+                else:
+                    rag = run_rag_with_trace(loader, spec.question, api_key, args.model)
                 (query_dir / "rag.json").write_text(json.dumps(rag, indent=2))
 
                 gasl = run_gasl_with_artifacts(

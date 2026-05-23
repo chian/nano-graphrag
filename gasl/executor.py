@@ -78,7 +78,7 @@ from .commands.iterate import IterateHandler
 from .micro_actions import MicroActionFramework
 from .errors import ExecutionError, ParseError
 from .trace import GASLTraceLogger
-from .answer_layer import AnswerLayerCompiler, DeterministicAnswerFinalizer
+from .answer_layer import AnswerLayerCompiler
 from .prompt_observations import PromptObservationLogger
 from .plan_iteration_agent import PlanIterationAgent, PlanIterationRequest
 from .command_repair_agent import LLMCommandRepairAgent, CommandFailureEnvelope, GenericCommandRepairRequest
@@ -219,10 +219,14 @@ class GASLExecutor:
                         previous_result = on_result
                     continue
 
-                compiled_command, compile_failure = self._compile_command_before_execution(
+                previous_plan_command = commands[i - 1] if i > 0 else None
+                next_plan_command = commands[i + 1] if i + 1 < len(commands) else None
+                compiled_commands, compile_failure = self._compile_command_before_execution(
                     command=command,
                     step_id=step_id,
                     query=plan_json.get("query", self.state_store.get_state().get("query", "")),
+                    previous_command=previous_plan_command,
+                    next_command=next_plan_command,
                 )
                 if compile_failure is not None:
                     result = compile_failure
@@ -246,59 +250,67 @@ class GASLExecutor:
                         break
                     continue
 
-                command = compiled_command
-                command_inputs = self._capture_command_inputs(command)
-                result = self._execute_command(command, step_id)
-                results.append(result)
-                
-                # Add to history
-                artifact = self._build_produced_artifact(command, result)
-                history_entry = HistoryEntry(
-                    step_id=step_id,
-                    command=command.raw_text,
-                    status=result.status,
-                    result_count=result.count,
-                    duration_ms=result.duration_ms,
-                    timestamp=result.timestamp,
-                    error_message=result.error_message,
-                    provenance=result.provenance,
-                    produced_artifact=artifact,
-                )
-                self.state_store.add_history_entry(history_entry)
-                if artifact:
-                    self.state_store.append_produced_artifact(artifact)
-                previous_result = result
+                break_plan = False
+                for patch_index, compiled_command in enumerate(compiled_commands):
+                    patch_step_id = (
+                        step_id
+                        if len(compiled_commands) == 1
+                        else f"{step_id}.patch{patch_index + 1}"
+                    )
+                    command_inputs = self._capture_command_inputs(compiled_command)
+                    result = self._execute_command(compiled_command, patch_step_id)
+                    results.append(result)
 
-                repaired_result = self._attempt_command_repair(
-                    command=command,
-                    step_id=step_id,
-                    result=result,
-                    command_inputs=command_inputs,
-                )
-                if repaired_result is not None:
-                    repaired_step_id = f"{step_id}.repair"
-                    results.append(repaired_result)
-                    repaired_artifact = self._build_produced_artifact(command, repaired_result)
-                    self.state_store.add_history_entry(HistoryEntry(
-                        step_id=repaired_step_id,
-                        command=repaired_result.command,
-                        status=repaired_result.status,
-                        result_count=repaired_result.count,
-                        duration_ms=repaired_result.duration_ms,
-                        timestamp=repaired_result.timestamp,
-                        error_message=repaired_result.error_message,
-                        provenance=repaired_result.provenance,
-                        produced_artifact=repaired_artifact,
-                    ))
-                    if repaired_artifact:
-                        self.state_store.append_produced_artifact(repaired_artifact)
-                    previous_result = repaired_result
-                    result = repaired_result
-                
-                # Check for early termination
-                if result.status == "error" and plan.config.get("stop_on_error", True):
-                    break
-                elif result.status == "empty" and not plan.config.get("continue_on_empty", False):
+                    artifact = self._build_produced_artifact(compiled_command, result)
+                    history_entry = HistoryEntry(
+                        step_id=patch_step_id,
+                        command=compiled_command.raw_text,
+                        status=result.status,
+                        result_count=result.count,
+                        duration_ms=result.duration_ms,
+                        timestamp=result.timestamp,
+                        error_message=result.error_message,
+                        provenance=result.provenance,
+                        produced_artifact=artifact,
+                    )
+                    self.state_store.add_history_entry(history_entry)
+                    if artifact:
+                        self.state_store.append_produced_artifact(artifact)
+                    previous_result = result
+
+                    repaired_result = self._attempt_command_repair(
+                        command=compiled_command,
+                        step_id=patch_step_id,
+                        result=result,
+                        command_inputs=command_inputs,
+                    )
+                    if repaired_result is not None:
+                        repaired_step_id = f"{patch_step_id}.repair"
+                        results.append(repaired_result)
+                        repaired_artifact = self._build_produced_artifact(compiled_command, repaired_result)
+                        self.state_store.add_history_entry(HistoryEntry(
+                            step_id=repaired_step_id,
+                            command=repaired_result.command,
+                            status=repaired_result.status,
+                            result_count=repaired_result.count,
+                            duration_ms=repaired_result.duration_ms,
+                            timestamp=repaired_result.timestamp,
+                            error_message=repaired_result.error_message,
+                            provenance=repaired_result.provenance,
+                            produced_artifact=repaired_artifact,
+                        ))
+                        if repaired_artifact:
+                            self.state_store.append_produced_artifact(repaired_artifact)
+                        previous_result = repaired_result
+                        result = repaired_result
+
+                    if result.status == "error" and plan.config.get("stop_on_error", True):
+                        break_plan = True
+                        break
+                    elif result.status == "empty" and not plan.config.get("continue_on_empty", False):
+                        break_plan = True
+                        break
+                if break_plan:
                     break
             
             return {
@@ -485,13 +497,17 @@ class GASLExecutor:
         command: Command,
         step_id: str,
         query: str,
-    ) -> tuple[Command, Optional[ExecutionResult]]:
+        previous_command: Optional[Command] = None,
+        next_command: Optional[Command] = None,
+    ) -> tuple[list[Command], Optional[ExecutionResult]]:
         compiled = self.step_compiler.compile_step(
             command=command,
             query=query,
             state_store=self.state_store,
             context_store=self.context_store,
             history=self.state_store.get_state().get("history", []),
+            previous_command=previous_command,
+            next_command=next_command,
         )
         self.trace.log(
             "command_compile",
@@ -500,6 +516,7 @@ class GASLExecutor:
                 "original_command": command.raw_text,
                 "action": compiled.action,
                 "compiled_command": compiled.rendered_command,
+                "compiled_commands": compiled.rendered_commands,
                 "reason": compiled.reason,
                 "defects": compiled.defects,
                 "symbol_scope": {
@@ -508,8 +525,8 @@ class GASLExecutor:
                 },
             },
         )
-        if compiled.action in {"accept", "rewrite"} and compiled.command is not None:
-            return compiled.command, None
+        if compiled.action in {"accept", "rewrite", "patch_two"} and compiled.commands:
+            return compiled.commands, None
         failure = ExecutionResult(
             command=command.raw_text,
             status="error",
@@ -527,7 +544,7 @@ class GASLExecutor:
                 )
             ],
         )
-        return command, failure
+        return [], failure
 
     @staticmethod
     def _count_rows_in_inputs(command_inputs: Dict[str, Any]) -> int:
@@ -1063,16 +1080,6 @@ class GASLExecutor:
                 },
             },
         )
-        deterministic = DeterministicAnswerFinalizer().finalize(query, selection)
-        if deterministic:
-            self.trace.log("final_answer_response", {"query": query, "mode": "deterministic_view", "response": deterministic})
-            self.state_store.set_final_answer(
-                deterministic,
-                query_answered=True,
-                mode="deterministic_view",
-            )
-            return deterministic
-
         results = {}
         variables = state.get("variables", {})
 

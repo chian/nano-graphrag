@@ -51,3 +51,19 @@ def test_process_repair_response_parser():
     assert parsed["selector_hint"] == "lexical"
     assert parsed["current_rows_sufficient"] is True
     assert parsed["confidence"] == 0.71
+
+
+def test_store_variable_data_coerces_empty_dict_to_list(tmp_path):
+    state = StateStore(tmp_path / "state.json")
+    ctx = ContextStore()
+    manager = StateManager(state, ctx)
+    state.declare_variable("walk_rows", "DICT", "placeholder")
+    manager.store_variable_data(
+        "walk_rows",
+        [{"id": "n1"}, {"id": "n2"}],
+        contract={"payload_kind": "walk_rows", "grain_type": "edge"},
+    )
+    stored = state.get_variable("walk_rows")
+    assert stored["_meta"]["type"] == "LIST"
+    assert len(stored["items"]) == 2
+    assert ctx.has("walk_rows") is True

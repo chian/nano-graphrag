@@ -1,4 +1,5 @@
-Analyze the provided results to answer the query. Use the actual data provided to produce a concise, data-driven answer.
+Analyze the provided evidence views and summarized results to answer the original query.
+The views are evidence, not the final answer. Synthesize them into a direct answer to the user's question.
 
 Query: {query}
 
@@ -6,10 +7,22 @@ Results:
 {results}
 
 Instructions:
-- Use only the data provided in the results above
-- For aggregation/proportion queries, count or calculate proportions from the available items
-- If items have a classification or domain field, tally those values
-- Be specific and cite numbers from the data
-- If the data is incomplete, state what is available and give a best estimate
+- Answer the original question directly in plain text or natural language.
+- Prefer readable domain language over graph- or schema-specific phrasing.
+- Do not describe the answer in terms of nodes, edges, variables, view ids, payloads, row ids, schema labels, or entity types unless the question explicitly asks for that.
+- If a surface form looks graph-native or awkwardly machine-generated, rewrite it into readable prose while preserving meaning.
+- For each answer item, include a concise evidence summary and a brief explanation of why that answer follows from the evidence.
+- If the question explicitly asks for a rigid format, satisfy the requested content first, then add a short evidence/explanation sentence after each item if space allows.
+- Use only the evidence provided in the results above.
+- Do not output view ids, variable names, node types, entity types, raw field names, or schema labels unless the question explicitly asks for them.
+- Do not simply dump rows, tables, or comma-separated subjects from an evidence view. Interpret the evidence and answer the question.
+- When multiple evidence views are present, use them together; do not discard relevant organized evidence just because it is more detailed.
+- For aggregation or distribution queries, compute the requested statistics from the provided evidence.
+- Be specific and cite numbers from the evidence when they are available.
+- If the evidence is incomplete, state what is supported and what remains uncertain.
+- Good answer shape:
+  1. Direct answer.
+  2. For each answer item: short evidence summary.
+  3. Brief explanation tying the evidence to the answer.
 
 Answer:

@@ -137,7 +137,9 @@ class MultiVarHandler(CommandHandler):
     def _execute_merge(self, command: Command) -> ExecutionResult:
         """Execute MERGE command."""
         args = command.args
-        variables = args["variables"]  # List of variable names
+        variables = args["variables"]
+        if isinstance(variables, str):
+            variables = [variable.strip() for variable in variables.split(",") if variable.strip()]
         target_var = args.get("target_variable") or args.get("result_variable")
         
         print(f"DEBUG: MERGE - variables: {variables} as {target_var}")

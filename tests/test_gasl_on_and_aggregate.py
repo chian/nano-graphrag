@@ -27,6 +27,20 @@ class RepairingLLM:
         return ""
 
 
+class TwoStepCompileLLM:
+    model = "dummy-compile-patch"
+
+    def call(self, prompt: str) -> str:
+        if "You are compiling exactly one GASL command under step-local constraints." in prompt:
+            return (
+                '{"action":"patch_two","commands":['
+                '"SELECT controls FIELDS id AS temp_controls",'
+                '"SELECT temp_controls FIELDS id AS top_controls"'
+                '],"reason":"repair missing source through temp symbol"}'
+            )
+        return ""
+
+
 def test_on_condition_matches_treats_success_zero_count_as_empty():
     result = ExecutionResult(command="GRAPHWALK", status="success", data=[], count=0)
     assert GASLExecutor._on_condition_matches("empty", result) is True
@@ -95,6 +109,35 @@ def test_execute_plan_attempts_generic_command_repair_before_break():
     assert executor.context_store.get("repaired_flag") is True
 
 
+def test_execute_plan_runs_two_command_compile_patch_inline():
+    graph = nx.MultiDiGraph()
+    executor = GASLExecutor(NetworkXAdapter(graph), TwoStepCompileLLM(), state_file=None, job_id="test_compile_patch")
+    executor.state_store.declare_variable("controls", "LIST")
+    executor.state_store.update_variable("controls", [{"id": "c1"}, {"id": "c2"}])
+    executor.state_store.set_variable_contract("controls", {"row_schema": ["id"], "grain_type": "node"})
+    plan = {
+        "plan_id": "plan-compile-patch",
+        "why": "test compiler mini-patch",
+        "commands": [
+            "SELECT future_controls FIELDS id AS top_controls",
+        ],
+        "query": "repair one unavailable source by using a temp symbol",
+        "config": {"stop_on_error": True, "continue_on_empty": False},
+    }
+    result = executor.execute_plan(plan)
+    statuses = [r.status for r in result["results"]]
+    commands = [r.command for r in result["results"]]
+    assert result["status"] == "completed"
+    assert statuses == ["success", "success"]
+    assert commands == [
+        "SELECT controls FIELDS id AS temp_controls",
+        "SELECT temp_controls FIELDS id AS top_controls",
+    ]
+    top_controls = executor.context_store.get("top_controls")
+    assert isinstance(top_controls, list)
+    assert len(top_controls) == 2
+
+
 def test_generate_final_answer_persists_deterministic_answer(tmp_path, monkeypatch):
     import gasl.executor as executor_module
 
@@ -111,7 +154,7 @@ def test_generate_final_answer_persists_deterministic_answer(tmp_path, monkeypat
     class _Selection:
         view = None
         supporting_views = []
-        rationale = "deterministic test"
+        rationale = "analysis test"
 
     class _Compiler:
         def build_views(self, runtime_view):
@@ -120,12 +163,9 @@ def test_generate_final_answer_persists_deterministic_answer(tmp_path, monkeypat
         def select_view(self, query, views, llm_func=None):
             return _Selection()
 
-    class _Finalizer:
-        def finalize(self, query, selection):
-            return "SAFE ANSWER"
-
     monkeypatch.setattr(executor_module, "AnswerLayerCompiler", lambda: _Compiler())
-    monkeypatch.setattr(executor_module, "DeterministicAnswerFinalizer", lambda: _Finalizer())
+    monkeypatch.setattr(executor.llm_func, "create_analysis_prompt", lambda query, results: f"Q={query}\nR={results}", raising=False)
+    monkeypatch.setattr(executor.llm_func, "call", lambda prompt: "SAFE ANSWER")
 
     answer = executor._generate_final_answer(
         "Which control ranks highest?",
@@ -136,7 +176,7 @@ def test_generate_final_answer_persists_deterministic_answer(tmp_path, monkeypat
     assert answer == "SAFE ANSWER"
     assert persisted["final_answer"] == "SAFE ANSWER"
     assert persisted["query_answered"] is True
-    assert persisted["final_answer_mode"] == "deterministic_view"
+    assert persisted["final_answer_mode"] == "llm_analysis"
 
 
 def test_hdt_persists_defect_summary_and_returns_refreshed_state(tmp_path, monkeypatch):

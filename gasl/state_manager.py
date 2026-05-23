@@ -108,11 +108,20 @@ class StateManager:
         
         # Store in state store using the GASL-native format (_meta + items)
         if store_in_state:
+            desired_type = "LIST" if isinstance(data, list) else "DICT"
             if self.state_store.has_variable(variable_name):
+                self.state_store.ensure_variable_type(variable_name, desired_type)
                 # Directly replace the items list rather than extending it
                 var_data = self.state_store.get_variable(variable_name)
                 if isinstance(var_data, dict) and "_meta" in var_data:
-                    var_data["items"] = data
+                    if var_data["_meta"].get("type") == "LIST":
+                        var_data["items"] = data if isinstance(data, list) else [data]
+                    else:
+                        for key in list(var_data.keys()):
+                            if key != "_meta":
+                                del var_data[key]
+                        if isinstance(data, dict):
+                            var_data.update(data)
                     if contract is not None:
                         var_data["_meta"]["contract"] = contract
                     self.state_store._save_state()
@@ -120,13 +129,14 @@ class StateManager:
                     print(f"🔍 STATE_MANAGER: Updated existing state store variable")
             else:
                 # Create new variable with GASL-native format
-                var_type = "LIST" if isinstance(data, list) else "DICT"
                 var_description = description or f"Data for {variable_name}"
-                self.state_store.declare_variable(variable_name, var_type, var_description)
+                self.state_store.declare_variable(variable_name, desired_type, var_description)
                 var_data = self.state_store.get_variable(variable_name)
                 if isinstance(var_data, dict) and "_meta" in var_data:
-                    if var_type == "LIST":
-                        var_data["items"] = data
+                    if desired_type == "LIST":
+                        var_data["items"] = data if isinstance(data, list) else [data]
+                    elif isinstance(data, dict):
+                        var_data.update(data)
                     if contract is not None:
                         var_data["_meta"]["contract"] = contract
                     self.state_store._save_state()

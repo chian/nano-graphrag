@@ -99,6 +99,18 @@ class TestGASLParser(unittest.TestCase):
         self.assertEqual(cmd.command_type, "INSPECT")
         self.assertEqual(cmd.args["variable"], "top_controls")
 
+    def test_validate_show_and_inspect_current_shape(self):
+        show = self.parser.parse_command("SHOW top_controls limit 3")
+        inspect = self.parser.parse_command("INSPECT top_controls")
+        self.assertTrue(self.parser.validate_command(show))
+        self.assertTrue(self.parser.validate_command(inspect))
+
+    def test_merge_parses_variable_list(self):
+        cmd = self.parser.parse_command("MERGE control_pathogen_links,control_low_cost_links AS control_combined_counts")
+        self.assertEqual(cmd.command_type, "MERGE")
+        self.assertEqual(cmd.args["variables"], ["control_pathogen_links", "control_low_cost_links"])
+        self.assertEqual(cmd.args["result_variable"], "control_combined_counts")
+
 
 if __name__ == "__main__":
     unittest.main()

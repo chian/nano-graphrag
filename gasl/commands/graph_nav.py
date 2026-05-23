@@ -110,10 +110,14 @@ class GraphNavHandler(CommandHandler):
                 grain_keys=["src_id", "tgt_id", "relation_type", "path_depth"],
                 multiplicity_preserved=True,
             )
-            self.context_store.set(result_var, walked_data, contract=walk_contract)
-            if self.state_store.has_variable(result_var):
-                self.state_store.update_variable(result_var, walked_data)
-                self.state_store.set_variable_contract(result_var, walk_contract)
+            self.state_manager.store_variable_data(
+                result_var,
+                walked_data,
+                store_in_state=True,
+                store_in_context=True,
+                description=f"Graph walk results for {result_var}",
+                contract=walk_contract,
+            )
 
         # Store result in context
         walk_contract = make_contract(

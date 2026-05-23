@@ -207,7 +207,11 @@ class GASLParser:
             args["result_variable"] = groups[3]
         
         elif command_type == "MERGE":
-            args["variables"] = groups[0].strip()
+            args["variables"] = [
+                variable.strip()
+                for variable in groups[0].split(",")
+                if variable and variable.strip()
+            ]
             args["result_variable"] = groups[1]
         
         elif command_type == "COMPARE":
@@ -315,6 +319,8 @@ class GASLParser:
             return self._validate_process_update_analyze(command)
         elif command.command_type == "COUNT":
             return self._validate_count(command)
+        elif command.command_type in ["SHOW", "INSPECT"]:
+            return self._validate_debug(command)
         elif command.command_type == "SELECT":
             return self._validate_select(command)
         elif command.command_type == "SET":
@@ -365,6 +371,10 @@ class GASLParser:
         """Validate PROCESS/UPDATE/ANALYZE commands."""
         args = command.args
         return "variable" in args and "instruction" in args
+
+    def _validate_debug(self, command: Command) -> bool:
+        args = command.args
+        return "variable" in args and bool(args["variable"])
     
     def _parse_count_command(self, command_string: str) -> Dict[str, Any]:
         """Simple COUNT command parser: COUNT <source> [where <condition>] AS <result_var>."""

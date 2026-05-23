@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from copy import deepcopy
 from typing import Any, Dict, Iterable, Literal, Optional
 
 from nano_graphrag.prompt_system import get_prompt_system
@@ -18,7 +19,7 @@ Availability = Literal[
     "unavailable",
 ]
 Shape = Literal["rows", "dict", "counter", "unknown"]
-CompileAction = Literal["accept", "rewrite", "upstream_repair_needed", "reject"]
+CompileAction = Literal["accept", "rewrite", "patch_two", "upstream_repair_needed", "reject"]
 
 
 @dataclass
@@ -33,6 +34,8 @@ class StepCompileResult:
     action: CompileAction
     command: Optional[Command]
     rendered_command: str
+    commands: list[Command]
+    rendered_commands: list[str]
     reason: str
     symbol_scope: Dict[str, SymbolState]
     defects: list[Dict[str, Any]]
@@ -69,6 +72,25 @@ _EXPECTED_INPUT_SHAPES: Dict[str, Shape] = {
     "ADD_FIELD": "rows",
 }
 
+_DEFECT_EXPLANATION_TEMPLATES: Dict[tuple[str, str], str] = {
+    ("availability", "current_output"): (
+        "the proposed rewrite still reads its own output symbol '{symbol}' as an input; "
+        "output symbols are write-only at this step"
+    ),
+    ("availability", "unavailable"): (
+        "the proposed rewrite references '{symbol}', but no materialized variable with that name exists in local scope"
+    ),
+    ("availability", "materialized_empty"): (
+        "the proposed rewrite depends on '{symbol}', but that symbol is materialized and empty in local scope"
+    ),
+    ("shape", ""): (
+        "the proposed rewrite expects {expected} input from '{symbol}', but local scope has shape {shape}"
+    ),
+    ("schema", ""): (
+        "the proposed rewrite has an invalid GASL command shape and does not pass parser validation"
+    ),
+}
+
 
 class GASLStepCompiler:
     """Step-local verifier/compiler between planning and execution.
@@ -92,6 +114,8 @@ class GASLStepCompiler:
         state_store: StateStore,
         context_store: ContextStore,
         history: list[Dict[str, Any]],
+        previous_command: Optional[Command] = None,
+        next_command: Optional[Command] = None,
     ) -> StepCompileResult:
         current_output = self._current_output_symbol(command)
         symbol_scope = self._build_symbol_scope(command, state_store, context_store, current_output)
@@ -101,65 +125,85 @@ class GASLStepCompiler:
                 action="accept",
                 command=command,
                 rendered_command=command.raw_text,
+                commands=[command],
+                rendered_commands=[command.raw_text],
                 reason="verified",
                 symbol_scope=symbol_scope,
                 defects=[],
             )
 
-        rewrite = self._request_typed_rewrite(
+        rewrite = self._request_rewrite(
             command=command,
             query=query,
             history=history,
             symbol_scope=symbol_scope,
             defects=defects,
             current_output=current_output,
+            previous_command=previous_command,
+            next_command=next_command,
+            state_store=state_store,
+            context_store=context_store,
         )
-        if rewrite["action"] not in {"rewrite", "accept"}:
+        if rewrite["action"] not in {"rewrite", "patch_two", "accept"}:
             return StepCompileResult(
                 action=rewrite["action"],
                 command=None,
                 rendered_command="",
+                commands=[],
+                rendered_commands=[],
                 reason=rewrite["reason"],
                 symbol_scope=symbol_scope,
                 defects=defects,
             )
 
-        typed_command = rewrite.get("typed_command") or {}
-        rendered = self._render_typed_command(typed_command)
-        if not rendered:
+        rendered_commands = rewrite.get("commands") or []
+        if not rendered_commands:
             return StepCompileResult(
                 action="reject",
                 command=None,
                 rendered_command="",
+                commands=[],
+                rendered_commands=[],
                 reason="compiler produced unsupported typed command",
                 symbol_scope=symbol_scope,
                 defects=defects,
             )
-        try:
-            repaired = self.parser.parse_command(rendered, command.line_number)
-        except Exception as exc:
-            return StepCompileResult(
-                action="reject",
-                command=None,
-                rendered_command=rendered,
-                reason=f"compiled command did not parse: {exc}",
-                symbol_scope=symbol_scope,
-                defects=defects,
-            )
-        repaired_defects = self._verify_command(repaired, symbol_scope)
+
+        parsed_commands: list[Command] = []
+        for idx, rendered in enumerate(rendered_commands, start=1):
+            try:
+                repaired = self.parser.parse_command(rendered, command.line_number)
+            except Exception as exc:
+                return StepCompileResult(
+                    action="reject",
+                    command=None,
+                    rendered_command=rendered,
+                    commands=[],
+                    rendered_commands=rendered_commands,
+                    reason=f"compiled command did not parse: {exc}",
+                    symbol_scope=symbol_scope,
+                    defects=defects,
+                )
+            parsed_commands.append(repaired)
+
+        repaired_defects = self._verify_command_sequence(parsed_commands, symbol_scope)
         if repaired_defects:
             return StepCompileResult(
                 action="reject",
                 command=None,
-                rendered_command=rendered,
-                reason="compiled command still violates step-local constraints",
+                rendered_command=rendered_commands[0],
+                commands=[],
+                rendered_commands=rendered_commands,
+                reason=self._explain_defect(repaired_defects[0], rendered_commands),
                 symbol_scope=symbol_scope,
                 defects=repaired_defects,
             )
         return StepCompileResult(
-            action="rewrite",
-            command=repaired,
-            rendered_command=rendered,
+            action="patch_two" if len(parsed_commands) == 2 else "rewrite",
+            command=parsed_commands[0],
+            rendered_command=rendered_commands[0],
+            commands=parsed_commands,
+            rendered_commands=rendered_commands,
             reason=rewrite["reason"],
             symbol_scope=symbol_scope,
             defects=defects,
@@ -235,7 +279,7 @@ class GASLStepCompiler:
                 )
         return defects
 
-    def _request_typed_rewrite(
+    def _request_rewrite(
         self,
         *,
         command: Command,
@@ -244,6 +288,10 @@ class GASLStepCompiler:
         symbol_scope: Dict[str, SymbolState],
         defects: list[Dict[str, Any]],
         current_output: Optional[str],
+        previous_command: Optional[Command],
+        next_command: Optional[Command],
+        state_store: StateStore,
+        context_store: ContextStore,
     ) -> Dict[str, Any]:
         prompt = self._build_compile_prompt(
             command=command,
@@ -252,9 +300,13 @@ class GASLStepCompiler:
             symbol_scope=symbol_scope,
             defects=defects,
             current_output=current_output,
+            previous_command=previous_command,
+            next_command=next_command,
+            state_store=state_store,
+            context_store=context_store,
         )
         obs_id = None
-        default = {"action": "upstream_repair_needed", "typed_command": {}, "reason": "no legal step-local rewrite"}
+        default = {"action": "upstream_repair_needed", "commands": [], "reason": "no legal step-local patch"}
         try:
             if self.prompt_logger:
                 obs_id = self.prompt_logger.record_invocation(
@@ -273,7 +325,7 @@ class GASLStepCompiler:
                     parsed=parsed,
                     labels={"parse_success": bool(parsed), "action": parsed.get("action")},
                 )
-            return parsed or default
+            return self._normalize_rewrite_response(parsed or default)
         except Exception:
             if self.prompt_logger and obs_id:
                 self.prompt_logger.record_outcome(
@@ -294,6 +346,10 @@ class GASLStepCompiler:
         symbol_scope: Dict[str, SymbolState],
         defects: list[Dict[str, Any]],
         current_output: Optional[str],
+        previous_command: Optional[Command],
+        next_command: Optional[Command],
+        state_store: StateStore,
+        context_store: ContextStore,
     ) -> str:
         base = get_prompt_system().get_prompt("command_compile", optimize=False)
         symbol_json = json.dumps(
@@ -303,16 +359,126 @@ class GASLStepCompiler:
             },
             indent=2,
         )
+        contracts_json = json.dumps(
+            self._build_contract_scope(
+                command=command,
+                current_output=current_output,
+                previous_command=previous_command,
+                next_command=next_command,
+                state_store=state_store,
+                context_store=context_store,
+            ),
+            indent=2,
+            default=str,
+        )
+        last_failure = next((entry for entry in reversed(history) if entry.get("status") == "error"), None)
         return (
             f"{base}\n\n"
             f"Query:\n{query}\n\n"
             f"Current command:\n{command.raw_text}\n\n"
+            f"Previous command:\n{previous_command.raw_text if previous_command else ''}\n\n"
+            f"Next command:\n{next_command.raw_text if next_command else ''}\n\n"
             f"Command type:\n{command.command_type}\n\n"
             f"Current output symbol:\n{current_output or ''}\n\n"
             f"Available symbol scope:\n{symbol_json}\n\n"
+            f"Variable contracts and declared types:\n{contracts_json}\n\n"
             f"Defects:\n{json.dumps(defects, indent=2)}\n\n"
+            f"Last failure:\n{json.dumps(last_failure, indent=2, default=str)}\n\n"
             f"Recent history:\n{json.dumps(history[-6:], indent=2, default=str)}\n"
         )
+
+    def _build_contract_scope(
+        self,
+        *,
+        command: Command,
+        current_output: Optional[str],
+        previous_command: Optional[Command],
+        next_command: Optional[Command],
+        state_store: StateStore,
+        context_store: ContextStore,
+    ) -> Dict[str, Any]:
+        contract_scope: Dict[str, Any] = {}
+        relevant_symbols = set(self._consumed_vars(command))
+        if current_output:
+            relevant_symbols.add(current_output)
+        for neighbor in (previous_command, next_command):
+            if neighbor is None:
+                continue
+            relevant_symbols.update(self._consumed_vars(neighbor))
+            neighbor_output = self._current_output_symbol(neighbor)
+            if neighbor_output:
+                relevant_symbols.add(neighbor_output)
+        for name in sorted(relevant_symbols):
+            if not name:
+                continue
+            declared_type = None
+            if state_store.has_variable(name):
+                declared_type = state_store.get_variable(name).get("_meta", {}).get("type")
+                contract = state_store.get_variable_contract(name)
+            else:
+                contract = context_store.get_contract(name) if context_store.has(name) else {}
+            contract_scope[name] = {
+                "declared_type": declared_type,
+                "contract": contract,
+            }
+        return contract_scope
+
+    def _normalize_rewrite_response(self, parsed: Dict[str, Any]) -> Dict[str, Any]:
+        action = str(parsed.get("action", "upstream_repair_needed"))
+        if action == "rewrite_one":
+            action = "rewrite"
+        commands = parsed.get("commands")
+        if not isinstance(commands, list):
+            commands = []
+        commands = [str(cmd).strip() for cmd in commands if isinstance(cmd, str) and str(cmd).strip()]
+        if not commands:
+            typed_command = parsed.get("typed_command") or {}
+            rendered = self._render_typed_command(typed_command)
+            if rendered:
+                commands = [rendered]
+        if action == "rewrite" and len(commands) == 2:
+            action = "patch_two"
+        return {
+            "action": action,
+            "commands": commands[:2],
+            "reason": parsed.get("reason", ""),
+        }
+
+    def _verify_command_sequence(
+        self,
+        commands: list[Command],
+        symbol_scope: Dict[str, SymbolState],
+    ) -> list[Dict[str, Any]]:
+        scope = deepcopy(symbol_scope)
+        defects: list[Dict[str, Any]] = []
+        for idx, command in enumerate(commands):
+            local_defects = self._verify_command(command, scope)
+            if local_defects:
+                for defect in local_defects:
+                    defects.append({"patch_index": idx, **defect})
+                return defects
+            output = self._current_output_symbol(command)
+            if output:
+                scope[output] = SymbolState(
+                    name=output,
+                    availability="materialized_nonempty",
+                    shape=self._infer_output_shape(command),
+                )
+        return defects
+
+    def _explain_defect(self, defect: Dict[str, Any], rendered_commands: list[str]) -> str:
+        patch_index = int(defect.get("patch_index", 0))
+        patch_label = f"patch command {patch_index + 1}"
+        kind = str(defect.get("kind", "") or "")
+        availability = str(defect.get("availability", "") or "")
+        template = _DEFECT_EXPLANATION_TEMPLATES.get((kind, availability))
+        if template is None:
+            template = _DEFECT_EXPLANATION_TEMPLATES.get((kind, ""), defect.get("message", "compiled command still violates step-local constraints"))
+        rendered = rendered_commands[patch_index] if 0 <= patch_index < len(rendered_commands) else ""
+        explanation = template.format(**defect)
+        if rendered:
+            return f"{patch_label} `{rendered}` failed because {explanation}"
+        return f"{patch_label} failed because {explanation}"
 
     @staticmethod
     def _render_typed_command(typed_command: Dict[str, Any]) -> str:

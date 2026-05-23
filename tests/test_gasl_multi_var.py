@@ -57,6 +57,20 @@ class TestGASLMultiVarCompatibility(unittest.TestCase):
         self.assertEqual({row["id"] for row in compared["only_in_var1"]}, {"a"})
         self.assertEqual({row["id"] for row in compared["only_in_var2"]}, {"c"})
 
+    def test_merge_accepts_parser_variable_list_and_unions_rows(self):
+        self.state.declare_variable("left_rows", "LIST", "left")
+        self.state.update_variable("left_rows", [{"id": "a", "left_value": 1}, {"id": "b", "left_value": 2}])
+        self.state.declare_variable("right_rows", "LIST", "right")
+        self.state.update_variable("right_rows", [{"id": "b", "right_value": 20}, {"id": "c", "right_value": 30}])
+
+        cmd = self.parser.parse_command("MERGE left_rows,right_rows AS merged_rows")
+        result = self.handler.execute(cmd)
+
+        self.assertEqual(result.status, "success")
+        self.assertEqual(result.count, 3)
+        merged = self.state.get_variable("merged_rows")
+        self.assertEqual({row["id"] for row in merged["items"]}, {"a", "b", "c"})
+
 
 if __name__ == "__main__":
     unittest.main()

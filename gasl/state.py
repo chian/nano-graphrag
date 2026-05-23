@@ -151,6 +151,36 @@ class StateStore:
             else:
                 raise StateError(f"Unknown variable type: {var_type}")
             self._save_state()
+
+    def ensure_variable_type(self, key: str, var_type: str) -> None:
+        """Ensure an existing variable has the requested shape, coercing only if empty."""
+        if key not in self._state["variables"]:
+            raise StateError(f"Variable {key} not declared")
+        var_data = self._state["variables"][key]
+        current_type = var_data.get("_meta", {}).get("type")
+        if current_type == var_type:
+            return
+        if not self._variable_is_effectively_empty(var_data):
+            raise StateError(f"Cannot coerce non-empty {current_type} variable {key} to {var_type}")
+        description = var_data.get("_meta", {}).get("description")
+        contract = var_data.get("_meta", {}).get("contract", {})
+        if var_type == "DICT":
+            self._state["variables"][key] = {
+                "_meta": {"type": "DICT", "description": description, "contract": contract}
+            }
+        elif var_type == "LIST":
+            self._state["variables"][key] = {
+                "_meta": {"type": "LIST", "description": description, "contract": contract},
+                "items": []
+            }
+        elif var_type == "COUNTER":
+            self._state["variables"][key] = {
+                "_meta": {"type": "COUNTER", "description": description, "contract": contract},
+                "value": 0
+            }
+        else:
+            raise StateError(f"Unknown variable type: {var_type}")
+        self._save_state()
     
     def update_variable(self, key: str, value: Any, provenance: List[Provenance] = None) -> None:
         """Update a state variable with value and provenance."""
@@ -163,6 +193,10 @@ class StateStore:
         if var_type == "DICT":
             if isinstance(value, dict):
                 var_data.update(value)
+            elif isinstance(value, list):
+                self.ensure_variable_type(key, "LIST")
+                var_data = self._state["variables"][key]
+                var_data["items"].extend(value)
             else:
                 raise StateError(f"Cannot update DICT variable with {type(value)}")
         elif var_type == "LIST":
@@ -183,6 +217,18 @@ class StateStore:
             var_data["provenance"].extend(provenance)
         
         self._save_state()
+
+    @staticmethod
+    def _variable_is_effectively_empty(var_data: Dict[str, Any]) -> bool:
+        meta = var_data.get("_meta", {})
+        var_type = meta.get("type")
+        if var_type == "DICT":
+            return not any(key != "_meta" for key in var_data.keys())
+        if var_type == "LIST":
+            return len(var_data.get("items", [])) == 0
+        if var_type == "COUNTER":
+            return not var_data.get("value", 0)
+        return False
     
     def get_variable(self, key: str) -> Any:
         """Get a state variable."""
