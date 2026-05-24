@@ -9,7 +9,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 
-from visualization.demo_catalog import DEMO_SHORTLIST_12, get_demo
+from visualization.demo_catalog import DEMO_VIDEO_SHAREABLE_14, get_demo
 
 
 def main() -> None:
@@ -21,12 +21,12 @@ def main() -> None:
     output_dir = REPO_ROOT / args.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    for qid in DEMO_SHORTLIST_12:
+    for qid in DEMO_VIDEO_SHAREABLE_14:
         demo = get_demo(f"engineering-{qid}") or get_demo(f"hospital_environment-{qid}")
         if demo is None:
             raise SystemExit(f"Demo not found for {qid}")
         total_s = sum(step["delay_ms"] for step in demo["replay"]) / 1000.0
-        duration = max(18, int(round(total_s + 4)))
+        duration = max(24, int(round(total_s + 6)))
         output = output_dir / f"{demo['id']}.mp4"
         cmd = [
             str(REPO_ROOT / "visualization" / "scripts" / "record_demo.sh"),
@@ -45,10 +45,10 @@ def main() -> None:
     lines = [
         "# GASL Cinematic Demos",
         "",
-        "Rendered cinematic replay videos for the 12-question shortlist selected from the 72-question corpus, excluding q001 and q007.",
+        "Rendered cinematic replay videos for the 14-question shareable set: the original 12-question shortlist plus q001 and q007.",
         "",
     ]
-    for qid in DEMO_SHORTLIST_12:
+    for qid in DEMO_VIDEO_SHAREABLE_14:
         demo = get_demo(f"engineering-{qid}") or get_demo(f"hospital_environment-{qid}")
         lines.append(f"- `{demo['id']}.mp4` — {demo['title']}")
     readme.write_text("\n".join(lines) + "\n", encoding="utf-8")

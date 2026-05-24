@@ -1,7 +1,8 @@
 # GASL Cinematic Demos
 
-Rendered cinematic replay videos for the 12-question shortlist selected from the 72-question corpus, excluding q001 and q007.
+Rendered cinematic replay videos for the 14-question shareable set: the original 12-question shortlist plus q001 and q007.
 
+- `engineering-q001.mp4` — Q001 · Validation Footprint Across Zones
 - `engineering-q003.mp4` — Q003 · Compliance-Linked Controls
 - `engineering-q004.mp4` — Q004 · Best-Supported Controls by Outcome
 - `engineering-q005.mp4` — Q005 · Adverse Outcomes by Control
@@ -14,3 +15,4 @@ Rendered cinematic replay videos for the 12-question shortlist selected from the
 - `hospital_environment-q019.mp4` — Q019 · Zones with Broadest Air-Path / Pressure Mix
 - `hospital_environment-q022.mp4` — Q022 · Most-Connected Zones by Airflow Outcome
 - `hospital_environment-q026.mp4` — Q026 · Air-Path Connectivity Distribution
+- `engineering-q007.mp4` — Q007 · Distribution of Validation Support

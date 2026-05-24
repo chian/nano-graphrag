@@ -21,6 +21,11 @@ DEMO_SHORTLIST_12 = [
     "q003", "q004", "q005", "q008", "q009", "q010",
     "q012", "q013", "q014", "q019", "q022", "q026",
 ]
+DEMO_VIDEO_SHAREABLE_14 = [
+    "q001",
+    *DEMO_SHORTLIST_12,
+    "q007",
+]
 
 
 def _repo_path(*parts: str) -> Path:

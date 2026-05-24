@@ -8,7 +8,7 @@ fi
 
 DEMO_ID="$1"
 OUTPUT="${2:-demo-${DEMO_ID}.mp4}"
-PORT="${3:-5052}"
+PORT="${3:-5050}"
 RUN_MODE="${4:-compare}"
 DISPLAY_NUM="${DISPLAY_NUM:-:99}"
 RES="${RES:-1600x900}"
@@ -36,13 +36,14 @@ sleep 1
 DISPLAY="${DISPLAY_NUM}" chromium \
   --no-first-run \
   --disable-infobars \
+  --app="${URL}" \
+  --kiosk \
   --no-sandbox \
   --disable-gpu \
   --disable-dev-shm-usage \
   --ozone-platform=x11 \
   --user-data-dir="${USER_DATA_DIR}" \
-  --window-size="${RES/x/,}" \
-  "${URL}" >/tmp/chromium-demo.log 2>&1 &
+  --window-size="${RES/x/,}" >/tmp/chromium-demo.log 2>&1 &
 CHROME_PID=$!
 
 sleep 2
