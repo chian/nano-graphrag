@@ -24,6 +24,36 @@
             overflow: hidden;
         }
 
+        body.cinematic-mode .sidebar {
+            display: none;
+        }
+
+        body.cinematic-mode .graph-container {
+            width: 100vw;
+        }
+
+        body.cinematic-mode .controls,
+        body.cinematic-mode .gasl-status {
+            opacity: 0.55;
+        }
+
+        body.cinematic-mode .story-panel {
+            width: min(540px, calc(100% - 120px));
+            top: 24px;
+        }
+
+        body.cinematic-mode .answer-view-panel {
+            bottom: 24px;
+            width: min(420px, calc(100% - 44px));
+            max-height: 42vh;
+        }
+
+        body.cinematic-mode .graph-overlay {
+            bottom: 24px;
+            left: 24px;
+            width: min(330px, calc(100% - 44px));
+        }
+
         .container {
             display: flex;
             height: 100vh;
@@ -221,11 +251,11 @@
 
         .graph-overlay {
             position: absolute;
-            top: 16px;
+            bottom: 20px;
             left: 16px;
-            width: min(460px, calc(100% - 32px));
+            width: min(360px, calc(100% - 32px));
             padding: 12px 14px;
-            background: rgba(11, 18, 32, 0.82);
+            background: rgba(11, 18, 32, 0.74);
             border: 1px solid rgba(78, 104, 160, 0.4);
             border-radius: 10px;
             backdrop-filter: blur(10px);
@@ -242,7 +272,7 @@
             top: 16px;
             left: 50%;
             transform: translate(-50%, -10px);
-            width: min(640px, calc(100% - 220px));
+            width: min(520px, calc(100% - 260px));
             padding: 14px 16px;
             border-radius: 14px;
             background: linear-gradient(180deg, rgba(9, 15, 29, 0.88), rgba(14, 23, 41, 0.82));
@@ -260,6 +290,242 @@
             transform: translate(-50%, 0);
         }
 
+        .answer-view-panel {
+            position: absolute;
+            bottom: 132px;
+            right: 18px;
+            width: min(430px, calc(100% - 36px));
+            max-height: min(56vh, 520px);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            padding: 14px 16px;
+            border-radius: 14px;
+            background: linear-gradient(180deg, rgba(7, 12, 24, 0.92), rgba(13, 21, 37, 0.88));
+            border: 1px solid rgba(97, 166, 255, 0.18);
+            box-shadow: 0 14px 48px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(16px);
+            z-index: 114;
+            pointer-events: none;
+            opacity: 0;
+            transform: translateY(8px);
+            transition: opacity 0.22s ease, transform 0.22s ease;
+        }
+
+        .answer-view-panel.active {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .calc-layer {
+            position: absolute;
+            inset: 0;
+            overflow: hidden;
+            pointer-events: none;
+            z-index: 112;
+        }
+
+        .calc-chip {
+            position: absolute;
+            min-width: 130px;
+            max-width: 280px;
+            padding: 8px 10px;
+            border-radius: 10px;
+            background: rgba(7, 12, 24, 0.68);
+            border: 1px solid rgba(104, 181, 255, 0.18);
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
+            color: #c2d6ff;
+            font-size: 11px;
+            line-height: 1.45;
+            opacity: 0;
+            transform: translate3d(0, 18px, 0) scale(0.98);
+            animation: calcChipFloat 1200ms ease-out forwards;
+        }
+
+        .calc-chip strong {
+            color: #8ce0b0;
+            display: block;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 4px;
+        }
+
+        .calc-scan {
+            position: absolute;
+            inset: 10% 8%;
+            border-radius: 18px;
+            border: 1px solid rgba(104, 181, 255, 0.12);
+            opacity: 0;
+            animation: calcScanSweep 880ms ease-out forwards;
+            overflow: hidden;
+        }
+
+        .calc-scan::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 24%;
+            background: linear-gradient(90deg, rgba(104, 181, 255, 0), rgba(104, 181, 255, 0.16), rgba(140, 224, 176, 0.22), rgba(104, 181, 255, 0));
+            filter: blur(8px);
+            animation: calcScanBeam 880ms ease-out forwards;
+        }
+
+        @keyframes calcChipFloat {
+            0% { opacity: 0; transform: translate3d(0, 18px, 0) scale(0.98); }
+            14% { opacity: 1; }
+            72% { opacity: 0.96; }
+            100% { opacity: 0; transform: translate3d(0, -26px, 0) scale(1.02); }
+        }
+
+        @keyframes calcScanSweep {
+            0% { opacity: 0; transform: scale(0.98); }
+            18% { opacity: 1; }
+            100% { opacity: 0; transform: scale(1.01); }
+        }
+
+        @keyframes calcScanBeam {
+            0% { transform: translateX(-20%); }
+            100% { transform: translateX(420%); }
+        }
+
+        .answer-view-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .answer-view-kicker {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: #8fb3ff;
+        }
+
+        .answer-view-kind {
+            font-size: 11px;
+            padding: 4px 8px;
+            border-radius: 999px;
+            background: rgba(39, 174, 96, 0.14);
+            color: #8ce0b0;
+            border: 1px solid rgba(39, 174, 96, 0.26);
+        }
+
+        .answer-view-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #f0f6ff;
+            margin-bottom: 8px;
+        }
+
+        .answer-view-rationale {
+            font-size: 12px;
+            line-height: 1.5;
+            color: #a5b5cb;
+            margin-bottom: 12px;
+        }
+
+        .answer-view-scroll {
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+
+        .answer-view-ranking-list {
+            display: grid;
+            gap: 8px;
+        }
+
+        .answer-view-ranking-row {
+            padding: 10px 12px;
+            border-radius: 10px;
+            background: rgba(14, 22, 39, 0.68);
+            border: 1px solid rgba(145, 168, 216, 0.14);
+        }
+
+        .answer-view-ranking-top {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 6px;
+        }
+
+        .answer-view-ranking-subject {
+            font-size: 13px;
+            font-weight: 700;
+            color: #f2f7ff;
+        }
+
+        .answer-view-ranking-score {
+            font-size: 12px;
+            color: #8ce0b0;
+        }
+
+        .answer-view-bar {
+            height: 6px;
+            border-radius: 999px;
+            background: rgba(31, 44, 68, 0.86);
+            overflow: hidden;
+        }
+
+        .answer-view-bar > span {
+            display: block;
+            height: 100%;
+            border-radius: 999px;
+            background: linear-gradient(90deg, #68b5ff, #8ce0b0);
+        }
+
+        .answer-view-stats {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .answer-view-stat {
+            padding: 10px 10px 8px;
+            border-radius: 10px;
+            background: rgba(14, 22, 39, 0.68);
+            border: 1px solid rgba(145, 168, 216, 0.14);
+        }
+
+        .answer-view-stat-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: #8ea0ba;
+            margin-bottom: 6px;
+        }
+
+        .answer-view-stat-value {
+            font-size: 16px;
+            font-weight: 700;
+            color: #f2f7ff;
+        }
+
+        .answer-view-histogram {
+            display: grid;
+            gap: 8px;
+        }
+
+        .answer-view-hist-row {
+            display: grid;
+            grid-template-columns: 96px 1fr 32px;
+            gap: 10px;
+            align-items: center;
+            font-size: 11px;
+            color: #b7c5d9;
+        }
+
+        .answer-view-empty {
+            font-size: 12px;
+            color: #9fb0c4;
+            line-height: 1.5;
+        }
+
         .story-kicker {
             font-size: 11px;
             font-weight: 700;
@@ -270,22 +536,25 @@
         }
 
         .story-title {
-            font-size: 22px;
+            font-size: 24px;
             font-weight: 700;
             color: #f7fbff;
-            line-height: 1.2;
+            line-height: 1.18;
+            letter-spacing: -0.01em;
             margin-bottom: 6px;
+            text-wrap: balance;
         }
 
         .story-body {
-            font-size: 13px;
-            line-height: 1.5;
+            font-size: 14px;
+            line-height: 1.58;
             color: #d5e0f0;
+            white-space: pre-wrap;
         }
 
         .story-meta {
             margin-top: 8px;
-            font-size: 11px;
+            font-size: 12px;
             color: #91a5c6;
         }
 
@@ -335,7 +604,7 @@
 
         .graph-overlay-metrics {
             display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
+            grid-template-columns: repeat(5, minmax(0, 1fr));
             gap: 8px;
         }
 
@@ -362,10 +631,10 @@
 
         .graph-overlay-track {
             position: relative;
-            height: 6px;
-            margin-top: 10px;
+            height: 10px;
+            margin-top: 12px;
             border-radius: 999px;
-            background: rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.12);
             overflow: hidden;
         }
 
@@ -375,7 +644,7 @@
             width: 0%;
             border-radius: inherit;
             background: linear-gradient(90deg, rgba(255,255,255,0.18), currentColor 70%);
-            transition: width 0.24s ease;
+            transition: width 0.18s ease;
         }
 
         #graph {
@@ -879,6 +1148,18 @@
                 <div class="story-meta" id="storyMeta"></div>
             </div>
 
+            <div class="calc-layer" id="calcLayer"></div>
+
+            <div class="answer-view-panel" id="answerViewPanel">
+                <div class="answer-view-header">
+                    <div class="answer-view-kicker" id="answerViewKicker">Answer view</div>
+                    <div class="answer-view-kind" id="answerViewKind">Idle</div>
+                </div>
+                <div class="answer-view-title" id="answerViewTitle">Evidence view will appear here.</div>
+                <div class="answer-view-rationale" id="answerViewRationale"></div>
+                <div class="answer-view-scroll" id="answerViewBody"></div>
+            </div>
+
             <div class="graph-overlay" id="gaslGraphOverlay">
                 <div class="graph-overlay-header">
                     <span class="graph-overlay-badge" id="gaslOverlayBadge">Idle</span>
@@ -900,6 +1181,10 @@
                     <div class="graph-overlay-metric">
                         <span class="graph-overlay-label">Iterations</span>
                         <span class="graph-overlay-value" id="gaslOverlayIterations">0</span>
+                    </div>
+                    <div class="graph-overlay-metric">
+                        <span class="graph-overlay-label">Progress</span>
+                        <span class="graph-overlay-value" id="gaslOverlayProgress">0%</span>
                     </div>
                 </div>
                 <div class="graph-overlay-track">
@@ -935,6 +1220,8 @@
         let _cameraTimeouts = [];
         let _gaslStepCount = 0;
         let _gaslExpectedSteps = 0;
+        let _gaslReplayEventCount = 0;
+        let _gaslExpectedReplayEvents = 0;
         let _compareState = null;
         let _answerEntries = [];
         let _pendingGaslCompletion = null;
@@ -942,6 +1229,14 @@
         let _lastZoomScale = 1;
         let _zoomRelaxTimeout = null;
         let _pendingFitTimeout = null;
+        let _calcTimers = [];
+        const LIVE_GASL_MICRO = {
+            minWaveNodes: 5,
+            defaultWaveSize: 4,
+            maxWaveSize: 6,
+            waveDelayMs: 240,
+            storyEveryNWaves: 2,
+        };
 
         const GRAPH_PHYSICS = {
             stabilizationIterations: 80,
@@ -964,8 +1259,10 @@
             INIT: {color: '#8b5cf6', label: 'Init'},
             FIND: {color: '#3b82f6', label: 'Find'},
             GRAPHWALK: {color: '#ff9800', label: 'Walk'},
+            JOIN: {color: '#f59e0b', label: 'Join'},
             PROCESS: {color: '#14b8a6', label: 'Process'},
             AGGREGATE: {color: '#ec4899', label: 'Aggregate'},
+            RANK: {color: '#a855f7', label: 'Rank'},
             DONE: {color: '#22c55e', label: 'Done'},
             ERROR: {color: '#ef4444', label: 'Error'},
             DEFAULT: {color: '#94a3b8', label: 'GASL'},
@@ -988,6 +1285,8 @@
         function resetGaslMetrics() {
             _gaslStepCount = 0;
             _gaslExpectedSteps = 0;
+            _gaslReplayEventCount = 0;
+            _gaslExpectedReplayEvents = 0;
             document.getElementById('gaslMetricPhase').textContent = '-';
             document.getElementById('gaslMetricSteps').textContent = '0';
             document.getElementById('gaslMetricNodes').textContent = '0';
@@ -1002,6 +1301,7 @@
             document.getElementById('gaslOverlayTouched').textContent = '0';
             document.getElementById('gaslOverlayFrontier').textContent = '0';
             document.getElementById('gaslOverlayIterations').textContent = '0';
+            document.getElementById('gaslOverlayProgress').textContent = '0%';
         }
 
         function updateGaslMetrics(phase) {
@@ -1026,12 +1326,191 @@
             let pct = 0;
             if (phase === 'DONE') {
                 pct = 100;
+            } else if (_gaslExpectedReplayEvents > 0) {
+                pct = Math.min(96, Math.round((_gaslReplayEventCount / _gaslExpectedReplayEvents) * 100));
             } else if (_gaslExpectedSteps > 0) {
                 pct = Math.min(92, Math.round((_gaslStepCount / _gaslExpectedSteps) * 100));
             } else {
                 pct = Math.min(90, 10 + _gaslStepCount * 11);
             }
             document.getElementById('gaslOverlayBar').style.width = `${pct}%`;
+            document.getElementById('gaslOverlayProgress').textContent = `${pct}%`;
+        }
+
+        function markReplayEvent(phase, command = '', frontierCount = 0, iterations = 0) {
+            if (!_activeJobId) return;
+            if (!_activeJobId.startsWith('demo:') && _gaslExpectedReplayEvents <= _gaslReplayEventCount + 1) {
+                _gaslExpectedReplayEvents = Math.max(
+                    _gaslExpectedReplayEvents,
+                    _gaslReplayEventCount + Math.max(8, Math.ceil((frontierCount || 0) / 2) + 4)
+                );
+            }
+            _gaslReplayEventCount += 1;
+            updateGraphOverlay(phase, command, frontierCount, iterations);
+        }
+
+        function inferSemanticHints(command = '') {
+            const text = String(command || '');
+            const hints = [];
+            const relation = text.match(/\bfollow\s+([A-Z_]+)/i)?.[1];
+            const entity = text.match(/entity_type\s*=\s*['"]?([A-Z_]+)/i)?.[1];
+            if (entity === 'ENGINEERING_CONTROL') hints.push('engineering controls');
+            if (entity === 'HOSPITAL_ZONE') hints.push('hospital zones');
+            if (entity === 'PATHOGEN') hints.push('pathogen targets');
+            if (/\bVALIDATED_BY\b/i.test(text)) hints.push('validation links');
+            if (/\bAPPLIED_TO\b/i.test(text)) hints.push('zone links');
+            if (/\bINCURS_COST\b/i.test(text)) hints.push('cost proxies');
+            if (/\bREDUCES\b/i.test(text)) hints.push('pathogen-reduction evidence');
+            if (/\bdistribution\b/i.test(text)) hints.push('support-count distribution');
+            if (relation && !hints.includes(`${relation.toLowerCase().replace(/_/g, ' ')} paths`)) {
+                hints.push(`${relation.toLowerCase().replace(/_/g, ' ')} paths`);
+            }
+            return hints;
+        }
+
+        function narrateGaslStep(commandType, command = '', opts = {}) {
+            const phase = String(commandType || 'DEFAULT').toUpperCase();
+            const hints = inferSemanticHints(command);
+            const hintText = hints.length ? ` around ${hints.slice(0, 2).join(' and ')}` : '';
+            const nodeCount = opts.nodeCount || 0;
+            if (phase === 'INIT') {
+                return {
+                    kicker: 'Question',
+                    title: 'Start with a broad graph search',
+                    body: 'Open a wide working set first, then progressively narrow once enough evidence has accumulated.',
+                    meta: 'No ranking yet — the system is still building the candidate set.',
+                };
+            }
+            if (phase === 'FIND') {
+                return {
+                    kicker: 'Working set',
+                    title: `Collect candidate rows${hintText}`,
+                    body: 'Pull a broad candidate set into memory. This is still exploratory, so multiple branches may stay alive at once.',
+                    meta: nodeCount ? `${nodeCount} nodes touched in this search wave.` : 'Searching across the graph for candidate rows.',
+                };
+            }
+            if (phase === 'GRAPHWALK') {
+                return {
+                    kicker: 'Graph walk',
+                    title: `Follow evidence-bearing paths${hintText}`,
+                    body: 'Step outward from the current frontier, touching nearby neighborhoods and carrying forward only the paths that keep the evidence coherent.',
+                    meta: nodeCount ? `${nodeCount} nodes in the current walk wave.` : 'Walking through nearby graph neighborhoods.',
+                };
+            }
+            if (phase === 'PROCESS') {
+                return {
+                    kicker: 'Evidence shaping',
+                    title: 'Condense raw traces into comparable evidence',
+                    body: 'Transform touched subgraphs into evidence rows that can be compared, filtered, and reused by later steps.',
+                    meta: 'Raw graph traces become organized evidence rows here.',
+                };
+            }
+            if (phase === 'AGGREGATE') {
+                return {
+                    kicker: 'Aggregation',
+                    title: 'Pool many local traces into a stable summary',
+                    body: 'Accumulate support across the active neighborhoods before ordering the candidates. This is where many small pieces of evidence start to pile up.',
+                    meta: nodeCount ? `${nodeCount} nodes contribute to this accumulation wave.` : 'The graph is being summarized before ranking.',
+                };
+            }
+            if (phase === 'JOIN') {
+                return {
+                    kicker: 'Evidence alignment',
+                    title: 'Reconcile parallel evidence streams',
+                    body: 'Bring multiple evidence tables into the same frame so partial signals can line up on a shared key.',
+                    meta: 'Combining partial evidence before ranking the result.',
+                };
+            }
+            if (phase === 'RANK') {
+                return {
+                    kicker: 'Ordering',
+                    title: 'Order candidates after the evidence has settled',
+                    body: 'Only rank once enough evidence has accumulated. The score reflects the organized evidence, not the earliest touched nodes.',
+                    meta: 'Ordering comes late, after evidence accumulation.',
+                };
+            }
+            if (phase === 'DONE') {
+                return {
+                    kicker: 'Synthesis',
+                    title: 'Turn organized evidence into a direct answer',
+                    body: 'The final answer synthesizes the evidence view rather than dumping raw graph values.',
+                    meta: '',
+                };
+            }
+            return {
+                kicker: 'GASL step',
+                title: phase,
+                body: command || 'Traversing graph evidence.',
+                meta: nodeCount ? `${nodeCount} nodes in the current wave.` : '',
+            };
+        }
+
+        function chunkArray(items, size) {
+            const chunks = [];
+            for (let i = 0; i < items.length; i += size) {
+                chunks.push(items.slice(i, i + size));
+            }
+            return chunks;
+        }
+
+        function deriveEdgePairsForNodes(nodeIds, explicitEdges = []) {
+            const ids = new Set(nodeIds || []);
+            if (!ids.size) return [];
+            const pairs = [];
+            if (explicitEdges && explicitEdges.length) {
+                explicitEdges.forEach(([src, tgt]) => {
+                    if (ids.has(src) && ids.has(tgt)) pairs.push([src, tgt]);
+                });
+                if (pairs.length) return pairs;
+            }
+            if (!currentGraphData?.edges) return [];
+            currentGraphData.edges.forEach((edge) => {
+                if (ids.has(edge.from) && ids.has(edge.to)) {
+                    pairs.push([edge.from, edge.to]);
+                }
+            });
+            return pairs.slice(0, 18);
+        }
+
+        function scheduleLiveMicroHighlight(data) {
+            const phase = data.command_type || 'GRAPHWALK';
+            const style = GASL_PHASE_STYLE[phase] || GASL_PHASE_STYLE.DEFAULT;
+            const nodes = Array.from(new Set((data.nodes || []).filter((id) => id && !nodesDataset.get(id))));
+            if (!nodes.length) return false;
+            const waveSize = Math.min(
+                LIVE_GASL_MICRO.maxWaveSize,
+                Math.max(LIVE_GASL_MICRO.defaultWaveSize, Math.ceil(nodes.length / 3))
+            );
+            const waves = chunkArray(nodes, waveSize);
+            const narration = narrateGaslStep(phase, data.command, {nodeCount: nodes.length});
+            waves.forEach((wave, index) => {
+                const delay = index * LIVE_GASL_MICRO.waveDelayMs;
+                const timeoutId = setTimeout(() => {
+                    if (data.job_id !== _activeJobId) return;
+                    addNodesToLiveSubgraph(wave, style.color);
+                    const edgePairs = deriveEdgePairsForNodes(wave, data.edges || []);
+                    pulseNodes(wave, style.color);
+                    if (edgePairs.length) pulseEdgePairs(edgePairs, style.color);
+                    updateGaslMetrics(phase);
+                    markReplayEvent(phase, data.command || '', wave.length, 0);
+                    updateGraphOverlay(phase, data.command, wave.length, 0);
+                    triggerCalcOverlay(style.label, `${data.command || narration.title} · wave ${index + 1}/${waves.length}`, style.color);
+                    if (index % LIVE_GASL_MICRO.storyEveryNWaves === 0 || index === waves.length - 1) {
+                        setStoryPanel({
+                            kicker: narration.kicker,
+                            title: narration.title,
+                            body: `${narration.body} Wave ${index + 1} of ${waves.length}.`,
+                            meta: `${_gaslNodeSet.size} nodes active in the live subgraph.`,
+                            autoHideMs: LIVE_GASL_MICRO.waveDelayMs * 2,
+                        });
+                    }
+                    if (index === 0 || index === waves.length - 1 || index % 2 === 0) {
+                        cameraTourNodes(wave, Array.from(_gaslNodeSet));
+                    }
+                }, delay);
+                _replayTimeouts.push(timeoutId);
+            });
+            return true;
         }
 
         function clearStoryTimeouts() {
@@ -1056,6 +1535,170 @@
         function hideStoryPanel() {
             clearStoryTimeouts();
             document.getElementById('storyPanel').classList.remove('active');
+        }
+
+        function clearCalcOverlays() {
+            _calcTimers.forEach((id) => clearTimeout(id));
+            _calcTimers = [];
+            const layer = document.getElementById('calcLayer');
+            if (layer) layer.innerHTML = '';
+        }
+
+        function triggerCalcOverlay(phase, command, accent = '#68b5ff') {
+            const layer = document.getElementById('calcLayer');
+            if (!layer) return;
+            const chips = [
+                `${phase} · ${command || 'graph traversal'}`,
+                'normalizing evidence paths',
+                'aggregating support / weighting outcomes',
+                'ranking frontier / filtering candidates',
+            ];
+            const chipCount = 2 + Math.floor(Math.random() * 2);
+            for (let i = 0; i < chipCount; i += 1) {
+                const chip = document.createElement('div');
+                chip.className = 'calc-chip';
+                chip.style.left = `${10 + Math.random() * 64}%`;
+                chip.style.top = `${12 + Math.random() * 56}%`;
+                chip.style.borderColor = `${accent}33`;
+                chip.innerHTML = `<strong>${escapeHtml(phase)}</strong>${escapeHtml(chips[(i + _gaslStepCount) % chips.length])}`;
+                layer.appendChild(chip);
+                _calcTimers.push(setTimeout(() => chip.remove(), 1250));
+            }
+            const scan = document.createElement('div');
+            scan.className = 'calc-scan';
+            scan.style.borderColor = `${accent}30`;
+            layer.appendChild(scan);
+            _calcTimers.push(setTimeout(() => scan.remove(), 920));
+        }
+
+        function hideAnswerViewPanel() {
+            document.getElementById('answerViewPanel').classList.remove('active');
+        }
+
+        function compactNumber(value) {
+            if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
+            const num = Number(value);
+            if (Math.abs(num) >= 100) return num.toFixed(0);
+            if (Math.abs(num) >= 10) return num.toFixed(1);
+            return num.toFixed(2).replace(/\.00$/, '');
+        }
+
+        function renderAnswerViewMarkup(kind, payload) {
+            if (!payload || Object.keys(payload).length === 0) {
+                return `<div class="answer-view-empty">This answer view did not produce displayable evidence rows.</div>`;
+            }
+
+            if (kind === 'ranking') {
+                const ranked = (payload.ranked_subjects || []).slice(0, 5);
+                const maxScore = ranked.length ? Math.max(...ranked.map((row) => Number(row.score || row.support_n || 0))) : 0;
+                return `
+                    <div class="answer-view-ranking-list">
+                        ${ranked.map((row, index) => `
+                            <div class="answer-view-ranking-row">
+                                <div class="answer-view-ranking-top">
+                                    <div class="answer-view-ranking-subject">#${index + 1} ${escapeHtml(row.subject)}</div>
+                                    <div class="answer-view-ranking-score">${compactNumber(row.score || row.support_n)} support</div>
+                                </div>
+                                <div class="answer-view-bar"><span style="width:${maxScore ? Math.max(8, Math.round((Number(row.score || row.support_n) / maxScore) * 100)) : 8}%"></span></div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+
+            if (kind === 'distribution') {
+                const bins = payload.histogram || [];
+                const maxCount = bins.length ? Math.max(...bins.map((row) => Number(row.count || 0))) : 0;
+                return `
+                    <div class="answer-view-stats">
+                        <div class="answer-view-stat">
+                            <div class="answer-view-stat-label">n</div>
+                            <div class="answer-view-stat-value">${escapeHtml(String(payload.n ?? '—'))}</div>
+                        </div>
+                        <div class="answer-view-stat">
+                            <div class="answer-view-stat-label">mean</div>
+                            <div class="answer-view-stat-value">${escapeHtml(compactNumber(payload.mean))}</div>
+                        </div>
+                        <div class="answer-view-stat">
+                            <div class="answer-view-stat-label">median</div>
+                            <div class="answer-view-stat-value">${escapeHtml(compactNumber(payload.median))}</div>
+                        </div>
+                    </div>
+                    <div class="answer-view-histogram">
+                        ${bins.map((row) => `
+                            <div class="answer-view-hist-row">
+                                <div>${escapeHtml(compactNumber(row.bin_lo))}–${escapeHtml(compactNumber(row.bin_hi))}</div>
+                                <div class="answer-view-bar"><span style="width:${maxCount ? Math.max(8, Math.round((Number(row.count || 0) / maxCount) * 100)) : 8}%"></span></div>
+                                <div>${escapeHtml(String(row.count || 0))}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+
+            if (kind === 'grouped_summary') {
+                const rows = (payload.rows || []).slice(0, 4);
+                return `
+                    <div class="answer-view-ranking-list">
+                        ${rows.map((row) => `
+                            <div class="answer-view-ranking-row">
+                                <div class="answer-view-ranking-top">
+                                    <div class="answer-view-ranking-subject">${escapeHtml(row.subject || '—')}</div>
+                                    <div class="answer-view-ranking-score">${escapeHtml(String(row.support_n || 0))} support</div>
+                                </div>
+                                <div class="answer-view-empty">${escapeHtml(row.outcome || 'No outcome label')}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+
+            if (kind === 'frontier') {
+                const rows = (payload.subjects || []).slice(0, 5);
+                return `
+                    <div class="answer-view-ranking-list">
+                        ${rows.map((row) => {
+                            const metricEntries = Object.entries(row.metrics || {}).slice(0, 3);
+                            return `
+                                <div class="answer-view-ranking-row">
+                                    <div class="answer-view-ranking-top">
+                                        <div class="answer-view-ranking-subject">${escapeHtml(row.subject || '—')}</div>
+                                        <div class="answer-view-ranking-score">${metricEntries.length} evidence axes</div>
+                                    </div>
+                                    <div class="answer-view-empty">${metricEntries.map(([label, val]) => `${escapeHtml(label)} · ${escapeHtml(compactNumber(val))}`).join('<br>')}</div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                `;
+            }
+
+            return `<div class="answer-view-empty"><pre style="white-space:pre-wrap; font:inherit;">${escapeHtml(JSON.stringify(payload, null, 2).slice(0, 1600))}</pre></div>`;
+        }
+
+        function handleAnswerView(data) {
+            if (data.job_id !== _activeJobId) return;
+            const kind = data.view_kind || 'evidence';
+            markReplayEvent('PROCESS', data.title || `Selected ${kind} evidence`, data.nodes?.length || 0, 0);
+            document.getElementById('answerViewKicker').textContent = data.kicker || 'Answer view';
+            document.getElementById('answerViewKind').textContent = kind;
+            document.getElementById('answerViewTitle').textContent = data.title || `Selected ${kind} evidence`;
+            document.getElementById('answerViewRationale').textContent = data.selection_rationale || '';
+            document.getElementById('answerViewBody').innerHTML = renderAnswerViewMarkup(kind, data.view_payload || {});
+            document.getElementById('answerViewPanel').classList.add('active');
+
+            if (data.nodes && data.nodes.length) {
+                pulseNodes(data.nodes, '#68b5ff');
+                cameraTourNodes(data.nodes, Array.from(_gaslNodeSet));
+            }
+
+            setStoryPanel({
+                kicker: data.story_kicker || 'Evidence view',
+                title: data.story_title || data.title || `Selected ${kind} evidence`,
+                body: data.story_body || data.selection_rationale || 'This view organizes the evidence used for the final synthesis.',
+                meta: data.story_meta || data.meta || '',
+                autoHideMs: 3600,
+            });
         }
 
         function clearCameraTimeouts() {
@@ -1367,6 +2010,7 @@
             });
             network.fit({animation: {duration: 800, easingFunction: 'easeInOutQuad'}});
             _gaslExpectedSteps = demo.replay.filter((step) => step.event === 'gasl_step').length;
+            _gaslExpectedReplayEvents = demo.replay.filter((step) => step.event !== 'query_complete').length;
             document.getElementById('gaslLog').style.display = 'block';
             document.getElementById('gaslLog').innerHTML = '';
             let elapsed = 0;
@@ -1376,6 +2020,7 @@
                     const payload = {...step.payload, job_id: _activeJobId};
                     if (step.event === 'gasl_step') handleGaslStep(payload);
                     if (step.event === 'gasl_highlight') handleGaslHighlight(payload);
+                    if (step.event === 'answer_view') handleAnswerView(payload);
                     if (step.event === 'query_complete') handleQueryComplete(payload);
                 }, elapsed);
                 _replayTimeouts.push(timeoutId);
@@ -1403,6 +2048,10 @@
 
         // Initialize on load
         document.addEventListener('DOMContentLoaded', async () => {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('cinematic') === '1') {
+                document.body.classList.add('cinematic-mode');
+            }
             initializeNetwork();
             await fetchColors();
             fetchGraph();
@@ -2141,6 +2790,7 @@
                         ? waitForGaslCompletion(data.job_id)
                         : null;
                     _activeJobId = data.job_id;
+                    _gaslExpectedReplayEvents = 24;
                     document.getElementById('queryStatus').textContent =
                         'GASL running… (this may take a minute)';
                     // askBtn re-enabled in query_complete handler
@@ -2207,6 +2857,8 @@
                 clearPendingGaslCompletion();
                 _compareState = null;
                 hideStoryPanel();
+                hideAnswerViewPanel();
+                clearCalcOverlays();
             }
             // If in subgraph mode, restore full graph first
             if (_subgraphMode) {
@@ -2447,15 +3099,20 @@
         function handleGaslStep(data) {
             if (data.job_id !== _activeJobId) return;
             _gaslStepCount += 1;
+            markReplayEvent(data.command_type || 'DEFAULT', data.command || '', 0, 0);
             document.getElementById('queryStatus').textContent =
                 `GASL: ${data.command_type} – ${data.status}`;
             updateGaslMetrics(data.command_type);
             updateGraphOverlay(data.command_type, data.command, 0, 0);
+            const style = GASL_PHASE_STYLE[data.command_type] || GASL_PHASE_STYLE.DEFAULT;
+            triggerCalcOverlay(style.label, data.command, style.color);
+            const narration = narrateGaslStep(data.command_type, data.command, {nodeCount: 0});
             setStoryPanel({
-                kicker: 'GASL step',
-                title: (GASL_PHASE_STYLE[data.command_type] || GASL_PHASE_STYLE.DEFAULT).label,
-                body: data.command || 'Traversing graph',
-                meta: `Step ${_gaslStepCount}${_gaslExpectedSteps ? ' of ' + _gaslExpectedSteps : ''}`,
+                kicker: data.story_kicker || narration.kicker,
+                title: data.story_title || narration.title,
+                body: data.story_body || narration.body,
+                meta: data.story_meta || `Step ${_gaslStepCount}${_gaslExpectedSteps ? ' of ' + _gaslExpectedSteps : ''}`,
+                autoHideMs: 3600,
             });
             const log = document.getElementById('gaslLog');
             log.innerHTML += `<div>${data.command}</div>`;
@@ -2465,15 +3122,27 @@
         function handleGaslHighlight(data) {
             if (data.job_id !== _activeJobId) return;
             if (data.nodes && data.nodes.length) {
-                addNodesToLiveSubgraph(data.nodes, '#ff9800');
-                updateGaslMetrics(data.command_type || 'GRAPH');
-                updateGraphOverlay(data.command_type || 'GRAPHWALK', data.command, data.nodes.length, 0);
-                cameraTourNodes(data.nodes, Array.from(_gaslNodeSet));
+                const narration = narrateGaslStep(data.command_type || 'GRAPHWALK', data.command, {
+                    nodeCount: data.nodes.length,
+                });
+                if (!scheduleLiveMicroHighlight(data)) {
+                    addNodesToLiveSubgraph(data.nodes, '#ff9800');
+                    updateGaslMetrics(data.command_type || 'GRAPH');
+                    markReplayEvent(data.command_type || 'GRAPHWALK', data.command || '', data.nodes.length, 0);
+                    updateGraphOverlay(data.command_type || 'GRAPHWALK', data.command, data.nodes.length, 0);
+                    const style = GASL_PHASE_STYLE[data.command_type] || GASL_PHASE_STYLE.DEFAULT;
+                    triggerCalcOverlay(style.label, data.command || 'walking graph neighborhoods', style.color);
+                    if (data.edges && data.edges.length) {
+                        pulseEdgePairs(data.edges, '#68b5ff');
+                    }
+                    cameraTourNodes(data.nodes, Array.from(_gaslNodeSet));
+                }
                 setStoryPanel({
-                    kicker: 'Graph focus',
-                    title: `${data.nodes.length} new node${data.nodes.length !== 1 ? 's' : ''}`,
-                    body: data.command || 'Following newly touched graph nodes.',
-                    meta: `${_gaslNodeSet.size} nodes in the active subgraph.`,
+                    kicker: data.story_kicker || narration.kicker,
+                    title: data.story_title || narration.title,
+                    body: data.story_body || narration.body,
+                    meta: data.story_meta || `${_gaslNodeSet.size} nodes in the active subgraph.`,
+                    autoHideMs: 3000,
                 });
             }
         }
@@ -2483,6 +3152,9 @@
                 (!_pendingGaslCompletion || data.job_id !== _pendingGaslCompletion.jobId)) {
                 return;
             }
+            const currentQuestion = (_activeDemo && _activeDemo.question)
+                || document.getElementById('questionInput').value
+                || 'Question';
             if (data.nodes && data.nodes.length) {
                 if (_subgraphMode) {
                     const updates = data.nodes.map(id => {
@@ -2516,8 +3188,8 @@
                 );
                 document.getElementById('queryStatus').textContent = 'Compare complete · RAG then GASL';
                 setStoryPanel({
-                    kicker: 'GASL answer',
-                    title: 'Traversal complete',
+                    kicker: 'Question + answer',
+                    title: currentQuestion,
                     body: data.answer,
                     meta: `${iters} iterations · ${data.nodes ? data.nodes.length : 0} touched nodes`,
                 });
@@ -2526,8 +3198,8 @@
                 showAnswer(data.answer);
                 showUsage(data.usage);
                 setStoryPanel({
-                    kicker: 'GASL answer',
-                    title: 'Traversal complete',
+                    kicker: 'Question + answer',
+                    title: currentQuestion,
                     body: data.answer,
                     meta: `${iters} iterations · ${data.nodes ? data.nodes.length : 0} touched nodes`,
                 });
@@ -2546,6 +3218,7 @@
         // SocketIO handlers for GASL streaming
         socket.on('gasl_step', handleGaslStep);
         socket.on('gasl_highlight', handleGaslHighlight);
+        socket.on('answer_view', handleAnswerView);
         socket.on('query_complete', handleQueryComplete);
 
         // ── GASL Visualization (existing system highlight) ─────────────────────

@@ -8,6 +8,7 @@ Mode 2 – GaslQueryEngine: GASL hypothesis-driven graph traversal with live
 
 import sys
 import threading
+import json
 from pathlib import Path
 from typing import Dict, List, Any, Tuple, Optional
 
@@ -292,6 +293,43 @@ class GaslQueryEngine:
         self.loader = loader
         self.socketio = socketio
 
+    @staticmethod
+    def _extract_answer_view_payload(trace_file: Path) -> Optional[Dict[str, Any]]:
+        if not trace_file.exists():
+            return None
+        selected = None
+        with trace_file.open(encoding="utf-8") as fh:
+            for line in fh:
+                try:
+                    row = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if row.get("event") != "answer_views":
+                    continue
+                payload = row.get("payload", {})
+                selection = payload.get("selection") or {}
+                selected_id = selection.get("view_id")
+                selected_view = None
+                for view in payload.get("views", []):
+                    if view.get("view_id") == selected_id:
+                        selected_view = view
+                        break
+                if not selected_view:
+                    continue
+                nodes: List[str] = []
+                view_payload = selected_view.get("payload") or {}
+                if selected_view.get("kind") == "ranking":
+                    nodes = [row.get("subject") for row in view_payload.get("ranked_subjects", [])[:5] if row.get("subject")]
+                selected = {
+                    "view_kind": selected_view.get("kind") or "evidence",
+                    "view_payload": view_payload,
+                    "selection_rationale": selection.get("rationale") or "",
+                    "title": f"Selected {selected_view.get('kind', 'evidence')} view",
+                    "nodes": nodes,
+                    "meta": selected_view.get("source_variable") or "",
+                }
+        return selected
+
     # ------------------------------------------------------------------
     def run(self, question: str, job_id: str,
             api_key: Optional[str] = None,
@@ -325,6 +363,13 @@ class GaslQueryEngine:
             result = executor.run_hypothesis_driven_traversal(
                 question, max_iterations=8
             )
+
+            answer_view_payload = self._extract_answer_view_payload(executor.trace.trace_file)
+            if answer_view_payload:
+                self.socketio.emit('answer_view', {
+                    'job_id': job_id,
+                    **answer_view_payload,
+                })
 
             self.socketio.emit('query_complete', {
                 'job_id': job_id,

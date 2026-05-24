@@ -13,17 +13,19 @@ RUN_MODE="${4:-compare}"
 DISPLAY_NUM="${DISPLAY_NUM:-:99}"
 RES="${RES:-1600x900}"
 DURATION="${DURATION:-18}"
+USER_DATA_DIR="$(mktemp -d /tmp/nanographrag-chrome.XXXXXX)"
 
 ROOT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 if [[ "${RUN_MODE}" == "gasl" ]]; then
-  URL="http://127.0.0.1:${PORT}/?demo=${DEMO_ID}&replay=1&mode=gasl"
+  URL="http://127.0.0.1:${PORT}/?demo=${DEMO_ID}&replay=1&mode=gasl&cinematic=1"
 else
-  URL="http://127.0.0.1:${PORT}/?demo=${DEMO_ID}&compare=1"
+  URL="http://127.0.0.1:${PORT}/?demo=${DEMO_ID}&compare=1&cinematic=1"
 fi
 
 cleanup() {
   if [[ -n "${CHROME_PID:-}" ]]; then kill "${CHROME_PID}" 2>/dev/null || true; fi
   if [[ -n "${XVFB_PID:-}" ]]; then kill "${XVFB_PID}" 2>/dev/null || true; fi
+  if [[ -n "${USER_DATA_DIR:-}" && -d "${USER_DATA_DIR}" ]]; then rm -rf "${USER_DATA_DIR}" 2>/dev/null || true; fi
 }
 trap cleanup EXIT
 
@@ -34,6 +36,11 @@ sleep 1
 DISPLAY="${DISPLAY_NUM}" chromium \
   --no-first-run \
   --disable-infobars \
+  --no-sandbox \
+  --disable-gpu \
+  --disable-dev-shm-usage \
+  --ozone-platform=x11 \
+  --user-data-dir="${USER_DATA_DIR}" \
   --window-size="${RES/x/,}" \
   "${URL}" >/tmp/chromium-demo.log 2>&1 &
 CHROME_PID=$!
