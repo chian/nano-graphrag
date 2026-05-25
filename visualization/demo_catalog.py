@@ -8,6 +8,7 @@ replay trace, and answer text can be generated from the actual graph.
 from __future__ import annotations
 
 from collections import Counter, defaultdict
+from copy import deepcopy
 from functools import lru_cache
 import json
 from pathlib import Path
@@ -25,6 +26,14 @@ DEMO_VIDEO_SHAREABLE_14 = [
     "q001",
     *DEMO_SHORTLIST_12,
     "q007",
+]
+PAPER_STYLE_DEMOS_6 = [
+    "paper-symbolism-metaphor",
+    "paper-camera-eye",
+    "paper-creative-sound",
+    "paper-big-bang",
+    "paper-old-footage",
+    "paper-ending-first",
 ]
 
 
@@ -143,6 +152,82 @@ def _neighbor_wave(
         if graph.has_edge(seed, nbr) or graph.has_edge(nbr, seed):
             edges.append([seed, nbr])
     return nodes, edges
+
+
+def _chunk_list(items: list[Any], size: int) -> list[list[Any]]:
+    return [items[i:i + size] for i in range(0, len(items), size)]
+
+
+def estimate_demo_micro_actions(
+    replay: list[dict[str, Any]],
+    wave_size: int = 2,
+    demo_subpasses: int = 6,
+) -> int:
+    import math
+
+    score = 0
+    for step in replay:
+        event = step.get("event")
+        payload = step.get("payload", {})
+        if event == "gasl_highlight":
+            n = len(payload.get("nodes", []))
+            waves = max(1, math.ceil(max(1, n) / wave_size))
+            score += waves * demo_subpasses
+        elif event == "gasl_step":
+            score += 4
+        elif event == "answer_view":
+            score += 6
+        elif event == "query_complete":
+            score += 1
+    return score
+
+
+def _replay_focus_nodes(replay: list[dict[str, Any]], limit: int = 18) -> list[str]:
+    nodes: list[str] = []
+    for step in replay:
+        payload = step.get("payload", {})
+        nodes.extend(payload.get("nodes", []))
+    return list(dict.fromkeys(nodes))[:limit]
+
+
+def _first_answer_view_event(replay: list[dict[str, Any]]) -> dict[str, Any] | None:
+    for step in replay:
+        if step.get("event") == "answer_view":
+            return deepcopy(step)
+    return None
+
+
+def _paper_style_variant(
+    base_demo: dict[str, Any],
+    *,
+    demo_id: str,
+    visual_style: str,
+    title: str,
+    opener_events: list[dict[str, Any]],
+    why_choice: str,
+    style_pitch: str,
+    delay_factor: float = 1.0,
+) -> dict[str, Any]:
+    demo = deepcopy(base_demo)
+    replay = opener_events + deepcopy(base_demo["replay"])
+    if delay_factor != 1.0:
+        replay = _scale_replay_delays(replay, delay_factor)
+    demo["id"] = demo_id
+    demo["title"] = title
+    demo["visual_style"] = visual_style
+    demo["style_pitch"] = style_pitch
+    demo["why_gasl_wins"] = why_choice
+    demo["rag_blind_spot"] = (
+        "This variant is intentionally about opening rhetoric and visual framing, "
+        "not about changing the underlying graph answer."
+    )
+    demo["replay"] = replay
+    demo["metrics"] = {
+        **demo.get("metrics", {}),
+        "opening_style": visual_style,
+        "micro_actions_est": estimate_demo_micro_actions(replay),
+    }
+    return demo
 
 
 def _trace_backed_engineering_demo(
@@ -489,10 +574,11 @@ def _trace_backed_engineering_demo(
             [row["subject"] for row in (ranking["payload"].get("ranked_subjects", []) if ranking else [])[:8]],
         )
         grouped = _lookup_first_view(answer_views, "grouped_summary")
-        generic_nodes = list(dict.fromkeys((ranking_subjects or focus_nodes or context_nodes)[:6]))
+        generic_nodes = list(dict.fromkeys((ranking_subjects or focus_nodes or context_nodes)[:8]))
+        intro_chunks = _chunk_list(generic_nodes, 2)
         replay.extend([
-            _event(220, "gasl_highlight", {
-                "nodes": generic_nodes[:3],
+            _event(180, "gasl_highlight", {
+                "nodes": intro_chunks[0] if len(intro_chunks) > 0 else [],
                 "edges": [],
                 "command_type": "FIND",
                 "status": "success",
@@ -500,14 +586,32 @@ def _trace_backed_engineering_demo(
                 "story_title": "Initial candidates surface",
                 "story_body": "The search starts broad enough to avoid locking onto a single answer too early.",
             }),
-            _event(220, "gasl_highlight", {
-                "nodes": generic_nodes[3:6],
+            _event(180, "gasl_highlight", {
+                "nodes": intro_chunks[1] if len(intro_chunks) > 1 else [],
                 "edges": [],
                 "command_type": "FIND",
                 "status": "success",
                 "command": "The working set expands before evidence is aggregated",
                 "story_title": "The working set expands",
                 "story_body": "More candidates come in before the system decides which local neighborhoods deserve deeper attention.",
+            }),
+            _event(180, "gasl_highlight", {
+                "nodes": intro_chunks[2] if len(intro_chunks) > 2 else [],
+                "edges": [],
+                "command_type": "FIND",
+                "status": "success",
+                "command": "Keep several plausible branches open while evidence remains mixed",
+                "story_title": "Keep the frontier open",
+                "story_body": "The replay should still look undecided here. The system is keeping enough candidate branches alive that the answer does not look predetermined.",
+            }),
+            _event(180, "gasl_highlight", {
+                "nodes": intro_chunks[3] if len(intro_chunks) > 3 else [],
+                "edges": [],
+                "command_type": "FIND",
+                "status": "success",
+                "command": "Sweep one more branch into the working frontier before committing to deeper walks",
+                "story_title": "One more branch stays alive",
+                "story_body": "This extra beat keeps the search from feeling like it already knows the answer. The frontier is still broad enough that the later evidence accumulation matters.",
             }),
             _event(300, "gasl_step", {
                 "command_type": "GRAPHWALK",
@@ -518,17 +622,31 @@ def _trace_backed_engineering_demo(
                 "story_body": "The system follows graph relations around the working set so the eventual answer view reflects accumulated evidence rather than a single passage.",
             }),
         ])
-        for idx, control in enumerate((generic_nodes or focus_nodes)[:3], start=1):
+        explored_controls = (generic_nodes or focus_nodes)[:5]
+        for idx, control in enumerate(explored_controls, start=1):
             wave_nodes, wave_edges = _neighbor_wave(viz, control, max_neighbors=6)
             touched_nodes.extend(wave_nodes)
-            replay.append(_event(180, "gasl_highlight", {
-                "nodes": wave_nodes,
-                "edges": wave_edges,
-                "command_type": "GRAPHWALK",
-                "status": "success",
-                "command": f"Local evidence wave {idx}: {control}",
-                "story_title": f"Local evidence wave {idx}",
-                "story_body": f"{control} is explored locally before the evidence is pooled into a more legible answer view.",
+            node_chunks = _chunk_list(wave_nodes, 2)
+            edge_chunks = _chunk_list(wave_edges, 2)
+            for chunk_idx, node_chunk in enumerate(node_chunks, start=1):
+                replay.append(_event(140, "gasl_highlight", {
+                    "nodes": node_chunk,
+                    "edges": edge_chunks[chunk_idx - 1] if chunk_idx - 1 < len(edge_chunks) else [],
+                    "command_type": "GRAPHWALK",
+                    "status": "success",
+                    "command": f"Local evidence wave {idx}.{chunk_idx}: {control}",
+                    "story_title": f"Local evidence wave {idx}.{chunk_idx}",
+                    "story_body": f"{control} is explored locally before the evidence is pooled into a more legible answer view.",
+                }))
+            replay.append(_event(140, "answer_view", {
+                "kicker": "Evidence accumulating",
+                "title": f"Partial evidence after candidate {idx}",
+                "view_kind": selected_kind,
+                "view_payload": _partial_distribution_payload(selected_payload, min(2 + idx, 4)) if selected_kind == "distribution" else (_partial_ranking_payload(selected_payload, min(1 + idx, 3)) if selected_kind == "ranking" else (_partial_grouped_payload(selected_payload, min(1 + idx, 3)) if selected_kind == "grouped_summary" else selected_payload)),
+                "selection_rationale": f"After candidate {idx}, the evidence view is still partial and the ordering is not final.",
+                "nodes": node_chunks[0][:2] if node_chunks else [],
+                "story_title": f"Evidence after candidate {idx}",
+                "story_body": "The answer view keeps updating while the graph walk is still ongoing, so the viewer sees accumulation rather than a late reveal.",
             }))
         replay.extend([
             _event(260, "gasl_step", {
@@ -539,6 +657,14 @@ def _trace_backed_engineering_demo(
                 "story_title": "Turn local traces into evidence",
                 "story_body": "At this point the graph walks stop looking like isolated neighborhoods and start becoming a summary the viewer can read.",
             }),
+            _event(180, "gasl_step", {
+                "command_type": "PROCESS",
+                "status": "running",
+                "command": "PROCESS the pooled evidence into a more stable intermediate summary",
+                "story_kicker": "Process",
+                "story_title": "Stabilize the pooled evidence",
+                "story_body": "This intermediate pass keeps the summary moving while the graph is still being searched, rather than waiting for one final reveal.",
+            }),
             _event(180, "answer_view", {
                 "kicker": "Evidence accumulating",
                 "title": "Early evidence snapshot",
@@ -546,6 +672,30 @@ def _trace_backed_engineering_demo(
                 "view_payload": _partial_distribution_payload(selected_payload, 2) if selected_kind == "distribution" else (_partial_ranking_payload(selected_payload, 2) if selected_kind == "ranking" else (_partial_grouped_payload(selected_payload, 2) if selected_kind == "grouped_summary" else selected_payload)),
                 "selection_rationale": "The answer view starts partial, then settles as more graph evidence is pooled.",
                 "nodes": generic_nodes[:2] or focus_nodes[:2],
+            }),
+            _event(180, "answer_view", {
+                "kicker": "Evidence accumulating",
+                "title": "Midway evidence snapshot",
+                "view_kind": selected_kind,
+                "view_payload": _partial_distribution_payload(selected_payload, 3) if selected_kind == "distribution" else (_partial_ranking_payload(selected_payload, 3) if selected_kind == "ranking" else (_partial_grouped_payload(selected_payload, 3) if selected_kind == "grouped_summary" else selected_payload)),
+                "selection_rationale": "A second partial view gives the replay time to show evidence thickening before the final answer view lands.",
+                "nodes": generic_nodes[:3] or focus_nodes[:3],
+            }),
+            _event(180, "answer_view", {
+                "kicker": "Evidence accumulating",
+                "title": "Late evidence snapshot",
+                "view_kind": selected_kind,
+                "view_payload": _partial_distribution_payload(selected_payload, 4) if selected_kind == "distribution" else (_partial_ranking_payload(selected_payload, 3) if selected_kind == "ranking" else (_partial_grouped_payload(selected_payload, 4) if selected_kind == "grouped_summary" else selected_payload)),
+                "selection_rationale": "A late partial view makes the answer feel earned rather than appearing all at once.",
+                "nodes": generic_nodes[:4] or focus_nodes[:4],
+            }),
+            _event(160, "gasl_step", {
+                "command_type": "PROCESS",
+                "status": "running",
+                "command": "PROCESS the late evidence snapshot into a final, readable answer view",
+                "story_kicker": "Process",
+                "story_title": "Lock the evidence before the reveal",
+                "story_body": "One last processing pass keeps the final answer from feeling like a sudden jump from subgraph to conclusion.",
             }),
         ])
 
@@ -579,7 +729,7 @@ def _trace_backed_engineering_demo(
     elif qid == "q007":
         replay = _scale_replay_delays(replay, 7.0)
     elif qid in DEMO_SHORTLIST_12:
-        replay = _scale_replay_delays(replay, 5.0)
+        replay = _scale_replay_delays(replay, 3.5)
 
     metrics = {
         "selected_view": selected_kind,
@@ -590,6 +740,7 @@ def _trace_backed_engineering_demo(
         metrics["n"] = selected_payload.get("n", 0)
     if selected_kind == "ranking":
         metrics["row_count"] = selected_payload.get("row_count", 0)
+    metrics["micro_actions_est"] = estimate_demo_micro_actions(replay)
 
     demo_id = f"engineering-{qid}" if graph_name == "haiqu_engineering_controls" else f"{graph_name.replace('haiqu_', '')}-{qid}"
     return {
@@ -1021,8 +1172,263 @@ def get_demo_catalog() -> List[Dict[str, Any]]:
     ]
 
 
+@lru_cache(maxsize=1)
+def get_paper_style_demo_catalog() -> List[Dict[str, Any]]:
+    base = {demo["id"]: demo for demo in get_demo_catalog()}
+
+    def focus(base_id: str, limit: int = 12) -> list[str]:
+        return _replay_focus_nodes(base[base_id]["replay"], limit)
+
+    q001_view = _first_answer_view_event(base["engineering-q001"]["replay"])
+    q007_view = _first_answer_view_event(base["engineering-q007"]["replay"])
+    q004_view = _first_answer_view_event(base["engineering-q004"]["replay"])
+    q009_view = _first_answer_view_event(base["engineering-q009"]["replay"])
+
+    symbolism_nodes = focus("engineering-q001", 14)
+    camera_nodes = focus("engineering-q013", 18)
+    sound_nodes = focus("engineering-q007", 15)
+    bang_nodes = focus("engineering-q004", 20)
+    archive_nodes = focus("hospital_environment-q019", 15)
+    ending_nodes = focus("engineering-q009", 14)
+
+    demos = [
+        _paper_style_variant(
+            base["engineering-q001"],
+            demo_id="paper-symbolism-metaphor",
+            visual_style="symbolism",
+            title="Paper Style · Symbolism & Metaphor",
+            why_choice="The opening treats the hospital as a breathing organism, so the graph first pulses through zones before it names the winning controls.",
+            style_pitch="Metaphorical opener: breathe the graph in and out before the explicit evidence work begins.",
+            opener_events=[
+                _event(400, "gasl_step", {
+                    "command_type": "INIT",
+                    "status": "running",
+                    "command": "Open with a metaphorical frame: hospital zones breathe as evidence gathers",
+                    "story_kicker": "Symbolism",
+                    "story_title": "A hospital breathes through its zones",
+                    "story_body": "Before the system names any control, the opening frames the hospital as a living space whose zones expand and contract under different interventions.",
+                }),
+                _event(520, "gasl_highlight", {
+                    "nodes": symbolism_nodes[:6],
+                    "edges": [],
+                    "command_type": "FIND",
+                    "status": "success",
+                    "command": "Pulse the first set of zone-linked control neighborhoods",
+                    "story_title": "The graph inhales",
+                    "story_body": "This pass is about atmosphere and theme rather than answer order. The opening suggests breadth before it quantifies it.",
+                }),
+                _event(540, "gasl_highlight", {
+                    "nodes": symbolism_nodes[6:12],
+                    "edges": [],
+                    "command_type": "FIND",
+                    "status": "success",
+                    "command": "Counter-pulse a second ring of neighborhoods",
+                    "story_title": "The graph exhales",
+                    "story_body": "A second pulse makes the graph feel alive and sets up the later notion of a validation footprint stretching across many zones.",
+                }),
+            ],
+            delay_factor=1.0,
+        ),
+        _paper_style_variant(
+            base["engineering-q013"],
+            demo_id="paper-camera-eye",
+            visual_style="camera-eye",
+            title="Paper Style · Camera Eye",
+            why_choice="The opening is camera-led instead of text-led: the viewer learns the tradeoff landscape by being flown across it before the labels settle.",
+            style_pitch="Camera-led opener: a guided tour across frontier candidates before the evidence widgets fully appear.",
+            opener_events=[
+                _event(300, "gasl_step", {
+                    "command_type": "INIT",
+                    "status": "running",
+                    "command": "Use the camera itself as the narrator",
+                    "story_kicker": "Camera eye",
+                    "story_title": "Show the terrain before the text explains it",
+                    "story_body": "Instead of starting with a dense panel, the opener lets the camera reveal the frontier through motion, scale, and proximity.",
+                }),
+                _event(900, "gasl_highlight", {
+                    "nodes": camera_nodes[:7],
+                    "edges": [],
+                    "command_type": "GRAPHWALK",
+                    "status": "success",
+                    "command": "Long-take sweep across one side of the frontier",
+                    "story_title": "First sweep",
+                    "story_body": "The camera gives one long look before the interface starts naming what matters.",
+                }),
+                _event(900, "gasl_highlight", {
+                    "nodes": camera_nodes[7:14],
+                    "edges": [],
+                    "command_type": "GRAPHWALK",
+                    "status": "success",
+                    "command": "Continue the same take across a second frontier region",
+                    "story_title": "Second sweep",
+                    "story_body": "A second slow sweep establishes spatial context, so the later ranking feels discovered rather than merely announced.",
+                }),
+            ],
+            delay_factor=0.92,
+        ),
+        _paper_style_variant(
+            base["engineering-q007"],
+            demo_id="paper-creative-sound",
+            visual_style="creative-sound",
+            title="Paper Style · Creative Sound",
+            why_choice="This variant turns support-count accumulation into a rhythmic opener, so the distribution feels like it is being scored into shape rather than simply filled.",
+            style_pitch="Rhythmic opener: a visual equalizer and beat-like pulses build the distribution before the final statistics settle.",
+            opener_events=[
+                _event(320, "gasl_step", {
+                    "command_type": "INIT",
+                    "status": "running",
+                    "command": "Open rhythmically: count pulses stand in for a soundtrack",
+                    "story_kicker": "Creative sound",
+                    "story_title": "Let counting feel musical",
+                    "story_body": "The opening uses rhythm, repetition, and beat-like pulses so the viewer feels a distribution being constructed instead of merely reading a histogram.",
+                }),
+                _event(420, "gasl_highlight", {
+                    "nodes": sound_nodes[:5],
+                    "edges": [],
+                    "command_type": "FIND",
+                    "status": "success",
+                    "command": "Beat 1 · first count cluster enters",
+                    "story_title": "Beat one",
+                    "story_body": "The first cluster sets the tempo: count, pause, count, pause.",
+                }),
+                _event(420, "gasl_highlight", {
+                    "nodes": sound_nodes[5:10],
+                    "edges": [],
+                    "command_type": "FIND",
+                    "status": "success",
+                    "command": "Beat 2 · a second cluster syncs with the first",
+                    "story_title": "Beat two",
+                    "story_body": "A second cluster reinforces the rhythm so later aggregation feels like a scored progression rather than a static tally.",
+                }),
+                _event(320, "answer_view", {
+                    **(q007_view["payload"] if q007_view else {"kicker": "Early histogram", "title": "Histogram onset", "view_kind": "distribution", "view_payload": {}, "selection_rationale": ""}),
+                    "story_title": "The first bars land on the beat",
+                    "story_body": "The equalizer-like opener gives the histogram a cadence before the full statistics appear.",
+                }),
+            ],
+            delay_factor=0.96,
+        ),
+        _paper_style_variant(
+            base["engineering-q004"],
+            demo_id="paper-big-bang",
+            visual_style="big-bang",
+            title="Paper Style · Big Bang",
+            why_choice="The opening uses abrupt contrast and a sudden evidence burst, so the viewer gets surprise first and structured explanation second.",
+            style_pitch="Shock opener: a sudden subgraph burst and fast contrast snap before the grouped evidence organizes itself.",
+            opener_events=[
+                _event(220, "gasl_step", {
+                    "command_type": "INIT",
+                    "status": "running",
+                    "command": "Open with a sharp contrast change and evidence burst",
+                    "story_kicker": "Big bang",
+                    "story_title": "Start with impact, then explain it",
+                    "story_body": "A rapid visual burst creates curiosity first. The opening withholds the tidy summary until after the surprise has landed.",
+                }),
+                _event(180, "gasl_highlight", {
+                    "nodes": bang_nodes[:10],
+                    "edges": [],
+                    "command_type": "FIND",
+                    "status": "success",
+                    "command": "Burst one · a wide answer-bearing subgraph flashes in",
+                    "story_title": "Impact frame",
+                    "story_body": "The opener hits hard: a lot of evidence arrives at once so the graph feels larger than the eventual grouped rows.",
+                }),
+                _event(180, "gasl_highlight", {
+                    "nodes": bang_nodes[10:20],
+                    "edges": [],
+                    "command_type": "GRAPHWALK",
+                    "status": "success",
+                    "command": "Burst two · a second ring reinforces the surprise",
+                    "story_title": "Aftershock",
+                    "story_body": "A second burst makes the opener feel explosive rather than merely quick.",
+                }),
+                _event(320, "answer_view", {
+                    **(q004_view["payload"] if q004_view else {"kicker": "Outcome burst", "title": "Outcome rows appear", "view_kind": "grouped_summary", "view_payload": {}, "selection_rationale": ""}),
+                    "story_title": "Now the evidence starts to sort itself",
+                    "story_body": "Only after the shock does the opener let the grouped evidence rows become readable.",
+                }),
+            ],
+            delay_factor=0.94,
+        ),
+        _paper_style_variant(
+            base["hospital_environment-q019"],
+            demo_id="paper-old-footage",
+            visual_style="old-footage",
+            title="Paper Style · Old Footage",
+            why_choice="This variant frames the airflow/pressure story like an archival systems reel, using patina and title cards before the graph modernizes into computation.",
+            style_pitch="Archival opener: monochrome grain, title-card pacing, then a fade into modern graph calculation.",
+            opener_events=[
+                _event(500, "gasl_step", {
+                    "command_type": "INIT",
+                    "status": "running",
+                    "command": "Open like an archival systems reel",
+                    "story_kicker": "Old footage",
+                    "story_title": "Archive the problem first",
+                    "story_body": "The opener implies institutional memory and system history before it switches to present-tense analysis.",
+                }),
+                _event(600, "gasl_highlight", {
+                    "nodes": archive_nodes[:7],
+                    "edges": [],
+                    "command_type": "FIND",
+                    "status": "success",
+                    "command": "Title-card pass · the first archival cluster appears",
+                    "story_title": "Frame one",
+                    "story_body": "A slower title-card rhythm lets the viewer absorb the setting before the interface fully wakes up.",
+                }),
+                _event(650, "gasl_highlight", {
+                    "nodes": archive_nodes[7:14],
+                    "edges": [],
+                    "command_type": "GRAPHWALK",
+                    "status": "success",
+                    "command": "Archival sweep · the system map broadens",
+                    "story_title": "Frame two",
+                    "story_body": "This second pass keeps the pace measured, like old footage being advanced through a projector.",
+                }),
+            ],
+            delay_factor=0.98,
+        ),
+        _paper_style_variant(
+            base["engineering-q009"],
+            demo_id="paper-ending-first",
+            visual_style="ending-first",
+            title="Paper Style · Ending First",
+            why_choice="This variant gives away the destination immediately, then rewinds into the graph work so the viewer watches the answer earn itself.",
+            style_pitch="Answer-first opener: reveal the destination immediately, then rewind into the evidence that justifies it.",
+            opener_events=[
+                _event(260, "gasl_step", {
+                    "command_type": "INIT",
+                    "status": "running",
+                    "command": "Open by revealing the destination before the route",
+                    "story_kicker": "Ending first",
+                    "story_title": "Show the destination, then rewind",
+                    "story_body": "The viewer sees the eventual shape of the answer first, then spends the rest of the clip learning how the graph earned it.",
+                }),
+                _event(360, "answer_view", {
+                    **(q009_view["payload"] if q009_view else {"kicker": "Destination first", "title": "Final distribution preview", "view_kind": "distribution", "view_payload": {}, "selection_rationale": ""}),
+                    "story_title": "The ending is shown up front",
+                    "story_body": "The opening reveals the final form of the answer before it rewinds into the actual traversal that justifies it.",
+                }),
+                _event(460, "gasl_highlight", {
+                    "nodes": ending_nodes[:8],
+                    "edges": [],
+                    "command_type": "GRAPHWALK",
+                    "status": "success",
+                    "command": "Rewind into the first evidence region",
+                    "story_title": "Now go back and earn it",
+                    "story_body": "After revealing the endpoint, the opener drops back into the graph so the answer can be earned rather than simply stated.",
+                }),
+            ],
+            delay_factor=0.96,
+        ),
+    ]
+    return demos
+
+
 def get_demo(demo_id: str) -> Dict[str, Any] | None:
     for demo in get_demo_catalog():
+        if demo["id"] == demo_id:
+            return demo
+    for demo in get_paper_style_demo_catalog():
         if demo["id"] == demo_id:
             return demo
     return None

@@ -54,6 +54,135 @@
             width: min(330px, calc(100% - 44px));
         }
 
+        .viz-style-overlay {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 8;
+            opacity: 0;
+            transition: opacity 220ms ease;
+        }
+
+        body[class*="paper-style-"] .viz-style-overlay {
+            opacity: 1;
+        }
+
+        .viz-style-titlebox {
+            position: absolute;
+            left: 50%;
+            top: 24px;
+            transform: translateX(-50%);
+            padding: 10px 14px;
+            border: 1px solid rgba(255,255,255,0.18);
+            border-radius: 999px;
+            background: rgba(4, 8, 20, 0.48);
+            backdrop-filter: blur(10px);
+            text-align: center;
+        }
+
+        .viz-style-title {
+            font-size: 12px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: rgba(255,255,255,0.92);
+        }
+
+        .viz-style-subtitle {
+            margin-top: 4px;
+            font-size: 11px;
+            color: rgba(215,225,255,0.8);
+            max-width: 540px;
+        }
+
+        .viz-style-eq {
+            position: absolute;
+            right: 24px;
+            bottom: 18px;
+            display: none;
+            align-items: end;
+            gap: 3px;
+            height: 42px;
+        }
+
+        .viz-style-eq span {
+            width: 5px;
+            border-radius: 999px;
+            background: linear-gradient(180deg, rgba(153,232,255,0.1), rgba(87,214,255,0.92));
+            animation: paperEq 850ms ease-in-out infinite;
+        }
+
+        .viz-style-eq span:nth-child(1) { height: 16px; animation-delay: 0ms; }
+        .viz-style-eq span:nth-child(2) { height: 28px; animation-delay: 120ms; }
+        .viz-style-eq span:nth-child(3) { height: 22px; animation-delay: 240ms; }
+        .viz-style-eq span:nth-child(4) { height: 34px; animation-delay: 360ms; }
+        .viz-style-eq span:nth-child(5) { height: 19px; animation-delay: 480ms; }
+        .viz-style-eq span:nth-child(6) { height: 30px; animation-delay: 600ms; }
+        .viz-style-eq span:nth-child(7) { height: 14px; animation-delay: 720ms; }
+
+        @keyframes paperEq {
+            0%, 100% { transform: scaleY(0.55); opacity: 0.4; }
+            50% { transform: scaleY(1.05); opacity: 1; }
+        }
+
+        body.paper-style-symbolism {
+            background:
+                radial-gradient(circle at 18% 12%, rgba(255,193,122,0.09), transparent 30%),
+                radial-gradient(circle at 82% 15%, rgba(115,196,255,0.10), transparent 30%),
+                #101423;
+        }
+
+        body.paper-style-symbolism .graph-overlay-badge {
+            background: rgba(255,191,120,0.18);
+            color: #ffcf90;
+        }
+
+        body.paper-style-camera-eye .story-panel,
+        body.paper-style-camera-eye .graph-overlay {
+            opacity: 0.48;
+        }
+
+        body.paper-style-creative-sound .viz-style-eq {
+            display: flex;
+        }
+
+        body.paper-style-big-bang .calc-chip {
+            box-shadow: 0 0 22px rgba(255, 179, 71, 0.18);
+            transform-origin: center;
+        }
+
+        body.paper-style-big-bang .graph-overlay-bar {
+            background: linear-gradient(90deg, #ff5d2e, #ffe066);
+        }
+
+        body.paper-style-old-footage #graph {
+            filter: saturate(0.15) sepia(0.45) contrast(0.94);
+        }
+
+        body.paper-style-old-footage .viz-style-overlay::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background:
+                radial-gradient(circle at 50% 50%, transparent 48%, rgba(14, 10, 4, 0.18) 100%),
+                repeating-linear-gradient(0deg, rgba(255,255,255,0.02) 0, rgba(255,255,255,0.02) 1px, transparent 1px, transparent 3px);
+            mix-blend-mode: screen;
+            opacity: 0.72;
+            animation: paperGrain 180ms steps(3) infinite;
+        }
+
+        @keyframes paperGrain {
+            0% { transform: translate(0, 0); }
+            25% { transform: translate(1px, -1px); }
+            50% { transform: translate(-1px, 1px); }
+            75% { transform: translate(1px, 1px); }
+            100% { transform: translate(0, 0); }
+        }
+
+        body.paper-style-ending-first .graph-overlay-badge {
+            background: rgba(149, 210, 120, 0.20);
+            color: #d5ffba;
+        }
+
         .container {
             display: flex;
             height: 100vh;
@@ -1148,6 +1277,16 @@
                 <div class="story-meta" id="storyMeta"></div>
             </div>
 
+            <div class="viz-style-overlay" id="vizStyleOverlay">
+                <div class="viz-style-titlebox">
+                    <div class="viz-style-title" id="vizStyleTitle"></div>
+                    <div class="viz-style-subtitle" id="vizStyleSubtitle"></div>
+                </div>
+                <div class="viz-style-eq" id="vizStyleEq">
+                    <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+                </div>
+            </div>
+
             <div class="calc-layer" id="calcLayer"></div>
 
             <div class="answer-view-panel" id="answerViewPanel">
@@ -1225,6 +1364,7 @@
         let _compareState = null;
         let _answerEntries = [];
         let _pendingGaslCompletion = null;
+        let _visualStyle = null;
         let _hasInitialGraphFit = false;
         let _lastZoomScale = 1;
         let _zoomRelaxTimeout = null;
@@ -1232,10 +1372,40 @@
         let _calcTimers = [];
         const LIVE_GASL_MICRO = {
             minWaveNodes: 5,
-            defaultWaveSize: 4,
-            maxWaveSize: 6,
-            waveDelayMs: 240,
+            defaultWaveSize: 2,
+            maxWaveSize: 4,
+            waveDelayMs: 180,
             storyEveryNWaves: 2,
+            demoSubpasses: 6,
+            liveSubpasses: 2,
+            passSpacingMs: 70,
+        };
+
+        const PAPER_STYLE_META = {
+            symbolism: {
+                label: 'Symbolism & Metaphor',
+                subtitle: 'Frame the question through theme and atmosphere before explicit explanation.',
+            },
+            'camera-eye': {
+                label: 'Camera Eye',
+                subtitle: 'Let the moving camera carry the viewer through the graph before the widgets explain it.',
+            },
+            'creative-sound': {
+                label: 'Creative Sound',
+                subtitle: 'Use rhythm, pulse, and repetition so the evidence feels scored rather than static.',
+            },
+            'big-bang': {
+                label: 'Big Bang',
+                subtitle: 'Create surprise first, then let the explanation organize the impact.',
+            },
+            'old-footage': {
+                label: 'Old Footage',
+                subtitle: 'Imply archive and memory before switching into present-tense analysis.',
+            },
+            'ending-first': {
+                label: 'Ending First',
+                subtitle: 'Reveal the destination, then rewind into the graph work that earns it.',
+            },
         };
 
         const GRAPH_PHYSICS = {
@@ -1477,6 +1647,8 @@
             const style = GASL_PHASE_STYLE[phase] || GASL_PHASE_STYLE.DEFAULT;
             const nodes = Array.from(new Set((data.nodes || []).filter((id) => id && !nodesDataset.get(id))));
             if (!nodes.length) return false;
+            const isDemoJob = String(_activeJobId || '').startsWith('demo:');
+            const passCount = isDemoJob ? LIVE_GASL_MICRO.demoSubpasses : LIVE_GASL_MICRO.liveSubpasses;
             const waveSize = Math.min(
                 LIVE_GASL_MICRO.maxWaveSize,
                 Math.max(LIVE_GASL_MICRO.defaultWaveSize, Math.ceil(nodes.length / 3))
@@ -1484,31 +1656,40 @@
             const waves = chunkArray(nodes, waveSize);
             const narration = narrateGaslStep(phase, data.command, {nodeCount: nodes.length});
             waves.forEach((wave, index) => {
-                const delay = index * LIVE_GASL_MICRO.waveDelayMs;
-                const timeoutId = setTimeout(() => {
-                    if (data.job_id !== _activeJobId) return;
-                    addNodesToLiveSubgraph(wave, style.color);
-                    const edgePairs = deriveEdgePairsForNodes(wave, data.edges || []);
-                    pulseNodes(wave, style.color);
-                    if (edgePairs.length) pulseEdgePairs(edgePairs, style.color);
-                    updateGaslMetrics(phase);
-                    markReplayEvent(phase, data.command || '', wave.length, 0);
-                    updateGraphOverlay(phase, data.command, wave.length, 0);
-                    triggerCalcOverlay(style.label, `${data.command || narration.title} · wave ${index + 1}/${waves.length}`, style.color);
-                    if (index % LIVE_GASL_MICRO.storyEveryNWaves === 0 || index === waves.length - 1) {
-                        setStoryPanel({
-                            kicker: narration.kicker,
-                            title: narration.title,
-                            body: `${narration.body} Wave ${index + 1} of ${waves.length}.`,
-                            meta: `${_gaslNodeSet.size} nodes active in the live subgraph.`,
-                            autoHideMs: LIVE_GASL_MICRO.waveDelayMs * 2,
-                        });
-                    }
-                    if (index === 0 || index === waves.length - 1 || index % 2 === 0) {
-                        cameraTourNodes(wave, Array.from(_gaslNodeSet));
-                    }
-                }, delay);
-                _replayTimeouts.push(timeoutId);
+                const edgePairs = deriveEdgePairsForNodes(wave, data.edges || []);
+                for (let pass = 0; pass < passCount; pass += 1) {
+                    const delay = (index * LIVE_GASL_MICRO.waveDelayMs) + (pass * LIVE_GASL_MICRO.passSpacingMs);
+                    const timeoutId = setTimeout(() => {
+                        if (data.job_id !== _activeJobId) return;
+                        if (pass === 0) {
+                            addNodesToLiveSubgraph(wave, style.color);
+                        } else if (pass === 1) {
+                            pulseNodes(wave, style.color);
+                        } else if (pass === 2) {
+                            if (edgePairs.length) pulseEdgePairs(edgePairs, style.color);
+                        } else {
+                            cameraTourNodes(wave, Array.from(_gaslNodeSet));
+                        }
+                        updateGaslMetrics(phase);
+                        markReplayEvent(phase, data.command || '', wave.length, 0);
+                        updateGraphOverlay(phase, data.command, wave.length, 0);
+                        triggerCalcOverlay(
+                            style.label,
+                            `${data.command || narration.title} · wave ${index + 1}/${waves.length} · pass ${pass + 1}/${passCount}`,
+                            style.color
+                        );
+                        if ((index % LIVE_GASL_MICRO.storyEveryNWaves === 0 && pass === 0) || (index === waves.length - 1 && pass === passCount - 1)) {
+                            setStoryPanel({
+                                kicker: narration.kicker,
+                                title: narration.title,
+                                body: `${narration.body} Wave ${index + 1} of ${waves.length}, pass ${pass + 1} of ${passCount}.`,
+                                meta: `${_gaslNodeSet.size} nodes active in the live subgraph.`,
+                                autoHideMs: LIVE_GASL_MICRO.waveDelayMs * 2,
+                            });
+                        }
+                    }, delay);
+                    _replayTimeouts.push(timeoutId);
+                }
             });
             return true;
         }
@@ -1537,6 +1718,23 @@
             document.getElementById('storyPanel').classList.remove('active');
         }
 
+        function setVisualStyle(style) {
+            const classes = Array.from(document.body.classList).filter((cls) => cls.startsWith('paper-style-'));
+            classes.forEach((cls) => document.body.classList.remove(cls));
+            _visualStyle = style || null;
+            const titleEl = document.getElementById('vizStyleTitle');
+            const subEl = document.getElementById('vizStyleSubtitle');
+            if (!_visualStyle) {
+                titleEl.textContent = '';
+                subEl.textContent = '';
+                return;
+            }
+            document.body.classList.add(`paper-style-${_visualStyle}`);
+            const meta = PAPER_STYLE_META[_visualStyle] || {label: _visualStyle, subtitle: ''};
+            titleEl.textContent = meta.label;
+            subEl.textContent = meta.subtitle;
+        }
+
         function clearCalcOverlays() {
             _calcTimers.forEach((id) => clearTimeout(id));
             _calcTimers = [];
@@ -1553,7 +1751,11 @@
                 'aggregating support / weighting outcomes',
                 'ranking frontier / filtering candidates',
             ];
-            const chipCount = 2 + Math.floor(Math.random() * 2);
+            let chipCount = 2 + Math.floor(Math.random() * 2);
+            if (_visualStyle === 'creative-sound') chipCount += 2;
+            if (_visualStyle === 'big-bang') chipCount += 1;
+            if (_visualStyle === 'old-footage') accent = '#d1a46d';
+            if (_visualStyle === 'symbolism') chips.unshift('mapping the graph into a visual metaphor');
             for (let i = 0; i < chipCount; i += 1) {
                 const chip = document.createElement('div');
                 chip.className = 'calc-chip';
@@ -1882,6 +2084,7 @@
                 const demo = await resp.json();
                 if (demo.error) throw new Error(demo.error);
                 _activeDemo = demo;
+                setVisualStyle(demo.visual_style || null);
                 await loadGraphFromPaths(demo.graph_path, demo.full_graph_path);
                 document.getElementById('questionInput').value = demo.question;
                 document.getElementById('queryStatus').textContent =
@@ -1902,6 +2105,7 @@
                 if (demo.error) throw new Error(demo.error);
 
                 _activeDemo = demo;
+                setVisualStyle(demo.visual_style || null);
                 _compareState = {active: true, demoId: demo.id, stage: 'rag'};
 
                 await loadGraphFromPaths(demo.graph_path, demo.full_graph_path);
