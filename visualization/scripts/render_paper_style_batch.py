@@ -22,6 +22,8 @@ def main() -> None:
 
     output_dir = REPO_ROOT / args.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
+    demo_pace = 1.45
+    camera_eye_pace = 1.65
 
     rendered: list[tuple[str, str]] = []
     for demo_id in PAPER_STYLE_DEMOS_6:
@@ -34,7 +36,8 @@ def main() -> None:
                 f"{demo['id']} failed micro-action QC: {micro_actions} < {args.min_micro_actions}"
             )
         total_s = sum(step["delay_ms"] for step in demo["replay"]) / 1000.0
-        duration = max(28, int(round(total_s + 6)))
+        pace = camera_eye_pace if demo.get("visual_style") == "camera-eye" else demo_pace
+        duration = max(40, int(round(total_s * pace + 10)))
         output = output_dir / f"{demo['id']}.mp4"
         print(f"Rendering {demo['id']} · micro-actions={micro_actions} · duration≈{duration}s")
         cmd = [

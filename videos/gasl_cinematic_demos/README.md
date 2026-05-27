@@ -1,18 +1,16 @@
 # GASL Cinematic Demos
 
-Rendered cinematic replay videos for the 14-question shareable set: the original 12-question shortlist plus q001 and q007.
+Rendered cinematic replay videos for the current 12-question shareable set, using the fixed left/right rail layout, persistent step counter, and slower replay cadence.
 
 - `engineering-q001.mp4` — Q001 · Validation Footprint Across Zones
-- `engineering-q003.mp4` — Q003 · Compliance-Linked Controls
-- `engineering-q004.mp4` — Q004 · Best-Supported Controls by Outcome
-- `engineering-q005.mp4` — Q005 · Adverse Outcomes by Control
-- `engineering-q008.mp4` — Q008 · Adverse-Effect Support Distribution
-- `engineering-q009.mp4` — Q009 · Pathogen-Coverage Distribution
-- `engineering-q010.mp4` — Q010 · Top Controls: Validation vs Burden
-- `engineering-q012.mp4` — Q012 · Top Controls: Studies vs Zones
-- `engineering-q013.mp4` — Q013 · Tradeoff Frontier: Validation vs Burden
-- `engineering-q014.mp4` — Q014 · Tradeoff Frontier: Compliance vs Pathogen Breadth
+- `engineering-q007.mp4` — Q007 · Distribution of Validation Support
 - `hospital_environment-q019.mp4` — Q019 · Zones with Broadest Air-Path / Pressure Mix
 - `hospital_environment-q022.mp4` — Q022 · Most-Connected Zones by Airflow Outcome
-- `hospital_environment-q026.mp4` — Q026 · Air-Path Connectivity Distribution
-- `engineering-q007.mp4` — Q007 · Distribution of Validation Support
+- `hospital_environment-q032.mp4` — Q032 · HVAC Frontier: Served-Zone Breadth vs Pressure-Relationship Evidence
+- `hospital_environment-q033.mp4` — Q033 · Air-Distribution Frontier: Tracer-Gas Breadth vs Zone Coverage
+- `biosensor_detection-q037.mp4` — Q037 · Biosensor Platforms Spanning Targets, Signals, and Validation Evidence
+- `biosensor_detection-q040.mp4` — Q040 · Strongest-Supported Biosensor Platforms by Pathogen Outcome
+- `biosensor_detection-q049.mp4` — Q049 · Biosensor Frontier: Validation Support vs Pathogen-Target Breadth
+- `aerosol_exposure-q058.mp4` — Q058 · Strongest-Supported Pathogens by Environmental Condition
+- `aerosol_exposure-q063.mp4` — Q063 · Distribution of Environmental-Condition Breadth per Pathogen
+- `aerosol_exposure-q067.mp4` — Q067 · Pathogen Frontier: Condition Breadth vs Viability-State Breadth

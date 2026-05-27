@@ -38,21 +38,73 @@
         }
 
         body.cinematic-mode .story-panel {
-            width: min(540px, calc(100% - 120px));
-            top: 24px;
+            width: 360px;
+            min-height: 232px;
+            top: 20px;
+            left: auto;
+            right: 20px;
+            transform: translate(0, -10px);
         }
 
         body.cinematic-mode .answer-view-panel {
-            bottom: 24px;
-            width: min(420px, calc(100% - 44px));
-            max-height: 42vh;
+            right: 20px;
+            bottom: 132px;
+            width: 360px;
+            max-height: 34vh;
         }
 
         body.cinematic-mode .graph-overlay {
-            bottom: 24px;
-            left: 24px;
-            width: min(330px, calc(100% - 44px));
+            right: 20px;
+            left: auto;
+            bottom: 20px;
+            width: 360px;
         }
+
+        .cinematic-left-rail {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            width: 320px;
+            display: none;
+            flex-direction: column;
+            gap: 12px;
+            z-index: 116;
+            pointer-events: none;
+        }
+
+        body.cinematic-mode .cinematic-left-rail {
+            display: flex;
+        }
+
+        .cinematic-box {
+            border-radius: 14px;
+            background: linear-gradient(180deg, rgba(9, 15, 29, 0.88), rgba(14, 23, 41, 0.82));
+            border: 1px solid rgba(129, 157, 213, 0.22);
+            box-shadow: 0 14px 48px rgba(0, 0, 0, 0.28);
+            backdrop-filter: blur(16px);
+            padding: 14px 16px;
+        }
+
+        .cinematic-box-kicker {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: #8fb3ff;
+            margin-bottom: 8px;
+        }
+
+        .cinematic-box-body {
+            color: #f0f6ff;
+            font-size: 16px;
+            line-height: 1.45;
+            min-height: 72px;
+        }
+
+        .cinematic-box-body.answer {
+            font-size: 15px;
+            color: #d8e7ff;
+        }
+
 
         .viz-style-overlay {
             position: absolute;
@@ -78,6 +130,7 @@
             background: rgba(4, 8, 20, 0.48);
             backdrop-filter: blur(10px);
             text-align: center;
+            display: none;
         }
 
         .viz-style-title {
@@ -126,9 +179,40 @@
 
         body.paper-style-symbolism {
             background:
-                radial-gradient(circle at 18% 12%, rgba(255,193,122,0.09), transparent 30%),
-                radial-gradient(circle at 82% 15%, rgba(115,196,255,0.10), transparent 30%),
+                radial-gradient(circle at 18% 12%, rgba(255,193,122,0.12), transparent 30%),
+                radial-gradient(circle at 82% 15%, rgba(115,196,255,0.14), transparent 30%),
                 #101423;
+        }
+
+        body.paper-style-symbolism #graph {
+            animation: symbolismBreathe 6200ms ease-in-out infinite;
+            filter: saturate(1.04) contrast(1.03) brightness(1.02);
+        }
+
+        body.paper-style-symbolism .viz-style-overlay::before,
+        body.paper-style-symbolism .viz-style-overlay::after {
+            content: '';
+            position: absolute;
+            inset: auto;
+            width: 42vw;
+            height: 42vw;
+            border-radius: 999px;
+            filter: blur(32px);
+            opacity: 0.16;
+            animation: symbolismOrb 7200ms ease-in-out infinite;
+        }
+
+        body.paper-style-symbolism .viz-style-overlay::before {
+            left: -6vw;
+            top: 8vh;
+            background: radial-gradient(circle, rgba(255, 184, 97, 0.8), rgba(255, 184, 97, 0.0) 60%);
+        }
+
+        body.paper-style-symbolism .viz-style-overlay::after {
+            right: -10vw;
+            bottom: 4vh;
+            background: radial-gradient(circle, rgba(88, 174, 255, 0.75), rgba(88, 174, 255, 0.0) 60%);
+            animation-delay: 1200ms;
         }
 
         body.paper-style-symbolism .graph-overlay-badge {
@@ -136,13 +220,108 @@
             color: #ffcf90;
         }
 
-        body.paper-style-camera-eye .story-panel,
-        body.paper-style-camera-eye .graph-overlay {
-            opacity: 0.48;
+        @keyframes symbolismBreathe {
+            0%, 100% { transform: scale(1); filter: saturate(1.02) contrast(1.02) brightness(1.00); }
+            50% { transform: scale(1.018); filter: saturate(1.08) contrast(1.05) brightness(1.04); }
+        }
+
+        @keyframes symbolismOrb {
+            0%, 100% { transform: translate(0, 0) scale(0.96); opacity: 0.14; }
+            50% { transform: translate(2vw, -1.6vh) scale(1.08); opacity: 0.22; }
+        }
+
+        body.paper-style-camera-eye .story-panel {
+            background: linear-gradient(180deg, rgba(6, 10, 18, 0.56), rgba(9, 14, 24, 0.48));
+            border-color: rgba(255, 255, 255, 0.12);
+            box-shadow: 0 10px 38px rgba(0, 0, 0, 0.32);
+        }
+
+        body.paper-style-camera-eye .graph-overlay,
+        body.paper-style-camera-eye .answer-view-panel {
+            background: rgba(8, 12, 20, 0.44);
+            border-color: rgba(255, 255, 255, 0.10);
+            box-shadow: 0 10px 32px rgba(0, 0, 0, 0.30);
+        }
+
+        body.paper-style-camera-eye .story-panel .story-kicker,
+        body.paper-style-camera-eye .graph-overlay-label,
+        body.paper-style-camera-eye .answer-view-kicker,
+        body.paper-style-camera-eye .answer-view-rationale {
+            color: rgba(219, 228, 244, 0.84);
+        }
+
+        body.paper-style-camera-eye .story-panel .story-title,
+        body.paper-style-camera-eye .graph-overlay-value,
+        body.paper-style-camera-eye .graph-overlay-command,
+        body.paper-style-camera-eye .answer-view-title,
+        body.paper-style-camera-eye .answer-view-kind,
+        body.paper-style-camera-eye .answer-view-body,
+        body.paper-style-camera-eye .story-panel .story-body {
+            color: rgba(245, 248, 255, 0.96);
+            text-shadow: 0 1px 8px rgba(0, 0, 0, 0.28);
+        }
+
+        body.paper-style-camera-eye .calc-layer {
+            display: none;
+        }
+
+        body.paper-style-camera-eye .graph-container::before,
+        body.paper-style-camera-eye .graph-container::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            width: 100%;
+            height: 8.5vh;
+            background: rgba(0, 0, 0, 0.78);
+            z-index: 7;
+            pointer-events: none;
+        }
+
+        body.paper-style-camera-eye .graph-container::before {
+            top: 0;
+        }
+
+        body.paper-style-camera-eye .graph-container::after {
+            bottom: 0;
         }
 
         body.paper-style-creative-sound .viz-style-eq {
             display: flex;
+        }
+
+        body.paper-style-creative-sound .viz-style-eq {
+            left: 50%;
+            right: auto;
+            transform: translateX(-50%);
+            bottom: 14px;
+            gap: 5px;
+            height: 62px;
+        }
+
+        body.paper-style-creative-sound .viz-style-eq span {
+            width: 8px;
+            background: linear-gradient(180deg, rgba(255, 115, 171, 0.12), rgba(111, 241, 255, 0.96));
+            box-shadow: 0 0 10px rgba(111, 241, 255, 0.20);
+        }
+
+        body.paper-style-creative-sound .viz-style-overlay::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background:
+                radial-gradient(circle at 50% 50%, rgba(111, 241, 255, 0.05), transparent 42%),
+                linear-gradient(180deg, rgba(255, 255, 255, 0.0), rgba(255, 255, 255, 0.02));
+            opacity: 0.92;
+            pointer-events: none;
+        }
+
+        body.paper-style-creative-sound .graph-overlay-bar {
+            background: linear-gradient(90deg, #ff6ab6, #73efff);
+        }
+
+        body.paper-style-creative-sound .story-panel,
+        body.paper-style-creative-sound .graph-overlay {
+            backdrop-filter: blur(20px);
         }
 
         body.paper-style-big-bang .calc-chip {
@@ -414,9 +593,43 @@
             transition: opacity 0.24s ease, transform 0.24s ease;
         }
 
+        .story-progress {
+            font-size: 16px;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: rgba(182, 196, 225, 0.48);
+            margin-bottom: 10px;
+        }
+
         .story-panel.active {
             opacity: 1;
             transform: translate(-50%, 0);
+        }
+
+        body.cinematic-mode .story-panel.active {
+            transform: translate(0, 0);
+        }
+
+        body.cinematic-mode .story-panel .story-title {
+            min-height: 50px;
+        }
+
+        body.cinematic-mode .story-panel .story-body {
+            min-height: 92px;
+            line-height: 1.5;
+            display: -webkit-box;
+            -webkit-box-orient: vertical;
+            -webkit-line-clamp: 4;
+            overflow: hidden;
+        }
+
+        body.cinematic-mode .story-panel .story-meta {
+            min-height: 36px;
+            display: -webkit-box;
+            -webkit-box-orient: vertical;
+            -webkit-line-clamp: 2;
+            overflow: hidden;
         }
 
         .answer-view-panel {
@@ -445,6 +658,7 @@
             opacity: 1;
             transform: translateY(0);
         }
+
 
         .calc-layer {
             position: absolute;
@@ -1270,7 +1484,19 @@
                 <button class="control-btn" onclick="resetFilters()">Reset Filters</button>
             </div>
 
+            <div class="cinematic-left-rail" id="cinematicLeftRail">
+                <div class="cinematic-box">
+                    <div class="cinematic-box-kicker">Question</div>
+                    <div class="cinematic-box-body" id="cinematicQuestion">Load a demo or ask a question.</div>
+                </div>
+                <div class="cinematic-box">
+                    <div class="cinematic-box-kicker">Answer</div>
+                    <div class="cinematic-box-body answer" id="cinematicAnswer">The answer will populate after the traversal completes.</div>
+                </div>
+            </div>
+
             <div class="story-panel" id="storyPanel">
+                <div class="story-progress" id="storyProgress">Step 0 of 0</div>
                 <div class="story-kicker" id="storyKicker">Question</div>
                 <div class="story-title" id="storyTitle">Ready</div>
                 <div class="story-body" id="storyBody">Pick a demo or ask a question.</div>
@@ -1380,6 +1606,8 @@
             liveSubpasses: 2,
             passSpacingMs: 70,
         };
+        const DEMO_REPLAY_PACE = 1.45;
+        const CAMERA_EYE_REPLAY_PACE = 1.65;
 
         const PAPER_STYLE_META = {
             symbolism: {
@@ -1472,7 +1700,37 @@
             document.getElementById('gaslOverlayFrontier').textContent = '0';
             document.getElementById('gaslOverlayIterations').textContent = '0';
             document.getElementById('gaslOverlayProgress').textContent = '0%';
+            updateStoryProgress();
         }
+
+        function setCinematicQuestion(text) {
+            const el = document.getElementById('cinematicQuestion');
+            if (el) el.textContent = text || 'Load a demo or ask a question.';
+        }
+
+        function setCinematicAnswer(text) {
+            const el = document.getElementById('cinematicAnswer');
+            if (el) el.textContent = text || 'The answer will populate after the traversal completes.';
+        }
+
+        function clearCinematicAnswer() {
+            setCinematicAnswer('');
+        }
+
+        function updateStoryProgress() {
+            const el = document.getElementById('storyProgress');
+            if (!el) return;
+            if (_gaslExpectedSteps > 0) {
+                el.textContent = `Step ${Math.min(_gaslStepCount, _gaslExpectedSteps)} of ${_gaslExpectedSteps}`;
+                return;
+            }
+            if (_gaslExpectedReplayEvents > 0) {
+                el.textContent = `Beat ${Math.min(_gaslReplayEventCount, _gaslExpectedReplayEvents)} of ${_gaslExpectedReplayEvents}`;
+                return;
+            }
+            el.textContent = 'Step 0 of 0';
+        }
+
 
         function updateGaslMetrics(phase) {
             document.getElementById('gaslMetrics').style.display = 'block';
@@ -1505,6 +1763,7 @@
             }
             document.getElementById('gaslOverlayBar').style.width = `${pct}%`;
             document.getElementById('gaslOverlayProgress').textContent = `${pct}%`;
+            updateStoryProgress();
         }
 
         function markReplayEvent(phase, command = '', frontierCount = 0, iterations = 0) {
@@ -1649,6 +1908,12 @@
             if (!nodes.length) return false;
             const isDemoJob = String(_activeJobId || '').startsWith('demo:');
             const passCount = isDemoJob ? LIVE_GASL_MICRO.demoSubpasses : LIVE_GASL_MICRO.liveSubpasses;
+            const waveDelayMs = isDemoJob
+                ? (_visualStyle === 'camera-eye' ? 260 : 220)
+                : LIVE_GASL_MICRO.waveDelayMs;
+            const passSpacingMs = isDemoJob
+                ? (_visualStyle === 'camera-eye' ? 110 : 90)
+                : LIVE_GASL_MICRO.passSpacingMs;
             const waveSize = Math.min(
                 LIVE_GASL_MICRO.maxWaveSize,
                 Math.max(LIVE_GASL_MICRO.defaultWaveSize, Math.ceil(nodes.length / 3))
@@ -1658,7 +1923,7 @@
             waves.forEach((wave, index) => {
                 const edgePairs = deriveEdgePairsForNodes(wave, data.edges || []);
                 for (let pass = 0; pass < passCount; pass += 1) {
-                    const delay = (index * LIVE_GASL_MICRO.waveDelayMs) + (pass * LIVE_GASL_MICRO.passSpacingMs);
+                    const delay = (index * waveDelayMs) + (pass * passSpacingMs);
                     const timeoutId = setTimeout(() => {
                         if (data.job_id !== _activeJobId) return;
                         if (pass === 0) {
@@ -1684,7 +1949,7 @@
                                 title: narration.title,
                                 body: `${narration.body} Wave ${index + 1} of ${waves.length}, pass ${pass + 1} of ${passCount}.`,
                                 meta: `${_gaslNodeSet.size} nodes active in the live subgraph.`,
-                                autoHideMs: LIVE_GASL_MICRO.waveDelayMs * 2,
+                                autoHideMs: waveDelayMs * 2,
                             });
                         }
                     }, delay);
@@ -1707,6 +1972,8 @@
             document.getElementById('storyMeta').textContent = meta;
             panel.classList.add('active');
             clearStoryTimeouts();
+            const persistentStory = document.body.classList.contains('cinematic-mode') || String(_activeJobId || '').startsWith('demo:');
+            if (persistentStory) return;
             if (autoHideMs > 0) {
                 const t = setTimeout(() => panel.classList.remove('active'), autoHideMs);
                 _storyTimeouts.push(t);
@@ -1730,9 +1997,8 @@
                 return;
             }
             document.body.classList.add(`paper-style-${_visualStyle}`);
-            const meta = PAPER_STYLE_META[_visualStyle] || {label: _visualStyle, subtitle: ''};
-            titleEl.textContent = meta.label;
-            subEl.textContent = meta.subtitle;
+            titleEl.textContent = '';
+            subEl.textContent = '';
         }
 
         function clearCalcOverlays() {
@@ -1933,6 +2199,15 @@
                 if (contextIds.length) cameraFitNodes(contextIds, 900, 1.02);
                 return;
             }
+            if (_visualStyle === 'camera-eye') {
+                cameraFitNodes(focusIds, 1600, 1.48);
+                if (contextIds.length > focusIds.length) {
+                    const t1 = setTimeout(() => cameraFitNodes(contextIds, 2200, 1.06), 1380);
+                    const t2 = setTimeout(() => cameraFitNodes(focusIds.slice(0, Math.min(4, focusIds.length)), 1400, 1.22), 3160);
+                    _cameraTimeouts.push(t1, t2);
+                }
+                return;
+            }
             cameraFitNodes(focusIds, 850, 1.32);
             if (contextIds.length > focusIds.length) {
                 const t = setTimeout(() => cameraFitNodes(contextIds, 1200, 1.02), 920);
@@ -2087,6 +2362,8 @@
                 setVisualStyle(demo.visual_style || null);
                 await loadGraphFromPaths(demo.graph_path, demo.full_graph_path);
                 document.getElementById('questionInput').value = demo.question;
+                setCinematicQuestion(demo.question);
+                clearCinematicAnswer();
                 document.getElementById('queryStatus').textContent =
                     `${demo.title} loaded · ${demo.metrics.rag_window} node RAG window vs graph-wide GASL aggregation`;
                 if (replayAfterLoad) replayDemo(demo);
@@ -2110,11 +2387,13 @@
 
                 await loadGraphFromPaths(demo.graph_path, demo.full_graph_path);
                 document.getElementById('questionInput').value = demo.question;
+                setCinematicQuestion(demo.question);
+                clearCinematicAnswer();
                 clearQueryHighlights(true);
                 resetAnswerEntries();
                 setStoryPanel({
                     kicker: 'Question',
-                    title: demo.title,
+                    title: demo.visual_style ? demo.question : demo.title,
                     body: demo.question,
                     meta: 'One graph. Two answer strategies.',
                 });
@@ -2206,20 +2485,26 @@
             clearQueryHighlights();
             resetGaslMetrics();
             _activeJobId = 'demo:' + demo.id;
+            setCinematicQuestion(demo.question);
+            clearCinematicAnswer();
             setStoryPanel({
                 kicker: 'Replay',
-                title: demo.title,
-                body: demo.question,
+                title: demo.visual_style ? demo.question : demo.title,
+                body: demo.visual_style ? (demo.style_pitch || demo.question) : demo.question,
                 meta: 'Scripted GASL traversal replay for recording.',
             });
             network.fit({animation: {duration: 800, easingFunction: 'easeInOutQuad'}});
             _gaslExpectedSteps = demo.replay.filter((step) => step.event === 'gasl_step').length;
             _gaslExpectedReplayEvents = demo.replay.filter((step) => step.event !== 'query_complete').length;
+            updateStoryProgress();
             document.getElementById('gaslLog').style.display = 'block';
             document.getElementById('gaslLog').innerHTML = '';
+            const paceFactor = _visualStyle === 'camera-eye'
+                ? CAMERA_EYE_REPLAY_PACE
+                : (document.body.classList.contains('cinematic-mode') ? DEMO_REPLAY_PACE : 1.0);
             let elapsed = 0;
             demo.replay.forEach((step) => {
-                elapsed += step.delay_ms || 0;
+                elapsed += Math.round((step.delay_ms || 0) * paceFactor);
                 const timeoutId = setTimeout(() => {
                     const payload = {...step.payload, job_id: _activeJobId};
                     if (step.event === 'gasl_step') handleGaslStep(payload);
@@ -2260,6 +2545,8 @@
             await fetchColors();
             fetchGraph();
             setupEventListeners();
+            setCinematicQuestion(document.getElementById('questionInput').value.trim());
+            clearCinematicAnswer();
         });
 
         function initializeNetwork() {
@@ -2655,6 +2942,10 @@
                 document.getElementById('salienceValue').textContent = parseFloat(e.target.value).toFixed(2);
             });
             slider.addEventListener('change', () => fetchGraph());
+
+            document.getElementById('questionInput').addEventListener('input', (e) => {
+                setCinematicQuestion(e.target.value.trim());
+            });
         }
 
         async function searchNodes(query) {
@@ -2909,6 +3200,7 @@
         async function runQuery(mode, options = {}) {
             const question = document.getElementById('questionInput').value.trim();
             if (!question) return;
+            setCinematicQuestion(question);
 
             // Reset UI
             clearReplayTimeouts();
@@ -2916,6 +3208,7 @@
                 clearQueryHighlights(false);
                 resetAnswerEntries();
             }
+            clearCinematicAnswer();
             resetGaslMetrics();
             document.getElementById('queryStatus').textContent =
                 options.statusText || (mode === 'rag' ? 'Searching…' : 'Starting GASL traversal…');
@@ -3096,6 +3389,7 @@
                 document.getElementById('answerBox').style.display = 'none';
                 document.getElementById('answerClear').style.display = 'none';
                 document.getElementById('usageBox').style.display = 'none';
+                clearCinematicAnswer();
             }
             document.getElementById('queryStatus').textContent = '';
             document.getElementById('gaslLog').style.display = 'none';
@@ -3213,6 +3507,10 @@
             box.style.display = 'block';
             document.getElementById('answerClear').style.display = 'block';
             document.getElementById('usageBox').style.display = 'none';
+            const latest = _answerEntries[_answerEntries.length - 1];
+            if (latest) {
+                setCinematicAnswer(`${latest.label}: ${latest.text}`);
+            }
         }
 
         function appendAnswerEntry(label, text, usage, model, meta = '') {
@@ -3225,6 +3523,7 @@
             box.textContent = text;
             box.style.display = 'block';
             document.getElementById('answerClear').style.display = 'block';
+            setCinematicAnswer(text);
         }
 
         function formatUsage(usage, model) {
@@ -3346,8 +3645,12 @@
                     title: data.story_title || narration.title,
                     body: data.story_body || narration.body,
                     meta: data.story_meta || `${_gaslNodeSet.size} nodes in the active subgraph.`,
-                    autoHideMs: 3000,
+                    autoHideMs: _visualStyle === 'camera-eye' ? 1800 : 3000,
                 });
+                if (_visualStyle === 'creative-sound') {
+                    setTimeout(() => pulseNodes(data.nodes.slice(0, Math.min(4, data.nodes.length)), '#73efff'), 180);
+                    setTimeout(() => pulseNodes(data.nodes.slice(Math.max(0, data.nodes.length - 4)), '#ff6ab6'), 360);
+                }
             }
         }
 

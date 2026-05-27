@@ -11,6 +11,21 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from visualization.demo_catalog import DEMO_VIDEO_SHAREABLE_14, estimate_demo_micro_actions, get_demo
 
+GRAPH_PREFIXES = [
+    "engineering",
+    "hospital_environment",
+    "biosensor_detection",
+    "aerosol_exposure",
+]
+
+
+def lookup_demo(qid: str):
+    for prefix in GRAPH_PREFIXES:
+        demo = get_demo(f"{prefix}-{qid}")
+        if demo is not None:
+            return demo
+    return None
+
 
 def main() -> None:
     parser = argparse.ArgumentParser()
@@ -21,9 +36,11 @@ def main() -> None:
 
     output_dir = REPO_ROOT / args.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
+    demo_pace = 1.45
+    camera_eye_pace = 1.65
 
     for qid in DEMO_VIDEO_SHAREABLE_14:
-        demo = get_demo(f"engineering-{qid}") or get_demo(f"hospital_environment-{qid}")
+        demo = lookup_demo(qid)
         if demo is None:
             raise SystemExit(f"Demo not found for {qid}")
         micro_actions = estimate_demo_micro_actions(demo["replay"])
@@ -32,7 +49,8 @@ def main() -> None:
                 f"{demo['id']} failed micro-action QC: {micro_actions} < {args.min_micro_actions}"
             )
         total_s = sum(step["delay_ms"] for step in demo["replay"]) / 1000.0
-        duration = max(24, int(round(total_s + 6)))
+        pace = camera_eye_pace if demo.get("visual_style") == "camera-eye" else demo_pace
+        duration = max(45, int(round(total_s * pace + 10)))
         output = output_dir / f"{demo['id']}.mp4"
         print(f"Rendering {demo['id']} · micro-actions={micro_actions} · duration≈{duration}s")
         cmd = [
@@ -56,7 +74,7 @@ def main() -> None:
         "",
     ]
     for qid in DEMO_VIDEO_SHAREABLE_14:
-        demo = get_demo(f"engineering-{qid}") or get_demo(f"hospital_environment-{qid}")
+        demo = lookup_demo(qid)
         lines.append(f"- `{demo['id']}.mp4` — {demo['title']}")
     readme.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
