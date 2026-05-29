@@ -1,0 +1,66 @@
+{
+  "scene_id": "01_opening_fragment",
+  "iteration_id": "opening_fragment_trial_v1_20260528",
+  "goal": "Prototype the first three opening shots for the Wegener/Tharp/GASL bridge using Runway rough passes.",
+  "inputs": {
+    "plates": [
+      "visualization/tutorial_mode/assets/runway_plates/01_eureka_myth_plate.png",
+      "visualization/tutorial_mode/assets/runway_plates/02_wegener_ridicule_plate.png",
+      "visualization/tutorial_mode/assets/runway_plates/03_tharp_compilation_plate.png"
+    ],
+    "generator": {
+      "provider": "runway",
+      "model": "gen4_turbo",
+      "ratio": "1280:720",
+      "variants": 1
+    },
+    "script": "visualization/tutorial_mode/generate_runway_opening_shots.py"
+  },
+  "outputs": {
+    "raw_clips": [
+      "visualization/tutorial_mode/generated/runway/opening_trial_v1/01_eureka_myth_v1_gen4_turbo.mp4",
+      "visualization/tutorial_mode/generated/runway/opening_trial_v1/02_wegener_ridicule_v1_gen4_turbo.mp4",
+      "visualization/tutorial_mode/generated/runway/opening_trial_v1/03_tharp_compilation_v1_gen4_turbo.mp4"
+    ],
+    "review_clip": "videos/instructional_gasl_fragments/review/01_opening_runway_trial_v1.mp4"
+  },
+  "review_comments_raw": [
+    "Scene 1 should be Archimedes and the overflowing tub that he just dropped a crown into. The tub is not overflowing so therefore this does not work as a symbol.",
+    "The emphasis seems to be on great graphics rather than principle, so there is a weakness in the strategic side, i.e., understanding the principle of the shot and what the visual semantic message needs to be.",
+    "For scene 2, you lack an understanding of basic physics. Tomatoes are flying toward the camera and the throwing motion looks disconnected since they are throwing the tomatoes at the speaker.",
+    "The strategic notion of having a shot with a pangea-ish map in the back is not terrible. But again, you seem to be emphasizing nice graphics over basics.",
+    "The graphics are allowed to be coarse cartoons even, but the point cannot be lost.",
+    "Third shot is more or less fine. Would have been nice to start seeing the mapping come together on the map she is working on, but minor point since it's hard to see anyway."
+  ],
+  "self_critique": [
+    "I evaluated the clips for aesthetic coherence rather than semantic correctness.",
+    "Scene 1 fails the symbolic principle because displacement/overflow is not visible.",
+    "Scene 2 fails causal geometry because the ridicule vectors do not terminate on the speaker.",
+    "Scene 3 is usable but under-explains compilation."
+  ],
+  "shot_invariants": {
+    "scene_1_archimedes": [
+      "Crown enters tub.",
+      "Water displacement is visible.",
+      "Overflow is visible.",
+      "Insight follows from the physical effect, not merely from a lightbulb motif."
+    ],
+    "scene_2_wegener": [
+      "Ridicule is directed at Wegener, not at camera.",
+      "Projectile motion respects scene geometry.",
+      "Wegener remains the public-claim anchor.",
+      "Pangaea/puzzle-fit backdrop may remain as contextual support."
+    ],
+    "scene_3_tharp": [
+      "Compilation becomes more legible over time.",
+      "At least one visible map-building beat should occur on the desk/map.",
+      "The shot must read as collation, not generic desk activity."
+    ]
+  },
+  "next_actions": [
+    "Redesign the Archimedes plate and motion around crown-drop and overflow rather than generic eureka iconography.",
+    "Reblock the Wegener scene with explicit projectile arcs aimed at the speaker plane.",
+    "Add explicit mapping/line accumulation overlays to the Tharp shot, even if composited locally instead of generated."
+  ],
+  "status": "archived_for_next_pass"
+}

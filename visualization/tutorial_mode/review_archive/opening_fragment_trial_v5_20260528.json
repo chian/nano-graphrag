@@ -1,0 +1,36 @@
+{
+  "trial_id": "opening_fragment_trial_v5_20260528",
+  "date": "2026-05-28",
+  "principles": {
+    "scene1": "Insight follows from visible displacement and overflow.",
+    "scene2": "A strong public claim can still attract ridicule and fail to persuade.",
+    "scene3": "Compilation makes structure visible through cumulative alignment."
+  },
+  "review_passes": {
+    "scene1": {
+      "principle_semantic": "targeted_fix",
+      "physical_causal": "carried_from_v4",
+      "style_coherence": "reworked_base_to_match_overlay",
+      "overlay_integration": "caption_matched_to_comic_panel",
+      "readability_timing": "pending_user_review"
+    },
+    "scene2": {
+      "principle_semantic": "targeted_fix",
+      "physical_causal": "switched_from_projectiles_to_dialogue",
+      "style_coherence": "base_kept_overlay_refined",
+      "overlay_integration": "bubble_system_redesigned",
+      "readability_timing": "pending_user_review"
+    }
+  },
+  "error_origin": {
+    "scene1": "base_art",
+    "scene2": "overlay"
+  },
+  "fix_strategy": {
+    "scene1": "stylize_base_down",
+    "scene2": "redesign_bubbles_and_mouth_anchors"
+  },
+  "outputs": {
+    "review_clip": "/home/chia/repos/nano-graphrag/videos/instructional_gasl_fragments/review/01_opening_hybrid_trial_v5.mp4"
+  }
+}

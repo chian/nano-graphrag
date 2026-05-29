@@ -1,0 +1,43 @@
+{
+  "scene_id": "01_opening_fragment",
+  "iteration_id": "opening_fragment_trial_v4_20260528",
+  "responds_to": "opening_fragment_trial_v3_20260528",
+  "principle_sentence": "Scene 1 must read as a schematic demonstration of displacement, and scene 2 must read as socially directed ridicule with visually integrated speech bubbles.",
+  "review_artifacts": {
+    "review_clip": "videos/instructional_gasl_fragments/review/01_opening_hybrid_trial_v4.mp4",
+    "keyframes": []
+  },
+  "review_passes": {
+    "principle_semantic": {
+      "status": "pending_user_review",
+      "notes": "v4 aims to make the principle-supporting visual language match the overlays rather than conflict with them."
+    },
+    "physical_causal": {
+      "status": "pass",
+      "notes": "Scene 1 now uses authored overflow cues instead of model-led fluid motion; scene 2 removes projectile physics entirely."
+    },
+    "style_coherence": {
+      "status": "pending_user_review",
+      "notes": "Scene 1 base was stylized downward to harmonize with simplified overlays."
+    },
+    "overlay_integration": {
+      "status": "pending_user_review",
+      "notes": "Scene 2 bubble styling and mouth anchoring were redesigned."
+    },
+    "readability_timing": {
+      "status": "pass",
+      "notes": "Bubble reveals are staggered and held longer; title boxes remain readable."
+    }
+  },
+  "error_origin": [
+    "base_art",
+    "overlay"
+  ],
+  "chosen_fix_strategy": "For scene 1, stylize the base down to match the schematic action. For scene 2, refine the bubble system rather than changing the full background scene.",
+  "outputs": {
+    "scene_1_clip": "visualization/tutorial_mode/generated/hybrid/opening_trial_v4/01_archimedes_hybrid_v4.mp4",
+    "scene_2_clip": "visualization/tutorial_mode/generated/hybrid/opening_trial_v4/02_wegener_hybrid_v4.mp4",
+    "review_clip": "videos/instructional_gasl_fragments/review/01_opening_hybrid_trial_v4.mp4"
+  },
+  "outcome": "awaiting_user_label"
+}

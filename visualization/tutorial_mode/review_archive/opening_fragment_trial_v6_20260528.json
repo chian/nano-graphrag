@@ -1,0 +1,20 @@
+{
+  "trial_id": "opening_fragment_trial_v6_20260528",
+  "date": "2026-05-28",
+  "principles": {
+    "scene1": "Insight follows from visible displacement and overflow.",
+    "scene2": "A strong public claim can still attract ridicule and fail to persuade.",
+    "scene3": "Compilation makes structure visible through cumulative alignment."
+  },
+  "error_origin": {
+    "scene1": "overlay",
+    "scene2": "overlay"
+  },
+  "fix_strategy": {
+    "scene1": "remove_redundant_crown_overlay_keep_effect_emphasis",
+    "scene2": "tighten_bubble_tail_geometry_and_position"
+  },
+  "outputs": {
+    "review_clip": "/home/chia/repos/nano-graphrag/videos/instructional_gasl_fragments/review/01_opening_hybrid_trial_v6.mp4"
+  }
+}

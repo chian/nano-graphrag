@@ -1,0 +1,20 @@
+[
+  {
+    "id": "01_eureka_myth_v2",
+    "plate": "assets/runway_plates/01_eureka_myth_plate_v2.png",
+    "duration": 5,
+    "prompt": "A clear editorial animation of Archimedes discovering water displacement. A gold crown drops into a bathtub, water visibly sloshes and overflows over the rim, and the observer's insight follows from that physical effect. The camera is stable enough to read the mechanism. The overflow is unmistakable and central to the shot. No generic lightbulb symbolism. No extra characters or clutter."
+  },
+  {
+    "id": "02_wegener_ridicule_v2",
+    "plate": "assets/runway_plates/02_wegener_ridicule_plate_v2.png",
+    "duration": 8,
+    "prompt": "A stylized editorial lecture scene. Alfred Wegener stands at a podium making a bold public claim while the audience reacts with skeptical ridicule directed at him. Projectiles travel toward the speaker, not toward the camera. Their trajectories obey the room geometry. Wegener remains the visual anchor, and a subtle Pangaea-like map behind him supports the context. The motion is theatrical, readable, and grounded in basic physics."
+  },
+  {
+    "id": "03_tharp_compilation",
+    "plate": "assets/runway_plates/03_tharp_compilation_plate.png",
+    "duration": 10,
+    "prompt": "A careful editorial animation of a scientist compiling evidence at a drafting table. Paper strips slide into alignment one after another, contour marks build in successive passes, and the camera drifts slowly across the table as the structure becomes clearer. The motion is patient, cumulative, and precise. The scene should feel methodical and legible, not magical or abrupt."
+  }
+]

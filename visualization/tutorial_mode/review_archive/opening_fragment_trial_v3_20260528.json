@@ -1,0 +1,35 @@
+{
+  "scene_id": "01_opening_fragment",
+  "iteration_id": "opening_fragment_trial_v3_20260528",
+  "responds_to": "opening_fragment_trial_v2_20260528",
+  "goal": "Switch scene 1 and scene 2 to a hybrid local-compositor strategy after the video model failed on principle-critical physics and object consistency.",
+  "inputs": {
+    "scene_1_background": "visualization/tutorial_mode/assets/runway_plates/01_eureka_myth_plate_v2.png",
+    "scene_2_background": "visualization/tutorial_mode/assets/runway_plates/02_wegener_bubbles_plate_v3.png",
+    "scene_3_clip": "visualization/tutorial_mode/generated/runway/opening_trial_v2/03_tharp_compilation_v1_gen4_turbo.mp4",
+    "script": "visualization/tutorial_mode/generate_hybrid_opening_v3.py"
+  },
+  "strategy_shift": [
+    "Use generative video only when the model can maintain the principle of the shot.",
+    "Use local authored overlays for principle-critical action and symbolic mechanics.",
+    "Replace projectile ridicule with speech-bubble ridicule to avoid broken physics and improve legibility."
+  ],
+  "outputs": {
+    "scene_1_clip": "visualization/tutorial_mode/generated/hybrid/opening_trial_v3/01_archimedes_hybrid_v3.mp4",
+    "scene_2_clip": "visualization/tutorial_mode/generated/hybrid/opening_trial_v3/02_wegener_hybrid_v3.mp4",
+    "review_clip": "videos/instructional_gasl_fragments/review/01_opening_hybrid_trial_v3.mp4"
+  },
+  "applied_invariants": {
+    "scene_1_archimedes": [
+      "Crown enters tub.",
+      "Displacement is visible.",
+      "Overflow is visible at the brim rather than generic fluid motion."
+    ],
+    "scene_2_wegener": [
+      "Ridicule remains directed at the speaker.",
+      "Speech-bubble timing is readable.",
+      "The shot stays about public dismissal, not projectile spectacle."
+    ]
+  },
+  "status": "awaiting_review"
+}
