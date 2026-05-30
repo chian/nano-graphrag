@@ -223,6 +223,7 @@ vdb_*.json
 !/videos/instructional_gasl_fragments/00_full_demo_v3.mp4
 /videos/instructional_gasl_fragments/GASL_full_demo_slides_*.pptx
 !/videos/instructional_gasl_fragments/GASL_full_demo_slides_v3.pptx
+!/videos/instructional_gasl_fragments/GASL_full_demo_slides_v8.pptx
 !/videos/instructional_gasl_fragments/README.md
 
 # Tutorial-making workspace remains local
