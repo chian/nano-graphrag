@@ -214,3 +214,16 @@ vdb_*.json
 
 
 # data/ is tracked (paper corpus committed to repo)
+
+# Instructional demo working tree: keep final full demos and decks, keep the rest local-only
+/videos/instructional_gasl_fragments/**
+!/videos/instructional_gasl_fragments/
+!/videos/instructional_gasl_fragments/00_full_demo_v1.mp4
+!/videos/instructional_gasl_fragments/00_full_demo_v2.mp4
+!/videos/instructional_gasl_fragments/00_full_demo_v3.mp4
+/videos/instructional_gasl_fragments/GASL_full_demo_slides_*.pptx
+!/videos/instructional_gasl_fragments/GASL_full_demo_slides_v3.pptx
+!/videos/instructional_gasl_fragments/README.md
+
+# Tutorial-making workspace remains local
+/visualization/tutorial_mode/
