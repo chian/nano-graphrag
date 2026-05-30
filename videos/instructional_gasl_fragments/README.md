@@ -8,5 +8,6 @@ Tracked deliverables in this folder:
 4. `GASL_full_demo_slides_v3.pptx`
 5. `GASL_full_demo_slides_v8.pptx`
 6. `GASL_full_demo_slides_v9.pptx`
+7. `GASL_full_demo_slides_v13.pptx`
 
 Everything else in this instructional tree is kept locally for iteration and review, but is intentionally not tracked in GitHub.

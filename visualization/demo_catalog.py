@@ -18,15 +18,18 @@ import networkx as nx
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+TRACE_DEMO_RUN_PREFERENCES = [
+    "corpus_20260521_view_balanced_72_rowshapefix_shim_v2",  # full 72-question corpus
+    "corpus_20260522_finalanswer_v1",  # fallback when answer_views are missing in the full run
+]
 DEMO_SHORTLIST_12 = [
-    "q003", "q004", "q005", "q008", "q009", "q010",
-    "q012", "q013", "q014", "q019", "q022", "q026",
+    "q001", "q007",
+    "q019", "q022", "q032", "q033",
+    "q037", "q040", "q049",
+    "q058", "q063", "q067",
 ]
-DEMO_VIDEO_SHAREABLE_14 = [
-    "q001",
-    *DEMO_SHORTLIST_12,
-    "q007",
-]
+# Compatibility name retained for existing render scripts, but now intentionally a 12-question set.
+DEMO_VIDEO_SHAREABLE_14 = [*DEMO_SHORTLIST_12]
 PAPER_STYLE_DEMOS_6 = [
     "paper-symbolism-metaphor",
     "paper-camera-eye",
@@ -35,6 +38,7 @@ PAPER_STYLE_DEMOS_6 = [
     "paper-old-footage",
     "paper-ending-first",
 ]
+PAPER_SYMBOLISM_SHORTLIST_12 = [f"paper-symbolism-{qid}" for qid in DEMO_SHORTLIST_12]
 
 
 def _repo_path(*parts: str) -> Path:
@@ -82,21 +86,42 @@ def _graph_paths(graph_name: str) -> tuple[Path, Path]:
     return (full, full)
 
 
-def _load_trace_demo_payload(run_id: str, qid: str) -> dict[str, Any]:
-    trace_path = _repo_path("benchmark_results", run_id, qid, "gasl_artifacts", "traces", f"{qid}.jsonl")
-    answer_views = None
-    final_answer = None
-    question = None
-    for line in trace_path.open(encoding="utf-8"):
-        row = json.loads(line)
-        if row["event"] == "answer_views":
-            answer_views = row["payload"]
-            question = answer_views.get("query")
-        if row["event"] == "final_analysis_response":
-            final_answer = row["payload"]["response"]
-    if not answer_views or not final_answer:
-        raise ValueError(f"Missing answer view or final answer for {qid} in {run_id}")
-    return {"question": question, "answer_views": answer_views, "final_answer": final_answer}
+def _load_trace_demo_payload(qid: str, run_ids: list[str] | None = None) -> dict[str, Any]:
+    run_ids = run_ids or TRACE_DEMO_RUN_PREFERENCES
+    last_error = None
+    for run_id in run_ids:
+        trace_path = _repo_path("benchmark_results", run_id, qid, "gasl_artifacts", "traces", f"{qid}.jsonl")
+        if not trace_path.exists():
+            last_error = f"missing trace {trace_path}"
+            continue
+        answer_views = None
+        final_answer = None
+        question = None
+        for line in trace_path.open(encoding="utf-8"):
+            row = json.loads(line)
+            if row["event"] == "answer_views":
+                answer_views = row["payload"]
+                question = answer_views.get("query")
+            if row["event"] == "final_analysis_response":
+                final_answer = row["payload"]["response"]
+        if not final_answer:
+            gasl_path = _repo_path("benchmark_results", run_id, qid, "gasl.json")
+            if gasl_path.exists():
+                gasl = json.loads(gasl_path.read_text(encoding="utf-8"))
+                final_answer = gasl.get("answer") or gasl.get("result", {}).get("final_answer")
+        if not question:
+            question_path = _repo_path("benchmark_results", run_id, qid, "question.json")
+            if question_path.exists():
+                question = json.loads(question_path.read_text(encoding="utf-8")).get("question")
+        if answer_views and final_answer:
+            return {
+                "question": question,
+                "answer_views": answer_views,
+                "final_answer": final_answer,
+                "run_id": run_id,
+            }
+        last_error = f"Missing answer view or final answer for {qid} in {run_id}"
+    raise ValueError(last_error or f"Could not load trace-backed payload for {qid}")
 
 
 def _lookup_selected_view(answer_views_payload: dict[str, Any]) -> dict[str, Any]:
@@ -236,14 +261,13 @@ def _trace_backed_engineering_demo(
     why_gasl_wins: str,
     rag_blind_spot: str,
 ) -> Dict[str, Any]:
-    run_id = "corpus_20260522_finalanswer_v1"
-    payload = _load_trace_demo_payload(run_id, qid)
+    payload = _load_trace_demo_payload(qid)
     answer_views = payload["answer_views"]
     selection = answer_views["selection"]
     selected_view = _lookup_selected_view(answer_views)
     selected_kind = selected_view["kind"]
     selected_payload = selected_view["payload"]
-    question_json = json.loads(_repo_path("benchmark_results", run_id, qid, "question.json").read_text())
+    question_json = json.loads(_repo_path("benchmark_results", payload["run_id"], qid, "question.json").read_text())
     graph_name = question_json.get("graph", "haiqu_engineering_controls")
     viz_path, full_path = _graph_paths(graph_name)
     G = _read_graph(str(full_path))
@@ -1079,93 +1103,97 @@ def _control_breadth_demo() -> Dict[str, Any]:
     }
 
 
+SELECTED_TRACE_DEMO_CONFIG: dict[str, tuple[str, str, str]] = {
+    "q001": (
+        "Q001 · Validation Footprint Across Zones",
+        "GASL can aggregate validation support across the full engineering-controls graph, then surface the selected ranking view before the final synthesis.",
+        "RAG can retrieve relevant controls, but it does not guarantee graph-wide breadth across every hospital-zone validation path.",
+    ),
+    "q007": (
+        "Q007 · Distribution of Validation Support",
+        "GASL compiles a distribution answer view with n, mean, median, and a full histogram, which is hard to recover from a shallow retrieval slice.",
+        "RAG can cite a few controls, but it is not naturally set up to compute whole-graph support distributions with a readable evidence summary.",
+    ),
+    "q019": (
+        "Q019 · Zones with Broadest Air-Path / Pressure Mix",
+        "GASL can walk hospital-environment edges across multiple relation families before ranking zones by the breadth of their connectivity.",
+        "RAG can retrieve relevant zones, but it does not naturally compare them across multiple edge families in one answer view.",
+    ),
+    "q022": (
+        "Q022 · Most-Connected Zones by Airflow Outcome",
+        "GASL can organize zone-outcome support into grouped evidence rows so the final answer reflects many connected traces rather than one dominant passage.",
+        "RAG can mention airflow outcomes, but it is weaker at synthesizing the most-connected zones from all available graph evidence.",
+    ),
+    "q032": (
+        "Q032 · HVAC Frontier: Zones vs Pressure Evidence",
+        "GASL can hold two evidence axes in view at once and expose a tradeoff frontier instead of flattening the question to one retrieved example.",
+        "RAG can retrieve strong HVAC snippets, but it rarely computes the multi-criterion frontier itself.",
+    ),
+    "q033": (
+        "Q033 · Air Distribution Frontier: Tracer vs Zone Breadth",
+        "GASL can trace a frontier across competing evidence dimensions and keep the result grounded in graph-wide structure.",
+        "RAG can surface examples from each side, but it does not naturally compute a frontier across the entire graph.",
+    ),
+    "q037": (
+        "Q037 · Biosensor Platform Breadth",
+        "GASL can evaluate breadth across pathogen targets, signal types, and validation evidence in one traversal.",
+        "RAG can retrieve a few platforms, but it does not naturally synthesize a breadth ranking over all three dimensions.",
+    ),
+    "q040": (
+        "Q040 · Biosensor Platforms by Pathogen Outcome",
+        "GASL can organize platform-pathogen evidence into grouped rows before final synthesis.",
+        "RAG may retrieve relevant pathogen mentions, but it is weaker at grouping them consistently by platform.",
+    ),
+    "q049": (
+        "Q049 · Biosensor Platform Frontier",
+        "GASL exposes a validation-vs-breadth frontier by organizing control-level evidence records before synthesis.",
+        "RAG can retrieve strong individual platforms, but it does not naturally trace the frontier across them.",
+    ),
+    "q058": (
+        "Q058 · Pathogens by Environmental Condition",
+        "GASL can summarize environmental-condition support as grouped evidence rather than a loose list of pathogens.",
+        "RAG can retrieve condition-specific passages, but it is weaker at whole-graph grouped summaries.",
+    ),
+    "q063": (
+        "Q063 · Environmental-Condition Breadth Distribution",
+        "GASL computes the full breadth distribution over pathogens rather than inferring it from a thin slice of text.",
+        "RAG can cite examples, but it does not naturally compute graph-wide distribution statistics.",
+    ),
+    "q067": (
+        "Q067 · Pathogen Frontier: Conditions vs Viability",
+        "GASL can track a tradeoff frontier between environmental breadth and viability-state breadth using whole-graph structure.",
+        "RAG can retrieve condition/viability examples, but it rarely computes the frontier itself.",
+    ),
+    "q004": (
+        "Q004 · Best-Supported Controls by Outcome",
+        "GASL can organize outcome-linked support into grouped evidence rows and then synthesize the strongest control-outcome patterns.",
+        "RAG may surface a few supporting passages, but it is not naturally aligned to grouped control-outcome summaries across the whole graph.",
+    ),
+    "q009": (
+        "Q009 · Pathogen-Coverage Distribution",
+        "GASL computes a whole-graph pathogen-coverage distribution instead of inferring it from a thin slice of retrieved text.",
+        "RAG may cite a few controls or pathogens, but it does not guarantee a graph-wide coverage profile.",
+    ),
+    "q013": (
+        "Q013 · Tradeoff Frontier: Validation vs Burden",
+        "GASL can expose a tradeoff frontier by organizing the evidence into comparable control-level records before synthesis.",
+        "RAG can retrieve strong individual controls, but it does not naturally trace a frontier across competing evidence dimensions.",
+    ),
+}
+
+
+def _trace_demo_from_qid(qid: str) -> Dict[str, Any]:
+    title, why_gasl_wins, rag_blind_spot = SELECTED_TRACE_DEMO_CONFIG[qid]
+    return _trace_backed_engineering_demo(qid, title, why_gasl_wins, rag_blind_spot)
+
+
 @lru_cache(maxsize=1)
 def get_demo_catalog() -> List[Dict[str, Any]]:
-    return [
-        _trace_backed_engineering_demo(
-            "q001",
-            "Q001 · Validation Footprint Across Zones",
-            "GASL can aggregate validation support across the full engineering-controls graph, then surface the selected ranking view before the final synthesis.",
-            "RAG can retrieve relevant controls, but it does not guarantee graph-wide breadth across every hospital-zone validation path.",
-        ),
-        _trace_backed_engineering_demo(
-            "q007",
-            "Q007 · Distribution of Validation Support",
-            "GASL compiles a distribution answer view with n, mean, median, and a full histogram, which is hard to recover from a shallow retrieval slice.",
-            "RAG can cite a few controls, but it is not naturally set up to compute whole-graph support distributions with a readable evidence summary.",
-        ),
-        _trace_backed_engineering_demo(
-            "q003",
-            "Q003 · Compliance-Linked Controls",
-            "GASL can search broadly, accumulate practical compliance evidence, and then rank controls from the resulting evidence view instead of guessing from a few retrieved passages.",
-            "RAG can retrieve relevant controls, but it cannot reliably show how compliance evidence accumulates across the graph before the ranking settles.",
-        ),
-        _trace_backed_engineering_demo(
-            "q004",
-            "Q004 · Best-Supported Controls by Outcome",
-            "GASL can organize outcome-linked support into grouped evidence rows and then synthesize the strongest control-outcome patterns.",
-            "RAG may surface a few supporting passages, but it is not naturally aligned to grouped control-outcome summaries across the whole graph.",
-        ),
-        _trace_backed_engineering_demo(
-            "q005",
-            "Q005 · Adverse Outcomes by Control",
-            "GASL can trace adverse-effect and safety outcomes back to controls and organize them into readable grouped evidence before answering.",
-            "RAG often retrieves isolated adverse mentions without the same structured link back to control-specific support counts.",
-        ),
-        _trace_backed_engineering_demo(
-            "q008",
-            "Q008 · Adverse-Effect Support Distribution",
-            "GASL can turn many control-level support counts into a distribution view with explicit summary statistics.",
-            "RAG can mention examples, but it does not naturally compute a global distribution over control-level adverse-effect evidence.",
-        ),
-        _trace_backed_engineering_demo(
-            "q009",
-            "Q009 · Pathogen-Coverage Distribution",
-            "GASL computes a whole-graph pathogen-coverage distribution instead of inferring it from a thin slice of retrieved text.",
-            "RAG may cite a few controls or pathogens, but it does not guarantee a graph-wide coverage profile.",
-        ),
-        _trace_backed_engineering_demo(
-            "q010",
-            "Q010 · Top Controls: Validation vs Burden",
-            "GASL can accumulate support and burden evidence separately, then compare the leading controls on a shared footing.",
-            "RAG can summarize a couple of controls, but it is less suited to side-by-side comparison grounded in accumulated graph evidence.",
-        ),
-        _trace_backed_engineering_demo(
-            "q012",
-            "Q012 · Top Controls: Studies vs Zones",
-            "GASL can compare validation-study count and linked-zone reach in one pass because both signals are already represented in the graph.",
-            "RAG can retrieve studies and zones, but it does not naturally combine them into a single comparative answer view.",
-        ),
-        _trace_backed_engineering_demo(
-            "q013",
-            "Q013 · Tradeoff Frontier: Validation vs Burden",
-            "GASL can expose a tradeoff frontier by organizing the evidence into comparable control-level records before synthesis.",
-            "RAG can retrieve strong individual controls, but it does not naturally trace a frontier across competing evidence dimensions.",
-        ),
-        _trace_backed_engineering_demo(
-            "q014",
-            "Q014 · Tradeoff Frontier: Compliance vs Pathogen Breadth",
-            "GASL can search across both compliance evidence and pathogen-target breadth, then visualize which controls survive the tradeoff frontier.",
-            "RAG can retrieve examples from each side, but it rarely computes the multi-criterion frontier itself.",
-        ),
-        _trace_backed_engineering_demo(
-            "q019",
-            "Q019 · Zones with Broadest Air-Path / Pressure Mix",
-            "GASL can walk hospital-environment edges across multiple relation families before ranking zones by the breadth of their connectivity.",
-            "RAG can retrieve relevant zones, but it does not naturally compare them across multiple edge families in one answer view.",
-        ),
-        _trace_backed_engineering_demo(
-            "q022",
-            "Q022 · Most-Connected Zones by Airflow Outcome",
-            "GASL can organize zone-outcome support into grouped evidence rows so the final answer reflects many connected traces rather than one dominant passage.",
-            "RAG can mention airflow outcomes, but it is weaker at synthesizing the most-connected zones from all available graph evidence.",
-        ),
-        _trace_backed_engineering_demo(
-            "q026",
-            "Q026 · Air-Path Connectivity Distribution",
-            "GASL can compute a full connectivity-count distribution across hospital zones and expose it as a distribution answer view.",
-            "RAG can cite example zones, but it is not naturally set up to derive a graph-wide connectivity distribution.",
-        ),
+    trace_demos = [
+        _trace_demo_from_qid(qid)
+        for qid in DEMO_SHORTLIST_12
+    ]
+    return trace_demos + [
         _domain_frequency_demo(),
         _confounder_span_demo(),
         _control_breadth_demo(),
@@ -1174,7 +1202,8 @@ def get_demo_catalog() -> List[Dict[str, Any]]:
 
 @lru_cache(maxsize=1)
 def get_paper_style_demo_catalog() -> List[Dict[str, Any]]:
-    base = {demo["id"]: demo for demo in get_demo_catalog()}
+    needed = ["q001", "q004", "q007", "q009", "q013", "q019"]
+    base = { _trace_demo_from_qid(qid)["id"]: _trace_demo_from_qid(qid) for qid in needed }
 
     def focus(base_id: str, limit: int = 12) -> list[str]:
         return _replay_focus_nodes(base[base_id]["replay"], limit)
@@ -1424,11 +1453,73 @@ def get_paper_style_demo_catalog() -> List[Dict[str, Any]]:
     return demos
 
 
+@lru_cache(maxsize=1)
+def get_symbolism_shortlist_demo_catalog() -> List[Dict[str, Any]]:
+    base = {demo["id"]: demo for demo in get_demo_catalog()}
+    demos: list[Dict[str, Any]] = []
+    for qid in DEMO_SHORTLIST_12:
+        base_id = {
+            "haiqu_engineering_controls": f"engineering-{qid}",
+            "haiqu_hospital_environment": f"hospital_environment-{qid}",
+            "haiqu_biosensor_detection": f"biosensor_detection-{qid}",
+            "haiqu_aerosol_exposure": f"aerosol_exposure-{qid}",
+        }
+        candidate = None
+        for demo in base.values():
+            if demo["id"].endswith(qid):
+                candidate = demo
+                break
+        if candidate is None:
+            continue
+        focus_nodes = _replay_focus_nodes(candidate["replay"], 14)
+        demos.append(_paper_style_variant(
+            candidate,
+            demo_id=f"paper-symbolism-{qid}",
+            visual_style="symbolism",
+            title=f"Symbolism Variant · {candidate['title']}",
+            why_choice="This opener leans on atmosphere and metaphor first, then lets the explicit evidence work catch up.",
+            style_pitch="A metaphor-first opening: zone- and control-neighborhoods pulse into view before the quantitative evidence fully settles.",
+            opener_events=[
+                _event(400, "gasl_step", {
+                    "command_type": "INIT",
+                    "status": "running",
+                    "command": "Open with a metaphorical frame: neighborhoods expand and contract as evidence gathers",
+                    "story_kicker": "Question",
+                    "story_title": "The graph breathes before it counts",
+                    "story_body": "The opening frames the problem as a living system first, then lets the explicit evidence accumulation explain what that system means.",
+                }),
+                _event(520, "gasl_highlight", {
+                    "nodes": focus_nodes[:6],
+                    "edges": [],
+                    "command_type": "FIND",
+                    "status": "success",
+                    "command": "First metaphorical pulse across the active neighborhoods",
+                    "story_title": "The graph inhales",
+                    "story_body": "The first pass is about atmosphere and thematic shape rather than immediate answer order.",
+                }),
+                _event(540, "gasl_highlight", {
+                    "nodes": focus_nodes[6:12],
+                    "edges": [],
+                    "command_type": "FIND",
+                    "status": "success",
+                    "command": "Second pulse extends the same frame into a wider ring of evidence",
+                    "story_title": "The graph exhales",
+                    "story_body": "A second pulse widens the metaphor so the later evidence views feel discovered rather than abruptly introduced.",
+                }),
+            ],
+            delay_factor=1.0,
+        ))
+    return demos
+
+
 def get_demo(demo_id: str) -> Dict[str, Any] | None:
     for demo in get_demo_catalog():
         if demo["id"] == demo_id:
             return demo
     for demo in get_paper_style_demo_catalog():
+        if demo["id"] == demo_id:
+            return demo
+    for demo in get_symbolism_shortlist_demo_catalog():
         if demo["id"] == demo_id:
             return demo
     return None
