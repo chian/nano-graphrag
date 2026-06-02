@@ -24,6 +24,18 @@ For visualization demo work in this repo, use the exact safe launcher and do not
 - Do not disable or bypass the subset path for demo launches.
 - If a demo-safe visualization restart is requested, restart via the safe launcher instead of changing graphs in place.
 
+## Video generation
+
+Use the exact replay asset/capture path that matches the requested deliverable.
+
+- If a committed replay video already exists under `benchmark_results/<run_id>/captures/`, prefer that asset over re-recording.
+- Do not treat `record_artifact_demo.sh` output as equivalent to an authored replay capture; it is a generic artifact-backed screen recording, not a guaranteed reproduction of prior cinematic choreography.
+- For enzyme traces specifically, the committed `benchmark_results/enzyme_demo_20260531_trace_2q/captures/*.mp4` assets are the authoritative dynamic replays.
+- If a new recording is truly required, document whether it is:
+  - an authored replay capture path, or
+  - a generic artifact-backed preview recording.
+- If the request is for the “same video as before”, verify the source asset or exact committed capture path first instead of assuming `cinematic=1` recreates the previous choreography.
+
 ## Stable corpus run procedure
 
 In this environment, use this exact detached launch method unless the repo
