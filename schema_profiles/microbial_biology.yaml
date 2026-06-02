@@ -1,0 +1,37 @@
+domain_name: Microbial Biology
+suitability_criteria:
+  min_entities: 5
+  min_entity_types: 3
+  min_relationships: 4
+  required_entity_types:
+  - ORGANISM
+  - MECHANISM
+  - PHENOTYPE
+  keywords:
+    positive:
+    - bacteria
+    - microbial
+    - strain
+    - resistance
+    - metabolism
+    - growth
+    - antibiotic
+    - pathogen
+    - fermentation
+    - biofilm
+    negative:
+    - human clinical trial
+    - patient population
+    - epidemiological study
+contrastive_patterns:
+- alternative resistance mechanisms
+- different metabolic pathways
+- competing strains
+- multiple virulence strategies
+- alternative nutrient sources
+- different antibiotics targeting same pathway
+question_generation_focus:
+- 'Resistance mechanisms: Why does strain A resist drug X but not Y?'
+- 'Metabolic alternatives: Which pathway is used when nutrient X is absent?'
+- 'Competitive dynamics: Which strain outcompetes under condition Z?'
+- 'Adaptation: How does organism respond to stress/environment change?'

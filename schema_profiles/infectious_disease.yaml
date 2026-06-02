@@ -1,0 +1,38 @@
+domain_name: Infectious Disease
+suitability_criteria:
+  min_entities: 5
+  min_entity_types: 3
+  min_relationships: 4
+  required_entity_types:
+  - PATHOGEN
+  - DISEASE
+  - TREATMENT
+  keywords:
+    positive:
+    - infection
+    - disease
+    - pathogen
+    - immune
+    - treatment
+    - vaccine
+    - host
+    - virulence
+    - transmission
+    - clinical
+    negative:
+    - in vitro only
+    - molecular dynamics simulation
+    - purely computational
+contrastive_patterns:
+- alternative treatments
+- different pathogens causing same disease
+- multiple immune evasion strategies
+- competing therapeutic approaches
+- alternative transmission routes
+- different disease manifestations
+question_generation_focus:
+- 'Host-pathogen dynamics: How does pathogen X evade immune response Y?'
+- 'Treatment selection: Which drug is more effective for strain A vs B?'
+- 'Disease progression: Why do symptoms differ in host type X vs Y?'
+- 'Immune response: Which immune component is most critical for clearing infection
+  Z?'

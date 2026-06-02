@@ -1,0 +1,38 @@
+domain_name: Ecology
+suitability_criteria:
+  min_entities: 5
+  min_entity_types: 3
+  min_relationships: 4
+  required_entity_types:
+  - ORGANISM
+  - INTERACTION
+  - ENVIRONMENT
+  keywords:
+    positive:
+    - species
+    - population
+    - community
+    - ecosystem
+    - competition
+    - predation
+    - niche
+    - habitat
+    - food web
+    - diversity
+    negative:
+    - molecular mechanism
+    - protein structure
+    - gene sequence
+    - clinical trial
+contrastive_patterns:
+- alternative ecological strategies
+- competing species in same niche
+- different responses to environmental stress
+- multiple pathways in food web
+- alternative mutualistic partners
+- different dispersal strategies
+question_generation_focus:
+- 'Competition dynamics: Which species dominates under condition X?'
+- 'Trophic cascades: How does removing predator A affect community B?'
+- 'Resource partitioning: How do competing species coexist?'
+- 'Environmental response: Which organism thrives under disturbance Y?'

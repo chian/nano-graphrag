@@ -1,0 +1,40 @@
+domain_name: Epidemiology
+suitability_criteria:
+  min_entities: 5
+  min_entity_types: 3
+  min_relationships: 4
+  required_entity_types:
+  - DISEASE
+  - POPULATION
+  - INTERVENTION
+  keywords:
+    positive:
+    - incidence
+    - prevalence
+    - outbreak
+    - risk factor
+    - cohort
+    - case-control
+    - transmission
+    - intervention
+    - public health
+    - epidemic
+    negative:
+    - molecular mechanism
+    - protein structure
+    - in vitro
+    - cell culture
+contrastive_patterns:
+- alternative interventions
+- different risk factors for same disease
+- competing prevention strategies
+- multiple transmission routes
+- different population responses
+- alternative screening approaches
+question_generation_focus:
+- 'Intervention effectiveness: Which intervention reduces disease X more in population
+  Y?'
+- 'Risk stratification: Which population is at highest risk given factors A and B?'
+- 'Outbreak dynamics: How does transmission route affect spread pattern?'
+- 'Policy impact: Which policy most effectively controls disease under constraint
+  Z?'

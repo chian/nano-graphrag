@@ -1,6 +1,6 @@
 """
 Paper Suitability Assessment
-Determines if a paper is suitable for contrastive reasoning questions in each domain
+Determines if a paper is suitable for knowledge graph construction in each domain
 """
 
 import argparse
@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).parent.absolute()))
 
 from domain_schemas.schema_loader import SchemaLoader, DomainSchema
 from gasl.llm import ArgoBridgeLLM
+from schema_profiles.profile_loader import load_schema_profile
 
 async def load_paper_text(paper_path: str) -> str:
     """Load paper text from file"""
@@ -23,6 +24,7 @@ async def load_paper_text(paper_path: str) -> str:
 async def assess_domain_suitability(
     paper_text: str,
     schema: DomainSchema,
+    profile,
     llm: ArgoBridgeLLM,
     sample_size: int = 3000
 ) -> Dict:
@@ -45,7 +47,7 @@ async def assess_domain_suitability(
     text_sample = paper_text[:sample_size] + "\n...\n" + paper_text[len(paper_text)//2:len(paper_text)//2 + sample_size]
 
     # Build assessment prompt
-    prompt = f"""You are assessing whether a scientific paper is suitable for knowledge graph construction and question generation in the domain of {schema.domain_name}.
+    prompt = f"""You are assessing whether a scientific paper is suitable for knowledge graph construction in the domain of {schema.domain_name}.
 
 DOMAIN: {schema.domain_name}
 DESCRIPTION: {schema.domain_description}
@@ -57,13 +59,13 @@ RELATIONSHIP TYPES for this domain:
 {_format_relationship_types(schema)}
 
 SUITABILITY CRITERIA:
-- Minimum {schema.suitability_criteria.get('min_entities', 5)} entities expected
-- Minimum {schema.suitability_criteria.get('min_entity_types', 3)} different entity types
-- Minimum {schema.suitability_criteria.get('min_relationships', 4)} relationships
-- Required entity types: {', '.join(schema.suitability_criteria.get('required_entity_types', []))}
+- Minimum {profile.suitability_criteria.get('min_entities', 5)} entities expected
+- Minimum {profile.suitability_criteria.get('min_entity_types', 3)} different entity types
+- Minimum {profile.suitability_criteria.get('min_relationships', 4)} relationships
+- Required entity types: {', '.join(profile.suitability_criteria.get('required_entity_types', []))}
 
-POSITIVE KEYWORDS: {', '.join(schema.suitability_criteria.get('keywords', {}).get('positive', []))}
-NEGATIVE KEYWORDS: {', '.join(schema.suitability_criteria.get('keywords', {}).get('negative', []))}
+POSITIVE KEYWORDS: {', '.join(profile.suitability_criteria.get('keywords', {}).get('positive', []))}
+NEGATIVE KEYWORDS: {', '.join(profile.suitability_criteria.get('keywords', {}).get('negative', []))}
 
 PAPER TEXT (sample):
 {text_sample}
@@ -85,8 +87,7 @@ Output your assessment as JSON:
     "estimated_entity_count": number,
     "estimated_relationship_count": number,
     "positive_indicators": ["indicator1", "indicator2", ...],
-    "negative_indicators": ["indicator1", "indicator2", ...],
-    "contrastive_potential": "Description of contrastive mechanisms if present"
+    "negative_indicators": ["indicator1", "indicator2", ...]
 }}
 
 IMPORTANT:
@@ -186,7 +187,8 @@ async def assess_single_domain(
     print(f"Assessing suitability for {schema.domain_name}...\n")
 
     # Assess the domain
-    assessment = await assess_domain_suitability(paper_text, schema, llm)
+    profile = load_schema_profile(domain_name)
+    assessment = await assess_domain_suitability(paper_text, schema, profile, llm)
 
     suitable = assessment['suitable'] and assessment.get('confidence', 0) >= threshold
     confidence = assessment.get('confidence', 0)
@@ -252,7 +254,8 @@ async def assess_all_domains(
     for schema_name, schema in schemas.items():
         print(f"  Assessing: {schema.domain_name}...", end=" ")
 
-        assessment = await assess_domain_suitability(paper_text, schema, llm)
+        profile = load_schema_profile(schema_name)
+        assessment = await assess_domain_suitability(paper_text, schema, profile, llm)
         assessments[schema_name] = assessment
 
         suitable = assessment['suitable'] and assessment.get('confidence', 0) >= threshold
@@ -282,7 +285,7 @@ async def assess_all_domains(
     if suitable_domains:
         print(f"Suitable domains: {', '.join(suitable_domains)}")
     else:
-        print("No suitable domains found. Paper may not fit contrastive reasoning approach.")
+        print("No suitable domains found. Paper may not fit the current knowledge-graph domains.")
     print(f"{'='*60}\n")
 
     return result
@@ -329,12 +332,12 @@ async def main(args):
             print(f"\n✓ Paper is suitable for {len(result['suitable_domains'])} domain(s). Proceeding to graph construction is recommended.")
             sys.exit(0)
         else:
-            print(f"\n✗ Paper is not suitable for contrastive reasoning in any domain. Exiting.")
+            print(f"\n✗ Paper is not suitable for any current graph domain. Exiting.")
             sys.exit(1)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Assess if a paper is suitable for contrastive reasoning question generation"
+        description="Assess if a paper is suitable for graph construction in a domain"
     )
     parser.add_argument(
         "paper_path",
