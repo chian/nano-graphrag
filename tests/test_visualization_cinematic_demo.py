@@ -20,6 +20,7 @@ def test_build_cinematic_demo_from_artifacts_topology_q001():
 
     assert demo["id"] == "multi_scale_structural_all-q001"
     assert demo["graph_path"].endswith("multi_scale_structural_all_graph.graphml")
+    assert "cinematic" not in demo["title"].lower()
     assert demo["question"]
     assert demo["replay"]
     highlights = [step for step in demo["replay"] if step["event"] == "gasl_highlight"]

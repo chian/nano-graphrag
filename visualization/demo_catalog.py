@@ -263,6 +263,14 @@ def _extract_view_nodes(payload: dict[str, Any], *, limit: int = 12) -> list[str
     return list(dict.fromkeys(node_ids))
 
 
+def _science_demo_title(qid: str, selected_view: dict[str, Any]) -> str:
+    view_id = str(selected_view.get("view_id") or "")
+    science_part = view_id.split(":", 1)[0].replace("_", " ").strip()
+    if science_part:
+        return f"{qid.upper()} · {science_part.title()}"
+    return qid.upper()
+
+
 def _neighbor_wave(
     graph: nx.Graph,
     seed: str,
@@ -907,7 +915,7 @@ def build_cinematic_demo_from_artifacts(
     inferred_demo_id = f"engineering-{qid}" if graph_name == "haiqu_engineering_controls" else f"{graph_name.replace('haiqu_', '')}-{qid}"
     return {
         "id": demo_id or inferred_demo_id,
-        "title": title or f"{qid.upper()} · Long-form cinematic",
+        "title": title or _science_demo_title(qid, selected_view),
         "graph_path": str(viz_path),
         "full_graph_path": str(full_path),
         "question": payload["question"],
