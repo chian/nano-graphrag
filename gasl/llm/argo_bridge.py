@@ -56,11 +56,23 @@ class ArgoBridgeLLM:
                 **client_kwargs.get("default_headers", {}),
                 "x-api-key": client_kwargs.get("api_key", ""),
             }
-        # Store credentials for creating fresh clients per call_async invocation.
-        # A single AsyncOpenAI instance cannot be reused across multiple asyncio.run()
-        # calls (each creates a new event loop), which causes [Errno 32] Broken Pipe.
+        # Store credentials for creating loop-local clients. Reusing a single
+        # AsyncOpenAI instance across different event loops causes transport
+        # issues, but creating a brand-new client per request causes excessive
+        # DNS/connection churn under high concurrency.
         self._client_kwargs = client_kwargs
-        self.client = AsyncOpenAI(**client_kwargs)  # kept for any direct external use
+        self._sdk_retries = int(os.getenv("LLM_SDK_RETRIES", "0"))
+        self._connect_timeout_sec = float(os.getenv("LLM_CONNECT_TIMEOUT_SEC", "10.0"))
+        self._read_timeout_sec = float(os.getenv("LLM_READ_TIMEOUT_SEC", "300.0"))
+        self._write_timeout_sec = float(os.getenv("LLM_WRITE_TIMEOUT_SEC", "300.0"))
+        self._pool_timeout_sec = float(os.getenv("LLM_POOL_TIMEOUT_SEC", "30.0"))
+        self._max_connections = int(os.getenv("LLM_MAX_CONNECTIONS", "128"))
+        self._max_keepalive_connections = int(os.getenv("LLM_MAX_KEEPALIVE_CONNECTIONS", "64"))
+        self._connection_retries = int(os.getenv("LLM_CONNECTION_RETRIES", "3"))
+        self._loop_id: Optional[int] = None
+        self._loop_http_client: Optional[httpx.AsyncClient] = None
+        self._loop_openai_client: Optional[AsyncOpenAI] = None
+        self.client = self._create_openai_client()  # kept for any direct external use
 
         # prompt_system is lazy — only constructed on first access via the
         # property below. Saves an expensive import for the RAG-only path.
@@ -170,6 +182,88 @@ class ArgoBridgeLLM:
             reasoning_effort=self.reasoning_effort if reasoning_effort is None else reasoning_effort,
         )
 
+    def _create_http_client(self) -> httpx.AsyncClient:
+        return httpx.AsyncClient(
+            timeout=httpx.Timeout(
+                connect=self._connect_timeout_sec,
+                read=self._read_timeout_sec,
+                write=self._write_timeout_sec,
+                pool=self._pool_timeout_sec,
+            ),
+            limits=httpx.Limits(
+                max_connections=self._max_connections,
+                max_keepalive_connections=self._max_keepalive_connections,
+                keepalive_expiry=30.0,
+            ),
+            http2=False,
+        )
+
+    def _create_openai_client(self) -> AsyncOpenAI:
+        http_client = self._create_http_client()
+        return AsyncOpenAI(
+            **self._client_kwargs,
+            max_retries=self._sdk_retries,
+            timeout=http_client.timeout,
+            http_client=http_client,
+        )
+
+    async def _reset_loop_client(self) -> None:
+        if self._loop_http_client is not None:
+            try:
+                await self._loop_http_client.aclose()
+            except Exception:
+                pass
+        self._loop_http_client = None
+        self._loop_openai_client = None
+        self._loop_id = None
+
+    def _get_loop_openai_client(self) -> AsyncOpenAI:
+        loop = asyncio.get_running_loop()
+        loop_id = id(loop)
+        if self._loop_openai_client is None or self._loop_id != loop_id:
+            self._loop_http_client = self._create_http_client()
+            self._loop_openai_client = AsyncOpenAI(
+                **self._client_kwargs,
+                max_retries=self._sdk_retries,
+                timeout=self._loop_http_client.timeout,
+                http_client=self._loop_http_client,
+            )
+            self._loop_id = loop_id
+        return self._loop_openai_client
+
+    async def _call_direct_once(self, prompt: str) -> str:
+        client = self._get_loop_openai_client()
+        if self.stream_callback is not None:
+            kwargs = self._build_create_kwargs(prompt, stream=True)
+            stream = await client.chat.completions.create(**kwargs)
+            full_text = ""
+            async for chunk in stream:
+                token = (chunk.choices[0].delta.content or "") if chunk.choices else ""
+                if token:
+                    full_text += token
+                    try:
+                        self.stream_callback(token)
+                    except Exception:
+                        pass
+            if self.debug:
+                print(f"DEBUG: LLM RESPONSE (streamed):\n{full_text}\n")
+                print("="*80)
+            return full_text
+
+        kwargs = self._build_create_kwargs(prompt, stream=False)
+        response = await client.chat.completions.create(**kwargs)
+        result = response.choices[0].message.content
+        u = getattr(response, "usage", None)
+        if u is not None:
+            self.usage["prompt_tokens"] += getattr(u, "prompt_tokens", 0) or 0
+            self.usage["completion_tokens"] += getattr(u, "completion_tokens", 0) or 0
+            self.usage["total_tokens"] += getattr(u, "total_tokens", 0) or 0
+        self.usage["calls"] += 1
+        if self.debug:
+            print(f"DEBUG: LLM RESPONSE RECEIVED:\n{result}\n")
+            print("="*80)
+        return result
+
     async def call_async(self, prompt: str) -> str:
         """Make async LLM call, streaming tokens if stream_callback is set."""
         if self.debug:
@@ -214,43 +308,26 @@ class ArgoBridgeLLM:
                 self.usage["total_tokens"] += usage.get("total_tokens", 0) or 0
                 self.usage["calls"] += 1
                 return result
-            # Create a fresh client bound to the current event loop.
-            # Reusing self.client across asyncio.run() calls (each spawns a new
-            # loop) causes [Errno 32] Broken Pipe on the underlying HTTP transport.
-            async with AsyncOpenAI(**self._client_kwargs) as client:
-                if self.stream_callback is not None:
-                    # Streaming path
-                    kwargs = self._build_create_kwargs(prompt, stream=True)
-                    stream = await client.chat.completions.create(**kwargs)
-                    full_text = ""
-                    async for chunk in stream:
-                        token = (chunk.choices[0].delta.content or "") if chunk.choices else ""
-                        if token:
-                            full_text += token
-                            try:
-                                self.stream_callback(token)
-                            except Exception:
-                                pass
-                    if self.debug:
-                        print(f"DEBUG: LLM RESPONSE (streamed):\n{full_text}\n")
-                        print("="*80)
-                    return full_text
-                else:
-                    # Non-streaming path (original behaviour)
-                    kwargs = self._build_create_kwargs(prompt, stream=False)
-                    response = await client.chat.completions.create(**kwargs)
-                    result = response.choices[0].message.content
-                    # Accumulate usage across calls (non-streaming exposes it directly).
-                    u = getattr(response, "usage", None)
-                    if u is not None:
-                        self.usage["prompt_tokens"] += getattr(u, "prompt_tokens", 0) or 0
-                        self.usage["completion_tokens"] += getattr(u, "completion_tokens", 0) or 0
-                        self.usage["total_tokens"] += getattr(u, "total_tokens", 0) or 0
-                    self.usage["calls"] += 1
-                    if self.debug:
-                        print(f"DEBUG: LLM RESPONSE RECEIVED:\n{result}\n")
-                        print("="*80)
-                    return result
+            retryable_codes = {500, 502, 503, 504}
+            last_exc: Optional[Exception] = None
+            for attempt in range(self._connection_retries + 1):
+                try:
+                    return await self._call_direct_once(prompt)
+                except (APIConnectionError, APITimeoutError, RateLimitError, InternalServerError) as exc:
+                    last_exc = exc
+                except APIStatusError as exc:
+                    if getattr(exc, "status_code", None) not in retryable_codes:
+                        raise
+                    last_exc = exc
+                if attempt >= self._connection_retries:
+                    if last_exc is not None:
+                        raise last_exc
+                    break
+                await self._reset_loop_client()
+                await asyncio.sleep(min(2 ** attempt, 8))
+            if last_exc is not None:
+                raise last_exc
+            raise RuntimeError("LLM direct call exhausted retries without a terminal response")
         except AuthenticationError as e:
             raise LLMError(
                 f"LLM call failed: {e}",

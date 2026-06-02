@@ -5,7 +5,14 @@ Handles entity matching and merging across papers (e.g., "dolutegravir" = "DTG")
 
 from typing import Dict, List, Tuple, Optional
 from difflib import SequenceMatcher
-from nano_graphrag.graph_slots import add_alias, add_source_ref, get_salience_score, set_salience_score
+from nano_graphrag.graph_slots import (
+    add_alias,
+    add_source_ref,
+    get_aliases,
+    get_salience_score,
+    get_source_refs,
+    set_salience_score,
+)
 
 
 # Common synonyms and abbreviations for biological entities
@@ -180,11 +187,16 @@ def merge_entities(
     if 'source_chunk' in new_entity:
         merged['source_chunks'].append(new_entity['source_chunk'])
 
-    # Track source references via canonical slot
+    # Track source references via canonical slot. Preserve batch-local refs
+    # when merging a batch graph into the central graph.
     add_source_ref(merged, source_uuid)
+    for ref in get_source_refs(new_entity):
+        add_source_ref(merged, ref)
 
     new_name = new_entity.get('entity_name', '')
     add_alias(merged, new_name)
+    for alias in get_aliases(new_entity):
+        add_alias(merged, alias)
 
     return merged
 

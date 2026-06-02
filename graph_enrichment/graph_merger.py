@@ -6,7 +6,7 @@ Functions for merging entities and relationships into existing graphs
 import networkx as nx
 from typing import Dict, List
 from .entity_merger import find_entity_matches, merge_entities, get_canonical_name
-from nano_graphrag.graph_slots import add_source_ref
+from nano_graphrag.graph_slots import add_source_ref, get_source_refs
 
 
 def add_entities_to_graph(
@@ -133,6 +133,8 @@ def add_relationships_to_graph(
 
             # Track source refs
             add_source_ref(existing_edge, source_uuid)
+            for ref in get_source_refs(rel):
+                add_source_ref(existing_edge, ref)
 
         else:
             # Add new edge

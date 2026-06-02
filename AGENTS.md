@@ -110,3 +110,13 @@ Also mark whether each observed outcome is:
 - out of scope for the tested mechanism
 
 Do not treat out-of-scope defects as evidence against the target mechanism.
+
+## Directory discipline
+
+Before creating, using, or writing into any existing directory in this repo:
+
+- Read every file already present in that directory first.
+- Do not infer the directory's purpose from its name alone.
+- Do not repurpose an existing directory unless its contents confirm the intended use.
+- If the directory's purpose is unclear after reading all files already in it, create a new neutral directory instead.
+- In status updates before writing files, state which directory will be used and what existing-file evidence justified that choice.
