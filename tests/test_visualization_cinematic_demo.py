@@ -26,6 +26,14 @@ def test_build_cinematic_demo_from_artifacts_topology_q001():
     highlights = [step for step in demo["replay"] if step["event"] == "gasl_highlight"]
     assert highlights
     assert any(step["payload"]["nodes"] for step in highlights)
+    evidence_table_sizes = [
+        len((step["payload"].get("view_payload") or {}).get("rows") or [])
+        for step in demo["replay"]
+        if step["event"] == "answer_view" and step["payload"].get("view_kind") == "evidence_table"
+    ]
+    assert evidence_table_sizes
+    assert max(evidence_table_sizes) > min(evidence_table_sizes)
+    assert evidence_table_sizes[-1] == max(evidence_table_sizes)
     for step in demo["replay"]:
         payload = step.get("payload", {})
         for key in ("command", "story_kicker", "story_title", "story_body", "selection_rationale"):

@@ -201,6 +201,25 @@ def _partial_distribution_payload(payload: dict[str, Any], bin_limit: int) -> di
     }
 
 
+def _partial_evidence_table_payload(payload: dict[str, Any], limit: int) -> dict[str, Any]:
+    return {
+        **payload,
+        "rows": list(payload.get("rows", [])[:limit]),
+    }
+
+
+def _partial_answer_view_payload(kind: str, payload: dict[str, Any], limit: int) -> dict[str, Any]:
+    if kind == "distribution":
+        return _partial_distribution_payload(payload, limit)
+    if kind == "ranking":
+        return _partial_ranking_payload(payload, limit)
+    if kind == "grouped_summary":
+        return _partial_grouped_payload(payload, limit)
+    if kind == "evidence_table":
+        return _partial_evidence_table_payload(payload, limit)
+    return payload
+
+
 _SCIENCE_NOTE_BANNED_PHRASES = (
     "working memory",
     "working set",
@@ -615,6 +634,42 @@ def build_cinematic_demo_from_artifacts(
                 "story_body": "The top records are the strongest linked examples of sequence features, shifted kinetic parameters, and localized residues.",
             }),
         ])
+        if selected_kind == "evidence_table":
+            replay.extend([
+                _event(200, "answer_view", {
+                    "kicker": "Evidence table",
+                    "title": "First evidence table row",
+                    "view_kind": "evidence_table",
+                    "view_payload": _partial_evidence_table_payload(selected_payload, 1),
+                    "selection_rationale": selection.get("rationale") or "",
+                    "nodes": focus_nodes[:1],
+                    "meta": selected_view.get("source_variable") or "",
+                    "story_title": "The evidence table begins with one row",
+                    "story_body": "The final table starts with a single linked feature-residue record before additional rows are added.",
+                }),
+                _event(200, "answer_view", {
+                    "kicker": "Evidence table",
+                    "title": "Second evidence table row",
+                    "view_kind": "evidence_table",
+                    "view_payload": _partial_evidence_table_payload(selected_payload, 2),
+                    "selection_rationale": selection.get("rationale") or "",
+                    "nodes": focus_nodes[:2],
+                    "meta": selected_view.get("source_variable") or "",
+                    "story_title": "A second row is added to the evidence table",
+                    "story_body": "A second linked record arrives, making the table comparison visible rather than implied.",
+                }),
+                _event(220, "answer_view", {
+                    "kicker": "Evidence table",
+                    "title": "Evidence table expands",
+                    "view_kind": "evidence_table",
+                    "view_payload": _partial_evidence_table_payload(selected_payload, 4),
+                    "selection_rationale": selection.get("rationale") or "",
+                    "nodes": focus_nodes[:3],
+                    "meta": selected_view.get("source_variable") or "",
+                    "story_title": "The evidence table expands to several rows",
+                    "story_body": "The table now holds multiple linked examples, so the final selected view is shown as a visible comparison rather than a narration-only endpoint.",
+                }),
+            ])
     elif qid == "q007":
         ranking = _lookup_first_view(answer_views, "ranking")
         ranked_subjects = _filter_existing_nodes(
@@ -806,7 +861,7 @@ def build_cinematic_demo_from_artifacts(
                 "kicker": "Evidence accumulating",
                 "title": f"Partial evidence after candidate {idx}",
                 "view_kind": selected_kind,
-                "view_payload": _partial_distribution_payload(selected_payload, min(2 + idx, 4)) if selected_kind == "distribution" else (_partial_ranking_payload(selected_payload, min(1 + idx, 3)) if selected_kind == "ranking" else (_partial_grouped_payload(selected_payload, min(1 + idx, 3)) if selected_kind == "grouped_summary" else selected_payload)),
+                "view_payload": _partial_answer_view_payload(selected_kind, selected_payload, min(1 + idx, 4)),
                 "selection_rationale": f"After candidate {idx}, the evidence view is still partial and the ordering is not final.",
                 "nodes": node_chunks[0][:2] if node_chunks else [],
                 "story_title": f"Evidence after candidate {idx}",
@@ -833,7 +888,7 @@ def build_cinematic_demo_from_artifacts(
                 "kicker": "Evidence accumulating",
                 "title": "Early evidence snapshot",
                 "view_kind": selected_kind,
-                "view_payload": _partial_distribution_payload(selected_payload, 2) if selected_kind == "distribution" else (_partial_ranking_payload(selected_payload, 2) if selected_kind == "ranking" else (_partial_grouped_payload(selected_payload, 2) if selected_kind == "grouped_summary" else selected_payload)),
+                "view_payload": _partial_answer_view_payload(selected_kind, selected_payload, 2),
                 "selection_rationale": "The answer view starts partial, then settles as more graph evidence is pooled.",
                 "nodes": generic_nodes[:2] or focus_nodes[:2],
             }),
@@ -841,7 +896,7 @@ def build_cinematic_demo_from_artifacts(
                 "kicker": "Evidence accumulating",
                 "title": "Midway evidence snapshot",
                 "view_kind": selected_kind,
-                "view_payload": _partial_distribution_payload(selected_payload, 3) if selected_kind == "distribution" else (_partial_ranking_payload(selected_payload, 3) if selected_kind == "ranking" else (_partial_grouped_payload(selected_payload, 3) if selected_kind == "grouped_summary" else selected_payload)),
+                "view_payload": _partial_answer_view_payload(selected_kind, selected_payload, 3),
                 "selection_rationale": "A second partial view gives the replay time to show evidence thickening before the final answer view lands.",
                 "nodes": generic_nodes[:3] or focus_nodes[:3],
             }),
@@ -849,7 +904,7 @@ def build_cinematic_demo_from_artifacts(
                 "kicker": "Evidence accumulating",
                 "title": "Late evidence snapshot",
                 "view_kind": selected_kind,
-                "view_payload": _partial_distribution_payload(selected_payload, 4) if selected_kind == "distribution" else (_partial_ranking_payload(selected_payload, 3) if selected_kind == "ranking" else (_partial_grouped_payload(selected_payload, 4) if selected_kind == "grouped_summary" else selected_payload)),
+                "view_payload": _partial_answer_view_payload(selected_kind, selected_payload, 4),
                 "selection_rationale": "A late partial view makes the answer feel earned rather than appearing all at once.",
                 "nodes": generic_nodes[:4] or focus_nodes[:4],
             }),

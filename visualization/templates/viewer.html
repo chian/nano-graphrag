@@ -788,6 +788,17 @@
             border: 1px solid rgba(145, 168, 216, 0.14);
         }
 
+        .answer-view-row-new {
+            border-color: rgba(104, 181, 255, 0.42);
+            background: rgba(20, 34, 56, 0.88);
+            box-shadow: 0 0 0 1px rgba(104, 181, 255, 0.14) inset;
+        }
+
+        .answer-view-cell-new {
+            font-weight: 800;
+            color: #ffffff;
+        }
+
         .answer-view-ranking-top {
             display: flex;
             align-items: baseline;
@@ -867,6 +878,34 @@
             font-size: 12px;
             color: #9fb0c4;
             line-height: 1.5;
+        }
+
+        .answer-view-table {
+            display: grid;
+            gap: 8px;
+        }
+
+        .answer-view-table-header,
+        .answer-view-table-row {
+            display: grid;
+            grid-template-columns: 1.15fr 1fr 0.7fr;
+            gap: 10px;
+            align-items: start;
+        }
+
+        .answer-view-table-header {
+            padding: 0 4px;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #8ea0ba;
+        }
+
+        .answer-view-table-row {
+            padding: 10px 12px;
+            border-radius: 10px;
+            background: rgba(14, 22, 39, 0.68);
+            border: 1px solid rgba(145, 168, 216, 0.14);
         }
 
         .story-kicker {
@@ -1589,6 +1628,7 @@
         let _gaslExpectedReplayEvents = 0;
         let _compareState = null;
         let _answerEntries = [];
+        let _previousAnswerView = null;
         let _pendingGaslCompletion = null;
         let _visualStyle = null;
         let _hasInitialGraphFit = false;
@@ -2068,7 +2108,72 @@
             return num.toFixed(2).replace(/\.00$/, '');
         }
 
-        function renderAnswerViewMarkup(kind, payload) {
+        function cloneAnswerViewPayload(payload) {
+            return JSON.parse(JSON.stringify(payload || {}));
+        }
+
+        function answerViewRows(kind, payload) {
+            if (kind === 'ranking') return payload.ranked_subjects || [];
+            if (kind === 'grouped_summary') return payload.rows || [];
+            if (kind === 'frontier') return payload.subjects || [];
+            if (kind === 'evidence_table') return payload.rows || [];
+            return [];
+        }
+
+        function answerViewRowKey(kind, row, index) {
+            if (!row || typeof row !== 'object') return `${kind}:${index}`;
+            return [
+                row.row_id,
+                row.subject,
+                row.outcome,
+                row.src_id,
+                row.tgt_id,
+                index,
+            ].filter(Boolean).join('|');
+        }
+
+        function buildAnswerViewEmphasis(kind, payload) {
+            const emphasis = {
+                newRows: new Set(),
+                changedCells: new Set(),
+                changedStats: new Set(),
+                newBins: new Set(),
+            };
+            const previous = (_previousAnswerView && _previousAnswerView.kind === kind)
+                ? _previousAnswerView.payload
+                : null;
+
+            if (kind === 'distribution') {
+                ['n', 'mean', 'median'].forEach((field) => {
+                    if (!previous || previous[field] !== payload[field]) emphasis.changedStats.add(field);
+                });
+                const prevBins = new Set((previous?.histogram || []).map((row) => `${row.bin_lo}|${row.bin_hi}|${row.count}`));
+                (payload.histogram || []).forEach((row) => {
+                    const key = `${row.bin_lo}|${row.bin_hi}|${row.count}`;
+                    if (!prevBins.has(key)) emphasis.newBins.add(key);
+                });
+                return emphasis;
+            }
+
+            const previousRows = new Map(answerViewRows(kind, previous || {}).map((row, index) => [answerViewRowKey(kind, row, index), row]));
+            answerViewRows(kind, payload).forEach((row, index) => {
+                const key = answerViewRowKey(kind, row, index);
+                const prevRow = previousRows.get(key);
+                if (!prevRow) {
+                    emphasis.newRows.add(key);
+                    return;
+                }
+                Object.keys(row).forEach((field) => {
+                    if (JSON.stringify(prevRow[field]) !== JSON.stringify(row[field])) {
+                        emphasis.changedCells.add(`${key}:${field}`);
+                    }
+                });
+            });
+            return emphasis;
+        }
+
+        function renderAnswerViewMarkup(kind, payload, emphasis = null) {
+            emphasis = emphasis || {newRows: new Set(), changedCells: new Set(), changedStats: new Set(), newBins: new Set()};
             if (!payload || Object.keys(payload).length === 0) {
                 return `<div class="answer-view-empty">This answer view did not produce displayable evidence rows.</div>`;
             }
@@ -2078,15 +2183,17 @@
                 const maxScore = ranked.length ? Math.max(...ranked.map((row) => Number(row.score || row.support_n || 0))) : 0;
                 return `
                     <div class="answer-view-ranking-list">
-                        ${ranked.map((row, index) => `
-                            <div class="answer-view-ranking-row">
+                        ${ranked.map((row, index) => {
+                            const rowKey = answerViewRowKey(kind, row, index);
+                            return `
+                            <div class="answer-view-ranking-row${emphasis.newRows.has(rowKey) ? ' answer-view-row-new' : ''}">
                                 <div class="answer-view-ranking-top">
-                                    <div class="answer-view-ranking-subject">#${index + 1} ${escapeHtml(row.subject)}</div>
-                                    <div class="answer-view-ranking-score">${compactNumber(row.score || row.support_n)} support</div>
+                                    <div class="answer-view-ranking-subject${emphasis.changedCells.has(`${rowKey}:subject`) ? ' answer-view-cell-new' : ''}">#${index + 1} ${escapeHtml(row.subject)}</div>
+                                    <div class="answer-view-ranking-score${emphasis.changedCells.has(`${rowKey}:score`) || emphasis.changedCells.has(`${rowKey}:support_n`) ? ' answer-view-cell-new' : ''}">${compactNumber(row.score || row.support_n)} support</div>
                                 </div>
                                 <div class="answer-view-bar"><span style="width:${maxScore ? Math.max(8, Math.round((Number(row.score || row.support_n) / maxScore) * 100)) : 8}%"></span></div>
                             </div>
-                        `).join('')}
+                        `;}).join('')}
                     </div>
                 `;
             }
@@ -2096,27 +2203,29 @@
                 const maxCount = bins.length ? Math.max(...bins.map((row) => Number(row.count || 0))) : 0;
                 return `
                     <div class="answer-view-stats">
-                        <div class="answer-view-stat">
-                            <div class="answer-view-stat-label">n</div>
-                            <div class="answer-view-stat-value">${escapeHtml(String(payload.n ?? '—'))}</div>
+                            <div class="answer-view-stat">
+                                <div class="answer-view-stat-label">n</div>
+                                <div class="answer-view-stat-value${emphasis.changedStats.has('n') ? ' answer-view-cell-new' : ''}">${escapeHtml(String(payload.n ?? '—'))}</div>
+                            </div>
+                            <div class="answer-view-stat">
+                                <div class="answer-view-stat-label">mean</div>
+                                <div class="answer-view-stat-value${emphasis.changedStats.has('mean') ? ' answer-view-cell-new' : ''}">${escapeHtml(compactNumber(payload.mean))}</div>
+                            </div>
+                            <div class="answer-view-stat">
+                                <div class="answer-view-stat-label">median</div>
+                                <div class="answer-view-stat-value${emphasis.changedStats.has('median') ? ' answer-view-cell-new' : ''}">${escapeHtml(compactNumber(payload.median))}</div>
+                            </div>
                         </div>
-                        <div class="answer-view-stat">
-                            <div class="answer-view-stat-label">mean</div>
-                            <div class="answer-view-stat-value">${escapeHtml(compactNumber(payload.mean))}</div>
-                        </div>
-                        <div class="answer-view-stat">
-                            <div class="answer-view-stat-label">median</div>
-                            <div class="answer-view-stat-value">${escapeHtml(compactNumber(payload.median))}</div>
-                        </div>
-                    </div>
                     <div class="answer-view-histogram">
-                        ${bins.map((row) => `
-                            <div class="answer-view-hist-row">
+                        ${bins.map((row) => {
+                            const binKey = `${row.bin_lo}|${row.bin_hi}|${row.count}`;
+                            return `
+                            <div class="answer-view-hist-row${emphasis.newBins.has(binKey) ? ' answer-view-row-new' : ''}">
                                 <div>${escapeHtml(compactNumber(row.bin_lo))}–${escapeHtml(compactNumber(row.bin_hi))}</div>
                                 <div class="answer-view-bar"><span style="width:${maxCount ? Math.max(8, Math.round((Number(row.count || 0) / maxCount) * 100)) : 8}%"></span></div>
-                                <div>${escapeHtml(String(row.count || 0))}</div>
+                                <div class="${emphasis.newBins.has(binKey) ? 'answer-view-cell-new' : ''}">${escapeHtml(String(row.count || 0))}</div>
                             </div>
-                        `).join('')}
+                        `;}).join('')}
                     </div>
                 `;
             }
@@ -2125,15 +2234,17 @@
                 const rows = (payload.rows || []).slice(0, 4);
                 return `
                     <div class="answer-view-ranking-list">
-                        ${rows.map((row) => `
-                            <div class="answer-view-ranking-row">
+                        ${rows.map((row, index) => {
+                            const rowKey = answerViewRowKey(kind, row, index);
+                            return `
+                            <div class="answer-view-ranking-row${emphasis.newRows.has(rowKey) ? ' answer-view-row-new' : ''}">
                                 <div class="answer-view-ranking-top">
-                                    <div class="answer-view-ranking-subject">${escapeHtml(row.subject || '—')}</div>
-                                    <div class="answer-view-ranking-score">${escapeHtml(String(row.support_n || 0))} support</div>
+                                    <div class="answer-view-ranking-subject${emphasis.changedCells.has(`${rowKey}:subject`) ? ' answer-view-cell-new' : ''}">${escapeHtml(row.subject || '—')}</div>
+                                    <div class="answer-view-ranking-score${emphasis.changedCells.has(`${rowKey}:support_n`) ? ' answer-view-cell-new' : ''}">${escapeHtml(String(row.support_n || 0))} support</div>
                                 </div>
-                                <div class="answer-view-empty">${escapeHtml(row.outcome || 'No outcome label')}</div>
+                                <div class="answer-view-empty${emphasis.changedCells.has(`${rowKey}:outcome`) ? ' answer-view-cell-new' : ''}">${escapeHtml(row.outcome || 'No outcome label')}</div>
                             </div>
-                        `).join('')}
+                        `;}).join('')}
                     </div>
                 `;
             }
@@ -2144,13 +2255,37 @@
                     <div class="answer-view-ranking-list">
                         ${rows.map((row) => {
                             const metricEntries = Object.entries(row.metrics || {}).slice(0, 3);
+                            const rowKey = answerViewRowKey(kind, row, rows.indexOf(row));
                             return `
-                                <div class="answer-view-ranking-row">
+                                <div class="answer-view-ranking-row${emphasis.newRows.has(rowKey) ? ' answer-view-row-new' : ''}">
                                     <div class="answer-view-ranking-top">
-                                        <div class="answer-view-ranking-subject">${escapeHtml(row.subject || '—')}</div>
+                                        <div class="answer-view-ranking-subject${emphasis.changedCells.has(`${rowKey}:subject`) ? ' answer-view-cell-new' : ''}">${escapeHtml(row.subject || '—')}</div>
                                         <div class="answer-view-ranking-score">${metricEntries.length} evidence axes</div>
                                     </div>
                                     <div class="answer-view-empty">${metricEntries.map(([label, val]) => `${escapeHtml(label)} · ${escapeHtml(compactNumber(val))}`).join('<br>')}</div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                `;
+            }
+
+            if (kind === 'evidence_table') {
+                const rows = (payload.rows || []).slice(0, 4);
+                return `
+                    <div class="answer-view-table">
+                        <div class="answer-view-table-header">
+                            <div>${escapeHtml(payload.subject_field || 'subject')}</div>
+                            <div>${escapeHtml(payload.outcome_field || 'outcome')}</div>
+                            <div>${escapeHtml(payload.measure_field || 'measure')}</div>
+                        </div>
+                        ${rows.map((row, index) => {
+                            const rowKey = answerViewRowKey(kind, row, index);
+                            return `
+                                <div class="answer-view-table-row${emphasis.newRows.has(rowKey) ? ' answer-view-row-new' : ''}">
+                                    <div class="${emphasis.changedCells.has(`${rowKey}:subject`) ? 'answer-view-cell-new' : ''}">${escapeHtml(row.subject || '—')}</div>
+                                    <div class="${emphasis.changedCells.has(`${rowKey}:outcome`) ? 'answer-view-cell-new' : ''}">${escapeHtml(row.outcome || '—')}</div>
+                                    <div class="${emphasis.changedCells.has(`${rowKey}:measure`) ? 'answer-view-cell-new' : ''}">${escapeHtml(compactNumber(row.measure))}</div>
                                 </div>
                             `;
                         }).join('')}
@@ -2169,8 +2304,10 @@
             document.getElementById('answerViewKind').textContent = kind;
             document.getElementById('answerViewTitle').textContent = data.title || `Selected ${kind} evidence`;
             document.getElementById('answerViewRationale').textContent = data.selection_rationale || '';
-            document.getElementById('answerViewBody').innerHTML = renderAnswerViewMarkup(kind, data.view_payload || {});
+            const emphasis = buildAnswerViewEmphasis(kind, data.view_payload || {});
+            document.getElementById('answerViewBody').innerHTML = renderAnswerViewMarkup(kind, data.view_payload || {}, emphasis);
             document.getElementById('answerViewPanel').classList.add('active');
+            _previousAnswerView = {kind, payload: cloneAnswerViewPayload(data.view_payload || {})};
 
             if (data.nodes && data.nodes.length) {
                 pulseNodes(data.nodes, '#68b5ff');
@@ -3455,6 +3592,7 @@
             _activeJobId = null;
             _lastQueryNodes = [];
             _gaslNodeSet.clear();
+            _previousAnswerView = null;
 
             if (!preserveTranscript) {
                 document.getElementById('answerBox').style.display = 'none';
