@@ -2298,10 +2298,12 @@
                 const data = await resp.json();
                 _demoCatalog = data.demos || [];
                 renderDemoCards();
-                await maybeAutoloadDemoFromUrl();
             } catch (e) {
                 console.error('Could not load demos:', e);
+                _demoCatalog = [];
+                renderDemoCards();
             }
+            await maybeAutoloadDemoFromUrl();
         }
 
         function cinematicParamsFromUrl() {

@@ -58,3 +58,15 @@ def test_cinematic_demo_endpoint_returns_payload():
     assert highlights
     assert any(step["payload"]["nodes"] for step in highlights)
     assert payload["replay"][-1]["event"] == "query_complete"
+
+
+def test_demo_catalog_route_skips_broken_entries():
+    app = create_app()
+    client = app.test_client()
+
+    response = client.get("/api/demos")
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert isinstance(payload["demos"], list)
+    assert payload["demos"]

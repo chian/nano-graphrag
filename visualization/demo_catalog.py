@@ -11,6 +11,7 @@ from collections import Counter, defaultdict
 from copy import deepcopy
 from functools import lru_cache
 import json
+import logging
 from pathlib import Path
 from typing import Any, Dict, Iterable, List
 
@@ -18,6 +19,7 @@ import networkx as nx
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+logger = logging.getLogger(__name__)
 TRACE_DEMO_RUN_PREFERENCES = [
     "corpus_20260521_view_balanced_72_rowshapefix_shim_v2",  # full 72-question corpus
     "corpus_20260522_finalanswer_v1",  # fallback when answer_views are missing in the full run
@@ -1280,10 +1282,12 @@ def _trace_demo_from_qid(qid: str) -> Dict[str, Any]:
 
 @lru_cache(maxsize=1)
 def get_demo_catalog() -> List[Dict[str, Any]]:
-    trace_demos = [
-        _trace_demo_from_qid(qid)
-        for qid in DEMO_SHORTLIST_12
-    ]
+    trace_demos = []
+    for qid in DEMO_SHORTLIST_12:
+        try:
+            trace_demos.append(_trace_demo_from_qid(qid))
+        except Exception as exc:
+            logger.warning("Skipping demo %s from curated catalog: %s", qid, exc)
     return trace_demos + [
         _domain_frequency_demo(),
         _confounder_span_demo(),
