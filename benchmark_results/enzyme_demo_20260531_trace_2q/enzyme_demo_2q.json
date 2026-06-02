@@ -1,0 +1,23 @@
+{
+  "description": "Two-query curated set for enzyme GASL demo traces over the multi-scale structural causality graph.",
+  "questions": [
+    {
+      "graph": "multi_scale_structural_all",
+      "family": "enzyme_demo/01",
+      "question": "List substrates for the three Rieske-type non-heme iron oxygenases verA, vanA, and gdmA, and indicate whether each substrate relationship is validated in vitro or in vivo. Please answer with short records in the form 'enzyme | substrate | validation mode'.",
+      "metadata": {
+        "target_view": "grouped_summary",
+        "theme": "substrate_validation_scope"
+      }
+    },
+    {
+      "graph": "multi_scale_structural_all",
+      "family": "enzyme_demo/02",
+      "question": "We developed a high-throughput assay to evaluate pairs of Rieske-type non-heme iron oxygenases, specifically vanA homologs with varying substrate specificities, and their co-expressed ferredoxin reductases, specifically vanB homologs. However, the host strain retains its native vanB gene with UniProt ID O05617. Which vanAB pair, for which substrates, may yield confounded results due to cross-reactivity with the native vanB O05617? Please answer with short records in the form 'oxygenase-reductase pair | substrate or substrate set | confound rationale'.",
+      "metadata": {
+        "target_view": "comparison",
+        "theme": "native_reductase_confound"
+      }
+    }
+  ]
+}

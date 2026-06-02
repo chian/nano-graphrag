@@ -1,0 +1,145 @@
+{
+  "latency_s": 20.353,
+  "retrieval": {
+    "nodes": [
+      "VANB PARTNER REDUCTASE SEQUENCE (UNIPROTKB O05617)",
+      "ALPHA3BETA3 RIESKE OXYGENASE ARCHITECTURE",
+      "RIESKE NON-HEME IRON AROMATIC RING-HYDROXYLATING OXYGENASES",
+      "RIESKE-TYPE NONHEME IRON OXYGENASES",
+      "SWGDMB BROAD RHO-PARTNER SELECTIVITY",
+      "RIESKE NON-HEME OXYGENASES",
+      "RIESKE-TYPE FERREDOXIN ELECTRON DONATION",
+      "MONONUCLEAR NON-HEME IRON CENTER",
+      "RIESKE OXYGENASE METALLOCENTER SCAFFOLD",
+      "RHO HOMOLOG PERCENT IDENTITY MATRIX",
+      "OXYGEN BINDING AFFINITY AT NON-HEME IRON",
+      "NON-HEME IRON ACTIVE-SITE CENTER",
+      "RIESKE NON-HEME IRON OXYGENASES",
+      "PSEUDOMONAS HR199 VANA-VANB O-DEMETHYLASE SYSTEM",
+      "NATIVE UNTAGGED VANA-VANB COEXPRESSION IN E. COLI BL21 STAR (DE3)"
+    ],
+    "neighbor_nodes": [
+      "OXYGRAPH GDMAB PAIRING EVIDENCE",
+      "BLEEM ET AL. 2022 RIESKE MONOOXYGENASE STUDY",
+      "RIESKE-TO-MONONUCLEAR-IRON ELECTRON TRANSFER",
+      "RIESKE-TYPE FERREDOXIN-BINDING SITE",
+      "POSITIVELY CHARGED INTERSUBUNIT RESIDUES",
+      "PROTEIN BLAST/PDB HOMOLOGY TO BURKHOLDERIA CEPACIA PHTHALATE REDUCTASE",
+      "GUAIACOL-TO-CATECHOL DEMETHYLATION",
+      "AROMATIC O-DEMETHYLATION",
+      "RIESKE NON-HEME OXYGENASE STRUCTURE-FUNCTION ANALYSIS",
+      "PDB 1NDO STRUCTURAL EVIDENCE",
+      "NON-HEME FE(II) CENTER",
+      "VANILLATE O-DEMETHYLATION TO PROTOCATECHUIC ACID",
+      "GUAIACOL_O_DEMETHYLATION",
+      "ALPHA-BETA SUBUNIT BOUNDARY AT THE OXYGENASE STEM",
+      "RIESKE MOTIF",
+      "VANB AND GDMB HOMOLOG PHYLOGENETIC CLUSTERING",
+      "AROMATIC RING HYDROXYLATION",
+      "NDO SUBSTRATE OXIDATION SELECTIVITY",
+      "HYDROGEN-BOND AND IRON-COORDINATION REARRANGEMENT",
+      "VANB FLAVIN/NICOTINAMIDE-COFACTOR-BINDING DOMAIN",
+      "BACTERIAL RIESKE OXYGENASE CLASSIFICATION SYSTEM",
+      "N-TERMINAL HIS6-TAG DETRIMENTAL EFFECT",
+      "VANB FERREDOXIN DOMAIN",
+      "RIESKE 2FE-2S CLUSTER",
+      "O-DEMETHYLASE STRUCTURE-ACTIVITY RELATIONSHIP",
+      "ADJACENT-SUBUNIT METALLOCENTER ALIGNMENT",
+      "TSAM MODEL MONOOXYGENASE CONTEXT",
+      "IRON-SULFUR CLUSTER MATURATION"
+    ],
+    "edges": [
+      [
+        "MONONUCLEAR NON-HEME IRON CENTER",
+        "RIESKE OXYGENASE METALLOCENTER SCAFFOLD"
+      ],
+      [
+        "OXYGEN BINDING AFFINITY AT NON-HEME IRON",
+        "MONONUCLEAR NON-HEME IRON CENTER"
+      ],
+      [
+        "RIESKE NON-HEME IRON AROMATIC RING-HYDROXYLATING OXYGENASES",
+        "RIESKE NON-HEME OXYGENASES"
+      ],
+      [
+        "NATIVE UNTAGGED VANA-VANB COEXPRESSION IN E. COLI BL21 STAR (DE3)",
+        "PSEUDOMONAS HR199 VANA-VANB O-DEMETHYLASE SYSTEM"
+      ],
+      [
+        "SWGDMB BROAD RHO-PARTNER SELECTIVITY",
+        "RHO HOMOLOG PERCENT IDENTITY MATRIX"
+      ],
+      [
+        "NON-HEME IRON ACTIVE-SITE CENTER",
+        "GXTA SURFACE-TO-ACTIVE-SITE TUNNEL"
+      ],
+      [
+        "NON-HEME IRON ACTIVE-SITE CENTER",
+        "SXTT ACTIVE-SITE CAVITY"
+      ],
+      [
+        "RIESKE NON-HEME IRON OXYGENASES",
+        "OXYGEN ACTIVATION"
+      ],
+      [
+        "NATIVE UNTAGGED VANA-VANB COEXPRESSION IN E. COLI BL21 STAR (DE3)",
+        "SDS-PAGE EVIDENCE FOR SOLUBLE VANA AND VANB EXPRESSION"
+      ]
+    ],
+    "context": "[CONTEXT] VANB PARTNER REDUCTASE SEQUENCE (UNIPROTKB O05617): Amino acid sequence of VanB, described as indispensable for supplying electrons to the Rieske domain of VanA.\n[DOMAIN] ALPHA3BETA3 RIESKE OXYGENASE ARCHITECTURE: Mushroom-like alpha3beta3-type oxygenase component architecture of Rieske non-heme iron oxygenases, exemplified by cumene dioxygenase.\n[DOMAIN] RIESKE NON-HEME IRON AROMATIC RING-HYDROXYLATING OXYGENASES: Bacterial Rieske non-heme iron oxygenase family associated with aromatic ring hydroxylation and organized by a classification system.\n[DOMAIN] RIESKE-TYPE NONHEME IRON OXYGENASES: A second enzyme paradigm known to catalyze aromatic O-demethylation, using Rieske-type nonheme iron oxygenase architecture. | Rieske-containing non-heme iron monooxygenase enzyme architecture described in Bleem et al. 2022 for discovery, characterization, and metabolic engineering toward guaiacol O-\n[SELECTIVITY_PROFILE] SWGDMB BROAD RHO-PARTNER SELECTIVITY: SwGdmB productively pairs with multiple Rieske non-heme iron oxygenase homologs, including NaGdmA, CnGdmA, and SwGdmA.\n[DOMAIN] RIESKE NON-HEME OXYGENASES: Broad Rieske non-heme oxygenase enzyme family discussed in relation to structure-function principles.\n[REACTION_STEP] RIESKE-TYPE FERREDOXIN ELECTRON DONATION: Electron-transfer step in which a Rieske-type ferredoxin donates electrons to the oxygenase component.\n[MOTIF] MONONUCLEAR NON-HEME IRON CENTER: Catalytic iron site in Rieske oxygenases where oxygen activation and substrate oxidation occur.\n[DOMAIN] RIESKE OXYGENASE METALLOCENTER SCAFFOLD: Shared catalytic scaffold in Rieske oxygenases containing a Rieske-type [2Fe-2S] cluster and a mononuclear non-heme iron center; supports divergent monooxygenation and dioxygenation chemistries.\n[SEQUENCE_FEATURE] RHO HOMOLOG PERCENT IDENTITY MATRIX: Protein sequence identity matrix for Rieske non-heme iron oxygenase homologs, including GdmA and VanA sequences from multiple bacterial taxa. | Protein sequence identity matrix for reductase homologs, including GdmB and VanB sequences from multiple bacterial taxa."
+  },
+  "answer": {
+    "text": "VanA\u2013VanB(O05617/native) | aromatic O-demethylation substrates tested for VanA homologs, including guaiacol-oriented assays if included | O05617 is a VanB partner reductase described as supplying electrons to the Rieske domain of VanA; retained native VanB could support VanA oxygenase activity independently of the co-expressed VanB homolog.\n\nAny non-native VanA\u2013VanB homolog pair with a VanA oxygenase compatible with O05617 | same VanA substrate set | Rieske oxygenases rely on reductase-to-oxygenase electron transfer, and the graph includes broad reductase/RHO partner selectivity as a known phenomenon; therefore native O05617 could cross-complement and confound attribution to the introduced reductase.",
+    "usage": {
+      "prompt_tokens": 687,
+      "completion_tokens": 1714,
+      "total_tokens": 2401,
+      "calls": 1
+    }
+  },
+  "visited_nodes": [
+    "VANB PARTNER REDUCTASE SEQUENCE (UNIPROTKB O05617)",
+    "ALPHA3BETA3 RIESKE OXYGENASE ARCHITECTURE",
+    "RIESKE NON-HEME IRON AROMATIC RING-HYDROXYLATING OXYGENASES",
+    "RIESKE-TYPE NONHEME IRON OXYGENASES",
+    "SWGDMB BROAD RHO-PARTNER SELECTIVITY",
+    "RIESKE NON-HEME OXYGENASES",
+    "RIESKE-TYPE FERREDOXIN ELECTRON DONATION",
+    "MONONUCLEAR NON-HEME IRON CENTER",
+    "RIESKE OXYGENASE METALLOCENTER SCAFFOLD",
+    "RHO HOMOLOG PERCENT IDENTITY MATRIX",
+    "OXYGEN BINDING AFFINITY AT NON-HEME IRON",
+    "NON-HEME IRON ACTIVE-SITE CENTER",
+    "RIESKE NON-HEME IRON OXYGENASES",
+    "PSEUDOMONAS HR199 VANA-VANB O-DEMETHYLASE SYSTEM",
+    "NATIVE UNTAGGED VANA-VANB COEXPRESSION IN E. COLI BL21 STAR (DE3)",
+    "OXYGRAPH GDMAB PAIRING EVIDENCE",
+    "BLEEM ET AL. 2022 RIESKE MONOOXYGENASE STUDY",
+    "RIESKE-TO-MONONUCLEAR-IRON ELECTRON TRANSFER",
+    "RIESKE-TYPE FERREDOXIN-BINDING SITE",
+    "POSITIVELY CHARGED INTERSUBUNIT RESIDUES",
+    "PROTEIN BLAST/PDB HOMOLOGY TO BURKHOLDERIA CEPACIA PHTHALATE REDUCTASE",
+    "GUAIACOL-TO-CATECHOL DEMETHYLATION",
+    "AROMATIC O-DEMETHYLATION",
+    "RIESKE NON-HEME OXYGENASE STRUCTURE-FUNCTION ANALYSIS",
+    "PDB 1NDO STRUCTURAL EVIDENCE",
+    "NON-HEME FE(II) CENTER",
+    "VANILLATE O-DEMETHYLATION TO PROTOCATECHUIC ACID",
+    "GUAIACOL_O_DEMETHYLATION",
+    "ALPHA-BETA SUBUNIT BOUNDARY AT THE OXYGENASE STEM",
+    "RIESKE MOTIF",
+    "VANB AND GDMB HOMOLOG PHYLOGENETIC CLUSTERING",
+    "AROMATIC RING HYDROXYLATION",
+    "NDO SUBSTRATE OXIDATION SELECTIVITY",
+    "HYDROGEN-BOND AND IRON-COORDINATION REARRANGEMENT",
+    "VANB FLAVIN/NICOTINAMIDE-COFACTOR-BINDING DOMAIN",
+    "BACTERIAL RIESKE OXYGENASE CLASSIFICATION SYSTEM",
+    "N-TERMINAL HIS6-TAG DETRIMENTAL EFFECT",
+    "VANB FERREDOXIN DOMAIN",
+    "RIESKE 2FE-2S CLUSTER",
+    "O-DEMETHYLASE STRUCTURE-ACTIVITY RELATIONSHIP",
+    "ADJACENT-SUBUNIT METALLOCENTER ALIGNMENT",
+    "TSAM MODEL MONOOXYGENASE CONTEXT",
+    "IRON-SULFUR CLUSTER MATURATION"
+  ]
+}

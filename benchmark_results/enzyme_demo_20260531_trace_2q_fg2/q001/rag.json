@@ -1,0 +1,133 @@
+{
+  "latency_s": 9.035,
+  "retrieval": {
+    "nodes": [
+      "RIESKE-TYPE NONHEME IRON OXYGENASES",
+      "RIESKE NON-HEME IRON AROMATIC RING-HYDROXYLATING OXYGENASES",
+      "ALPHA3BETA3 RIESKE OXYGENASE ARCHITECTURE",
+      "RIESKE NON-HEME OXYGENASES",
+      "RIESKE NON-HEME IRON OXYGENASES",
+      "MONONUCLEAR NON-HEME IRON CENTER",
+      "OXYGEN BINDING AFFINITY AT NON-HEME IRON",
+      "NON-HEME IRON ACTIVE-SITE CENTER",
+      "RIESKE OXYGENASE METALLOCENTER SCAFFOLD",
+      "VANA RIESKE MONOOXYGENASE ASSIGNMENT",
+      "BACTERIAL RIESKE OXYGENASE CLASSIFICATION SYSTEM",
+      "REDUCED RIESKE AND NON-HEME IRON STATE",
+      "RIESKE-TYPE FERREDOXIN ELECTRON DONATION",
+      "RIESKE NON-HEME OXYGENASE STRUCTURE-FUNCTION ANALYSIS",
+      "SWGDMAB IN VITRO-IN VIVO MISMATCH EVIDENCE"
+    ],
+    "neighbor_nodes": [
+      "BLEEM ET AL. 2022 RIESKE MONOOXYGENASE STUDY",
+      "RIESKE-TO-MONONUCLEAR-IRON ELECTRON TRANSFER",
+      "TSAB REDUCTASE-AIDED ELECTRON DELIVERY",
+      "RIESKE-TYPE FERREDOXIN-BINDING SITE",
+      "POSITIVELY CHARGED INTERSUBUNIT RESIDUES",
+      "AROMATIC O-DEMETHYLATION",
+      "PDB 1NDO STRUCTURAL EVIDENCE",
+      "NON-HEME FE(II) CENTER",
+      "GUAIACOL_O_DEMETHYLATION",
+      "ALPHA-BETA SUBUNIT BOUNDARY AT THE OXYGENASE STEM",
+      "RIESKE MOTIF",
+      "NDO SUBSTRATE OXIDATION SELECTIVITY",
+      "AROMATIC RING HYDROXYLATION",
+      "REDUCTIVE ACTIVATION OF O2",
+      "HYDROGEN-BOND AND IRON-COORDINATION REARRANGEMENT",
+      "DDMC HOMOLOGY EVIDENCE",
+      "RIESKE 2FE-2S CLUSTER",
+      "O-DEMETHYLASE STRUCTURE-ACTIVITY RELATIONSHIP",
+      "ADJACENT-SUBUNIT METALLOCENTER ALIGNMENT",
+      "TSAM MODEL MONOOXYGENASE CONTEXT"
+    ],
+    "edges": [
+      [
+        "MONONUCLEAR NON-HEME IRON CENTER",
+        "RIESKE OXYGENASE METALLOCENTER SCAFFOLD"
+      ],
+      [
+        "OXYGEN BINDING AFFINITY AT NON-HEME IRON",
+        "MONONUCLEAR NON-HEME IRON CENTER"
+      ],
+      [
+        "RIESKE NON-HEME IRON AROMATIC RING-HYDROXYLATING OXYGENASES",
+        "BACTERIAL RIESKE OXYGENASE CLASSIFICATION SYSTEM"
+      ],
+      [
+        "RIESKE NON-HEME IRON AROMATIC RING-HYDROXYLATING OXYGENASES",
+        "RIESKE NON-HEME OXYGENASES"
+      ],
+      [
+        "RIESKE NON-HEME OXYGENASES",
+        "RIESKE NON-HEME OXYGENASE STRUCTURE-FUNCTION ANALYSIS"
+      ],
+      [
+        "NON-HEME IRON ACTIVE-SITE CENTER",
+        "GXTA SURFACE-TO-ACTIVE-SITE TUNNEL"
+      ],
+      [
+        "NON-HEME IRON ACTIVE-SITE CENTER",
+        "SXTT ACTIVE-SITE CAVITY"
+      ],
+      [
+        "RIESKE NON-HEME IRON OXYGENASES",
+        "OXYGEN ACTIVATION"
+      ],
+      [
+        "VANA RIESKE MONOOXYGENASE ASSIGNMENT",
+        "VANA VANB TWO-COMPONENT DEMETHYLASE"
+      ],
+      [
+        "SWGDMAB IN VITRO-IN VIVO MISMATCH EVIDENCE",
+        "P. PUTIDA KT2440 GUAIACOL-GROWTH CONTEXT"
+      ]
+    ],
+    "context": "[DOMAIN] RIESKE-TYPE NONHEME IRON OXYGENASES: A second enzyme paradigm known to catalyze aromatic O-demethylation, using Rieske-type nonheme iron oxygenase architecture. | Rieske-containing non-heme iron monooxygenase enzyme architecture described in Bleem et al. 2022 for discovery, characterization, and metabolic engineering toward guaiacol O-\n[DOMAIN] RIESKE NON-HEME IRON AROMATIC RING-HYDROXYLATING OXYGENASES: Bacterial Rieske non-heme iron oxygenase family associated with aromatic ring hydroxylation and organized by a classification system.\n[DOMAIN] ALPHA3BETA3 RIESKE OXYGENASE ARCHITECTURE: Mushroom-like alpha3beta3-type oxygenase component architecture of Rieske non-heme iron oxygenases, exemplified by cumene dioxygenase.\n[DOMAIN] RIESKE NON-HEME OXYGENASES: Broad Rieske non-heme oxygenase enzyme family discussed in relation to structure-function principles.\n[CONTEXT] RIESKE NON-HEME IRON OXYGENASES: Enzyme family that includes naphthalene 1,2-dioxygenase and catalyzes diverse oxygenation reactions, including reactions in natural product biosynthesis.\n[MOTIF] MONONUCLEAR NON-HEME IRON CENTER: Catalytic iron site in Rieske oxygenases where oxygen activation and substrate oxidation occur.\n[KINETIC_PARAMETER] OXYGEN BINDING AFFINITY AT NON-HEME IRON: Affinity of the mononuclear non-heme iron center for oxygen, proposed to be affected by redox-linked active-site rearrangements.\n[POCKET_GEOMETRY] NON-HEME IRON ACTIVE-SITE CENTER: The non-heme iron site, together with bound ligands, was manually assigned as the starting point for active-site tunnel and cavity calculations.\n[DOMAIN] RIESKE OXYGENASE METALLOCENTER SCAFFOLD: Shared catalytic scaffold in Rieske oxygenases containing a Rieske-type [2Fe-2S] cluster and a mononuclear non-heme iron center; supports divergent monooxygenation and dioxygenation chemistries.\n[DOMAIN] VANA RIESKE MONOOXYGENASE ASSIGNMENT: Sequence similarities suggest VanA belongs to the Rieske non-heme iron-dependent monooxygenase family."
+  },
+  "answer": {
+    "text": "No supported substrate-validation records for **verA**, **vanA**, or **gdmA** are present in the provided nodes.\n\nThe nodes only support that Rieske-type non-heme iron oxygenases can catalyze **aromatic O-demethylation**, with mention of work toward **guaiacol O-demethylation**, but they do not specify enzyme\u2013substrate pairs or whether they were validated **in vitro** or **in vivo**.",
+    "usage": {
+      "prompt_tokens": 593,
+      "completion_tokens": 614,
+      "total_tokens": 1207,
+      "calls": 1
+    }
+  },
+  "visited_nodes": [
+    "RIESKE-TYPE NONHEME IRON OXYGENASES",
+    "RIESKE NON-HEME IRON AROMATIC RING-HYDROXYLATING OXYGENASES",
+    "ALPHA3BETA3 RIESKE OXYGENASE ARCHITECTURE",
+    "RIESKE NON-HEME OXYGENASES",
+    "RIESKE NON-HEME IRON OXYGENASES",
+    "MONONUCLEAR NON-HEME IRON CENTER",
+    "OXYGEN BINDING AFFINITY AT NON-HEME IRON",
+    "NON-HEME IRON ACTIVE-SITE CENTER",
+    "RIESKE OXYGENASE METALLOCENTER SCAFFOLD",
+    "VANA RIESKE MONOOXYGENASE ASSIGNMENT",
+    "BACTERIAL RIESKE OXYGENASE CLASSIFICATION SYSTEM",
+    "REDUCED RIESKE AND NON-HEME IRON STATE",
+    "RIESKE-TYPE FERREDOXIN ELECTRON DONATION",
+    "RIESKE NON-HEME OXYGENASE STRUCTURE-FUNCTION ANALYSIS",
+    "SWGDMAB IN VITRO-IN VIVO MISMATCH EVIDENCE",
+    "BLEEM ET AL. 2022 RIESKE MONOOXYGENASE STUDY",
+    "RIESKE-TO-MONONUCLEAR-IRON ELECTRON TRANSFER",
+    "TSAB REDUCTASE-AIDED ELECTRON DELIVERY",
+    "RIESKE-TYPE FERREDOXIN-BINDING SITE",
+    "POSITIVELY CHARGED INTERSUBUNIT RESIDUES",
+    "AROMATIC O-DEMETHYLATION",
+    "PDB 1NDO STRUCTURAL EVIDENCE",
+    "NON-HEME FE(II) CENTER",
+    "GUAIACOL_O_DEMETHYLATION",
+    "ALPHA-BETA SUBUNIT BOUNDARY AT THE OXYGENASE STEM",
+    "RIESKE MOTIF",
+    "NDO SUBSTRATE OXIDATION SELECTIVITY",
+    "AROMATIC RING HYDROXYLATION",
+    "REDUCTIVE ACTIVATION OF O2",
+    "HYDROGEN-BOND AND IRON-COORDINATION REARRANGEMENT",
+    "DDMC HOMOLOGY EVIDENCE",
+    "RIESKE 2FE-2S CLUSTER",
+    "O-DEMETHYLASE STRUCTURE-ACTIVITY RELATIONSHIP",
+    "ADJACENT-SUBUNIT METALLOCENTER ALIGNMENT",
+    "TSAM MODEL MONOOXYGENASE CONTEXT"
+  ]
+}

@@ -1,0 +1,63 @@
+{
+  "graph": "multi_scale_structural_all",
+  "graph_path": "/private/tmp/argo_recheck_sixpapers/multi_scale_structural_all/multi_scale_structural_all_graph.graphml",
+  "family": "enzyme_demo/01",
+  "question": "List substrates for the three Rieske-type non-heme iron oxygenases verA, vanA, and gdmA, and indicate whether each substrate relationship is validated in vitro or in vivo. Please answer with short records in the form 'enzyme | substrate | validation mode'.",
+  "expected": [],
+  "metadata": {
+    "target_view": "grouped_summary",
+    "theme": "substrate_validation_scope"
+  },
+  "schema": {
+    "node_labels": [
+      "DOMAIN",
+      "RESIDUE",
+      "DYNAMICAL_STATE",
+      "REACTION_STEP",
+      "POCKET_GEOMETRY",
+      "SELECTIVITY_PROFILE",
+      "SEQUENCE_FEATURE",
+      "CONTEXT",
+      "MOTIF",
+      "KINETIC_PARAMETER",
+      "EVIDENCE"
+    ],
+    "edge_types": [
+      "SHIFTS",
+      "SUPPORTED_BY",
+      "PART_OF",
+      "ALLOWS",
+      "CONTEXT_DEPENDENT_ON",
+      "GATES",
+      "LOCALIZES_TO",
+      "EXPLAINS",
+      "COUPLES_TO",
+      "CONSTRAINS",
+      "MEDIATES",
+      "DETERMINES",
+      "MEASURED_BY"
+    ],
+    "node_properties": [
+      "source_refs",
+      "salience_score",
+      "importance_score",
+      "entity_name",
+      "aliases",
+      "description",
+      "source_chunks",
+      "entity_type"
+    ],
+    "edge_properties": [
+      "order",
+      "source_refs",
+      "weight",
+      "tgt_id",
+      "description",
+      "src_id",
+      "source_chunk",
+      "relation_type"
+    ],
+    "total_nodes": 4760,
+    "total_edges": 5750
+  }
+}

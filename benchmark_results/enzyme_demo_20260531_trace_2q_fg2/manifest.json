@@ -1,0 +1,12 @@
+{
+  "run_id": "enzyme_demo_20260531_trace_2q_fg2",
+  "started_at": "2026-05-31T18:13:07.823809",
+  "model": "gpt55",
+  "transport": "direct",
+  "graphs": [
+    "/private/tmp/argo_recheck_sixpapers/multi_scale_structural_all/multi_scale_structural_all_graph.graphml"
+  ],
+  "per_graph": 2,
+  "question_file": "benchmark_results/enzyme_demo_20260531_trace_2q/enzyme_demo_2q.json",
+  "reuse_rag_from": null
+}

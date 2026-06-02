@@ -1,0 +1,58 @@
+{
+  "run_id": "enzyme_demo_20260531_trace_2q_fg2",
+  "completed_at": "2026-05-31T18:21:03.252868",
+  "rows": [
+    {
+      "query_id": "q001",
+      "graph": "multi_scale_structural_all",
+      "family": "enzyme_demo/01",
+      "question": "List substrates for the three Rieske-type non-heme iron oxygenases verA, vanA, and gdmA, and indicate whether each substrate relationship is validated in vitro or in vivo. Please answer with short records in the form 'enzyme | substrate | validation mode'.",
+      "rag_latency_s": 9.035,
+      "gasl_latency_s": 196.849,
+      "gasl_behavior": {
+        "planner_iterations": 8,
+        "history_len": 56,
+        "command_error_count": 0,
+        "command_empty_count": 16,
+        "process_status_counts": {},
+        "error_categories": {},
+        "query_answered": false,
+        "trace_events": 210,
+        "trace_process_steps": 0
+      },
+      "gasl_trace_file": "/Users/chia/Documents/repos/nano-graphrag/benchmark_results/enzyme_demo_20260531_trace_2q_fg2/q001/gasl_artifacts/traces/q001.jsonl",
+      "status": "completed"
+    },
+    {
+      "query_id": "q002",
+      "graph": "multi_scale_structural_all",
+      "family": "enzyme_demo/02",
+      "question": "We developed a high-throughput assay to evaluate pairs of Rieske-type non-heme iron oxygenases, specifically vanA homologs with varying substrate specificities, and their co-expressed ferredoxin reductases, specifically vanB homologs. However, the host strain retains its native vanB gene with UniProt ID O05617. Which vanAB pair, for which substrates, may yield confounded results due to cross-reactivity with the native vanB O05617? Please answer with short records in the form 'oxygenase-reductase pair | substrate or substrate set | confound rationale'.",
+      "rag_latency_s": 20.353,
+      "gasl_latency_s": 206.782,
+      "gasl_behavior": {
+        "planner_iterations": 8,
+        "history_len": 48,
+        "command_error_count": 0,
+        "command_empty_count": 16,
+        "process_status_counts": {},
+        "error_categories": {},
+        "query_answered": false,
+        "trace_events": 186,
+        "trace_process_steps": 0
+      },
+      "gasl_trace_file": "/Users/chia/Documents/repos/nano-graphrag/benchmark_results/enzyme_demo_20260531_trace_2q_fg2/q002/gasl_artifacts/traces/q002.jsonl",
+      "status": "completed"
+    }
+  ],
+  "aggregate": {
+    "completed_queries": 2,
+    "failed_queries": 0,
+    "planner_iterations_total": 16,
+    "history_len_total": 104,
+    "command_error_count_total": 0,
+    "command_empty_count_total": 32,
+    "process_status_counts": {},
+    "error_categories": {}
+  }
+}
