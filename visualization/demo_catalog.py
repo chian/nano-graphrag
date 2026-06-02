@@ -82,8 +82,43 @@ def _engineering_demo_paths() -> tuple[Path, Path]:
 def _graph_paths(graph_name: str) -> tuple[Path, Path]:
     if graph_name == "haiqu_engineering_controls":
         return _engineering_demo_paths()
-    full = _repo_path("haiqu_graphs", "v1", graph_name, f"{graph_name}_graph.graphml")
+    candidates = [
+        _repo_path("haiqu_graphs", "v1", graph_name, f"{graph_name}_graph.graphml"),
+        _repo_path("enzyme_graphs", "multi_scale_gpt55_c400", graph_name, f"{graph_name}_graph.graphml"),
+    ]
+    for full in candidates:
+        if full.exists():
+            return (full, full)
+
+    glob_matches = sorted(REPO_ROOT.glob(f"**/{graph_name}/{graph_name}_graph.graphml"))
+    if glob_matches:
+        return (glob_matches[0], glob_matches[0])
+
+    full = candidates[0]
     return (full, full)
+
+
+def _resolve_graph_paths(
+    *,
+    question_json: dict[str, Any],
+    graph_path: str | None = None,
+    full_graph_path: str | None = None,
+) -> tuple[Path, Path]:
+    if graph_path or full_graph_path:
+        viz = Path(graph_path or full_graph_path or "")
+        full = Path(full_graph_path or graph_path or "")
+        return (viz, full)
+
+    graph_name = question_json.get("graph")
+    if graph_name:
+        return _graph_paths(graph_name)
+
+    question_graph = question_json.get("graph_path")
+    if question_graph:
+        full = Path(question_graph)
+        return (full, full)
+
+    raise FileNotFoundError("Unable to resolve graph path from question.json; pass graph_path/full_graph_path explicitly.")
 
 
 def _load_trace_demo_payload(qid: str, run_ids: list[str] | None = None) -> dict[str, Any]:
@@ -97,8 +132,10 @@ def _load_trace_demo_payload(qid: str, run_ids: list[str] | None = None) -> dict
         answer_views = None
         final_answer = None
         question = None
+        trace_events: list[dict[str, Any]] = []
         for line in trace_path.open(encoding="utf-8"):
             row = json.loads(line)
+            trace_events.append(row)
             if row["event"] == "answer_views":
                 answer_views = row["payload"]
                 question = answer_views.get("query")
@@ -113,15 +150,93 @@ def _load_trace_demo_payload(qid: str, run_ids: list[str] | None = None) -> dict
             question_path = _repo_path("benchmark_results", run_id, qid, "question.json")
             if question_path.exists():
                 question = json.loads(question_path.read_text(encoding="utf-8")).get("question")
-        if answer_views and final_answer:
+        if final_answer:
             return {
                 "question": question,
                 "answer_views": answer_views,
                 "final_answer": final_answer,
                 "run_id": run_id,
+                "trace_events": trace_events,
             }
-        last_error = f"Missing answer view or final answer for {qid} in {run_id}"
+        last_error = f"Missing final answer for {qid} in {run_id}"
     raise ValueError(last_error or f"Could not load trace-backed payload for {qid}")
+
+
+def _trace_only_replay(
+    *,
+    qid: str,
+    payload: dict[str, Any],
+) -> list[dict[str, Any]]:
+    replay: list[dict[str, Any]] = [
+        _event(260, "gasl_step", {
+            "command_type": "INIT",
+            "status": "running",
+            "command": "Starting GASL traversal from committed trace artifacts",
+            "story_kicker": "Setup",
+            "story_title": f"{qid.upper()} trace replay",
+            "story_body": payload["question"],
+            "story_meta": "This replay is synthesized directly from planner and command trace events.",
+        }),
+    ]
+    for row in payload.get("trace_events", []):
+        event = row.get("event")
+        step = row.get("payload", {})
+        if event == "planner_prompt":
+            replay.append(_event(220, "gasl_step", {
+                "command_type": "PLAN",
+                "status": "running",
+                "command": "Planner prompt emitted",
+                "story_kicker": "Plan",
+                "story_title": "The planner frames the graph task",
+                "story_body": payload["question"],
+            }))
+        elif event == "planner_response":
+            replay.append(_event(180, "gasl_step", {
+                "command_type": "PLAN",
+                "status": "success",
+                "command": "Planner response received",
+                "story_kicker": "Plan",
+                "story_title": "The planner commits to a command sequence",
+                "story_body": "The model has now committed to a concrete sequence of graph operations for this question.",
+            }))
+        elif event == "command_start":
+            replay.append(_event(160, "gasl_step", {
+                "command_type": step.get("command_type", "STEP"),
+                "status": "running",
+                "command": step.get("raw_text", step.get("command_type", "Command start")),
+                "story_kicker": "Execute",
+                "story_title": "A graph command begins",
+                "story_body": step.get("raw_text", ""),
+            }))
+        elif event == "command_result":
+            replay.append(_event(140, "gasl_step", {
+                "command_type": step.get("command_type", "STEP"),
+                "status": step.get("status", "success"),
+                "command": f"{step.get('command_type', 'STEP')} result · count={step.get('count', 0)}",
+                "story_kicker": "Result",
+                "story_title": "The command returns",
+                "story_body": step.get("error_message") or "The trace records the command result and moves to the next step.",
+                "story_meta": f"duration={step.get('duration_ms', 0)}ms",
+            }))
+        elif event == "iteration_failure_summary":
+            replay.append(_event(220, "gasl_step", {
+                "command_type": "ITERATE",
+                "status": "error",
+                "command": "Iteration failure summary",
+                "story_kicker": "Repair",
+                "story_title": "The plan needs another pass",
+                "story_body": step.get("summary", "The current iteration left execution defects that require another planning pass."),
+            }))
+
+    replay.append(_event(360, "query_complete", {
+        "answer": payload["final_answer"],
+        "nodes": [],
+        "edges": [],
+        "iterations": sum(1 for row in payload.get("trace_events", []) if row.get("event") == "planner_prompt"),
+        "query_answered": "could not be answered cleanly" not in payload["final_answer"].lower(),
+        "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0, "calls": 0},
+    }))
+    return replay
 
 
 def _lookup_selected_view(answer_views_payload: dict[str, Any]) -> dict[str, Any]:
@@ -261,17 +376,61 @@ def _trace_backed_engineering_demo(
     why_gasl_wins: str,
     rag_blind_spot: str,
 ) -> Dict[str, Any]:
-    payload = _load_trace_demo_payload(qid)
+    return build_trace_demo_from_artifacts(
+        qid=qid,
+        title=title,
+        why_gasl_wins=why_gasl_wins,
+        rag_blind_spot=rag_blind_spot,
+    )
+
+
+def build_trace_demo_from_artifacts(
+    *,
+    qid: str,
+    title: str | None = None,
+    why_gasl_wins: str | None = None,
+    rag_blind_spot: str | None = None,
+    run_id: str | None = None,
+    graph_path: str | None = None,
+    full_graph_path: str | None = None,
+    demo_id: str | None = None,
+) -> Dict[str, Any]:
+    payload = _load_trace_demo_payload(qid, run_ids=[run_id] if run_id else None)
     answer_views = payload["answer_views"]
+    question_json = json.loads(_repo_path("benchmark_results", payload["run_id"], qid, "question.json").read_text())
+    graph_name = question_json.get("graph", "unknown_graph")
+    viz_path, full_path = _resolve_graph_paths(
+        question_json=question_json,
+        graph_path=graph_path,
+        full_graph_path=full_graph_path,
+    )
+    G = _read_graph(str(full_path))
+    viz = _read_graph(str(viz_path))
+
+    if not answer_views:
+        replay = _trace_only_replay(qid=qid, payload=payload)
+        inferred_demo_id = f"engineering-{qid}" if graph_name == "haiqu_engineering_controls" else f"{graph_name.replace('haiqu_', '')}-{qid}"
+        return {
+            "id": demo_id or inferred_demo_id,
+            "title": title or f"{qid.upper()} · Artifact Replay",
+            "graph_path": str(viz_path),
+            "full_graph_path": str(full_path),
+            "question": payload["question"],
+            "why_gasl_wins": why_gasl_wins or "Replay synthesized directly from committed GASL trace artifacts.",
+            "rag_blind_spot": rag_blind_spot or "This on-demand replay path shows the recorded planner/command trace without a curated answer-view overlay.",
+            "metrics": {
+                "selected_view": "trace_only",
+                "focus_nodes": 0,
+                "rag_window": 0,
+                "micro_actions_est": estimate_demo_micro_actions(replay),
+            },
+            "replay": replay,
+        }
+
     selection = answer_views["selection"]
     selected_view = _lookup_selected_view(answer_views)
     selected_kind = selected_view["kind"]
     selected_payload = selected_view["payload"]
-    question_json = json.loads(_repo_path("benchmark_results", payload["run_id"], qid, "question.json").read_text())
-    graph_name = question_json.get("graph", "haiqu_engineering_controls")
-    viz_path, full_path = _graph_paths(graph_name)
-    G = _read_graph(str(full_path))
-    viz = _read_graph(str(viz_path))
 
     focus_nodes: List[str] = []
     context_nodes: List[str] = []
@@ -766,15 +925,15 @@ def _trace_backed_engineering_demo(
         metrics["row_count"] = selected_payload.get("row_count", 0)
     metrics["micro_actions_est"] = estimate_demo_micro_actions(replay)
 
-    demo_id = f"engineering-{qid}" if graph_name == "haiqu_engineering_controls" else f"{graph_name.replace('haiqu_', '')}-{qid}"
+    inferred_demo_id = f"engineering-{qid}" if graph_name == "haiqu_engineering_controls" else f"{graph_name.replace('haiqu_', '')}-{qid}"
     return {
-        "id": demo_id,
-        "title": title,
+        "id": demo_id or inferred_demo_id,
+        "title": title or f"{qid.upper()} · Artifact Replay",
         "graph_path": str(viz_path),
         "full_graph_path": str(full_path),
         "question": payload["question"],
-        "why_gasl_wins": why_gasl_wins,
-        "rag_blind_spot": rag_blind_spot,
+        "why_gasl_wins": why_gasl_wins or "Replay synthesized directly from committed GASL answer-view artifacts.",
+        "rag_blind_spot": rag_blind_spot or "This on-demand replay path focuses on the recorded GASL trace rather than a curated RAG comparison script.",
         "metrics": metrics,
         "replay": replay,
     }

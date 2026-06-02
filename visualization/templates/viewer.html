@@ -2304,10 +2304,33 @@
             }
         }
 
+        function artifactParamsFromUrl() {
+            const params = new URLSearchParams(window.location.search);
+            const runId = params.get('run_id');
+            const qid = params.get('qid');
+            if (!runId || !qid) return null;
+            return {
+                runId,
+                qid,
+                graphPath: params.get('graph_path') || '',
+                fullGraphPath: params.get('full_graph_path') || '',
+                title: params.get('title') || '',
+                replay: params.get('replay') === '1',
+            };
+        }
+
         async function maybeAutoloadDemoFromUrl() {
             const params = new URLSearchParams(window.location.search);
             const demo = params.get('demo');
-            if (!demo) return;
+            if (!demo) {
+                const artifact = artifactParamsFromUrl();
+                if (artifact) {
+                    const mode = params.get('mode');
+                    if (mode === 'gasl' || mode === 'rag') setMode(mode);
+                    await loadArtifactDemo(artifact);
+                }
+                return;
+            }
             const replay = params.get('replay') === '1';
             const compare = params.get('compare') === '1';
             const mode = params.get('mode');
@@ -2351,6 +2374,33 @@
             container.querySelectorAll('[data-demo-replay]').forEach((btn) => {
                 btn.addEventListener('click', () => loadDemo(btn.dataset.demoReplay, true));
             });
+        }
+
+        async function loadArtifactDemo(artifact) {
+            try {
+                const query = new URLSearchParams({
+                    run_id: artifact.runId,
+                    qid: artifact.qid,
+                });
+                if (artifact.graphPath) query.set('graph_path', artifact.graphPath);
+                if (artifact.fullGraphPath) query.set('full_graph_path', artifact.fullGraphPath);
+                if (artifact.title) query.set('title', artifact.title);
+
+                const resp = await fetch('/api/artifact-demo?' + query.toString());
+                const demo = await resp.json();
+                if (demo.error) throw new Error(demo.error);
+                _activeDemo = demo;
+                setVisualStyle(demo.visual_style || null);
+                await loadGraphFromPaths(demo.graph_path, demo.full_graph_path);
+                document.getElementById('questionInput').value = demo.question;
+                setCinematicQuestion(demo.question);
+                clearCinematicAnswer();
+                document.getElementById('queryStatus').textContent =
+                    `${demo.title} loaded from ${artifact.runId}/${artifact.qid}`;
+                if (artifact.replay) replayDemo(demo);
+            } catch (e) {
+                document.getElementById('queryStatus').textContent = 'Artifact replay load failed: ' + e.message;
+            }
         }
 
         async function loadDemo(demoId, replayAfterLoad) {

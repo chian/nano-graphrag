@@ -18,7 +18,7 @@ from flask_socketio import SocketIO, emit
 
 from .graph_loader import GraphLoader, find_graphs_in_directory, build_color_map
 from .query_engine import RagQueryEngine, GaslQueryEngine
-from .demo_catalog import get_demo_catalog, get_demo
+from .demo_catalog import get_demo_catalog, get_demo, build_trace_demo_from_artifacts
 
 
 # Server-side unlock: password → API key, never exposed to the browser.
@@ -185,6 +185,30 @@ def create_app(graph_path: Optional[str] = None,
         if demo is None:
             return jsonify({'error': f'Unknown demo: {demo_id}'}), 404
         return jsonify(demo)
+
+    @app.route('/api/artifact-demo')
+    def get_artifact_demo():
+        """Build an on-demand replay payload from committed run artifacts."""
+        run_id = request.args.get('run_id', '').strip()
+        qid = request.args.get('qid', '').strip()
+        graph_path = request.args.get('graph_path', '').strip() or None
+        full_graph_path = request.args.get('full_graph_path', '').strip() or None
+        title = request.args.get('title', '').strip() or None
+
+        if not run_id or not qid:
+            return jsonify({'error': 'run_id and qid are required'}), 400
+
+        try:
+            demo = build_trace_demo_from_artifacts(
+                qid=qid,
+                run_id=run_id,
+                graph_path=graph_path,
+                full_graph_path=full_graph_path,
+                title=title,
+            )
+            return jsonify(demo)
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
 
     @app.route('/api/query', methods=['POST'])
     def run_query():
