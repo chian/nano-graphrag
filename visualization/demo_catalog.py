@@ -162,83 +162,6 @@ def _load_trace_demo_payload(qid: str, run_ids: list[str] | None = None) -> dict
     raise ValueError(last_error or f"Could not load trace-backed payload for {qid}")
 
 
-def _trace_only_replay(
-    *,
-    qid: str,
-    payload: dict[str, Any],
-) -> list[dict[str, Any]]:
-    replay: list[dict[str, Any]] = [
-        _event(260, "gasl_step", {
-            "command_type": "INIT",
-            "status": "running",
-            "command": "Starting GASL traversal from committed trace artifacts",
-            "story_kicker": "Setup",
-            "story_title": f"{qid.upper()} trace replay",
-            "story_body": payload["question"],
-            "story_meta": "This replay is synthesized directly from planner and command trace events.",
-        }),
-    ]
-    for row in payload.get("trace_events", []):
-        event = row.get("event")
-        step = row.get("payload", {})
-        if event == "planner_prompt":
-            replay.append(_event(220, "gasl_step", {
-                "command_type": "PLAN",
-                "status": "running",
-                "command": "Planner prompt emitted",
-                "story_kicker": "Plan",
-                "story_title": "The planner frames the graph task",
-                "story_body": payload["question"],
-            }))
-        elif event == "planner_response":
-            replay.append(_event(180, "gasl_step", {
-                "command_type": "PLAN",
-                "status": "success",
-                "command": "Planner response received",
-                "story_kicker": "Plan",
-                "story_title": "The planner commits to a command sequence",
-                "story_body": "The model has now committed to a concrete sequence of graph operations for this question.",
-            }))
-        elif event == "command_start":
-            replay.append(_event(160, "gasl_step", {
-                "command_type": step.get("command_type", "STEP"),
-                "status": "running",
-                "command": step.get("raw_text", step.get("command_type", "Command start")),
-                "story_kicker": "Execute",
-                "story_title": "A graph command begins",
-                "story_body": step.get("raw_text", ""),
-            }))
-        elif event == "command_result":
-            replay.append(_event(140, "gasl_step", {
-                "command_type": step.get("command_type", "STEP"),
-                "status": step.get("status", "success"),
-                "command": f"{step.get('command_type', 'STEP')} result · count={step.get('count', 0)}",
-                "story_kicker": "Result",
-                "story_title": "The command returns",
-                "story_body": step.get("error_message") or "The trace records the command result and moves to the next step.",
-                "story_meta": f"duration={step.get('duration_ms', 0)}ms",
-            }))
-        elif event == "iteration_failure_summary":
-            replay.append(_event(220, "gasl_step", {
-                "command_type": "ITERATE",
-                "status": "error",
-                "command": "Iteration failure summary",
-                "story_kicker": "Repair",
-                "story_title": "The plan needs another pass",
-                "story_body": step.get("summary", "The current iteration left execution defects that require another planning pass."),
-            }))
-
-    replay.append(_event(360, "query_complete", {
-        "answer": payload["final_answer"],
-        "nodes": [],
-        "edges": [],
-        "iterations": sum(1 for row in payload.get("trace_events", []) if row.get("event") == "planner_prompt"),
-        "query_answered": "could not be answered cleanly" not in payload["final_answer"].lower(),
-        "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0, "calls": 0},
-    }))
-    return replay
-
-
 def _lookup_selected_view(answer_views_payload: dict[str, Any]) -> dict[str, Any]:
     selection = answer_views_payload.get("selection") or {}
     selected_id = selection.get("view_id")
@@ -274,6 +197,26 @@ def _partial_distribution_payload(payload: dict[str, Any], bin_limit: int) -> di
         **payload,
         "histogram": list(payload.get("histogram", [])[:bin_limit]),
     }
+
+
+def _extract_view_nodes(payload: dict[str, Any], *, limit: int = 12) -> list[str]:
+    node_ids: list[str] = []
+    ranked = payload.get("ranked_subjects") or []
+    for row in ranked[:limit]:
+        if isinstance(row, dict):
+            for key in ("subject", "outcome", "src_id", "tgt_id"):
+                value = row.get(key)
+                if isinstance(value, str):
+                    node_ids.append(value)
+    rows = payload.get("rows") or []
+    for row in rows[:limit]:
+        if not isinstance(row, dict):
+            continue
+        for key in ("subject", "outcome", "src_id", "tgt_id"):
+            value = row.get(key)
+            if isinstance(value, str):
+                node_ids.append(value)
+    return list(dict.fromkeys(node_ids))
 
 
 def _neighbor_wave(
@@ -376,7 +319,7 @@ def _trace_backed_engineering_demo(
     why_gasl_wins: str,
     rag_blind_spot: str,
 ) -> Dict[str, Any]:
-    return build_trace_demo_from_artifacts(
+    return build_cinematic_demo_from_artifacts(
         qid=qid,
         title=title,
         why_gasl_wins=why_gasl_wins,
@@ -384,7 +327,7 @@ def _trace_backed_engineering_demo(
     )
 
 
-def build_trace_demo_from_artifacts(
+def build_cinematic_demo_from_artifacts(
     *,
     qid: str,
     title: str | None = None,
@@ -394,6 +337,7 @@ def build_trace_demo_from_artifacts(
     graph_path: str | None = None,
     full_graph_path: str | None = None,
     demo_id: str | None = None,
+    target_seconds: int | None = None,
 ) -> Dict[str, Any]:
     payload = _load_trace_demo_payload(qid, run_ids=[run_id] if run_id else None)
     answer_views = payload["answer_views"]
@@ -408,41 +352,31 @@ def build_trace_demo_from_artifacts(
     viz = _read_graph(str(viz_path))
 
     if not answer_views:
-        replay = _trace_only_replay(qid=qid, payload=payload)
-        inferred_demo_id = f"engineering-{qid}" if graph_name == "haiqu_engineering_controls" else f"{graph_name.replace('haiqu_', '')}-{qid}"
-        return {
-            "id": demo_id or inferred_demo_id,
-            "title": title or f"{qid.upper()} · Artifact Replay",
-            "graph_path": str(viz_path),
-            "full_graph_path": str(full_path),
-            "question": payload["question"],
-            "why_gasl_wins": why_gasl_wins or "Replay synthesized directly from committed GASL trace artifacts.",
-            "rag_blind_spot": rag_blind_spot or "This on-demand replay path shows the recorded planner/command trace without a curated answer-view overlay.",
-            "metrics": {
-                "selected_view": "trace_only",
-                "focus_nodes": 0,
-                "rag_window": 0,
-                "micro_actions_est": estimate_demo_micro_actions(replay),
-            },
-            "replay": replay,
-        }
+        raise ValueError(
+            f"{qid} in {payload['run_id']} has no answer_views artifact; refusing to build a static/non-cinematic replay."
+        )
 
     selection = answer_views["selection"]
     selected_view = _lookup_selected_view(answer_views)
     selected_kind = selected_view["kind"]
     selected_payload = selected_view["payload"]
+    selected_nodes = _filter_existing_nodes(viz, _extract_view_nodes(selected_payload))
+    grouped = _lookup_first_view(answer_views, "grouped_summary")
+    grouped_payload = grouped["payload"] if grouped else {"rows": []}
+    grouped_nodes = _filter_existing_nodes(viz, _extract_view_nodes(grouped_payload))
+    ranking = _lookup_first_view(answer_views, "ranking")
+    ranking_nodes = _filter_existing_nodes(viz, _extract_view_nodes(ranking["payload"])) if ranking else []
 
     focus_nodes: List[str] = []
     context_nodes: List[str] = []
     if selected_kind == "ranking":
-        focus_nodes = [row["subject"] for row in selected_payload.get("ranked_subjects", [])[:3]]
-        grouped = _lookup_first_view(answer_views, "grouped_summary")
-        if grouped:
-            context_nodes = [row.get("outcome") for row in grouped["payload"].get("rows", [])[:6] if row.get("outcome")]
+        focus_nodes = ranking_nodes[:6]
+        context_nodes = grouped_nodes[:6]
     elif selected_kind == "distribution":
-        ranking = _lookup_first_view(answer_views, "ranking")
-        if ranking:
-            focus_nodes = [row["subject"] for row in ranking["payload"].get("ranked_subjects", [])[:5]]
+        focus_nodes = ranking_nodes[:8]
+    else:
+        focus_nodes = selected_nodes[:6]
+        context_nodes = grouped_nodes[:6]
 
     focus_nodes = _filter_existing_nodes(viz, focus_nodes)
     context_nodes = _filter_existing_nodes(viz, context_nodes)
@@ -469,15 +403,10 @@ def build_trace_demo_from_artifacts(
     ]
 
     if qid == "q001":
-        ranking_candidates = _filter_existing_nodes(
-            viz,
-            [row["subject"] for row in selected_payload.get("ranked_subjects", [])[:10]],
-        )
+        ranking_candidates = list(dict.fromkeys(ranking_nodes + selected_nodes + grouped_nodes))[:10]
         exploratory_candidates = list(dict.fromkeys(
             [node for node in ranking_candidates if node not in focus_nodes][:3] + ranking_candidates[:2]
         ))
-        grouped = _lookup_first_view(answer_views, "grouped_summary")
-        grouped_payload = grouped["payload"] if grouped else {"rows": []}
 
         replay.extend([
             _event(220, "gasl_highlight", {
@@ -907,7 +836,10 @@ def build_trace_demo_from_artifacts(
         }),
     ])
 
-    if qid == "q001":
+    if target_seconds and target_seconds > 0:
+        total_s = max(1.0, sum(step["delay_ms"] for step in replay) / 1000.0)
+        replay = _scale_replay_delays(replay, target_seconds / total_s)
+    elif qid == "q001":
         replay = _scale_replay_delays(replay, 8.5)
     elif qid == "q007":
         replay = _scale_replay_delays(replay, 7.0)
@@ -928,12 +860,12 @@ def build_trace_demo_from_artifacts(
     inferred_demo_id = f"engineering-{qid}" if graph_name == "haiqu_engineering_controls" else f"{graph_name.replace('haiqu_', '')}-{qid}"
     return {
         "id": demo_id or inferred_demo_id,
-        "title": title or f"{qid.upper()} · Artifact Replay",
+        "title": title or f"{qid.upper()} · Long-form cinematic",
         "graph_path": str(viz_path),
         "full_graph_path": str(full_path),
         "question": payload["question"],
-        "why_gasl_wins": why_gasl_wins or "Replay synthesized directly from committed GASL answer-view artifacts.",
-        "rag_blind_spot": rag_blind_spot or "This on-demand replay path focuses on the recorded GASL trace rather than a curated RAG comparison script.",
+        "why_gasl_wins": why_gasl_wins or "Replay synthesized directly from committed GASL answer-view artifacts, with node-focus beats derived from the answer views themselves.",
+        "rag_blind_spot": rag_blind_spot or "This on-demand long-form path reconstructs the cinematic replay from committed answer views instead of relying on a hand-authored comparison script.",
         "metrics": metrics,
         "replay": replay,
     }

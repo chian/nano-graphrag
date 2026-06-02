@@ -26,15 +26,18 @@ For visualization demo work in this repo, use the exact safe launcher and do not
 
 ## Video generation
 
-Use the exact replay asset/capture path that matches the requested deliverable.
+Use only long-form cinematic pipelines as final video makers.
 
+- Curated final demos:
+  - single demo: `visualization/scripts/record_demo.sh <demo-id> ...`
+  - batch demos: `visualization/scripts/render_demo_batch.py`, `visualization/scripts/render_paper_style_batch.py`, `visualization/scripts/render_symbolism_shortlist_batch.py`
+- On-demand final demos from committed artifacts:
+  - `visualization/scripts/render_cinematic_demo.py <run_id> <qid> --graph-path ... --target-seconds 90`
+- Low-level capture tools:
+  - `visualization/scripts/record_viewer_url.sh` is a capture tool, not a final demo maker.
+- Any artifact run without `answer_views` is not a demo maker and must fail instead of producing a static/non-cinematic video.
 - If a committed replay video already exists under `benchmark_results/<run_id>/captures/`, prefer that asset over re-recording.
-- Do not treat `record_artifact_demo.sh` output as equivalent to an authored replay capture; it is a generic artifact-backed screen recording, not a guaranteed reproduction of prior cinematic choreography.
-- For enzyme traces specifically, the committed `benchmark_results/enzyme_demo_20260531_trace_2q/captures/*.mp4` assets are the authoritative dynamic replays.
-- If a new recording is truly required, document whether it is:
-  - an authored replay capture path, or
-  - a generic artifact-backed preview recording.
-- If the request is for the “same video as before”, verify the source asset or exact committed capture path first instead of assuming `cinematic=1` recreates the previous choreography.
+- If the request is for the “same video as before”, verify the exact source asset or final cinematic pipeline first instead of assuming a generic replay URL recreates the previous choreography.
 
 ## Stable corpus run procedure
 

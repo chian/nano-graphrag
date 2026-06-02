@@ -93,16 +93,33 @@ visualizer, hook = create_visualizer_for_executor()
 # Pass hook to your GASL executor
 ```
 
-### Recording & Replay
+### Final Video Pipelines
 
-```python
-# Record execution
-visualizer.save_execution("my_execution.json")
+Long-form cinematic demos are the only supported final video output.
 
-# Load and replay
-visualizer.load_execution("my_execution.json")
-visualizer.replay_execution(speed=2.0)  # 2x speed
+Curated demos:
+
+```bash
+python visualization/scripts/render_demo_batch.py
+python visualization/scripts/render_paper_style_batch.py
+python visualization/scripts/render_symbolism_shortlist_batch.py
 ```
+
+On-demand cinematic demo from committed run artifacts:
+
+```bash
+python visualization/scripts/render_cinematic_demo.py \
+  <run_id> <qid> \
+  --graph-path <graph.graphml> \
+  --target-seconds 90
+```
+
+Notes:
+
+- Final video makers must produce moving/cinematic replays with `gasl_highlight` events.
+- Artifact runs without `answer_views` are rejected rather than converted into static/non-cinematic videos.
+- `visualization/scripts/record_viewer_url.sh` is the low-level capture tool used by final pipelines; it is not itself a final demo maker.
+- Generic screen capture of a replay URL is not considered a final demo maker unless it goes through the cinematic pipeline above.
 
 ## API Reference
 
@@ -167,15 +184,8 @@ Entity types are color-coded:
 - **METHOD** - Yellow (#f39c12)
 - **GENE** - Green (#27ae60)
 
-## Tips for Video Creation
+## Video Tips
 
-1. Start the server and load your graph
-2. Use the GASL visualizer to record your execution
-3. Replay the execution at desired speed
-4. Use screen recording software to capture the visualization
-5. The recorded JSON can be edited to adjust timing
-
-For best results:
-- Disable physics after initial layout stabilizes
-- Use the importance filter to reduce visual clutter
-- Focus on specific subgraphs for clearer visualization
+- Use the safe launcher for demo recording in this repo.
+- Treat batch renderers and `render_cinematic_demo.py` as final video makers.
+- Treat `record_viewer_url.sh` as a low-level capture tool, not a final deliverable path.

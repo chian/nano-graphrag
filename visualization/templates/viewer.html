@@ -2304,7 +2304,7 @@
             }
         }
 
-        function artifactParamsFromUrl() {
+        function cinematicParamsFromUrl() {
             const params = new URLSearchParams(window.location.search);
             const runId = params.get('run_id');
             const qid = params.get('qid');
@@ -2315,6 +2315,7 @@
                 graphPath: params.get('graph_path') || '',
                 fullGraphPath: params.get('full_graph_path') || '',
                 title: params.get('title') || '',
+                targetSeconds: params.get('target_seconds') || '',
                 replay: params.get('replay') === '1',
             };
         }
@@ -2323,11 +2324,11 @@
             const params = new URLSearchParams(window.location.search);
             const demo = params.get('demo');
             if (!demo) {
-                const artifact = artifactParamsFromUrl();
-                if (artifact) {
+                const cinematic = cinematicParamsFromUrl();
+                if (cinematic) {
                     const mode = params.get('mode');
                     if (mode === 'gasl' || mode === 'rag') setMode(mode);
-                    await loadArtifactDemo(artifact);
+                    await loadCinematicDemo(cinematic);
                 }
                 return;
             }
@@ -2376,17 +2377,18 @@
             });
         }
 
-        async function loadArtifactDemo(artifact) {
+        async function loadCinematicDemo(cinematic) {
             try {
                 const query = new URLSearchParams({
-                    run_id: artifact.runId,
-                    qid: artifact.qid,
+                    run_id: cinematic.runId,
+                    qid: cinematic.qid,
                 });
-                if (artifact.graphPath) query.set('graph_path', artifact.graphPath);
-                if (artifact.fullGraphPath) query.set('full_graph_path', artifact.fullGraphPath);
-                if (artifact.title) query.set('title', artifact.title);
+                if (cinematic.graphPath) query.set('graph_path', cinematic.graphPath);
+                if (cinematic.fullGraphPath) query.set('full_graph_path', cinematic.fullGraphPath);
+                if (cinematic.title) query.set('title', cinematic.title);
+                if (cinematic.targetSeconds) query.set('target_seconds', cinematic.targetSeconds);
 
-                const resp = await fetch('/api/artifact-demo?' + query.toString());
+                const resp = await fetch('/api/cinematic-demo?' + query.toString());
                 const demo = await resp.json();
                 if (demo.error) throw new Error(demo.error);
                 _activeDemo = demo;
@@ -2396,10 +2398,10 @@
                 setCinematicQuestion(demo.question);
                 clearCinematicAnswer();
                 document.getElementById('queryStatus').textContent =
-                    `${demo.title} loaded from ${artifact.runId}/${artifact.qid}`;
-                if (artifact.replay) replayDemo(demo);
+                    `${demo.title} loaded from ${cinematic.runId}/${cinematic.qid}`;
+                if (cinematic.replay) replayDemo(demo);
             } catch (e) {
-                document.getElementById('queryStatus').textContent = 'Artifact replay load failed: ' + e.message;
+                document.getElementById('queryStatus').textContent = 'Cinematic replay load failed: ' + e.message;
             }
         }
 
