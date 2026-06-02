@@ -1,0 +1,117 @@
+# Low-dose radiation, DNA damage/repair, and cancer precursor schema
+# Focus: reusable top-level graph objects plus structured fact records for specific study data
+
+domain_name: "Low-Dose Radiation DNA Damage and Repair"
+domain_description: "A cross-disciplinary schema for low-dose ionizing radiation studies that links exposure scenarios, biological context, molecular damage/repair features, interventions, and disease-relevant outcomes while preserving specific numeric and methodological detail in typed fact records."
+
+entity_types:
+  SUBJECT_OR_POPULATION:
+    description: "An exposed subject, experimental model, or population stratum described in the paper."
+    examples: ["atomic bomb survivor cohort", "C57BL/6 mouse", "HeLa cell", "pregnant patient", "never-smoker stratum"]
+
+  EXPOSURE_SCENARIO:
+    description: "A radiation exposure or dosimetry scenario including modality, geometry, rate, or source."
+    examples: ["protracted gamma exposure", "thoracic X-ray irradiation", "Chernobyl fallout exposure", "galactic cosmic radiation field"]
+
+  SETTING:
+    description: "The environmental, clinical, occupational, or mission setting where exposure or observation occurs."
+    examples: ["hospital imaging suite", "deep underground laboratory", "Hiroshima/Nagasaki follow-up", "space mission environment"]
+
+  MOLECULAR_FEATURE:
+    description: "A molecular entity or localized molecular feature involved in damage, repair, signaling, or susceptibility."
+    examples: ["ATM", "MRN complex", "gamma-H2AX foci", "CpG-island methylation", "telomere association"]
+
+  BIOLOGICAL_PROCESS:
+    description: "A biological mechanism or process affected by radiation exposure."
+    examples: ["DNA double-strand break repair", "cell-cycle arrest", "apoptosis", "oxidative stress", "genomic instability"]
+
+  INTERVENTION_OR_AGENT:
+    description: "A protective, therapeutic, pharmacologic, or operational intervention that alters exposure or response."
+    examples: ["potassium iodide", "glycyrrhetic acid", "buformin", "shielding", "surveillance program"]
+
+  OUTCOME_OR_ENDPOINT:
+    description: "A measured or observed biological, clinical, or disease-relevant endpoint."
+    examples: ["thyroid cancer", "radiation-induced lung injury", "mutagenesis", "cataract", "subsequent neoplasm"]
+
+  MEASUREMENT_METHOD:
+    description: "A study method or assay used to quantify exposure, damage, repair, or outcome."
+    examples: ["gamma-H2AX labeling assay", "ELISA", "qRT-PCR", "colony formation assay", "Poisson regression"]
+
+  INSTRUMENT_OR_DEVICE:
+    description: "A device or instrument used to deliver exposure, measure dose, or acquire observations."
+    examples: ["ion chamber", "flow cytometer", "radon monitor", "CT scanner", "intrathecal pump"]
+
+  ANALYSIS_MODEL_OR_METRIC:
+    description: "A risk model, derived metric, or analytical framework used to interpret the study."
+    examples: ["ERR/Gy", "EAR", "effective dose", "REID", "MIRD methodology"]
+
+relationship_types:
+  HAS_ROLE:
+    description: "A subject or population is assigned a role, occupational position, or experimental status."
+    inverse: "ROLE_OF"
+    examples: ["cleanup-worker stratum HAS_ROLE disaster response worker"]
+
+  HAS_LIFE_STAGE:
+    description: "A subject or population is described by a life stage or developmental window."
+    inverse: "LIFE_STAGE_OF"
+    examples: ["conceptus HAS_LIFE_STAGE gestational week 8-15"]
+
+  MEMBER_OF:
+    description: "A subject is a member of a cohort, stratum, or study population."
+    inverse: "HAS_MEMBER"
+    examples: ["patient MEMBER_OF imaging cohort", "mouse MEMBER_OF sham control group"]
+
+  OCCURS_IN_SETTING:
+    description: "An exposure, intervention, or observation takes place in a specific setting."
+    inverse: "SETTING_FOR"
+    examples: ["thoracic irradiation OCCURS_IN_SETTING oncology clinic", "dose reconstruction OCCURS_IN_SETTING Hiroshima follow-up"]
+
+  EXPOSED_TO:
+    description: "A subject or population experiences a radiation exposure scenario."
+    inverse: "EXPOSURE_FOR"
+    examples: ["cohort EXPOSED_TO protracted gamma exposure", "cell line EXPOSED_TO 4 Gy X-ray"]
+
+  HAS_EXPOSURE_CONTEXT:
+    description: "An exposure scenario is further characterized by environmental or operational context."
+    inverse: "CONTEXT_FOR_EXPOSURE"
+    examples: ["space radiation field HAS_EXPOSURE_CONTEXT solar cycle phase", "CT exam HAS_EXPOSURE_CONTEXT pregnancy"]
+
+  TARGETS:
+    description: "An exposure, intervention, or agent acts on a molecular feature, process, or outcome."
+    inverse: "TARGETED_BY"
+    examples: ["buformin TARGETS AMPK signaling", "potassium iodide TARGETS thyroid uptake"]
+
+  PERTURBS:
+    description: "An exposure or intervention perturbs a molecular feature or biological process."
+    inverse: "PERTURBED_BY"
+    examples: ["ionizing radiation PERTURBS DNA repair", "siRNA knockdown PERTURBS MRN complex"]
+
+  MEASURED_BY:
+    description: "A molecular feature, process, or endpoint is quantified by a measurement method."
+    inverse: "MEASURES"
+    examples: ["gamma-H2AX foci MEASURED_BY immunofluorescence", "lung injury MEASURED_BY histologic scoring"]
+
+  USES_INSTRUMENT:
+    description: "A measurement method or exposure scenario depends on a specific instrument or device."
+    inverse: "INSTRUMENT_FOR"
+    examples: ["flow cytometry USES_INSTRUMENT CyAnLX", "dosimetry USES_INSTRUMENT ion chamber"]
+
+  RESULTS_IN:
+    description: "An exposure, perturbation, or process leads to a downstream endpoint or outcome."
+    inverse: "RESULTS_FROM"
+    examples: ["oxidative stress RESULTS_IN genomic instability", "thoracic irradiation RESULTS_IN lung injury"]
+
+  MODIFIES:
+    description: "A feature or context modifies the magnitude or direction of an effect."
+    inverse: "MODIFIED_BY"
+    examples: ["smoking MODIFIES radiation risk", "genotype MODIFIES DNA-repair response"]
+
+  MITIGATES:
+    description: "An intervention or agent reduces, buffers, or counters a harmful process or outcome."
+    inverse: "MITIGATED_BY"
+    examples: ["glycyrrhetic acid MITIGATES radiation-induced lung injury", "shielding MITIGATES organ dose"]
+
+  QUANTIFIES:
+    description: "An analysis model or metric quantifies an exposure-response or outcome relationship."
+    inverse: "QUANTIFIED_BY"
+    examples: ["ERR/Gy QUANTIFIES lung-cancer risk", "effective dose QUANTIFIES patient exposure"]

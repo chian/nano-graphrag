@@ -1,0 +1,45 @@
+domain_name: BV-BRC Genomics
+suitability_criteria:
+  min_entities: 5
+  min_entity_types: 3
+  min_relationships: 4
+  required_entity_types:
+  - GENOME
+  - GENE
+  keywords:
+    positive:
+    - genome
+    - gene
+    - protein
+    - subsystem
+    - pathway
+    - annotation
+    - CDS
+    - feature
+    - contig
+    - scaffold
+    - EC number
+    - functional role
+    - protein family
+    - AMR
+    - virulence
+    negative:
+    - clinical trial
+    - patient outcome
+    - epidemiology
+    - surveillance
+contrastive_patterns:
+- genes with similar functions but different pathways
+- proteins in same family with different substrates
+- alternative enzymes for same reaction
+- different regulatory mechanisms for same gene
+- homologous genes across different organisms
+- resistance genes conferring resistance to different drug classes
+question_generation_focus:
+- 'Function prediction: What is the predicted function of gene X based on its subsystem
+  membership?'
+- 'Pathway membership: Which genes participate in pathway Y?'
+- 'Protein family: Which proteins belong to the same family as protein Z?'
+- 'Regulation: What regulates expression of operon W?'
+- 'AMR: Which genes confer resistance to antimicrobial V?'
+- 'Metabolic context: What reactions does enzyme U catalyze and in which pathways?'

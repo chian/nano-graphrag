@@ -1,0 +1,52 @@
+domain_name: Respiratory Disease Cognition
+suitability_criteria:
+  min_entities: 4
+  min_entity_types: 3
+  min_relationships: 3
+  required_entity_types:
+  - RESPIRATORY_DISEASE
+  - COGNITIVE_FUNCTION
+  - CLAIM
+  keywords:
+    positive:
+    - cognitive
+    - neuropsychological
+    - cognition
+    - memory
+    - attention
+    - executive function
+    - brain fog
+    - long COVID
+    - post-acute
+    - neurocognitive
+    - MoCA
+    - processing speed
+    negative:
+    - animal model
+    - in vitro
+    - cell culture
+    - mouse
+    - rat
+    - pathogenesis only
+    - vaccine efficacy only
+contrastive_patterns:
+- different respiratory diseases compared
+- acute vs post-acute findings
+- different cognitive domains affected
+- severity-dependent vs independent effects
+- healthcare workers vs general population
+- different assessment instruments for same construct
+- covariate-adjusted vs unadjusted findings
+- definitive vs tentative claims on same topic
+- significant vs trending findings
+question_generation_focus:
+- 'Disease comparison: Does COVID-19 produce more severe cognitive deficits than influenza?'
+- 'Domain specificity: Which cognitive functions are most affected by respiratory
+  illness?'
+- 'Temporal course: Do deficits persist beyond the post-acute phase?'
+- 'Covariates: Which medications or treatments are associated with cognitive outcomes?'
+- 'Risk factors: Which effect modifiers predict worse cognitive outcomes?'
+- 'Assessment: Which neuropsychological tests are most sensitive to respiratory disease
+  effects?'
+- 'Evidence strength: Which findings are definitive vs still emerging?'
+- 'Tensions: Where do findings conflict and what might explain the discrepancy?'

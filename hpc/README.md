@@ -6,6 +6,7 @@ Generic, reusable pipeline for embarrassingly parallel graph builds over large c
 
 - `chunk_manifest.py`: build a canonical chunk manifest from an external inventory
 - `split_shards.py`: split the canonical manifest into deterministic shard files by count
+- `build_vllm_prompts.py`: build vLLM-ready prompt JSONL from one shard manifest
 - `run_shard_extraction.py`: extract entities/relationships from one shard and write local artifacts
 - `merge_hierarchy.py`: merge shard graphs in deterministic stages
 - `review_final_merges.py`: run an LLM semantic review over candidate final-stage merges
@@ -66,6 +67,17 @@ See `examples/inventory.example.jsonl`.
   --schema your_schema_name \
   --model gpt-5.4-mini \
   --self-refine
+```
+
+3a. Or build prompt rows for a vLLM endpoint from a shard
+
+```bash
+.venv/bin/python -m hpc.build_vllm_prompts \
+  run/shards/shard_000.jsonl \
+  run/prompts/shard_000.requests.jsonl \
+  --schema your_schema_name \
+  --model meta-llama/Llama-3.1-70B-Instruct \
+  --format openai-chat
 ```
 
 4. Merge local shard graphs hierarchically

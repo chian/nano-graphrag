@@ -1,0 +1,36 @@
+domain_name: Disease Biology
+suitability_criteria:
+  min_entities: 5
+  min_entity_types: 3
+  min_relationships: 4
+  required_entity_types:
+  - DISEASE
+  - GENE
+  - PROTEIN
+  keywords:
+    positive:
+    - pathogenesis
+    - disease mechanism
+    - mutation
+    - dysfunction
+    - pathology
+    - cellular basis
+    - molecular basis
+    - disease progression
+    negative:
+    - epidemiological study
+    - population-level
+    - clinical trial outcome only
+contrastive_patterns:
+- alternative disease mechanisms
+- different mutations causing same disease
+- multiple therapeutic targets
+- competing pathways in disease
+- different cellular responses
+- alternative pathogenic routes
+question_generation_focus:
+- 'Mechanistic understanding: How does mutation X lead to disease phenotype Y?'
+- 'Therapeutic targeting: Which target is more effective for disease subtype A vs
+  B?'
+- 'Pathway disruption: If pathway X is blocked, which compensatory mechanism activates?'
+- 'Disease progression: What drives transition from stage N to stage N+1?'

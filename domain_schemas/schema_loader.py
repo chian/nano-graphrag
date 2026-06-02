@@ -29,9 +29,6 @@ class DomainSchema:
     domain_description: str
     entity_types: Dict[str, EntityType]
     relationship_types: Dict[str, RelationshipType]
-    suitability_criteria: Dict
-    contrastive_patterns: List[str]
-    question_generation_focus: List[str]
 
 class SchemaLoader:
     """Load and manage domain schemas"""
@@ -92,9 +89,6 @@ class SchemaLoader:
             domain_description=data.get('domain_description', ''),
             entity_types=entity_types,
             relationship_types=relationship_types,
-            suitability_criteria=data.get('suitability_criteria', {}),
-            contrastive_patterns=data.get('contrastive_patterns', []),
-            question_generation_focus=data.get('question_generation_focus', [])
         )
 
     def get_schema(self, schema_name: str) -> Optional[DomainSchema]:
@@ -175,5 +169,4 @@ if __name__ == "__main__":
         print(f"Description: {schema.domain_description}")
         print(f"Entity types: {len(schema.entity_types)}")
         print(f"Relationship types: {len(schema.relationship_types)}")
-        print(f"Contrastive patterns: {len(schema.contrastive_patterns)}")
         print()

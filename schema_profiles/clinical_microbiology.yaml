@@ -1,0 +1,40 @@
+domain_name: Clinical Microbiology
+suitability_criteria:
+  min_entities: 5
+  min_entity_types: 3
+  min_relationships: 4
+  required_entity_types:
+  - PATHOGEN
+  - DIAGNOSTIC_TEST
+  keywords:
+    positive:
+    - sensitivity
+    - specificity
+    - diagnostic
+    - detection
+    - identification
+    - susceptibility
+    - MIC
+    - assay
+    - test performance
+    - clinical specimen
+    - laboratory
+    negative:
+    - pathogenesis mechanism
+    - host-pathogen interaction
+    - animal model
+    - in vivo study
+contrastive_patterns:
+- alternative diagnostic methods
+- different specimen types for same pathogen
+- multiple antimicrobial options
+- competing commercial platforms
+- different resistance mechanisms
+- various biomarkers for same condition
+question_generation_focus:
+- 'Test selection: Which assay provides better sensitivity for detecting pathogen
+  X?'
+- 'Specimen choice: Which specimen type is optimal for diagnosing infection Y?'
+- 'Resistance detection: Which method best identifies resistance mechanism Z?'
+- 'Treatment guidance: Based on MIC results, which antimicrobial is most appropriate?'
+- 'Biomarker utility: Which marker best predicts treatment response?'

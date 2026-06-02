@@ -1,0 +1,39 @@
+domain_name: Molecular Biology
+suitability_criteria:
+  min_entities: 5
+  min_entity_types: 3
+  min_relationships: 4
+  required_entity_types:
+  - PROTEIN
+  - COMPOUND
+  - GENE
+  keywords:
+    positive:
+    - enzyme
+    - protein
+    - gene
+    - pathway
+    - mechanism
+    - regulation
+    - expression
+    - binding
+    - catalysis
+    - phosphorylation
+    negative:
+    - clinical trial
+    - patient cohort
+    - epidemiology
+    - survey
+    - meta-analysis
+contrastive_patterns:
+- alternative mechanisms
+- competing pathways
+- different enzymes catalyzing the same reaction
+- multiple regulators of the same target
+- substrate competition
+- alternative binding modes
+question_generation_focus:
+- 'Mechanistic reasoning: How does A cause B through intermediate steps?'
+- 'Regulatory logic: What happens when regulator X is removed?'
+- 'Competitive dynamics: Which enzyme/pathway dominates under condition Y?'
+- 'Pathway perturbations: If step N is blocked, which alternative activates?'
