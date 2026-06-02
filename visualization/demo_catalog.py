@@ -918,6 +918,7 @@ def build_cinematic_demo_from_artifacts(
         "title": title or _science_demo_title(qid, selected_view),
         "graph_path": str(viz_path),
         "full_graph_path": str(full_path),
+        "motion_profile": "science",
         "question": payload["question"],
         "why_gasl_wins": why_gasl_wins or "Replay synthesized directly from committed GASL answer-view artifacts, with node-focus beats derived from the answer views themselves.",
         "rag_blind_spot": rag_blind_spot or "This on-demand long-form path reconstructs the cinematic replay from committed answer views instead of relying on a hand-authored comparison script.",

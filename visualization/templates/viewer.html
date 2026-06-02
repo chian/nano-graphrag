@@ -1907,17 +1907,22 @@
             const nodes = Array.from(new Set((data.nodes || []).filter((id) => id && !nodesDataset.get(id))));
             if (!nodes.length) return false;
             const isDemoJob = String(_activeJobId || '').startsWith('demo:');
-            const passCount = isDemoJob ? LIVE_GASL_MICRO.demoSubpasses : LIVE_GASL_MICRO.liveSubpasses;
+            const scienceDemoMotion = isDemoJob && _activeDemo && _activeDemo.motion_profile === 'science';
+            const passCount = isDemoJob
+                ? (scienceDemoMotion ? 3 : LIVE_GASL_MICRO.demoSubpasses)
+                : LIVE_GASL_MICRO.liveSubpasses;
             const waveDelayMs = isDemoJob
-                ? (_visualStyle === 'camera-eye' ? 260 : 220)
+                ? (scienceDemoMotion ? 420 : (_visualStyle === 'camera-eye' ? 260 : 220))
                 : LIVE_GASL_MICRO.waveDelayMs;
             const passSpacingMs = isDemoJob
-                ? (_visualStyle === 'camera-eye' ? 110 : 90)
+                ? (scienceDemoMotion ? 180 : (_visualStyle === 'camera-eye' ? 110 : 90))
                 : LIVE_GASL_MICRO.passSpacingMs;
-            const waveSize = Math.min(
-                LIVE_GASL_MICRO.maxWaveSize,
-                Math.max(LIVE_GASL_MICRO.defaultWaveSize, Math.ceil(nodes.length / 3))
-            );
+            const waveSize = scienceDemoMotion
+                ? Math.min(8, Math.max(4, Math.ceil(nodes.length / 2)))
+                : Math.min(
+                    LIVE_GASL_MICRO.maxWaveSize,
+                    Math.max(LIVE_GASL_MICRO.defaultWaveSize, Math.ceil(nodes.length / 3))
+                );
             const waves = chunkArray(nodes, waveSize);
             const narration = narrateGaslStep(phase, data.command, {nodeCount: nodes.length});
             waves.forEach((wave, index) => {
@@ -1929,11 +1934,23 @@
                         if (pass === 0) {
                             addNodesToLiveSubgraph(wave, style.color);
                         } else if (pass === 1) {
-                            pulseNodes(wave, style.color);
-                        } else if (pass === 2) {
-                            if (edgePairs.length) pulseEdgePairs(edgePairs, style.color);
+                            if (scienceDemoMotion && edgePairs.length) {
+                                pulseEdgePairs(edgePairs, style.color);
+                            } else {
+                                pulseNodes(wave, style.color);
+                            }
                         } else {
-                            cameraTourNodes(wave, Array.from(_gaslNodeSet));
+                            if (scienceDemoMotion) {
+                                if (index === waves.length - 1) {
+                                    cameraTourNodes(wave, Array.from(_gaslNodeSet));
+                                } else {
+                                    pulseNodes(wave, style.color);
+                                }
+                            } else if (pass === 2) {
+                                if (edgePairs.length) pulseEdgePairs(edgePairs, style.color);
+                            } else {
+                                cameraTourNodes(wave, Array.from(_gaslNodeSet));
+                            }
                         }
                         updateGaslMetrics(phase);
                         markReplayEvent(phase, data.command || '', wave.length, 0);
