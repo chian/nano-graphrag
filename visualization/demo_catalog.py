@@ -201,6 +201,48 @@ def _partial_distribution_payload(payload: dict[str, Any], bin_limit: int) -> di
     }
 
 
+_SCIENCE_NOTE_BANNED_PHRASES = (
+    "working memory",
+    "working set",
+    "frontier",
+    "finalist",
+    "the system",
+    "the viewer",
+    "this panel",
+    "replay",
+    "camera",
+    "video",
+    "candidate",
+    "control",
+    "hospital zone",
+    "hospital",
+    "zone-linked",
+    "search narrows",
+)
+
+
+def _science_note_label(graph: nx.Graph, node_id: str) -> str:
+    if node_id not in graph:
+        return node_id
+    attrs = graph.nodes[node_id]
+    return str(attrs.get("entity_name") or node_id)
+
+
+def _science_note_list(graph: nx.Graph, node_ids: Iterable[str], limit: int = 3) -> str:
+    labels = [_science_note_label(graph, node_id) for node_id in list(dict.fromkeys(node_ids))[:limit]]
+    return ", ".join(labels)
+
+
+def _validate_science_notes(replay: list[dict[str, Any]]) -> None:
+    for step in replay:
+        payload = step.get("payload", {})
+        for key in ("command", "story_kicker", "story_title", "story_body", "selection_rationale"):
+            text = str(payload.get(key, "") or "").lower()
+            for phrase in _SCIENCE_NOTE_BANNED_PHRASES:
+                if phrase in text:
+                    raise ValueError(f"Science-note violation: '{phrase}' in {key}: {payload.get(key)}")
+
+
 def _extract_view_nodes(payload: dict[str, Any], *, limit: int = 12) -> list[str]:
     node_ids: list[str] = []
     ranked = payload.get("ranked_subjects") or []
@@ -389,18 +431,18 @@ def build_cinematic_demo_from_artifacts(
             "command_type": "INIT",
             "status": "running",
             "command": "Starting GASL traversal...",
-            "story_kicker": "Setup",
-            "story_title": "Frame the question",
+            "story_kicker": "Question",
+            "story_title": "Sequence features linked to kinetic shifts and localized residues",
             "story_body": payload["question"],
-            "story_meta": "GASL will search the graph, accumulate evidence, then synthesize an answer.",
+            "story_meta": "Feature-residue-kinetic links are tracked as evidence records.",
         }),
         _event(460, "gasl_step", {
             "command_type": "FIND",
             "status": "running",
-            "command": "FIND nodes with entity_type='ENGINEERING_CONTROL' AS engineering_controls",
-            "story_kicker": "Search",
-            "story_title": "Pull candidate controls into working memory",
-            "story_body": "Start broad. The system is not trying to guess the winner yet; it is collecting plausible controls that might explain the question.",
+            "command": "Collect sequence features with both kinetic-shift and residue-localization links",
+            "story_kicker": "Feature-residue links",
+            "story_title": "Collect sequence-feature records",
+            "story_body": "Initial pass gathers sequence features that connect kinetic-parameter shifts to localized residue annotations.",
         }),
     ]
 
@@ -416,26 +458,26 @@ def build_cinematic_demo_from_artifacts(
                 "edges": [],
                 "command_type": "FIND",
                 "status": "success",
-                "command": "Seed an initial working set of plausible controls",
-                "story_title": "First candidates enter",
-                "story_body": "A few plausible controls come into view first. This is only a working set, not the answer.",
+                "command": "Initial sequence features linked to localized residues and kinetic shifts",
+                "story_title": "Initial feature-residue records",
+                "story_body": f"{_science_note_list(viz, ranking_candidates[:4], 4)} link residue-localization records to kinetic-shift annotations.",
             }),
             _event(220, "gasl_highlight", {
                 "nodes": ranking_candidates[4:8],
                 "edges": [],
                 "command_type": "FIND",
                 "status": "success",
-                "command": "Broaden the frontier before deciding which controls deserve deeper walks",
-                "story_title": "Keep the frontier open",
-                "story_body": "More controls are added so the search does not collapse too early onto a single explanation.",
+                "command": "Expand the set of feature-residue-kinetic examples",
+                "story_title": "Expand feature coverage",
+                "story_body": f"{_science_note_list(viz, ranking_candidates[4:8], 4)} add more feature-residue examples linked to shifted kinetic parameters.",
             }),
             _event(320, "gasl_step", {
                 "command_type": "GRAPHWALK",
                 "status": "running",
-                "command": "GRAPHWALK across validation and zone relations for multiple candidate controls",
-                "story_kicker": "Walk",
-                "story_title": "Trace validation paths across hospital zones",
-                "story_body": "Now the search follows evidence-bearing relations. The goal is to see which controls connect to the broadest zone-linked validation footprint.",
+                "command": "Trace residue-localization and kinetic-shift links from each sequence feature",
+                "story_kicker": "Residue-localized evidence",
+                "story_title": "Trace feature-to-residue and feature-to-kinetic links",
+                "story_body": "Linked residue annotations and kinetic-parameter changes are followed outward from each sequence feature.",
             }),
         ])
         touched_nodes.extend(ranking_candidates[:8])
@@ -449,31 +491,31 @@ def build_cinematic_demo_from_artifacts(
                     "edges": wave_edges,
                     "command_type": "GRAPHWALK",
                     "status": "success",
-                    "command": f"Probe candidate {idx}: follow validation and zone evidence around {control}",
-                    "story_title": f"Probe candidate {idx}",
-                    "story_body": f"{control} is explored as one possible explanation. The graph walk fans out through linked evidence and hospital-zone context.",
+                    "command": f"Follow residue-localization and kinetic-shift links around {_science_note_label(viz, control)}",
+                    "story_title": f"Residue-linked evidence around {_science_note_label(viz, control)}",
+                    "story_body": f"{_science_note_label(viz, control)} connects to {_science_note_list(viz, wave_nodes, 3)} through residue-localization and kinetic-shift links.",
                 }),
             ])
 
         replay.extend([
             _event(220, "answer_view", {
                 "kicker": "Early evidence",
-                "title": "Candidate evidence is still mixed",
+                "title": "Early feature-residue evidence",
                 "view_kind": "grouped_summary",
                 "view_payload": _partial_grouped_payload(grouped_payload, 2),
-                "selection_rationale": "At this stage the search has touched several plausible controls, but the ranking is not settled.",
+                "selection_rationale": "Early grouped records show several sequence features with localized residues linked to shifted kinetic parameters.",
                 "nodes": exploratory_candidates[:2],
                 "meta": grouped.get("source_variable") if grouped else "",
-                "story_title": "Evidence is starting to organize",
-                "story_body": "This panel is not the answer. It is a partial evidence view showing how support is beginning to accumulate while the field is still mixed.",
+                "story_title": "Early feature-residue records",
+                "story_body": "Grouped evidence rows now show which localized residues repeatedly co-occur with kinetic-parameter shifts.",
             }),
             _event(300, "gasl_step", {
                 "command_type": "GRAPHWALK",
                 "status": "running",
-                "command": "Revisit the strongest candidates and add more zone-linked validation evidence",
-                "story_kicker": "Refine",
-                "story_title": "Return to the strongest candidates",
-                "story_body": "After the first pass, the search narrows. The system goes back for more evidence around the candidates that still look viable.",
+                "command": "Revisit the strongest feature-residue neighborhoods",
+                "story_kicker": "Feature neighborhoods",
+                "story_title": "Re-examine the strongest feature-residue neighborhoods",
+                "story_body": "Additional residue-linked neighborhoods are collected around the feature examples with the densest kinetic-shift evidence.",
             }),
         ])
 
@@ -486,9 +528,9 @@ def build_cinematic_demo_from_artifacts(
                     "edges": wave_edges,
                     "command_type": "GRAPHWALK",
                     "status": "success",
-                    "command": f"Deepen evidence for finalist {idx}: {control}",
-                    "story_title": f"Deepen finalist {idx}",
-                    "story_body": f"{control} survives the first pass, so the search spends more graph budget validating its breadth rather than merely touching it once.",
+                    "command": f"Expand linked residue and kinetic evidence around {_science_note_label(viz, control)}",
+                    "story_title": f"Expand localized-residue evidence around {_science_note_label(viz, control)}",
+                    "story_body": f"{_science_note_label(viz, control)} remains linked to {_science_note_list(viz, wave_nodes, 4)} across multiple residue and kinetic records.",
                 }),
             ])
 
@@ -496,73 +538,73 @@ def build_cinematic_demo_from_artifacts(
             _event(320, "gasl_step", {
                 "command_type": "AGGREGATE",
                 "status": "running",
-                "command": "AGGREGATE per-control evidence across hospital zones",
-                "story_kicker": "Aggregate",
-                "story_title": "Convert scattered traces into comparable evidence",
-                "story_body": "This is the turning point: graph walks become counts. Evidence from many local neighborhoods is pooled so controls can be compared on the same footing.",
+                "command": "Aggregate feature-residue-kinetic records",
+                "story_kicker": "Evidence records",
+                "story_title": "Aggregate feature-residue-kinetic records",
+                "story_body": "Residue annotations and kinetic-shift links are pooled into comparable feature-level records.",
             }),
             _event(220, "answer_view", {
                 "kicker": "Evidence accumulating",
                 "title": "First evidence rows land",
                 "view_kind": "grouped_summary",
                 "view_payload": _partial_grouped_payload(grouped_payload, 1),
-                "selection_rationale": "The grouped panel starts to fill as soon as the first zone-level counts settle.",
+                "selection_rationale": "The first grouped records identify localized residues that repeatedly appear with shifted kinetic parameters.",
                 "nodes": focus_nodes[:1],
                 "meta": grouped.get("source_variable") if grouped else "",
-                "story_title": "The first stable evidence rows appear",
-                "story_body": "As aggregation finishes, evidence stops looking like disconnected paths and starts looking like a readable summary.",
+                "story_title": "First feature-residue records appear",
+                "story_body": "The earliest grouped rows already tie active-site features to catalytic-activity or binding changes.",
             }),
             _event(220, "answer_view", {
                 "kicker": "Evidence accumulating",
                 "title": "Early grouped evidence",
                 "view_kind": "grouped_summary",
                 "view_payload": _partial_grouped_payload(grouped_payload, 3),
-                "selection_rationale": "Each pass pools zone-level evidence before the final ranking is produced.",
+                "selection_rationale": "Additional grouped rows add residue-localized context for the same kinetic-shift patterns.",
                 "nodes": focus_nodes[:2],
                 "meta": grouped.get("source_variable") if grouped else "",
-                "story_title": "Evidence thickens before ranking",
-                "story_body": "The panel fills in before any ranking is finalized, so the viewer can see the evidence basis rather than only the final ordering.",
+                "story_title": "Additional grouped evidence appears",
+                "story_body": "More rows connect localized residues to kinetic-parameter changes within the same sequence-feature neighborhoods.",
             }),
             _event(300, "gasl_step", {
                 "command_type": "RANK",
                 "status": "running",
-                "command": "RANK controls by validation footprint breadth",
-                "story_kicker": "Rank",
-                "story_title": "Only now does ordering begin",
-                "story_body": "After search and accumulation, the system can finally order the candidates by the breadth of their zone-linked validation support.",
+                "command": "Order feature-residue examples by linked support",
+                "story_kicker": "Support ranking",
+                "story_title": "Order feature-residue examples by linked support",
+                "story_body": "Feature examples are ordered by the combined support of residue-localization and kinetic-shift evidence.",
             }),
             _event(220, "answer_view", {
                 "kicker": "Ranking stabilizes",
-                "title": "Top control emerges",
+                "title": "Strongest feature-residue record",
                 "view_kind": "ranking",
                 "view_payload": _partial_ranking_payload(selected_payload, 1),
                 "selection_rationale": selection.get("rationale") or "",
                 "nodes": focus_nodes[:1],
                 "meta": selected_view.get("source_variable") or "",
-                "story_title": "A leader appears",
-                "story_body": "One control starts to separate from the pack, but the full ordering is still developing.",
+                "story_title": f"{_science_note_label(viz, focus_nodes[0]) if focus_nodes else 'Top feature'} has the strongest linked evidence",
+                "story_body": "The strongest record combines a localized residue annotation with a consistent kinetic-shift pattern.",
             }),
             _event(220, "answer_view", {
                 "kicker": "Ranking stabilizes",
-                "title": "Top two controls emerge",
+                "title": "Top two feature-residue records",
                 "view_kind": "ranking",
                 "view_payload": _partial_ranking_payload(selected_payload, 2),
                 "selection_rationale": selection.get("rationale") or "",
                 "nodes": focus_nodes[:2],
                 "meta": selected_view.get("source_variable") or "",
-                "story_title": "The shortlist stabilizes",
-                "story_body": "The leading pair is now visible, with enough evidence to compare them directly.",
+                "story_title": "Top two feature-residue examples",
+                "story_body": "The leading pair remain the best-supported links between localized residues and kinetic-parameter shifts.",
             }),
             _event(220, "answer_view", {
                 "kicker": "Ranking stabilizes",
-                "title": "Top controls emerge",
+                "title": "Top feature-residue-kinetic records",
                 "view_kind": "ranking",
                 "view_payload": _partial_ranking_payload(selected_payload, 3),
                 "selection_rationale": selection.get("rationale") or "",
                 "nodes": focus_nodes,
                 "meta": selected_view.get("source_variable") or "",
-                "story_title": "The final evidence ranking settles",
-                "story_body": "The ranking view now reflects the accumulated graph evidence rather than an early guess.",
+                "story_title": "Top supported feature-residue-kinetic records",
+                "story_body": "The top records are the strongest linked examples of sequence features, shifted kinetic parameters, and localized residues.",
             }),
         ])
     elif qid == "q007":
@@ -847,6 +889,9 @@ def build_cinematic_demo_from_artifacts(
         replay = _scale_replay_delays(replay, 7.0)
     elif qid in DEMO_SHORTLIST_12:
         replay = _scale_replay_delays(replay, 3.5)
+
+    if graph_name != "haiqu_engineering_controls" and qid == "q001":
+        _validate_science_notes(replay)
 
     metrics = {
         "selected_view": selected_kind,

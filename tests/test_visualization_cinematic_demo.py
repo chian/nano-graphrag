@@ -1,6 +1,6 @@
 import pytest
 
-from visualization.demo_catalog import build_cinematic_demo_from_artifacts
+from visualization.demo_catalog import _SCIENCE_NOTE_BANNED_PHRASES, build_cinematic_demo_from_artifacts
 from visualization.server import create_app
 
 
@@ -25,6 +25,12 @@ def test_build_cinematic_demo_from_artifacts_topology_q001():
     highlights = [step for step in demo["replay"] if step["event"] == "gasl_highlight"]
     assert highlights
     assert any(step["payload"]["nodes"] for step in highlights)
+    for step in demo["replay"]:
+        payload = step.get("payload", {})
+        for key in ("command", "story_kicker", "story_title", "story_body", "selection_rationale"):
+            text = str(payload.get(key, "") or "").lower()
+            for phrase in _SCIENCE_NOTE_BANNED_PHRASES:
+                assert phrase not in text
     assert demo["replay"][-1]["event"] == "query_complete"
 
 
