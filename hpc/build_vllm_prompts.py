@@ -9,16 +9,25 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from domain_schemas.schema_loader import SchemaLoader, load_domain_schema
+from domain_schemas.schema_loader import DomainSchema, SchemaLoader, load_domain_schema
 from hpc.common import read_json_records, write_json, write_jsonl
 
 
-def _build_extraction_prompt(schema_name: str, chunk_text: str) -> str:
-    """Build the same typed-extraction prompt contract without importing the runtime extractor."""
+def _schema_prompt_components(schema_name: str) -> tuple[DomainSchema, str, str]:
+    """Load and format the schema once per shard run."""
     loader = SchemaLoader()
     schema = load_domain_schema(schema_name)
     entity_type_descriptions = loader.format_entity_types_for_prompt(schema)
     relationship_type_descriptions = loader.format_relationship_types_for_prompt(schema)
+    return schema, entity_type_descriptions, relationship_type_descriptions
+
+
+def _build_extraction_prompt(
+    chunk_text: str,
+    entity_type_descriptions: str,
+    relationship_type_descriptions: str,
+) -> str:
+    """Build the typed-extraction prompt contract using preformatted schema text."""
     return f"""Extract entities and relationships from the following text using domain-specific types.
 
 Given a text document and domain-specific entity and relationship types, identify all entities and relationships that match the domain schema.
@@ -84,9 +93,16 @@ def build_vllm_prompts(
 ) -> dict[str, Any]:
     rows = read_json_records(shard_path)
     prompt_rows: list[dict[str, Any]] = []
+    _, entity_type_descriptions, relationship_type_descriptions = _schema_prompt_components(
+        schema_name
+    )
 
     for row in rows:
-        prompt = _build_extraction_prompt(schema_name, row["chunk_text"])
+        prompt = _build_extraction_prompt(
+            row["chunk_text"],
+            entity_type_descriptions,
+            relationship_type_descriptions,
+        )
         if request_format == "openai-chat":
             prompt_rows.append(
                 {
