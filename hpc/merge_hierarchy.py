@@ -2,9 +2,14 @@ from __future__ import annotations
 
 import argparse
 import shutil
+import sys
 from pathlib import Path
 
 import networkx as nx
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from graph_enrichment.graph_merger import merge_graphs
 from hpc.common import group_in_order, save_graph, write_json

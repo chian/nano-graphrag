@@ -1,20 +1,74 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 from typing import Any
 
-from domain_schemas.schema_loader import load_domain_schema
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from domain_schemas.schema_loader import SchemaLoader, load_domain_schema
 from hpc.common import read_json_records, write_json, write_jsonl
-from nano_graphrag.entity_extraction.typed_module import create_domain_extractor_from_schema
 
 
-def _build_extraction_prompt(extractor, chunk_text: str) -> str:
-    """
-    Reuse the typed extraction prompt contract so the vLLM prompt rows stay
-    aligned with the extractor used by the shard runner.
-    """
-    return extractor._build_extraction_prompt(chunk_text)
+def _build_extraction_prompt(schema_name: str, chunk_text: str) -> str:
+    """Build the same typed-extraction prompt contract without importing the runtime extractor."""
+    loader = SchemaLoader()
+    schema = load_domain_schema(schema_name)
+    entity_type_descriptions = loader.format_entity_types_for_prompt(schema)
+    relationship_type_descriptions = loader.format_relationship_types_for_prompt(schema)
+    return f"""Extract entities and relationships from the following text using domain-specific types.
+
+Given a text document and domain-specific entity and relationship types, identify all entities and relationships that match the domain schema.
+
+ENTITY TYPES (use exactly these):
+{entity_type_descriptions}
+
+RELATIONSHIP TYPES (use exactly these):
+{relationship_type_descriptions}
+
+Entity Guidelines:
+1. Each entity must match one of the provided entity_types exactly.
+2. Extract only entities relevant to the domain.
+3. Entity names should be atomic words/phrases from the input text.
+4. Avoid duplicates and generic terms.
+5. Provide comprehensive descriptions covering:
+   a). Entity's role in the domain context
+   b). Key domain-relevant attributes
+   c). Relationships to other entities
+   d). Functional significance
+
+Relationship Guidelines:
+1. Each relationship MUST use a relation_type from the provided relationship_types list.
+2. Choose the most specific and accurate relationship type.
+3. Include comprehensive descriptions covering:
+   a). The nature of the interaction (mechanism, effect, dependency)
+   b). The biological/scientific significance
+   c). Conditions under which the relationship holds
+   d). Evidence or basis for the relationship
+4. Include direct relationships (order 1) and higher-order relationships (order 2-3).
+5. The "src_id" and "tgt_id" must exactly match entity names from the extracted entities.
+6. IMPORTANT: Only use relationship types from the provided 'relationship_types' list.
+
+Examples:
+- If relation_type is "INHIBITS": Drug X INHIBITS Enzyme Y by competitive binding
+- If relation_type is "CAUSES": Mutation A CAUSES Loss of function in Protein B
+- If relation_type is "PART_OF": Protein C PART_OF Pathway D as a rate-limiting enzyme
+
+TEXT:
+{chunk_text}
+
+Extract all entities and relationships. Return JSON:
+{{
+  "entities": [
+    {{"entity_name": "...", "entity_type": "...", "description": "...", "importance_score": 0.0-1.0}}
+  ],
+  "relationships": [
+    {{"src_id": "...", "tgt_id": "...", "relation_type": "...", "description": "...", "weight": 0.0-1.0, "order": 1-3}}
+  ]
+}}"""
 
 
 def build_vllm_prompts(
@@ -30,16 +84,9 @@ def build_vllm_prompts(
 ) -> dict[str, Any]:
     rows = read_json_records(shard_path)
     prompt_rows: list[dict[str, Any]] = []
-    schema = load_domain_schema(schema_name)
-    extractor = create_domain_extractor_from_schema(
-        schema,
-        llm_func=lambda prompt: "",
-        num_refine_turns=1,
-        self_refine=False,
-    )
 
     for row in rows:
-        prompt = _build_extraction_prompt(extractor, row["chunk_text"])
+        prompt = _build_extraction_prompt(schema_name, row["chunk_text"])
         if request_format == "openai-chat":
             prompt_rows.append(
                 {

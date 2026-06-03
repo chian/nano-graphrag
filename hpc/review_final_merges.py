@@ -3,11 +3,16 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import sys
 from itertools import combinations
 from pathlib import Path
 from typing import Any
 
 import networkx as nx
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from gasl.llm import ArgoBridgeLLM
 from graph_enrichment.entity_merger import calculate_similarity, merge_entities
@@ -142,4 +147,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
