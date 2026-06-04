@@ -1,0 +1,21 @@
+{
+  "description": "Two long-form HAIQU demo-day questions proposed for cinematic website replays.",
+  "questions": [
+    {
+      "graph": "haiqu_engineering_controls",
+      "family": "demo_day_longform/01",
+      "question": "How many pathogens are contained within a single breath",
+      "metadata": {
+        "theme": "single_breath_pathogen_load"
+      }
+    },
+    {
+      "graph": "haiqu_engineering_controls",
+      "family": "demo_day_longform/02",
+      "question": "How does hospital air quality effect disease transmission",
+      "metadata": {
+        "theme": "hospital_air_quality_transmission"
+      }
+    }
+  ]
+}
