@@ -13,8 +13,10 @@ import threading
 import uuid
 from pathlib import Path
 from typing import Optional, Dict, Any, List
-from flask import Flask, render_template, jsonify, request, send_from_directory
+from flask import Flask, render_template, jsonify, make_response, request, send_from_directory
 from flask_socketio import SocketIO, emit
+
+from gasl.llm.runtime_config import resolve_runtime_llm_config
 
 from .graph_loader import GraphLoader, find_graphs_in_directory, build_color_map
 from .query_engine import RagQueryEngine, GaslQueryEngine
@@ -22,9 +24,26 @@ from .demo_catalog import get_demo_catalog, get_demo, build_cinematic_demo_from_
 
 
 # Server-side unlock: password → API key, never exposed to the browser.
-# Override either via environment variables.
-_SERVER_PASSWORD: str = os.environ.get("VIZ_PASSWORD", "slama")
-_SERVER_API_KEY: str = os.environ.get("VIZ_API_KEY", "")
+# Override VIZ_PASSWORD to change the unlock phrase. The API token is resolved
+# per request so rotated shim tokens in ~/.claude/settings.json are picked up
+# without restarting the visualization server.
+def _server_password() -> str:
+    return os.environ.get("VIZ_PASSWORD", "slama")
+
+
+def _resolve_unlocked_api_key(model: Optional[str] = None) -> str:
+    explicit_api_key = (
+        os.environ.get("VIZ_API_KEY")
+        or os.environ.get("OPENAI_API_KEY")
+        or os.environ.get("LLM_API_KEY")
+        or ""
+    )
+    runtime_cfg = resolve_runtime_llm_config(
+        explicit_api_key=explicit_api_key,
+        explicit_model=model,
+    )
+    return runtime_cfg.api_key or ""
+
 
 # Global state
 _current_loader: Optional[GraphLoader] = None
@@ -42,6 +61,29 @@ _gasl_state: Dict[str, Any] = {
 _AUTO_SUBSET_ENABLED = os.environ.get("VIZ_AUTO_SUBSET", "1").strip().lower() not in {"0", "false", "no"}
 _AUTO_SUBSET_THRESHOLD = int(os.environ.get("VIZ_SUBSET_THRESHOLD", "4000"))
 _AUTO_SUBSET_MAX_NODES = int(os.environ.get("VIZ_SUBSET_MAX_NODES", "1500"))
+
+
+def _reported_stats_loader() -> Optional[GraphLoader]:
+    """Prefer the full graph for reported stats while preserving the render graph."""
+    if _full_loader is not None and _full_loader.stats is not None:
+        return _full_loader
+    return _current_loader
+
+
+def _serialize_reported_stats() -> Dict[str, Any]:
+    """Return the stats payload shown in the UI stats panel."""
+    loader = _reported_stats_loader()
+    if loader is None or loader.stats is None:
+        raise RuntimeError("No graph loaded")
+
+    return {
+        'num_nodes': loader.stats.num_nodes,
+        'num_edges': loader.stats.num_edges,
+        'entity_types': dict(loader.stats.entity_types),
+        'relation_types': dict(loader.stats.relation_types),
+        'avg_salience': loader.stats.avg_salience,
+        'connected_components': loader.stats.connected_components,
+    }
 
 
 def _load_render_and_query_graphs(
@@ -111,7 +153,9 @@ def create_app(graph_path: Optional[str] = None,
     @app.route('/')
     def index():
         """Serve the main visualization page."""
-        return render_template('viewer.html')
+        response = make_response(render_template('viewer.html'))
+        response.headers['Cache-Control'] = 'no-store'
+        return response
 
     @app.route('/api/graph')
     def get_graph():
@@ -151,12 +195,7 @@ def create_app(graph_path: Optional[str] = None,
             _gasl_engine = GaslQueryEngine(_full_loader, socketio)
             return jsonify({
                 'success': True,
-                'stats': {
-                    'num_nodes': _current_loader.stats.num_nodes,
-                    'num_edges': _current_loader.stats.num_edges,
-                    'entity_types': dict(_current_loader.stats.entity_types),
-                    'relation_types': dict(_current_loader.stats.relation_types)
-                },
+                'stats': _serialize_reported_stats(),
                 'graph_path': path,
                 'full_graph_path': full_graph_path,
             })
@@ -181,7 +220,10 @@ def create_app(graph_path: Optional[str] = None,
     @app.route('/api/demos/<demo_id>')
     def get_demo_payload(demo_id: str):
         """Return a single demo with graph paths and replay events."""
-        demo = get_demo(demo_id)
+        try:
+            demo = get_demo(demo_id)
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
         if demo is None:
             return jsonify({'error': f'Unknown demo: {demo_id}'}), 404
         return jsonify(demo)
@@ -226,10 +268,13 @@ def create_app(graph_path: Optional[str] = None,
         if _current_loader is None or _current_loader.graph is None:
             return jsonify({'error': 'No graph loaded'}), 404
 
+        data = request.get_json(silent=True) or {}
+        model = (data.get('model') or 'gpt-5.4-mini').strip()
+
         # Resolve API key: password in body takes priority over Bearer header.
-        password = (request.json or {}).get('password', '')
-        if password and password == _SERVER_PASSWORD:
-            api_key = _SERVER_API_KEY
+        password = data.get('password', '')
+        if password and password == _server_password():
+            api_key = _resolve_unlocked_api_key(model=model)
         else:
             auth = request.headers.get('Authorization', '')
             api_key = auth[7:].strip() if auth.lower().startswith('bearer ') else ''
@@ -238,10 +283,8 @@ def create_app(graph_path: Optional[str] = None,
                 'error': 'Wrong password or no API key. Provide the unlock password.'
             }), 401
 
-        data = request.json or {}
         question = data.get('question', '').strip()
         mode = data.get('mode', 'rag').lower()
-        model = (data.get('model') or 'gpt-5.4-mini').strip()
         reasoning_effort = data.get('reasoning_effort') or None
         if reasoning_effort not in (None, 'low', 'medium', 'high'):
             reasoning_effort = None
@@ -336,17 +379,10 @@ def create_app(graph_path: Optional[str] = None,
     @app.route('/api/stats')
     def get_stats():
         """Get current graph statistics."""
-        if _current_loader is None or _current_loader.stats is None:
+        if _reported_stats_loader() is None:
             return jsonify({'error': 'No graph loaded'}), 404
 
-        return jsonify({
-            'num_nodes': _current_loader.stats.num_nodes,
-            'num_edges': _current_loader.stats.num_edges,
-            'entity_types': dict(_current_loader.stats.entity_types),
-            'relation_types': dict(_current_loader.stats.relation_types),
-            'avg_salience': _current_loader.stats.avg_salience,
-            'connected_components': _current_loader.stats.connected_components
-        })
+        return jsonify(_serialize_reported_stats())
 
     @app.route('/api/colors')
     def get_colors():
@@ -382,10 +418,11 @@ def create_app(graph_path: Optional[str] = None,
         """Handle client connection."""
         emit('connected', {'status': 'connected'})
         # Send current state
-        if _current_loader and _current_loader.stats:
+        if _reported_stats_loader():
+            stats = _serialize_reported_stats()
             emit('graph_loaded', {
-                'num_nodes': _current_loader.stats.num_nodes,
-                'num_edges': _current_loader.stats.num_edges
+                'num_nodes': stats['num_nodes'],
+                'num_edges': stats['num_edges'],
             })
 
     @socketio.on('request_graph')

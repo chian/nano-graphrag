@@ -13,6 +13,7 @@ from functools import lru_cache
 import json
 import logging
 from pathlib import Path
+import re
 from typing import Any, Dict, Iterable, List
 
 import networkx as nx
@@ -74,6 +75,19 @@ PAPER_SYMBOLISM_SHORTLIST_12 = [f"paper-symbolism-{qid}" for qid in DEMO_SHORTLI
 
 def _repo_path(*parts: str) -> Path:
     return REPO_ROOT.joinpath(*parts)
+
+
+_TRACE_FINAL_ANSWER_EVENTS = ("final_answer_response", "final_analysis_response")
+_BAD_FINAL_ANSWER_PHRASES = (
+    "query could not be answered cleanly",
+    "no data available",
+    "execution defects remain",
+)
+_HEXISH_TOKEN_RE = re.compile(r"\b[a-f0-9]{16}\b", re.IGNORECASE)
+_DISTRIBUTION_ANSWER_RE = re.compile(
+    r"^n=\d+; mean=-?\d+(?:\.\d+)?; median=-?\d+(?:\.\d+)?$",
+    re.IGNORECASE,
+)
 
 
 @lru_cache(maxsize=None)
@@ -152,45 +166,254 @@ def _resolve_graph_paths(
     raise FileNotFoundError("Unable to resolve graph path from question.json; pass graph_path/full_graph_path explicitly.")
 
 
-def _load_trace_demo_payload(qid: str, run_ids: list[str] | None = None) -> dict[str, Any]:
-    run_ids = run_ids or TRACE_DEMO_RUN_PREFERENCES
-    last_error = None
-    for run_id in run_ids:
-        trace_path = _repo_path("benchmark_results", run_id, qid, "gasl_artifacts", "traces", f"{qid}.jsonl")
-        if not trace_path.exists():
-            last_error = f"missing trace {trace_path}"
+def _trace_demo_candidate_run_ids(qid: str, run_ids: list[str] | None = None) -> list[str]:
+    if run_ids:
+        return list(dict.fromkeys(run_ids))
+
+    benchmark_root = _repo_path("benchmark_results")
+    discovered: list[str] = []
+    if benchmark_root.exists():
+        for trace_path in benchmark_root.glob(f"*/{qid}/gasl_artifacts/traces/{qid}.jsonl"):
+            rel_parts = trace_path.relative_to(benchmark_root).parts
+            if rel_parts:
+                discovered.append(rel_parts[0])
+
+    ordered: list[str] = []
+    seen: set[str] = set()
+    for run_id in [*TRACE_DEMO_RUN_PREFERENCES, *sorted(discovered, reverse=True)]:
+        if run_id not in seen:
+            ordered.append(run_id)
+            seen.add(run_id)
+    return ordered
+
+
+def _target_view_from_question(question_json: dict[str, Any]) -> str | None:
+    metadata = question_json.get("metadata") or {}
+    target_view = metadata.get("target_view")
+    return str(target_view) if isinstance(target_view, str) and target_view else None
+
+
+def _compact_stat_value(value: Any) -> str:
+    if isinstance(value, int):
+        return str(value)
+    if isinstance(value, float):
+        if value.is_integer():
+            return f"{value:.1f}"
+        return f"{value:.2f}".rstrip("0").rstrip(".")
+    return str(value)
+
+
+def _extract_textual_labels(values: Iterable[Any], limit: int = 3) -> list[str]:
+    labels: list[str] = []
+    for value in values:
+        if not isinstance(value, str):
             continue
-        answer_views = None
-        final_answer = None
-        question = None
-        trace_events: list[dict[str, Any]] = []
-        for line in trace_path.open(encoding="utf-8"):
-            row = json.loads(line)
-            trace_events.append(row)
-            if row["event"] == "answer_views":
-                answer_views = row["payload"]
-                question = answer_views.get("query")
-            if row["event"] == "final_analysis_response":
-                final_answer = row["payload"]["response"]
-        if not final_answer:
-            gasl_path = _repo_path("benchmark_results", run_id, qid, "gasl.json")
-            if gasl_path.exists():
-                gasl = json.loads(gasl_path.read_text(encoding="utf-8"))
-                final_answer = gasl.get("answer") or gasl.get("result", {}).get("final_answer")
-        if not question:
-            question_path = _repo_path("benchmark_results", run_id, qid, "question.json")
-            if question_path.exists():
-                question = json.loads(question_path.read_text(encoding="utf-8")).get("question")
-        if final_answer:
-            return {
-                "question": question,
-                "answer_views": answer_views,
-                "final_answer": final_answer,
-                "run_id": run_id,
-                "trace_events": trace_events,
-            }
-        last_error = f"Missing final answer for {qid} in {run_id}"
-    raise ValueError(last_error or f"Could not load trace-backed payload for {qid}")
+        candidate = value.strip()
+        if not candidate or _HEXISH_TOKEN_RE.fullmatch(candidate):
+            continue
+        if candidate not in labels:
+            labels.append(candidate)
+        if len(labels) >= limit:
+            break
+    return labels
+
+
+def _synthesize_final_answer_from_answer_views(
+    answer_views: dict[str, Any] | None,
+    *,
+    target_view: str | None = None,
+) -> tuple[str | None, str | None]:
+    if not answer_views:
+        return None, None
+
+    selected_view: dict[str, Any] | None = None
+    try:
+        selected_view = _lookup_selected_view(answer_views)
+    except Exception:
+        selected_view = None
+
+    preferred_view = _lookup_first_view(answer_views, target_view) if target_view else None
+    view = preferred_view or selected_view
+    if not view:
+        return None, None
+
+    kind = view.get("kind") or ""
+    payload = view.get("payload") or {}
+    if not payload:
+        return None, None
+
+    if kind == "distribution":
+        n = payload.get("n")
+        mean = payload.get("mean")
+        median = payload.get("median")
+        if all(v is not None for v in (n, mean, median)):
+            return (
+                f"n={_compact_stat_value(n)}; mean={_compact_stat_value(mean)}; median={_compact_stat_value(median)}",
+                f"synthesized:{kind}",
+            )
+
+    if kind == "ranking":
+        ranked = payload.get("ranked_subjects") or []
+        labels = _extract_textual_labels(
+            row.get(key)
+            for row in ranked if isinstance(row, dict)
+            for key in ("subject_name", "subject", "outcome_name", "outcome", "item_id")
+        )
+        if labels:
+            return ", ".join(labels[:3]), f"synthesized:{kind}"
+
+    rows = payload.get("rows") or []
+    labels = _extract_textual_labels(
+        row.get(key)
+        for row in rows if isinstance(row, dict)
+        for key in ("subject_name", "subject", "outcome_name", "outcome", "item_name", "item_id")
+    )
+    if labels:
+        return ", ".join(labels[:3]), f"synthesized:{kind}"
+    return None, None
+
+
+def _answer_quality_score(answer: str | None, *, target_view: str | None = None) -> int:
+    if not answer:
+        return -100
+    text = answer.strip()
+    lower = text.lower()
+    score = 0
+    if any(phrase in lower for phrase in _BAD_FINAL_ANSWER_PHRASES):
+        score -= 80
+    hexish_matches = _HEXISH_TOKEN_RE.findall(text)
+    if len(hexish_matches) >= 2:
+        score -= 60
+    if target_view == "distribution":
+        if _DISTRIBUTION_ANSWER_RE.match(text):
+            score += 70
+        elif all(token in lower for token in ("n=", "mean=", "median=")):
+            score += 40
+        else:
+            score -= 25
+    if text and not hexish_matches:
+        score += 10
+    return score
+
+
+def _load_trace_demo_candidate(run_id: str, qid: str) -> dict[str, Any] | None:
+    trace_path = _repo_path("benchmark_results", run_id, qid, "gasl_artifacts", "traces", f"{qid}.jsonl")
+    if not trace_path.exists():
+        return None
+
+    question_json: dict[str, Any] = {}
+    question_path = _repo_path("benchmark_results", run_id, qid, "question.json")
+    if question_path.exists():
+        question_json = json.loads(question_path.read_text(encoding="utf-8"))
+
+    answer_views = None
+    question = question_json.get("question")
+    trace_events: list[dict[str, Any]] = []
+    answer_sources: list[tuple[str, str]] = []
+    for line in trace_path.open(encoding="utf-8"):
+        row = json.loads(line)
+        trace_events.append(row)
+        if row["event"] == "answer_views":
+            answer_views = row["payload"]
+            question = question or answer_views.get("query")
+        if row["event"] in _TRACE_FINAL_ANSWER_EVENTS:
+            response = (row.get("payload") or {}).get("response")
+            if response:
+                answer_sources.append((f"trace:{row['event']}", response))
+
+    gasl_path = _repo_path("benchmark_results", run_id, qid, "gasl.json")
+    if gasl_path.exists():
+        gasl = json.loads(gasl_path.read_text(encoding="utf-8"))
+        result = gasl.get("result") or {}
+        if result.get("final_answer"):
+            answer_sources.append(("gasl:result.final_answer", result["final_answer"]))
+        if gasl.get("answer"):
+            answer_sources.append(("gasl:answer", gasl["answer"]))
+
+    target_view = _target_view_from_question(question_json)
+    selected_kind = None
+    try:
+        selected_kind = _lookup_selected_view(answer_views).get("kind") if answer_views else None
+    except Exception:
+        selected_kind = None
+
+    synthesized_answer, synthesized_source = _synthesize_final_answer_from_answer_views(
+        answer_views,
+        target_view=target_view,
+    )
+    if synthesized_answer and synthesized_source:
+        answer_sources.append((synthesized_source, synthesized_answer))
+
+    if not answer_views:
+        return None
+
+    best_answer_source = None
+    best_answer = None
+    best_answer_score = -10_000
+    source_bonus = {
+        "trace:final_answer_response": 35,
+        "trace:final_analysis_response": 30,
+        "synthesized:distribution": 28,
+        "synthesized:ranking": 24,
+        "synthesized:grouped_summary": 20,
+        "synthesized:evidence_table": 20,
+        "gasl:result.final_answer": 14,
+        "gasl:answer": 10,
+    }
+    for source_name, candidate_answer in answer_sources:
+        quality = _answer_quality_score(candidate_answer, target_view=target_view)
+        total_score = quality + source_bonus.get(source_name, 0)
+        if total_score > best_answer_score:
+            best_answer_score = total_score
+            best_answer = candidate_answer
+            best_answer_source = source_name
+
+    if not best_answer:
+        return None
+
+    run_score = best_answer_score
+    if target_view and selected_kind == target_view:
+        run_score += 40
+    elif target_view and selected_kind != target_view:
+        run_score -= 20
+    if selected_kind == "provenance":
+        run_score -= 15
+    target_view_payload = _lookup_first_view(answer_views, target_view) if target_view else None
+    if target_view and target_view_payload and target_view_payload.get("payload"):
+        run_score += 10
+
+    return {
+        "question": question,
+        "question_json": question_json,
+        "answer_views": answer_views,
+        "final_answer": best_answer,
+        "final_answer_source": best_answer_source,
+        "run_id": run_id,
+        "trace_events": trace_events,
+        "selected_kind": selected_kind,
+        "target_view": target_view,
+        "score": run_score,
+    }
+
+
+def _load_trace_demo_payload(qid: str, run_ids: list[str] | None = None) -> dict[str, Any]:
+    candidates: list[dict[str, Any]] = []
+    last_error = None
+    for run_id in _trace_demo_candidate_run_ids(qid, run_ids=run_ids):
+        candidate = _load_trace_demo_candidate(run_id, qid)
+        if candidate is None:
+            last_error = f"Missing answer view or usable final answer for {qid} in {run_id}"
+            continue
+        candidates.append(candidate)
+
+    if not candidates:
+        raise ValueError(last_error or f"Could not load trace-backed payload for {qid}")
+
+    candidates.sort(
+        key=lambda candidate: (candidate["score"], candidate["run_id"] in TRACE_DEMO_RUN_PREFERENCES),
+        reverse=True,
+    )
+    return candidates[0]
 
 
 def _lookup_selected_view(answer_views_payload: dict[str, Any]) -> dict[str, Any]:

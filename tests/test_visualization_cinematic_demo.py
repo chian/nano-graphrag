@@ -1,7 +1,15 @@
+import re
+
 import pytest
 
-from visualization.demo_catalog import _SCIENCE_NOTE_BANNED_PHRASES, build_cinematic_demo_from_artifacts
+from visualization.demo_catalog import (
+    _SCIENCE_NOTE_BANNED_PHRASES,
+    _load_trace_demo_payload,
+    build_cinematic_demo_from_artifacts,
+    get_demo,
+)
 from visualization.server import create_app
+import visualization.server as visualization_server
 
 
 ENZYME_GRAPH = (
@@ -44,7 +52,7 @@ def test_build_cinematic_demo_from_artifacts_topology_q001():
 
 
 def test_build_cinematic_demo_from_artifacts_rejects_missing_answer_views():
-    with pytest.raises(ValueError, match="no answer_views artifact"):
+    with pytest.raises(ValueError, match="Missing answer view or usable final answer"):
         build_cinematic_demo_from_artifacts(
             qid="q002",
             run_id="enzyme_demo_20260531_trace_2q_fg2",
@@ -85,3 +93,37 @@ def test_demo_catalog_route_skips_broken_entries():
     payload = response.get_json()
     assert isinstance(payload["demos"], list)
     assert payload["demos"]
+
+
+def test_demo_payload_route_returns_json_error_when_lookup_raises(monkeypatch):
+    app = create_app()
+    client = app.test_client()
+
+    def broken_lookup(_demo_id: str):
+        raise ValueError("demo lookup exploded")
+
+    monkeypatch.setattr(visualization_server, "get_demo", broken_lookup)
+
+    response = client.get("/api/demos/engineering-q001")
+
+    assert response.status_code == 500
+    assert response.is_json
+    payload = response.get_json()
+    assert payload["error"] == "demo lookup exploded"
+
+
+def test_trace_demo_payload_prefers_target_view_consistent_answer_for_q007():
+    payload = _load_trace_demo_payload("q007")
+
+    assert payload["target_view"] == "distribution"
+    assert payload["selected_kind"] == "distribution"
+    assert re.match(r"^n=\d+; mean=-?\d+(?:\.\d+)?; median=-?\d+(?:\.\d+)?$", payload["final_answer"])
+
+
+def test_curated_q001_demo_is_built_from_available_trace_artifacts():
+    demo = get_demo("engineering-q001")
+
+    assert demo is not None
+    assert demo["replay"][-1]["event"] == "query_complete"
+    assert "execution defects remain" not in demo["replay"][-1]["payload"]["answer"].lower()
+    assert "natural ventilation" in demo["replay"][-1]["payload"]["answer"].lower()

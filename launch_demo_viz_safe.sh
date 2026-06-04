@@ -13,6 +13,7 @@ fi
 
 HOST="${HOST:-127.0.0.1}"
 PORT="${PORT:-5050}"
+export NANOGRAPHRAG_LLM_TRANSPORT="${NANOGRAPHRAG_LLM_TRANSPORT:-shim}"
 FULL_GRAPH="${DEMO_FULL_GRAPH:-haiqu_graphs/v1/haiqu_engineering_controls/haiqu_engineering_controls_graph.graphml}"
 SUBSET_MAX_NODES="${DEMO_SUBSET_MAX_NODES:-1500}"
 SUBSET_GRAPH="${DEMO_SUBSET_GRAPH:-.viz_cache/graphs/haiqu_engineering_controls_topdeg${SUBSET_MAX_NODES}.graphml}"
@@ -64,6 +65,7 @@ setsid "$PYTHON" -m visualization.examples.demo \
     --no-debug \
     --host "$HOST" \
     --port "$PORT" \
+    --full-graph "$FULL_GRAPH" \
     "$SUBSET_GRAPH" \
     > "$log" 2>&1 < /dev/null &
 

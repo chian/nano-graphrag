@@ -1203,6 +1203,20 @@
             text-transform: uppercase;
         }
 
+        .question-field-label {
+            display: block;
+            margin: 0 0 4px;
+            color: #aaa;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        .unlock-input.is-masked {
+            -webkit-text-security: disc;
+        }
+
         .question-textarea {
             width: 100%;
             padding: 8px;
@@ -1419,13 +1433,16 @@
             <!-- Question Panel -->
             <div class="question-panel qa-panel">
                 <h3>Ask a Question</h3>
-                <!-- Password unlock -->
+                <label class="question-field-label" for="unlockInput">Unlock code</label>
                 <div class="byok-row" style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px;">
-                    <input type="password" id="passwordInput" class="byok-input"
-                           placeholder="Password to unlock queries"
+                    <input type="text" id="unlockInput" class="byok-input unlock-input is-masked"
+                           placeholder="Enter unlock phrase"
+                           autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false"
+                           inputmode="text" data-1p-ignore="true" data-lpignore="true" data-form-type="other"
+                           readonly onfocus="enableUnlockInput()" onpointerdown="enableUnlockInput()"
                            style="flex: 1 1 180px; padding: 6px 8px; background: #2a2a2a; color: #eee; border: 1px solid #444; border-radius: 4px; font-family: inherit; font-size: 12px;"
-                           oninput="localStorage.setItem(_LS_KEY_PASSWORD, this.value); updateApiKeyUI()">
-                    <button class="control-btn" type="button" onclick="toggleShowKey()" id="showKeyBtn" title="Show/hide password">👁</button>
+                           oninput="updateApiKeyUI()">
+                    <button class="control-btn" type="button" onclick="toggleShowKey()" id="showKeyBtn" title="Show/hide unlock code">👁</button>
                 </div>
                 <div class="byok-row" style="display: flex; gap: 6px; align-items: center; margin-bottom: 6px; font-size: 12px;">
                     <label for="modelSelect" style="color: #aaa;">Model:</label>
@@ -1471,7 +1488,8 @@
                         <option value="high">high (most thorough)</option>
                     </select>
                 </div>
-                <div id="apiKeyStatus" style="font-size: 11px; margin-bottom: 8px;">⚠ No API key — queries disabled</div>
+                <div id="apiKeyStatus" style="font-size: 11px; margin-bottom: 8px;">⚠ Enter unlock code to enable queries</div>
+                <label class="question-field-label" for="questionInput">Question</label>
                 <textarea class="question-textarea" id="questionInput"
                           placeholder="e.g. What cognitive functions are impaired by respiratory disease?"></textarea>
                 <div class="mode-row">
@@ -1718,6 +1736,34 @@
             } catch (e) {
                 console.error('Could not fetch color map:', e);
             }
+        }
+
+        function summarizeHttpBody(status, statusText, contentType, bodyText) {
+            const compact = (bodyText || '').replace(/\s+/g, ' ').trim();
+            const isHtml = (contentType || '').includes('text/html') || compact.startsWith('<!doctype') || compact.startsWith('<html');
+            if (isHtml) return `HTTP ${status}: ${statusText || 'Server error'}`;
+            if (!compact) return `HTTP ${status}: ${statusText || 'Request failed'}`;
+            return `HTTP ${status}: ${compact.slice(0, 220)}`;
+        }
+
+        async function readJsonResponse(response) {
+            const contentType = (response.headers.get('content-type') || '').toLowerCase();
+            const bodyText = await response.text();
+            if (!contentType.includes('application/json')) {
+                throw new Error(summarizeHttpBody(response.status, response.statusText, contentType, bodyText));
+            }
+
+            let data;
+            try {
+                data = JSON.parse(bodyText);
+            } catch (e) {
+                throw new Error(`HTTP ${response.status}: Invalid JSON response`);
+            }
+
+            if (!response.ok) {
+                throw new Error(data.error || summarizeHttpBody(response.status, response.statusText, contentType, bodyText));
+            }
+            return data;
         }
 
         function resetGaslMetrics() {
@@ -2437,8 +2483,7 @@
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({path: graphPath, full_graph_path: fullGraphPath || graphPath}),
             });
-            const data = await resp.json();
-            if (data.error) throw new Error(data.error);
+            const data = await readJsonResponse(resp);
             _hasInitialGraphFit = false;
             await fetchColors();
             await fetchGraph();
@@ -2449,7 +2494,7 @@
         async function fetchDemos() {
             try {
                 const resp = await fetch('/api/demos');
-                const data = await resp.json();
+                const data = await readJsonResponse(resp);
                 _demoCatalog = data.demos || [];
                 renderDemoCards();
             } catch (e) {
@@ -2545,8 +2590,7 @@
                 if (cinematic.targetSeconds) query.set('target_seconds', cinematic.targetSeconds);
 
                 const resp = await fetch('/api/cinematic-demo?' + query.toString());
-                const demo = await resp.json();
-                if (demo.error) throw new Error(demo.error);
+                const demo = await readJsonResponse(resp);
                 _activeDemo = demo;
                 setVisualStyle(demo.visual_style || null);
                 await loadGraphFromPaths(demo.graph_path, demo.full_graph_path);
@@ -2564,8 +2608,7 @@
         async function loadDemo(demoId, replayAfterLoad) {
             try {
                 const resp = await fetch('/api/demos/' + demoId);
-                const demo = await resp.json();
-                if (demo.error) throw new Error(demo.error);
+                const demo = await readJsonResponse(resp);
                 _activeDemo = demo;
                 setVisualStyle(demo.visual_style || null);
                 await loadGraphFromPaths(demo.graph_path, demo.full_graph_path);
@@ -2586,8 +2629,7 @@
             clearPendingGaslCompletion();
             try {
                 const resp = await fetch('/api/demos/' + demoId);
-                const demo = await resp.json();
-                if (demo.error) throw new Error(demo.error);
+                const demo = await readJsonResponse(resp);
 
                 _activeDemo = demo;
                 setVisualStyle(demo.visual_style || null);
@@ -3302,7 +3344,6 @@
         }
 
         // ── BYOK (Bring Your Own API Key) ──────────────────────────────────────
-        const _LS_KEY_PASSWORD = 'nano_graphrag_password';
         const _LS_KEY_MODEL = 'nano_graphrag_model';
         const _LS_KEY_CUSTOM_MODEL = 'nano_graphrag_custom_model';
         const _LS_KEY_EFFORT = 'nano_graphrag_effort';
@@ -3325,7 +3366,7 @@
         }
 
         function getPassword() {
-            return (document.getElementById('passwordInput').value || '').trim();
+            return (document.getElementById('unlockInput').value || '').trim();
         }
         function getModel() {
             const sel = document.getElementById('modelSelect').value;
@@ -3335,8 +3376,10 @@
             return sel;
         }
         function toggleShowKey() {
-            const i = document.getElementById('passwordInput');
-            i.type = (i.type === 'password') ? 'text' : 'password';
+            document.getElementById('unlockInput').classList.toggle('is-masked');
+        }
+        function enableUnlockInput() {
+            document.getElementById('unlockInput').removeAttribute('readonly');
         }
         function onModelChange() {
             const sel = document.getElementById('modelSelect').value;
@@ -3365,7 +3408,7 @@
                 status.style.color = '#27ae60';
                 askBtn.disabled = false;
             } else if (!pw) {
-                status.textContent = '🔒 Enter password to unlock queries';
+                status.textContent = '🔒 Enter unlock code to enable queries';
                 status.style.color = '#e67e22';
                 askBtn.disabled = true;
             } else {
@@ -3376,8 +3419,10 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
-            const savedPw = localStorage.getItem(_LS_KEY_PASSWORD) || '';
-            if (savedPw) document.getElementById('passwordInput').value = savedPw;
+            localStorage.removeItem('nano_graphrag_password');
+            const unlockInput = document.getElementById('unlockInput');
+            unlockInput.value = '';
+            setTimeout(() => { unlockInput.value = ''; updateApiKeyUI(); }, 500);
             const savedModel = localStorage.getItem(_LS_KEY_MODEL) || 'gpt-5.4-mini';
             const sel = document.getElementById('modelSelect');
             const known = Array.from(sel.options).map(o => o.value);
