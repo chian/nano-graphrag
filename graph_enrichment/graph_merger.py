@@ -35,13 +35,17 @@ def add_entities_to_graph(
         node: graph.nodes[node]
         for node in graph.nodes()
     }
+    existing_entities_by_type: Dict[str, Dict[str, Dict]] = {}
+    for node, entity in existing_entities.items():
+        entity_type = entity.get('entity_type', '')
+        existing_entities_by_type.setdefault(entity_type, {})[node] = entity
 
     for new_name, new_entity in new_entities.items():
         # Find potential matches
         matches = find_entity_matches(
             new_entity,
-            existing_entities,
-            entity_type_match=True,
+            existing_entities_by_type.get(new_entity.get('entity_type', ''), {}),
+            entity_type_match=False,
             similarity_threshold=similarity_threshold
         )
 
@@ -76,6 +80,10 @@ def add_entities_to_graph(
             )
 
             existing_entities[canonical_name] = new_entity_data
+            existing_entities_by_type.setdefault(
+                new_entity_data.get('entity_type', ''),
+                {},
+            )[canonical_name] = new_entity_data
 
     return graph, name_mapping
 

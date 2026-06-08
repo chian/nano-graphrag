@@ -61,6 +61,15 @@ def calculate_similarity(name1: str, name2: str) -> float:
     norm1 = normalize_entity_name(name1)
     norm2 = normalize_entity_name(name2)
 
+    direct_similarity = _direct_similarity(norm1, norm2)
+    if direct_similarity is not None:
+        return direct_similarity
+
+    # Use sequence matching for similar strings
+    return SequenceMatcher(None, norm1, norm2).ratio()
+
+
+def _direct_similarity(norm1: str, norm2: str) -> Optional[float]:
     # Exact match
     if norm1 == norm2:
         return 1.0
@@ -79,8 +88,22 @@ def calculate_similarity(name1: str, name2: str) -> float:
     if is_abbreviation(norm1, norm2) or is_abbreviation(norm2, norm1):
         return 0.85
 
-    # Use sequence matching for similar strings
-    return SequenceMatcher(None, norm1, norm2).ratio()
+    return None
+
+
+def _thresholded_similarity(norm1: str, norm2: str, threshold: float) -> Optional[float]:
+    direct_similarity = _direct_similarity(norm1, norm2)
+    if direct_similarity is not None:
+        return direct_similarity if direct_similarity >= threshold else None
+
+    matcher = SequenceMatcher(None, norm1, norm2)
+    if matcher.real_quick_ratio() < threshold:
+        return None
+    if matcher.quick_ratio() < threshold:
+        return None
+
+    similarity = matcher.ratio()
+    return similarity if similarity >= threshold else None
 
 
 def is_abbreviation(abbr: str, full: str) -> bool:
@@ -124,6 +147,7 @@ def find_entity_matches(
         List of (entity_name, similarity_score) tuples, sorted by score
     """
     new_name = new_entity['entity_name']
+    new_norm = normalize_entity_name(new_name)
     new_type = new_entity.get('entity_type', '')
 
     matches = []
@@ -135,10 +159,12 @@ def find_entity_matches(
             if existing_type != new_type:
                 continue
 
-        # Calculate similarity
-        similarity = calculate_similarity(new_name, existing_name)
-
-        if similarity >= similarity_threshold:
+        similarity = _thresholded_similarity(
+            new_norm,
+            normalize_entity_name(existing_name),
+            similarity_threshold,
+        )
+        if similarity is not None:
             matches.append((existing_name, similarity))
 
     # Sort by similarity (highest first)
