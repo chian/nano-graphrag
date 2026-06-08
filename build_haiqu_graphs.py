@@ -41,6 +41,7 @@ import json
 import logging
 import math
 import os
+import re
 import sys
 import time
 import traceback
@@ -183,6 +184,24 @@ def batched(items: List[Tuple[int, dict]], batch_size: int) -> List[List[Tuple[i
     return [items[i:i + batch_size] for i in range(0, len(items), batch_size)]
 
 
+def compile_metadata_exclude_regex(patterns: Optional[List[str]]) -> List[re.Pattern]:
+    return [re.compile(pattern, re.IGNORECASE) for pattern in patterns or []]
+
+
+def metadata_exclude_match(paper_meta: dict, patterns: List[re.Pattern]) -> Optional[str]:
+    if not patterns:
+        return None
+
+    haystack = "\n".join(
+        str(paper_meta.get(key) or "")
+        for key in ("title", "url", "description")
+    )
+    for pattern in patterns:
+        if pattern.search(haystack):
+            return pattern.pattern
+    return None
+
+
 async def extract_paper(
     text: str,
     paper_uuid: str,
@@ -268,6 +287,7 @@ async def extract_paper_batch(
     max_paper_length: Optional[int],
     completion_threshold: float,
     straggler_idle_sec: float,
+    exclude_metadata_regex: Optional[List[re.Pattern]] = None,
     semaphore: Optional[asyncio.Semaphore] = None,
     on_result: Optional[Callable[[PaperExtractionResult], Awaitable[None]]] = None,
 ) -> List[PaperExtractionResult]:
@@ -275,6 +295,24 @@ async def extract_paper_batch(
         uuid = paper_meta.get("uuid", "")
         title = (paper_meta.get("title") or "(untitled)")[:80]
         path = group_dir / "papers" / paper_meta.get("content_file", f"{uuid}.md")
+
+        excluded_by = metadata_exclude_match(paper_meta, exclude_metadata_regex or [])
+        if excluded_by:
+            try:
+                text_length = int(paper_meta.get("content_chars") or 0)
+            except (TypeError, ValueError):
+                text_length = 0
+            print(f"  [{index}/{papers_total}] EXCLUDE metadata /{excluded_by}/: {title}")
+            return PaperExtractionResult(
+                index,
+                uuid,
+                title,
+                "excluded",
+                text_length,
+                {},
+                [],
+                error=f"metadata matched /{excluded_by}/",
+            )
 
         if not path.exists():
             print(f"  [{index}/{papers_total}] MISSING file: {path}")
@@ -340,6 +378,7 @@ async def build_group(
     paper_concurrency: int,
     chunk_concurrency: Optional[int] = None,
     max_paper_length: Optional[int] = None,
+    exclude_metadata_regex: Optional[List[re.Pattern]] = None,
     completion_threshold: float = 1.0,
     straggler_idle_sec: float = 0.0,
 ) -> GroupResult:
@@ -438,7 +477,13 @@ async def build_group(
             "last_event_at": utc_now_iso(),
             "status": "extracting",
             "results_completed": 0,
-            "results_by_status": {"ok": 0, "failed": 0, "short": 0, "oversized": 0},
+            "results_by_status": {
+                "ok": 0,
+                "failed": 0,
+                "short": 0,
+                "oversized": 0,
+                "excluded": 0,
+            },
             "papers": [
                 {
                     "index": index,
@@ -475,6 +520,7 @@ async def build_group(
             max_paper_length=max_paper_length,
             completion_threshold=completion_threshold,
             straggler_idle_sec=straggler_idle_sec,
+            exclude_metadata_regex=exclude_metadata_regex,
             semaphore=semaphore,
             on_result=on_batch_result,
         )
@@ -484,7 +530,7 @@ async def build_group(
         last_uuid = None
         for result in batch_results:
             last_uuid = result.uuid
-            if result.status in {"short", "oversized"}:
+            if result.status in {"short", "oversized", "excluded"}:
                 skipped_short += 1
                 completed_uuids.add(result.uuid)
                 continue
@@ -622,6 +668,7 @@ async def amain(args: argparse.Namespace) -> None:
     print(f"limit/grp  : {args.limit_papers}")
 
     results: List[GroupResult] = []
+    exclude_metadata_regex = compile_metadata_exclude_regex(args.exclude_metadata_regex)
     for g in groups:
         try:
             r = await build_group(
@@ -642,6 +689,7 @@ async def amain(args: argparse.Namespace) -> None:
                 paper_concurrency=args.paper_concurrency,
                 chunk_concurrency=args.chunk_concurrency,
                 max_paper_length=args.max_paper_length,
+                exclude_metadata_regex=exclude_metadata_regex,
                 completion_threshold=args.completion_threshold,
                 straggler_idle_sec=args.straggler_idle_sec,
             )
@@ -656,6 +704,7 @@ async def amain(args: argparse.Namespace) -> None:
         "model": args.model,
         "transport": args.transport,
         "corpus_dir": str(corpus_dir),
+        "exclude_metadata_regex": args.exclude_metadata_regex or [],
         "results": [r.__dict__ for r in results],
     }
     with open(summary_path, "w", encoding="utf-8") as f:
@@ -710,6 +759,8 @@ def main() -> None:
                    help="Seconds without chunk completions before cancelling stragglers after threshold (default: disabled)")
     p.add_argument("--max-paper-length", type=int, default=None,
                    help="Skip papers longer than this many chars, e.g. 500000 to drop RSS feeds (default: unlimited)")
+    p.add_argument("--exclude-metadata-regex", action="append",
+                   help="Case-insensitive regex over paper title, URL, and description to skip bad corpus records")
     args = p.parse_args()
 
     # Quiet nano-graphrag debug noise unless the user already cranked it up.

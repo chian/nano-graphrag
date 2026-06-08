@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import copy
 import json
+import re
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -149,3 +150,55 @@ async def test_extract_paper_batch_runs_papers_concurrently(tmp_path, monkeypatc
 
     assert [result.status for result in results] == ["ok", "ok"]
     assert set(started) == {"u1", "u2"}
+
+
+@pytest.mark.asyncio
+async def test_extract_paper_batch_excludes_metadata_regex(tmp_path, monkeypatch):
+    corpus_dir = _write_group(tmp_path)
+    group_dir = corpus_dir / "demo_group"
+    started: list[str] = []
+
+    async def fake_extract_paper(
+        text,
+        paper_uuid,
+        extractor,
+        chunk_size,
+        overlap,
+        semaphore,
+        completion_threshold,
+        straggler_idle_sec,
+    ):
+        started.append(paper_uuid)
+        return {paper_uuid: {"entity_name": paper_uuid, "source_chunks": []}}, []
+
+    monkeypatch.setattr(bhg, "extract_paper", fake_extract_paper)
+
+    results = await bhg.extract_paper_batch(
+        batch=[
+            (
+                1,
+                {
+                    "uuid": "u1",
+                    "title": "[XML] demo feed",
+                    "url": "https://example.test/feed",
+                    "content_file": "missing.md",
+                    "content_chars": 1000000,
+                },
+            ),
+            (2, {"uuid": "u2", "title": "Paper 2", "content_file": "u2.md"}),
+        ],
+        papers_total=2,
+        group_dir=group_dir,
+        extractor=object(),
+        chunk_size=4000,
+        overlap=400,
+        min_paper_length=0,
+        max_paper_length=None,
+        completion_threshold=1.0,
+        straggler_idle_sec=0.0,
+        exclude_metadata_regex=[re.compile(r"\[XML\]|/feed")],
+    )
+
+    assert [result.status for result in results] == ["excluded", "ok"]
+    assert results[0].text_length == 1000000
+    assert started == ["u2"]
