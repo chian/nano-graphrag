@@ -52,19 +52,22 @@ def add_entities_to_graph(
 
     for new_name, new_entity in new_entities.items():
         entity_type = new_entity.get('entity_type', '')
-        exact_name_match = exact_names_by_type.get(entity_type, {}).get(
-            normalize_entity_name(new_name)
-        )
-        if auto_merge and exact_name_match is not None:
-            matches = [(exact_name_match, 1.0)]
-        else:
-            # Find potential fuzzy matches among comparable entity types.
-            matches = find_entity_matches(
-                new_entity,
-                existing_entities_by_type.get(entity_type, {}),
-                entity_type_match=False,
-                similarity_threshold=similarity_threshold
+        matches = []
+
+        if auto_merge:
+            exact_name_match = exact_names_by_type.get(entity_type, {}).get(
+                normalize_entity_name(new_name)
             )
+            if exact_name_match is not None:
+                matches = [(exact_name_match, 1.0)]
+            elif similarity_threshold < 1.0:
+                # Find potential fuzzy matches among comparable entity types.
+                matches = find_entity_matches(
+                    new_entity,
+                    existing_entities_by_type.get(entity_type, {}),
+                    entity_type_match=False,
+                    similarity_threshold=similarity_threshold
+                )
 
         if matches and auto_merge:
             # Use the best match

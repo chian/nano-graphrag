@@ -99,3 +99,38 @@ def test_add_entities_uses_exact_index_before_fuzzy_scan(monkeypatch):
     assert name_mapping == {"exact entity": "Exact Entity"}
     assert "exact entity" not in graph
     assert graph.nodes["Exact Entity"]["description"] == "old | new"
+
+
+def test_add_entities_threshold_one_skips_non_exact_fuzzy_scan(monkeypatch):
+    def fail_find_entity_matches(*_args, **_kwargs):
+        raise AssertionError("threshold 1.0 should use exact-only matching")
+
+    monkeypatch.setattr(
+        "graph_enrichment.graph_merger.find_entity_matches",
+        fail_find_entity_matches,
+    )
+
+    graph = nx.DiGraph()
+    graph.add_node(
+        "Existing Entity",
+        entity_name="Existing Entity",
+        entity_type="CLAIM",
+        description="old",
+    )
+
+    _, name_mapping = add_entities_to_graph(
+        graph,
+        {
+            "New Entity": {
+                "entity_name": "New Entity",
+                "entity_type": "CLAIM",
+                "description": "new",
+            },
+        },
+        source_uuid="paper-3",
+        similarity_threshold=1.0,
+    )
+
+    assert name_mapping == {"New Entity": "New Entity"}
+    assert "Existing Entity" in graph
+    assert "New Entity" in graph
