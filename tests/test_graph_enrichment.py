@@ -65,3 +65,37 @@ def test_add_entities_only_scans_matching_entity_type(monkeypatch):
     )
 
     assert scanned_candidate_counts == [1]
+
+
+def test_add_entities_uses_exact_index_before_fuzzy_scan(monkeypatch):
+    def fail_find_entity_matches(*_args, **_kwargs):
+        raise AssertionError("exact normalized matches should not scan")
+
+    monkeypatch.setattr(
+        "graph_enrichment.graph_merger.find_entity_matches",
+        fail_find_entity_matches,
+    )
+
+    graph = nx.DiGraph()
+    graph.add_node(
+        "Exact Entity",
+        entity_name="Exact Entity",
+        entity_type="CLAIM",
+        description="old",
+    )
+
+    _, name_mapping = add_entities_to_graph(
+        graph,
+        {
+            "exact entity": {
+                "entity_name": "exact entity",
+                "entity_type": "CLAIM",
+                "description": "new",
+            },
+        },
+        source_uuid="paper-2",
+    )
+
+    assert name_mapping == {"exact entity": "Exact Entity"}
+    assert "exact entity" not in graph
+    assert graph.nodes["Exact Entity"]["description"] == "old | new"

@@ -5,7 +5,12 @@ Functions for merging entities and relationships into existing graphs
 
 import networkx as nx
 from typing import Dict, List
-from .entity_merger import find_entity_matches, merge_entities, get_canonical_name
+from .entity_merger import (
+    find_entity_matches,
+    get_canonical_name,
+    merge_entities,
+    normalize_entity_name,
+)
 from nano_graphrag.graph_slots import add_source_ref, get_source_refs
 
 
@@ -36,18 +41,30 @@ def add_entities_to_graph(
         for node in graph.nodes()
     }
     existing_entities_by_type: Dict[str, Dict[str, Dict]] = {}
+    exact_names_by_type: Dict[str, Dict[str, str]] = {}
     for node, entity in existing_entities.items():
         entity_type = entity.get('entity_type', '')
         existing_entities_by_type.setdefault(entity_type, {})[node] = entity
+        exact_names_by_type.setdefault(entity_type, {}).setdefault(
+            normalize_entity_name(node),
+            node,
+        )
 
     for new_name, new_entity in new_entities.items():
-        # Find potential matches
-        matches = find_entity_matches(
-            new_entity,
-            existing_entities_by_type.get(new_entity.get('entity_type', ''), {}),
-            entity_type_match=False,
-            similarity_threshold=similarity_threshold
+        entity_type = new_entity.get('entity_type', '')
+        exact_name_match = exact_names_by_type.get(entity_type, {}).get(
+            normalize_entity_name(new_name)
         )
+        if auto_merge and exact_name_match is not None:
+            matches = [(exact_name_match, 1.0)]
+        else:
+            # Find potential fuzzy matches among comparable entity types.
+            matches = find_entity_matches(
+                new_entity,
+                existing_entities_by_type.get(entity_type, {}),
+                entity_type_match=False,
+                similarity_threshold=similarity_threshold
+            )
 
         if matches and auto_merge:
             # Use the best match
@@ -84,6 +101,10 @@ def add_entities_to_graph(
                 new_entity_data.get('entity_type', ''),
                 {},
             )[canonical_name] = new_entity_data
+            exact_names_by_type.setdefault(
+                new_entity_data.get('entity_type', ''),
+                {},
+            ).setdefault(normalize_entity_name(canonical_name), canonical_name)
 
     return graph, name_mapping
 
