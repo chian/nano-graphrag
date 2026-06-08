@@ -9,7 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 
-import build_haiqu_graphs as bhg
+import build_corpus_graphs as bcg
 
 
 def _write_group(tmp_path: Path) -> Path:
@@ -36,45 +36,45 @@ async def test_build_group_writes_live_progress_without_advancing_resume_state(t
     corpus_dir = _write_group(tmp_path)
     output_dir = tmp_path / "out"
     observed_states: list[dict] = []
-    original_save_state = bhg.save_state
+    original_save_state = bcg.save_state
 
     def recording_save_state(state_path: Path, state: dict) -> None:
         observed_states.append(copy.deepcopy(state))
         original_save_state(state_path, state)
 
     async def fake_extract_paper_batch(*, on_result=None, **kwargs):
-        r1 = bhg.PaperExtractionResult(1, "u1", "Paper 1", "ok", 5, {"u1": {"source_chunks": []}}, [])
-        r2 = bhg.PaperExtractionResult(2, "u2", "Paper 2", "ok", 4, {"u2": {"source_chunks": []}}, [])
+        r1 = bcg.PaperExtractionResult(1, "u1", "Paper 1", "ok", 5, {"u1": {"source_chunks": []}}, [])
+        r2 = bcg.PaperExtractionResult(2, "u2", "Paper 2", "ok", 4, {"u2": {"source_chunks": []}}, [])
         if on_result is not None:
             await on_result(r1)
             await on_result(r2)
         return [r1, r2]
 
-    monkeypatch.setattr(bhg, "save_state", recording_save_state)
+    monkeypatch.setattr(bcg, "save_state", recording_save_state)
     monkeypatch.setattr(
-        bhg,
+        bcg,
         "load_domain_schema",
         lambda _: SimpleNamespace(entity_types=["E"], relationship_types=["R"]),
     )
     monkeypatch.setattr(
-        bhg,
+        bcg,
         "ArgoBridgeLLM",
         lambda model: SimpleNamespace(call_async=lambda *_args, **_kwargs: None, usage={}),
     )
-    monkeypatch.setattr(bhg, "create_domain_extractor_from_schema", lambda *args, **kwargs: object())
-    monkeypatch.setattr(bhg, "extract_paper_batch", fake_extract_paper_batch)
+    monkeypatch.setattr(bcg, "create_domain_extractor_from_schema", lambda *args, **kwargs: object())
+    monkeypatch.setattr(bcg, "extract_paper_batch", fake_extract_paper_batch)
     monkeypatch.setattr(
-        bhg,
+        bcg,
         "add_entities_to_graph",
         lambda graph, entities, uuid, **kwargs: (graph, {}),
     )
-    monkeypatch.setattr(bhg, "add_relationships_to_graph", lambda graph, relationships, name_mapping, uuid: graph)
-    monkeypatch.setattr(bhg, "merge_graphs", lambda graph, batch_graph, *_args, **_kwargs: graph)
-    monkeypatch.setattr(bhg, "save_graph", lambda graph, path: None)
-    monkeypatch.setattr(bhg, "metadata_from_schema_and_corpus", lambda **kwargs: {})
-    monkeypatch.setattr(bhg, "save_graph_metadata", lambda *_args, **_kwargs: tmp_path / "meta.json")
+    monkeypatch.setattr(bcg, "add_relationships_to_graph", lambda graph, relationships, name_mapping, uuid: graph)
+    monkeypatch.setattr(bcg, "merge_graphs", lambda graph, batch_graph, *_args, **_kwargs: graph)
+    monkeypatch.setattr(bcg, "save_graph", lambda graph, path: None)
+    monkeypatch.setattr(bcg, "metadata_from_schema_and_corpus", lambda **kwargs: {})
+    monkeypatch.setattr(bcg, "save_graph_metadata", lambda *_args, **_kwargs: tmp_path / "meta.json")
 
-    await bhg.build_group(
+    await bcg.build_group(
         group="demo_group",
         corpus_dir=corpus_dir,
         output_dir=output_dir,
@@ -130,9 +130,9 @@ async def test_extract_paper_batch_runs_papers_concurrently(tmp_path, monkeypatc
         await asyncio.wait_for(both_started.wait(), timeout=0.25)
         return {paper_uuid: {"entity_name": paper_uuid, "source_chunks": []}}, []
 
-    monkeypatch.setattr(bhg, "extract_paper", fake_extract_paper)
+    monkeypatch.setattr(bcg, "extract_paper", fake_extract_paper)
 
-    results = await bhg.extract_paper_batch(
+    results = await bcg.extract_paper_batch(
         batch=[
             (1, {"uuid": "u1", "title": "Paper 1", "content_file": "u1.md"}),
             (2, {"uuid": "u2", "title": "Paper 2", "content_file": "u2.md"}),
@@ -171,9 +171,9 @@ async def test_extract_paper_batch_excludes_metadata_regex(tmp_path, monkeypatch
         started.append(paper_uuid)
         return {paper_uuid: {"entity_name": paper_uuid, "source_chunks": []}}, []
 
-    monkeypatch.setattr(bhg, "extract_paper", fake_extract_paper)
+    monkeypatch.setattr(bcg, "extract_paper", fake_extract_paper)
 
-    results = await bhg.extract_paper_batch(
+    results = await bcg.extract_paper_batch(
         batch=[
             (
                 1,

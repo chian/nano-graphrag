@@ -22,15 +22,15 @@ Usage:
     export LLM_API_KEY=...
     export LLM_ENDPOINT=https://apps-dev.inside.anl.gov/argoapi/v1
 
-    python build_haiqu_graphs.py --model gpt-5.4-mini
-    python build_haiqu_graphs.py \\
+    python build_corpus_graphs.py --model gpt-5.4-mini
+    python build_corpus_graphs.py \\
         --corpus-dir data/my_corpus \\
         --output-dir graphs/my_run \\
         --groups my_group \\
         --chunk-size 1200 \\
         --overlap 100 \\
         --transport direct
-    python build_haiqu_graphs.py --groups haiqu_biosensor_detection \\
+    python build_corpus_graphs.py --groups haiqu_biosensor_detection \\
         --limit-papers 3                 # smoke test
 """
 from __future__ import annotations
