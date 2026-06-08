@@ -198,6 +198,39 @@ class ArgoBridgeLLM:
             http2=False,
         )
 
+    @staticmethod
+    def _compact_exception(exc: BaseException) -> str:
+        text = str(exc).replace("\n", " ").strip()
+        return text[:500] or repr(exc)[:500]
+
+    @classmethod
+    def _exception_diagnostics(cls, exc: BaseException) -> str:
+        details = [f"type={type(exc).__name__}"]
+        status_code = getattr(exc, "status_code", None)
+        request_id = getattr(exc, "request_id", None)
+        if status_code is not None:
+            details.append(f"status={status_code}")
+        if request_id:
+            details.append(f"request_id={request_id}")
+
+        chain = []
+        seen = set()
+        cause = exc.__cause__ or exc.__context__
+        while cause is not None and id(cause) not in seen:
+            seen.add(id(cause))
+            chain.append(
+                f"{type(cause).__name__}: {cls._compact_exception(cause)}"
+            )
+            cause = cause.__cause__ or cause.__context__
+
+        if chain:
+            details.append("cause_chain=" + " <- ".join(chain))
+        return ", ".join(details)
+
+    @classmethod
+    def _llm_error_message(cls, exc: BaseException) -> str:
+        return f"LLM call failed: {cls._compact_exception(exc)} [{cls._exception_diagnostics(exc)}]"
+
     def _create_openai_client(self) -> AsyncOpenAI:
         http_client = self._create_http_client()
         return AsyncOpenAI(
@@ -238,7 +271,10 @@ class ArgoBridgeLLM:
             stream = await client.chat.completions.create(**kwargs)
             full_text = ""
             async for chunk in stream:
-                token = (chunk.choices[0].delta.content or "") if chunk.choices else ""
+                choice = chunk.choices[0] if chunk.choices else None
+                if choice is not None and choice.finish_reason == "content_filter":
+                    raise ContentFilterFinishReasonError()
+                token = (choice.delta.content or "") if choice else ""
                 if token:
                     full_text += token
                     try:
@@ -252,7 +288,10 @@ class ArgoBridgeLLM:
 
         kwargs = self._build_create_kwargs(prompt, stream=False)
         response = await client.chat.completions.create(**kwargs)
-        result = response.choices[0].message.content
+        choice = response.choices[0]
+        if choice.finish_reason == "content_filter":
+            raise ContentFilterFinishReasonError()
+        result = choice.message.content or ""
         u = getattr(response, "usage", None)
         if u is not None:
             self.usage["prompt_tokens"] += getattr(u, "prompt_tokens", 0) or 0
@@ -330,76 +369,76 @@ class ArgoBridgeLLM:
             raise RuntimeError("LLM direct call exhausted retries without a terminal response")
         except AuthenticationError as e:
             raise LLMError(
-                f"LLM call failed: {e}",
+                self._llm_error_message(e),
                 "argo_bridge",
                 self.model,
                 category="auth",
                 status_code=getattr(e, "status_code", None),
                 original_type=type(e).__name__,
                 fatal=True,
-            )
+            ) from e
         except PermissionDeniedError as e:
             raise LLMError(
-                f"LLM call failed: {e}",
+                self._llm_error_message(e),
                 "argo_bridge",
                 self.model,
                 category="auth",
                 status_code=getattr(e, "status_code", None),
                 original_type=type(e).__name__,
                 fatal=True,
-            )
+            ) from e
         except (APIConnectionError, APITimeoutError) as e:
             raise LLMError(
-                f"LLM call failed: {e}",
+                self._llm_error_message(e),
                 "argo_bridge",
                 self.model,
                 category="endpoint",
                 status_code=getattr(e, "status_code", None),
                 original_type=type(e).__name__,
                 fatal=True,
-            )
+            ) from e
         except (RateLimitError, InternalServerError) as e:
             raise LLMError(
-                f"LLM call failed: {e}",
+                self._llm_error_message(e),
                 "argo_bridge",
                 self.model,
                 category="endpoint",
                 status_code=getattr(e, "status_code", None),
                 original_type=type(e).__name__,
                 fatal=True,
-            )
+            ) from e
         except APIStatusError as e:
             code = getattr(e, "status_code", None)
             fatal = code is not None and code >= 500
             raise LLMError(
-                f"LLM call failed: {e}",
+                self._llm_error_message(e),
                 "argo_bridge",
                 self.model,
                 category="endpoint" if fatal else "request",
                 status_code=code,
                 original_type=type(e).__name__,
                 fatal=fatal,
-            )
+            ) from e
         except (BadRequestError, UnprocessableEntityError, ContentFilterFinishReasonError) as e:
             raise LLMError(
-                f"LLM call failed: {e}",
+                self._llm_error_message(e),
                 "argo_bridge",
                 self.model,
                 category="request",
                 status_code=getattr(e, "status_code", None),
                 original_type=type(e).__name__,
                 fatal=False,
-            )
+            ) from e
         except Exception as e:
             raise LLMError(
-                f"LLM call failed: {e}",
+                self._llm_error_message(e),
                 "argo_bridge",
                 self.model,
                 category="unknown",
                 status_code=getattr(e, "status_code", None),
                 original_type=type(e).__name__,
                 fatal=False,
-            )
+            ) from e
 
     def call(self, prompt: str) -> str:
         """Make synchronous LLM call (streams if stream_callback is set)."""
