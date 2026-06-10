@@ -209,6 +209,7 @@ async def extract_paper(
     chunk_size: int,
     overlap: int,
     semaphore: Optional[asyncio.Semaphore] = None,
+    per_paper_chunk_concurrency: Optional[int] = None,
     completion_threshold: float = 1.0,
     straggler_idle_sec: float = 0.0,
 ) -> Tuple[Dict[str, Dict], List[Dict]]:
@@ -234,27 +235,52 @@ async def extract_paper(
         last_completion = time.monotonic()
         results[i] = (local_entities, local_rels)
 
-    tasks = [asyncio.create_task(_extract_one(i, chunk)) for i, chunk in enumerate(chunks)]
-    if tasks:
-        if completion_threshold < 1.0 and straggler_idle_sec > 0:
-            threshold_count = max(1, math.ceil(len(tasks) * completion_threshold))
-            poll_interval = min(30.0, max(1.0, straggler_idle_sec / 20.0))
-            while True:
-                done_count = sum(1 for task in tasks if task.done())
-                if done_count >= len(tasks):
-                    break
-                if done_count >= threshold_count and time.monotonic() - last_completion >= straggler_idle_sec:
-                    stragglers = [task for task in tasks if not task.done()]
+    next_chunk = 0
+    in_flight: set[asyncio.Task] = set()
+    if per_paper_chunk_concurrency is None:
+        max_in_flight = len(chunks)
+    else:
+        max_in_flight = max(1, per_paper_chunk_concurrency)
+
+    def schedule_available_chunks() -> None:
+        nonlocal next_chunk
+        while next_chunk < len(chunks) and len(in_flight) < max_in_flight:
+            task = asyncio.create_task(_extract_one(next_chunk, chunks[next_chunk]))
+            in_flight.add(task)
+            next_chunk += 1
+
+    schedule_available_chunks()
+    if in_flight:
+        threshold_count = max(1, math.ceil(len(chunks) * completion_threshold))
+        poll_interval = min(30.0, max(1.0, straggler_idle_sec / 20.0))
+        completed_count = 0
+
+        while in_flight:
+            timeout = None
+            if completion_threshold < 1.0 and straggler_idle_sec > 0:
+                if (
+                    completed_count >= threshold_count
+                    and time.monotonic() - last_completion >= straggler_idle_sec
+                ):
                     print(
-                        f"    ! cancelling {len(stragglers)}/{len(tasks)} straggler chunks "
-                        f"for {paper_uuid[:8]} ({done_count}/{len(tasks)} done, "
+                        f"    ! cancelling {len(in_flight)}/{len(chunks)} straggler chunks "
+                        f"for {paper_uuid[:8]} ({completed_count}/{len(chunks)} done, "
                         f"idle {straggler_idle_sec:.0f}s)"
                     )
-                    for task in stragglers:
+                    for task in in_flight:
                         task.cancel()
                     break
-                await asyncio.wait(tasks, timeout=poll_interval, return_when=asyncio.FIRST_COMPLETED)
-        await asyncio.gather(*tasks, return_exceptions=True)
+                timeout = poll_interval
+
+            done, in_flight = await asyncio.wait(
+                in_flight,
+                timeout=timeout,
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            completed_count += len(done)
+            schedule_available_chunks()
+
+        await asyncio.gather(*in_flight, return_exceptions=True)
 
     entities: Dict[str, Dict] = {}
     relationships: List[Dict] = []
@@ -287,6 +313,7 @@ async def extract_paper_batch(
     max_paper_length: Optional[int],
     completion_threshold: float,
     straggler_idle_sec: float,
+    per_paper_chunk_concurrency: Optional[int] = None,
     exclude_metadata_regex: Optional[List[re.Pattern]] = None,
     semaphore: Optional[asyncio.Semaphore] = None,
     on_result: Optional[Callable[[PaperExtractionResult], Awaitable[None]]] = None,
@@ -341,6 +368,7 @@ async def extract_paper_batch(
                 chunk_size=chunk_size,
                 overlap=overlap,
                 semaphore=semaphore,
+                per_paper_chunk_concurrency=per_paper_chunk_concurrency,
                 completion_threshold=completion_threshold,
                 straggler_idle_sec=straggler_idle_sec,
             )
@@ -379,6 +407,7 @@ async def build_group(
     chunk_concurrency: Optional[int] = None,
     max_paper_length: Optional[int] = None,
     exclude_metadata_regex: Optional[List[re.Pattern]] = None,
+    per_paper_chunk_concurrency: Optional[int] = None,
     completion_threshold: float = 1.0,
     straggler_idle_sec: float = 0.0,
 ) -> GroupResult:
@@ -520,6 +549,7 @@ async def build_group(
             max_paper_length=max_paper_length,
             completion_threshold=completion_threshold,
             straggler_idle_sec=straggler_idle_sec,
+            per_paper_chunk_concurrency=per_paper_chunk_concurrency,
             exclude_metadata_regex=exclude_metadata_regex,
             semaphore=semaphore,
             on_result=on_batch_result,
@@ -690,6 +720,7 @@ async def amain(args: argparse.Namespace) -> None:
                 chunk_concurrency=args.chunk_concurrency,
                 max_paper_length=args.max_paper_length,
                 exclude_metadata_regex=exclude_metadata_regex,
+                per_paper_chunk_concurrency=args.per_paper_chunk_concurrency,
                 completion_threshold=args.completion_threshold,
                 straggler_idle_sec=args.straggler_idle_sec,
             )
@@ -753,6 +784,8 @@ def main() -> None:
                    help="Papers to extract per batch before one central merge (default: 6)")
     p.add_argument("--chunk-concurrency", type=int, default=None,
                    help="Max concurrent chunk LLM calls across in-flight papers (default: unlimited)")
+    p.add_argument("--per-paper-chunk-concurrency", type=int, default=None,
+                   help="Max queued chunks per paper; pair with --chunk-concurrency to keep large papers from monopolizing the shared pool (default: all chunks)")
     p.add_argument("--completion-threshold", type=float, default=1.0,
                    help="Fraction of a paper's chunks required before idle stragglers can be cancelled (default: 1.0)")
     p.add_argument("--straggler-idle-sec", type=float, default=0.0,

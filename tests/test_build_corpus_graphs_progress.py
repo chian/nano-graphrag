@@ -121,6 +121,7 @@ async def test_extract_paper_batch_runs_papers_concurrently(tmp_path, monkeypatc
         chunk_size,
         overlap,
         semaphore,
+        per_paper_chunk_concurrency,
         completion_threshold,
         straggler_idle_sec,
     ):
@@ -165,6 +166,7 @@ async def test_extract_paper_batch_excludes_metadata_regex(tmp_path, monkeypatch
         chunk_size,
         overlap,
         semaphore,
+        per_paper_chunk_concurrency,
         completion_threshold,
         straggler_idle_sec,
     ):
@@ -202,3 +204,53 @@ async def test_extract_paper_batch_excludes_metadata_regex(tmp_path, monkeypatch
     assert [result.status for result in results] == ["excluded", "ok"]
     assert results[0].text_length == 1000000
     assert started == ["u2"]
+
+
+@pytest.mark.asyncio
+async def test_extract_paper_limits_in_flight_chunks_per_paper(monkeypatch):
+    release_chunks = asyncio.Event()
+    first_two_started = asyncio.Event()
+    started: list[str] = []
+
+    monkeypatch.setattr(
+        bcg,
+        "chunk_text",
+        lambda *_args, **_kwargs: ["chunk-0", "chunk-1", "chunk-2", "chunk-3", "chunk-4"],
+    )
+
+    async def fake_extract_from_chunk(chunk, chunk_id, extractor, local_entities, local_rels):
+        started.append(chunk_id)
+        if len(started) == 2:
+            first_two_started.set()
+        await release_chunks.wait()
+        local_entities[chunk_id] = {"entity_name": chunk_id, "source_chunks": []}
+
+    monkeypatch.setattr(bcg, "extract_from_chunk", fake_extract_from_chunk)
+
+    task = asyncio.create_task(
+        bcg.extract_paper(
+            "paper",
+            "paper_uuid",
+            extractor=object(),
+            chunk_size=1,
+            overlap=0,
+            per_paper_chunk_concurrency=2,
+        )
+    )
+
+    await asyncio.wait_for(first_two_started.wait(), timeout=0.25)
+    await asyncio.sleep(0)
+
+    assert started == ["paper_uuid_chunk_0", "paper_uuid_chunk_1"]
+
+    release_chunks.set()
+    entities, relationships = await asyncio.wait_for(task, timeout=0.25)
+
+    assert set(entities) == {
+        "paper_uuid_chunk_0",
+        "paper_uuid_chunk_1",
+        "paper_uuid_chunk_2",
+        "paper_uuid_chunk_3",
+        "paper_uuid_chunk_4",
+    }
+    assert relationships == []
