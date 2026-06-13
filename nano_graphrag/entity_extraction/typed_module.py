@@ -77,7 +77,14 @@ class DomainTypedEntityRelationshipExtractor:
         prompt = self._build_extraction_prompt(input_text)
 
         # Call LLM (assume it's async)
-        response = await self.llm_func(prompt)
+        response = ""
+        for attempt in range(3):
+            response = await self.llm_func(prompt)
+            if response.strip():
+                break
+            if attempt < 2:
+                print("  ⚠ Empty extraction LLM response; retrying...")
+                await asyncio.sleep(2 ** attempt)
 
         print(f"\n{'='*80}")
         print("INITIAL EXTRACTION LLM RESPONSE:")

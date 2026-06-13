@@ -6,12 +6,16 @@ orchestration logic runs end-to-end without network or model access.
 
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 
 import pytest
 
 from domain_schemas.schema_loader import DomainSchema, EntityType, RelationshipType
+from nano_graphrag.entity_extraction.typed_module import (
+    DomainTypedEntityRelationshipExtractor,
+)
 from question_pipeline import PipelineConfig, QuestionPipeline
 from question_pipeline import schema_synthesis, strategy
 from question_pipeline.extraction import chunk_text, extract_from_text, schema_type_coverage
@@ -80,6 +84,42 @@ class FakeExtractor:
         return FakePrediction()
 
 
+class SlowFakeExtractor:
+    def __init__(self):
+        self.in_flight = 0
+        self.max_in_flight = 0
+
+    async def forward(self, text: str):
+        self.in_flight += 1
+        self.max_in_flight = max(self.max_in_flight, self.in_flight)
+        await asyncio.sleep(0.01)
+        self.in_flight -= 1
+        return FakePrediction()
+
+
+class EmptyThenValidLLM:
+    def __init__(self):
+        self.calls = 0
+
+    async def __call__(self, prompt: str) -> str:
+        self.calls += 1
+        if self.calls == 1:
+            return ""
+        return json.dumps(
+            {
+                "entities": [
+                    {
+                        "entity_name": "UV-C",
+                        "entity_type": "ENGINEERING_CONTROL",
+                        "description": "uv",
+                        "importance_score": 0.8,
+                    }
+                ],
+                "relationships": [],
+            }
+        )
+
+
 def fake_search_fn(query: str, max_results: int):
     return [
         {
@@ -87,6 +127,21 @@ def fake_search_fn(query: str, max_results: int):
             "title": f"Paper for {query}",
             "markdown": "UV-C reduces TB. " * 80,
         }
+    ]
+
+
+def fake_search_with_oversized_result(query: str, max_results: int):
+    return [
+        {
+            "url": "https://pubmed.ncbi.nlm.nih.gov/oversized",
+            "title": "Oversized scrape",
+            "markdown": "long " * 500,
+        },
+        {
+            "url": "https://pubmed.ncbi.nlm.nih.gov/usable",
+            "title": "Usable paper",
+            "markdown": "UV-C reduces TB. " * 80,
+        },
     ]
 
 
@@ -129,6 +184,43 @@ async def test_extract_and_coverage():
     cov = schema_type_coverage(["ENGINEERING_CONTROL", "PATHOGEN"], entities)
     assert cov["off_schema_rate"] == 0.0
     assert cov["n_entities"] == 2
+
+
+@pytest.mark.asyncio
+async def test_extract_uses_bounded_chunk_concurrency():
+    extractor = SlowFakeExtractor()
+
+    entities, rels = await extract_from_text(
+        extractor,
+        "abcdefghij" * 12,
+        "p1",
+        chunk_size=10,
+        overlap=0,
+        concurrency=3,
+    )
+
+    assert extractor.max_in_flight == 3
+    assert set(entities) == {"UV-C", "TB"}
+    assert len(rels) == 12
+
+
+@pytest.mark.asyncio
+async def test_typed_extractor_retries_empty_initial_response():
+    llm = EmptyThenValidLLM()
+    extractor = DomainTypedEntityRelationshipExtractor(
+        entity_types=["ENGINEERING_CONTROL"],
+        relationship_types=["REDUCES"],
+        entity_type_descriptions="- ENGINEERING_CONTROL: a control",
+        relationship_type_descriptions="- REDUCES: reduces",
+        llm_func=llm,
+        self_refine=False,
+    )
+
+    prediction = await extractor.forward("UV-C")
+
+    assert llm.calls == 2
+    assert len(prediction.entities) == 1
+    assert prediction.entities[0].entity_name == "UV-C"
 
 
 @pytest.mark.asyncio
@@ -184,3 +276,30 @@ async def test_full_pipeline_offline(tmp_path: Path):
     assert (tmp_path / "run" / "graphs" / "current_graph.graphml").exists()
     # Stops at round 0 because the fake assessment returns sufficient+confident.
     assert result["rounds"] == 1
+
+
+@pytest.mark.asyncio
+async def test_pipeline_skips_oversized_firecrawl_results(tmp_path: Path):
+    config = PipelineConfig(
+        question="How effective is upper-room UV-C against TB in hospitals?",
+        output_dir=str(tmp_path / "run"),
+        max_rounds=1,
+        papers_per_round=2,
+        max_papers=2,
+        min_paper_length=10,
+        max_paper_length=2_000,
+    )
+    pipeline = QuestionPipeline(
+        config,
+        llm=FakeLLM(),
+        search_fn=fake_search_with_oversized_result,
+        extractor_factory=lambda schema: FakeExtractor(),
+        gasl_runner=fake_gasl_runner,
+    )
+
+    result = await pipeline.run()
+
+    saved_papers = list((tmp_path / "run" / "fetched_papers").glob("*.txt"))
+    assert result["papers_fetched"] == 1
+    assert len(saved_papers) == 1
+    assert saved_papers[0].read_text(encoding="utf-8").startswith("UV-C")

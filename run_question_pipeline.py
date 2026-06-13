@@ -49,8 +49,10 @@ def build_config(args: argparse.Namespace) -> PipelineConfig:
         papers_per_query=args.papers_per_query,
         queries_per_round=args.queries_per_round,
         min_paper_length=args.min_paper_length,
+        max_paper_length=args.max_paper_length,
         chunk_size=args.chunk_size,
         chunk_overlap=args.chunk_overlap,
+        extraction_concurrency=args.extraction_concurrency,
         similarity_threshold=args.similarity_threshold,
         self_refine=args.self_refine,
         max_gasl_iterations=args.max_gasl_iterations,
@@ -81,9 +83,21 @@ def main() -> None:
     parser.add_argument("--papers-per-query", type=int, default=3, help="Papers fetched per search query.")
     parser.add_argument("--queries-per-round", type=int, default=6, help="Search queries generated per round.")
     parser.add_argument("--min-paper-length", type=int, default=500, help="Minimum characters for a usable paper.")
+    parser.add_argument(
+        "--max-paper-length",
+        type=int,
+        default=None,
+        help="Maximum characters for a usable paper; oversized Firecrawl scrapes are skipped.",
+    )
 
     parser.add_argument("--chunk-size", type=int, default=2000)
     parser.add_argument("--chunk-overlap", type=int, default=200)
+    parser.add_argument(
+        "--extraction-concurrency",
+        type=int,
+        default=1,
+        help="Maximum concurrent typed-extraction LLM calls per paper.",
+    )
     parser.add_argument("--similarity-threshold", type=float, default=0.85)
     parser.add_argument("--self-refine", action="store_true", help="Enable extractor self-refinement (slower).")
 

@@ -58,10 +58,12 @@ class PipelineConfig:
     papers_per_query: int = 3
     queries_per_round: int = 6
     min_paper_length: int = 500
+    max_paper_length: Optional[int] = None
 
     # Extraction / merge
     chunk_size: int = 2000
     chunk_overlap: int = 200
+    extraction_concurrency: int = 1
     similarity_threshold: float = 0.85
     auto_merge_entities: bool = True
     self_refine: bool = False
@@ -170,6 +172,11 @@ class QuestionPipeline:
                 text = extract_text_from_result(result)
                 if len(text) < self.config.min_paper_length:
                     continue
+                if (
+                    self.config.max_paper_length is not None
+                    and len(text) > self.config.max_paper_length
+                ):
+                    continue
                 if url:
                     self.seen_urls.add(url)
                 paper_id = str(uuid.uuid4())
@@ -274,6 +281,7 @@ class QuestionPipeline:
                 paper["id"],
                 chunk_size=self.config.chunk_size,
                 overlap=self.config.chunk_overlap,
+                concurrency=self.config.extraction_concurrency,
             )
             if not entities:
                 continue

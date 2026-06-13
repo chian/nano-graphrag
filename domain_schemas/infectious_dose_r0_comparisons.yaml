@@ -1,0 +1,388 @@
+domain_name: Infectious Dose And R0 Comparisons
+domain_description: A compact evidence graph for extracting infectious-dose measures
+  such as ID50/HID50/MID and reproduction-number estimates such as R0, then comparing
+  them by disease, pathogen, host, exposure route, country, and time. The graph preserves
+  the biological nature of infectious-dose measures while representing R0 as context-dependent
+  and affected by country-level behavior, environment, policy, surveillance, and social
+  conditions.
+entity_types:
+  INFECTIOUS_DISEASE:
+    description: A named human or animal infectious disease or syndrome for which
+      infectious dose, R0, or both may be reported.
+    examples:
+    - measles
+    - COVID-19
+    - influenza
+    - cholera
+    - tuberculosis
+  PATHOGEN:
+    description: The infectious agent that causes a disease, including viruses, bacteria,
+      parasites, or fungi. Use this for species-level or broad pathogen names.
+    examples:
+    - SARS-CoV-2
+    - Measles morbillivirus
+    - Vibrio cholerae
+    - Mycobacterium tuberculosis
+  PATHOGEN_STRAIN_OR_VARIANT:
+    description: A strain, lineage, serotype, subtype, isolate, or variant of a pathogen
+      when the source reports strain-specific infectious dose or R0 information.
+    examples:
+    - SARS-CoV-2 Delta variant
+    - SARS-CoV-2 Omicron BA.1
+    - Influenza A/H1N1
+    - Vibrio cholerae O1
+  HOST:
+    description: The host species or experimental host system in which infectious
+      dose or transmission was measured or inferred.
+    examples:
+    - humans
+    - mice
+    - ferrets
+    - non-human primates
+    - cell culture
+  INFECTIOUS_DOSE_MEASURE:
+    description: A reported biological infectivity or dose-response measure, including
+      ID50-like quantities and similar endpoints. This node should capture the raw
+      name, standardized type, value or range, units, route, endpoint, host, and whether
+      it is human, animal, in vitro, or inferred.
+    examples:
+    - ID50 = 1000 organisms
+    - HID50 = 790 TCID50
+    - MID = 10 organisms
+    - TCID50
+    - EID50
+  REPRODUCTION_NUMBER_MEASURE:
+    description: A reported transmission multiplier estimate such as R0, Rt, Re, or
+      an explicitly named reproduction number. R0 should be distinguished from effective
+      or time-varying reproduction numbers.
+    examples:
+    - R0 = 12-18
+    - basic reproduction number 2.5
+    - Rt = 0.9
+    - effective reproduction number 1.3
+  MEASURE_TYPE:
+    description: A controlled label for the kind of measure being reported, used to
+      prevent mixing biological dose endpoints with epidemiological reproduction numbers.
+    examples:
+    - ID50
+    - HID50
+    - MID
+    - LD50
+    - TCID50
+    - R0
+    - Rt
+    - Re
+  EXPOSURE_ROUTE:
+    description: The biological route by which an infectious dose was administered
+      or assumed. Route is essential because infectious dose can vary greatly by route.
+    examples:
+    - inhalation
+    - intranasal
+    - oral
+    - aerosol
+    - droplet
+    - percutaneous
+    - conjunctival
+  TRANSMISSION_MODE:
+    description: The dominant mechanism by which a pathogen spreads between hosts,
+      used to interpret R0 and country-level variation.
+    examples:
+    - airborne
+    - droplet
+    - fecal-oral
+    - vector-borne
+    - sexual transmission
+    - bloodborne
+    - direct contact
+  COUNTRY:
+    description: A country associated with an R0 estimate, country-level R0 trend,
+      outbreak, or contextual factor. Standard country identifiers may be stored when
+      available.
+    examples:
+    - United States
+    - India
+    - China
+    - Brazil
+    - United Kingdom
+  LOCATION:
+    description: A geographic location smaller or larger than a country, used when
+      an estimate is reported for a city, province, region, continent, or global scope.
+    examples:
+    - Wuhan
+    - Lombardy
+    - West Africa
+    - Europe
+    - global
+  TIME_PERIOD:
+    description: A calendar or epidemiological interval over which an infectious-dose
+      estimate, R0 estimate, trend, intervention, or outbreak applies.
+    examples:
+    - 1918 pandemic
+    - January-March 2020
+    - pre-vaccination era
+    - 2014-2016 Ebola outbreak
+  STUDY_OR_SOURCE:
+    description: A publication, report, database, review, outbreak analysis, challenge
+      study, or curated source that reports or supports an estimate, comparison, or
+      trend.
+    examples:
+    - human challenge study
+    - systematic review
+    - WHO report
+    - outbreak reconstruction
+    - meta-analysis
+  ANALYTICAL_METHOD:
+    description: A named model, estimator, or analytical approach used to derive an
+      infectious-dose estimate, R0 estimate, comparison, or trend.
+    examples:
+    - dose-response model
+    - exponential growth model
+    - SIR model
+    - renewal equation
+    - meta-analysis
+    - rank correlation
+  ID50_R0_COMPARISON:
+    description: A disease-level or pathogen-level result comparing infectious dose
+      and R0 when both are available. It should capture whether the relationship is
+      positive, negative, absent, inconsistent, qualitative only, or not computable.
+    examples:
+    - 'measles: low infectious dose and high R0'
+    - 'cholera: high oral dose but context-dependent R0'
+    - cross-disease Spearman correlation
+  COUNTRY_R0_RECORD:
+    description: A country-specific R0 estimate, ranking, temporal slope, or trend
+      summary for a disease or pathogen. This node should capture the direction and
+      magnitude of country variation when reported.
+    examples:
+    - COVID-19 R0 in Italy
+    - Ebola R0 in Liberia
+    - measles R0 in the United States
+    - 'country trend: increasing'
+  CONTEXT_FACTOR:
+    description: A behavioral, demographic, environmental, infrastructural, policy,
+      health-system, or surveillance factor that may explain why R0 differs by country,
+      setting, or time. These factors are not intrinsic biological infectious-dose
+      measures.
+    examples:
+    - population density
+    - household size
+    - school contact rate
+    - mask use
+    - vaccination coverage
+    - sanitation
+    - climate
+    - mobility
+  INTERVENTION:
+    description: A public-health, behavioral, clinical, environmental, or policy action
+      that can modify observed transmission and therefore Rt/Re or estimated R0 if
+      not properly separated.
+    examples:
+    - vaccination
+    - lockdown
+    - school closure
+    - isolation
+    - quarantine
+    - vector control
+    - water treatment
+  EVIDENCE_GAP:
+    description: A statement that a needed infectious-dose measure, R0 estimate, country
+      trend, or direct ID50-R0 relationship was not found, was not measured, or could
+      not be compared from available evidence.
+    examples:
+    - no human ID50 found
+    - R0 unavailable by country
+    - ID50 and R0 not measured for the same disease
+    - insufficient evidence for correlation
+relationship_types:
+  CAUSES:
+    description: Links a pathogen or strain to the infectious disease it causes.
+    inverse: CAUSED_BY
+    symmetric: false
+    examples:
+    - SARS-CoV-2 -> COVID-19
+    - Vibrio cholerae -> cholera
+  IS_STRAIN_OR_VARIANT_OF:
+    description: Links a strain, serotype, lineage, subtype, or variant to its parent
+      pathogen.
+    inverse: HAS_STRAIN_OR_VARIANT
+    symmetric: false
+    examples:
+    - SARS-CoV-2 Delta variant -> SARS-CoV-2
+    - Influenza A/H1N1 -> Influenza A virus
+  HAS_HOST:
+    description: Links a disease, pathogen, infectious-dose measure, or R0 measure
+      to the host or host system in which it applies.
+    inverse: HOST_FOR
+    symmetric: false
+    examples:
+    - HID50 estimate -> humans
+    - influenza transmission estimate -> ferrets
+  HAS_INFECTIOUS_DOSE_MEASURE:
+    description: Links a disease, pathogen, or strain to a reported infectious-dose
+      or dose-response measure.
+    inverse: INFECTIOUS_DOSE_MEASURE_OF
+    symmetric: false
+    examples:
+    - cholera -> ID50 estimate
+    - SARS-CoV-2 -> HID50 estimate
+  HAS_REPRODUCTION_NUMBER_MEASURE:
+    description: Links a disease, pathogen, strain, country record, or trend result
+      to a reported R0, Rt, Re, or related reproduction-number estimate.
+    inverse: REPRODUCTION_NUMBER_MEASURE_OF
+    symmetric: false
+    examples:
+    - measles -> R0 estimate
+    - COVID-19 in Italy -> R0 estimate
+  HAS_MEASURE_TYPE:
+    description: Links an infectious-dose or reproduction-number measure to its standardized
+      measure type.
+    inverse: TYPE_OF_MEASURE
+    symmetric: false
+    examples:
+    - human infectious dose estimate -> HID50
+    - basic reproduction number estimate -> R0
+  USES_EXPOSURE_ROUTE:
+    description: Links an infectious-dose measure to the biological route of exposure
+      or inoculation used or assumed.
+    inverse: ROUTE_USED_BY
+    symmetric: false
+    examples:
+    - influenza ID50 estimate -> aerosol
+    - cholera ID50 estimate -> oral
+  HAS_TRANSMISSION_MODE:
+    description: Links a disease, pathogen, or reproduction-number measure to the
+      dominant mode of transmission being modeled or observed.
+    inverse: TRANSMISSION_MODE_OF
+    symmetric: false
+    examples:
+    - measles -> airborne
+    - cholera -> fecal-oral
+  APPLIES_TO_COUNTRY:
+    description: Links an R0 measure, country R0 record, context factor, intervention,
+      or trend result to a country.
+    inverse: COUNTRY_HAS_RECORD
+    symmetric: false
+    examples:
+    - COVID-19 R0 estimate -> Italy
+    - vaccination coverage -> United States
+  APPLIES_TO_LOCATION:
+    description: Links an estimate, source, outbreak, intervention, or context factor
+      to a non-country location or to a geographic scope such as global or regional.
+    inverse: LOCATION_HAS_RECORD
+    symmetric: false
+    examples:
+    - Ebola R0 estimate -> West Africa
+    - COVID-19 early outbreak estimate -> Wuhan
+  PART_OF_LOCATION:
+    description: Links a smaller location to a larger location for geographic aggregation.
+    inverse: CONTAINS_LOCATION
+    symmetric: false
+    examples:
+    - Wuhan -> China
+    - Lombardy -> Italy
+  APPLIES_TO_TIME_PERIOD:
+    description: Links an estimate, comparison, trend, intervention, or source record
+      to the time period over which it applies.
+    inverse: TIME_PERIOD_HAS_RECORD
+    symmetric: false
+    examples:
+    - COVID-19 R0 estimate -> January-March 2020
+    - measles R0 estimate -> pre-vaccination era
+  REPORTED_BY:
+    description: Links a measure, comparison, country record, context factor, intervention,
+      or evidence gap to the source that reported it.
+    inverse: REPORTS
+    symmetric: false
+    examples:
+    - measles R0 estimate -> systematic review
+    - cholera ID50 estimate -> human challenge study
+  DERIVED_USING_METHOD:
+    description: Links an infectious-dose measure, R0 measure, comparison, or trend
+      to the model or analytical method used to derive it.
+    inverse: METHOD_USED_TO_DERIVE
+    symmetric: false
+    examples:
+    - R0 estimate -> SIR model
+    - ID50 estimate -> dose-response model
+  COMPARES_INFECTIOUS_DOSE:
+    description: Links an ID50-R0 comparison result to the infectious-dose measure
+      or measures included in the comparison.
+    inverse: INCLUDED_IN_ID50_R0_COMPARISON
+    symmetric: false
+    examples:
+    - measles ID50-R0 comparison -> measles ID50 estimate
+  COMPARES_REPRODUCTION_NUMBER:
+    description: Links an ID50-R0 comparison result to the R0 or other reproduction-number
+      measure included in the comparison.
+    inverse: INCLUDED_IN_ID50_R0_COMPARISON
+    symmetric: false
+    examples:
+    - measles ID50-R0 comparison -> measles R0 estimate
+  HAS_ID50_R0_COMPARISON:
+    description: Links a disease, pathogen, strain, or compilation source to a curated
+      result comparing infectious dose and R0.
+    inverse: ID50_R0_COMPARISON_FOR
+    symmetric: false
+    examples:
+    - measles -> low-ID50/high-R0 comparison
+    - cholera -> high-dose/context-dependent-R0 comparison
+  HAS_COUNTRY_R0_RECORD:
+    description: Links a disease, pathogen, strain, or country to a country-level
+      R0 estimate, trend, ranking, or slope result.
+    inverse: COUNTRY_R0_RECORD_FOR
+    symmetric: false
+    examples:
+    - COVID-19 -> Italy R0 record
+    - Italy -> COVID-19 R0 record
+  EXPLAINS_OR_CONTEXTUALIZES:
+    description: Links a context factor to an R0 measure, country R0 record, country,
+      disease, or trend that it may help explain. This relationship is for behavioral,
+      environmental, demographic, policy, or surveillance influences on transmission.
+    inverse: CONTEXTUALIZED_BY
+    symmetric: false
+    examples:
+    - population density -> COVID-19 R0 in Italy
+    - school contact rate -> measles R0
+    - sanitation -> cholera R0
+  ADJUSTED_FOR_CONTEXT_FACTOR:
+    description: Links an R0 measure, comparison, or country trend to a context factor
+      that was included as an adjustment, stratification, mediator, or confounder
+      in the analysis.
+    inverse: CONTEXT_FACTOR_ADJUSTED_IN
+    symmetric: false
+    examples:
+    - country R0 trend model -> population density
+    - COVID-19 R0 regression -> mobility
+  OCCURS_DURING_INTERVENTION:
+    description: Links an R0/Rt/Re estimate, time period, country record, or trend
+      to an intervention active during the measurement period.
+    inverse: INTERVENTION_ACTIVE_DURING
+    symmetric: false
+    examples:
+    - COVID-19 Rt estimate -> lockdown
+    - measles transmission estimate -> vaccination campaign
+  ADJUSTED_FOR_INTERVENTION:
+    description: Links an R0 measure, comparison, or country trend to an intervention
+      that was explicitly accounted for in estimation or modeling.
+    inverse: INTERVENTION_ADJUSTED_IN
+    symmetric: false
+    examples:
+    - COVID-19 R0 model -> school closure
+    - malaria transmission model -> vector control
+  HAS_EVIDENCE_GAP:
+    description: Links a disease, pathogen, country, source, or compilation to a statement
+      that relevant infectious-dose, R0, comparison, or country-trend evidence is
+      missing or insufficient.
+    inverse: EVIDENCE_GAP_FOR
+    symmetric: false
+    examples:
+    - disease compilation -> no human ID50 found
+    - rare disease -> R0 unavailable by country
+  CONTRADICTS_OR_DIFFERS_FROM:
+    description: Links two measures, comparisons, trends, or sources when they report
+      conflicting values, incompatible assumptions, or materially different conclusions.
+    inverse: CONTRADICTS_OR_DIFFERS_FROM
+    symmetric: true
+    examples:
+    - one COVID-19 R0 estimate -> another COVID-19 R0 estimate
+    - one ID50-R0 comparison -> conflicting comparison

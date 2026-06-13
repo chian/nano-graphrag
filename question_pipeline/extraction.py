@@ -6,6 +6,7 @@ mergers so the schema-synthesis and answer-loop code share one code path.
 
 from __future__ import annotations
 
+import asyncio
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
@@ -47,6 +48,7 @@ async def extract_from_text(
     *,
     chunk_size: int = 2000,
     overlap: int = 200,
+    concurrency: int = 1,
 ) -> Tuple[Dict[str, dict], List[dict]]:
     """Run the typed extractor over chunked text.
 
@@ -54,18 +56,33 @@ async def extract_from_text(
     chunks by name, keeping the highest salience and accumulating source
     chunk ids; relationships are collected with their source chunk.
     """
+    if concurrency <= 0:
+        raise ValueError("concurrency must be positive")
+
     entities: Dict[str, dict] = {}
     relationships: List[dict] = []
+    semaphore = asyncio.Semaphore(concurrency)
 
-    for idx, chunk in enumerate(chunk_text(text, chunk_size, overlap)):
+    async def extract_chunk(idx: int, chunk: str):
         chunk_id = f"{source_id}_chunk_{idx}"
         try:
-            prediction = await extractor.forward(chunk)
+            async with semaphore:
+                prediction = await extractor.forward(chunk)
         except Exception as exc:  # noqa: BLE001 - one bad chunk shouldn't abort
             print(f"    [extract] chunk {idx} failed: {exc}")
-            continue
+            return idx, chunk_id, [], []
 
-        for entity in prediction.entities:
+        return idx, chunk_id, prediction.entities, prediction.relationships
+
+    chunk_results = await asyncio.gather(
+        *(
+            extract_chunk(idx, chunk)
+            for idx, chunk in enumerate(chunk_text(text, chunk_size, overlap))
+        )
+    )
+
+    for _, chunk_id, chunk_entities, chunk_relationships in sorted(chunk_results):
+        for entity in chunk_entities:
             ent = entity.to_dict()
             name = ent.get("entity_name")
             if not name:
@@ -80,7 +97,7 @@ async def extract_from_text(
                 if chunk_id not in existing["source_chunks"]:
                     existing["source_chunks"].append(chunk_id)
 
-        for rel in prediction.relationships:
+        for rel in chunk_relationships:
             rel_dict = rel.to_dict()
             rel_dict["source_chunk"] = chunk_id
             relationships.append(rel_dict)
