@@ -868,9 +868,11 @@ class GASLExecutor:
         """Summarize iteration outcomes for planning while preserving the operational retry gate."""
         errors: List[Dict[str, Any]] = []
         empties: List[Dict[str, Any]] = []
-        for result in results:
+        for index, result in enumerate(results):
             status = getattr(result, "status", None)
             if status not in {"error", "empty"}:
+                continue
+            if self._superseded_by_successful_command_repair(result, results[index + 1:index + 2]):
                 continue
             entry = {
                 "command": getattr(result, "command", ""),
@@ -891,6 +893,23 @@ class GASLExecutor:
             # Backward-compatible alias for older prompt/tests.
             "reasons": reasons,
         }
+
+    @staticmethod
+    def _superseded_by_successful_command_repair(
+        result: ExecutionResult,
+        later_results: List[ExecutionResult],
+    ) -> bool:
+        """Return true when a command-local repair succeeded for this failed result."""
+        command = getattr(result, "command", "")
+        for later_result in later_results:
+            if getattr(later_result, "status", None) != "success":
+                continue
+            for provenance in getattr(later_result, "provenance", []) or []:
+                if provenance.source_id != "command_repair":
+                    continue
+                if provenance.extraction.get("original_command") == command:
+                    return True
+        return False
 
     def _build_expertise_context(self, results: List[ExecutionResult]) -> Dict[str, Any]:
         """Provide Gentner-like context for how much the current system should have been expected to know."""

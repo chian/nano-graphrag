@@ -75,19 +75,19 @@ class MicroActionFramework:
                 return None
         return None
 
-    def _iter_all_batch_results(self, variable_name: str, total_batches: int):
+    def _iter_batch_results(self, variable_name: str, batch_indexes: List[int]):
         """Yield items from each batch file one-by-one (streaming, low memory)."""
-        for i in range(total_batches):
+        for i in batch_indexes:
             items = self._load_batch_result(variable_name, i)
             if items:
                 yield from items
 
-    def _build_tally_from_batches(self, variable_name: str, total_batches: int) -> Dict:
+    def _build_tally_from_batches(self, variable_name: str, batch_indexes: List[int]) -> Dict:
         """Stream through all batch files and build a domain-tally dict."""
         tally: Dict[str, int] = {}
         total = 0
         field = None
-        for item in self._iter_all_batch_results(variable_name, total_batches):
+        for item in self._iter_batch_results(variable_name, batch_indexes):
             if not isinstance(item, dict):
                 continue
             if field is None:
@@ -123,11 +123,20 @@ class MicroActionFramework:
             return self._create_empty_result(command_type, instruction)
 
         if batch_size is None:
-            batch_size = self._calculate_optimal_batch_size(data, instruction)
+            batch_size = self._calculate_optimal_batch_size(
+                data,
+                instruction,
+                target_variable=target_variable,
+            )
 
         # If all data fits in one batch, process normally (no checkpoint overhead)
         if batch_size >= len(data):
-            return self._execute_single_batch(data, command_type, instruction)
+            return self._execute_single_batch(
+                data,
+                command_type,
+                instruction,
+                target_variable=target_variable,
+            )
 
         total_batches = (len(data) + batch_size - 1) // batch_size
         var_key = target_variable or command_type.lower()
@@ -169,7 +178,12 @@ class MicroActionFramework:
             batch = data[start:start + batch_size]
 
             print(f"DEBUG: MICRO_ACTIONS - Processing batch {batch_index+1}/{total_batches} ({len(batch)} items)")
-            batch_result = self._execute_single_batch(batch, command_type, instruction)
+            batch_result = self._execute_single_batch(
+                batch,
+                command_type,
+                instruction,
+                target_variable=target_variable,
+            )
             print(f"DEBUG: MICRO_ACTIONS - Batch {batch_index+1} status: {batch_result.status}")
 
             if batch_result.status == "success":
@@ -197,14 +211,23 @@ class MicroActionFramework:
 
         print(f"DEBUG: MICRO_ACTIONS - Completed {len(completed)}/{total_batches} batches ({total_processed} items)")
 
-        # Mark manifest complete
+        if len(completed) < total_batches:
+            manifest["completed_batches"] = sorted(completed)
+            manifest["status"] = "in_progress"
+            self._save_manifest(manifest)
+            return self._create_error_result(
+                f"{command_type} completed {len(completed)}/{total_batches} batches"
+            )
+
+        completed_batches = sorted(completed)
+        manifest["completed_batches"] = completed_batches
         manifest["status"] = "complete"
         self._save_manifest(manifest)
 
         # ── Build final tally by streaming batch files (bounded memory) ───────
-        all_items = list(self._iter_all_batch_results(var_key, total_batches))
+        all_items = list(self._iter_batch_results(var_key, completed_batches))
         if target_variable:
-            tally = self._build_tally_from_batches(var_key, total_batches)
+            tally = self._build_tally_from_batches(var_key, completed_batches)
             print(f"DEBUG: MICRO_ACTIONS - Tally: {tally}")
             # Keep the actual row records available to downstream commands.
             self._save_to_state(target_variable, all_items, command_type)
@@ -228,11 +251,21 @@ class MicroActionFramework:
             count=total_processed
         )
     
-    def _execute_single_batch(self, batch: List[Dict], command_type: str, instruction: str) -> ExecutionResult:
+    def _execute_single_batch(
+        self,
+        batch: List[Dict],
+        command_type: str,
+        instruction: str,
+        target_variable: str = None,
+    ) -> ExecutionResult:
         """Execute core command logic on a single batch - the shared execution logic."""
         
         if command_type == "PROCESS":
-            return self._process_batch(batch, instruction)
+            return self._process_batch(
+                batch,
+                instruction,
+                target_variable=target_variable,
+            )
         elif command_type == "CLASSIFY":
             return self._classify_batch(batch, instruction)
         elif command_type == "COUNT":
@@ -251,7 +284,12 @@ class MicroActionFramework:
             return match.group(1).strip()
         return text
 
-    def _process_batch(self, batch: List[Dict], instruction: str) -> ExecutionResult:
+    def _process_batch(
+        self,
+        batch: List[Dict],
+        instruction: str,
+        target_variable: str = None,
+    ) -> ExecutionResult:
         """Core PROCESS logic for a single batch."""
         prompt = self._create_process_prompt(batch, instruction)
         llm_response = self.llm_func.call(prompt)
@@ -268,10 +306,13 @@ class MicroActionFramework:
             processed_items = []
             print(f"DEBUG: MICRO_ACTIONS - Processing {len(parsed_result['processed_items'])} items from LLM response")
             for processed_item in parsed_result["processed_items"]:
+                if not isinstance(processed_item, dict):
+                    continue
+
                 # Find the original node
                 original_node = self._find_original_node(batch, processed_item.get("id", ""))
                 print(f"DEBUG: MICRO_ACTIONS - Looking for node ID '{processed_item.get('id', '')}', found: {original_node is not None}")
-                if original_node:
+                if original_node is not None:
                     # Create a copy of the original node
                     updated_node = original_node.copy()
                     
@@ -284,6 +325,9 @@ class MicroActionFramework:
                     
                     print(f"DEBUG: MICRO_ACTIONS - Added fields to node {processed_item.get('id', '')}: {', '.join(new_fields)}")
                     processed_items.append(updated_node)
+                    continue
+
+                processed_items.append(processed_item.copy())
         elif "included" in parsed_result:
             # Map back to original nodes
             processed_items = []
@@ -294,11 +338,34 @@ class MicroActionFramework:
         else:
             processed_items = []
         
+        processed_items = self._filter_target_table_items(
+            processed_items,
+            target_variable,
+        )
+
         return self._create_result(
             status="success",
             data={"processed_items": processed_items},
             count=len(processed_items)
         )
+
+    @staticmethod
+    def _filter_target_table_items(
+        items: List[Dict],
+        target_variable: str = None,
+    ) -> List[Dict]:
+        if not target_variable or not str(target_variable).endswith("_table"):
+            return items
+
+        return [
+            item
+            for item in items
+            if not (
+                isinstance(item, dict)
+                and item.get("table_name")
+                and item.get("table_name") != target_variable
+            )
+        ]
     
     def _find_original_node(self, data: List[Dict], target_id: str) -> Dict:
         """Find the original node by ID, with quote normalization."""
@@ -453,13 +520,25 @@ class MicroActionFramework:
         scored.sort(reverse=True)
         return scored[0][1]
     
-    def _calculate_optimal_batch_size(self, data: List[Dict], instruction: str) -> int:
+    def _calculate_optimal_batch_size(
+        self,
+        data: List[Dict],
+        instruction: str,
+        target_variable: str = None,
+    ) -> int:
         """Calculate optimal batch size based on token estimation."""
         if len(data) <= 5:
             return len(data)
-        
+
+        # The LLM returns one strict JSON object per input row for PROCESS-style
+        # batches. Keep every batch small enough to avoid losing a whole
+        # checkpoint run to one oversized, unparsable response.
+        max_batch_size = 15
+
         # Test with different batch sizes
-        for batch_size in [5, 10, 20, 50]:
+        for batch_size in [5, 10, 15]:
+            if batch_size > max_batch_size:
+                return min(max_batch_size, len(data))
             test_batch = data[:batch_size]
             test_prompt = self._create_process_prompt(test_batch, instruction)
             
@@ -469,7 +548,7 @@ class MicroActionFramework:
             if estimated_tokens > 3000:  # Token limit
                 return max(1, batch_size - 5)
         
-        return min(50, len(data))  # Cap at 50 items
+        return min(max_batch_size, len(data))
     
     def _create_process_prompt(self, data: List[Dict], instruction: str) -> str:
         """Create prompt for PROCESS command using unified prompt system."""

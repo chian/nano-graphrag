@@ -4,8 +4,15 @@ Data to process (list of nodes):
 {data}
 
 Instructions:
-1. Analyze each node's content (name, description, properties) according to the instruction
-2. Choose an INTUITIVE field name based on what you're doing:
+1. Analyze the supplied rows' content (name, description, properties) according to the instruction
+2. If the instruction asks you to normalize, extract, or materialize table rows with exact columns:
+   - Return rows shaped like the requested table rows, not category labels.
+   - Populate the exact requested column names at the top level of each processed item.
+   - You may emit synthetic stable row IDs such as "row_1" when the output row combines evidence from multiple inputs.
+   - Preserve source_refs, source_chunks, evidence_gap, deduplication_key, and every other requested table column.
+   - Emit fewer, equal, or more processed_items than input rows as needed for the requested table grain.
+   - If you include table_name, it must be the target table named by the instruction; do not emit rows for any sibling table.
+3. Otherwise, choose an INTUITIVE field name based on what you're doing:
    - For vowel detection: use "starts_with_vowel" (boolean)
    - For first name extraction: use "first_name" (string)
    - For author extraction: use "author_name" (string)
@@ -27,8 +34,9 @@ Instructions:
 
 CRITICAL REQUIREMENTS:
 - Replace "FIELD_NAME" with an intuitive field name (see examples above)
+- For table normalization, replace the example fields with the exact requested table columns
 - Field values must match the expected type (boolean, string, number)
-- Use the normalized ID (the part after "normalized:") from the node description, NOT the original ID with quotes
+- Use the normalized ID (the part after "normalized:") from the node description, NOT the original ID with quotes, unless creating a synthetic normalized table row
 - Return ONLY valid JSON, no extra text or comments
 - If a node cannot be processed, set the field to null and explain why
 - The field name should clearly indicate what the value represents

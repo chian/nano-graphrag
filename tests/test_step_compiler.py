@@ -39,6 +39,27 @@ def test_step_compiler_accepts_materialized_nonempty_inputs():
     assert result.command.raw_text == cmd.raw_text
 
 
+def test_step_compiler_accepts_in_place_collapse():
+    state = StateStore()
+    ctx = ContextStore()
+    _declare_list(state, "reported_table", [{"deduplication_key": "a"}])
+    compiler = GASLStepCompiler(FakeLLM([]), GASLParser())
+    cmd = GASLParser().parse_command(
+        "COLLAPSE reported_table BY deduplication_key AS reported_table"
+    )
+
+    result = compiler.compile_step(
+        command=cmd,
+        query="q",
+        state_store=state,
+        context_store=ctx,
+        history=[],
+    )
+
+    assert result.action == "accept"
+    assert result.command.raw_text == cmd.raw_text
+
+
 def test_step_compiler_rewrites_unavailable_source_to_materialized_symbol():
     state = StateStore()
     ctx = ContextStore()

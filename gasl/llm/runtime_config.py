@@ -56,12 +56,12 @@ def _normalize_shim_model(requested_model: Optional[str]) -> Optional[str]:
         return override
     model = (requested_model or "").strip()
     if not model:
-        return "gpt54"
+        return "gpt55"
     lowered = model.lower()
     direct_map = {
         # Stay within the GPT-5 family when translating public model ids to the
         # Argo shim's accepted ids. Preserve size class where possible.
-        "gpt-5.5": "gpt54",
+        "gpt-5.5": "gpt55",
         "gpt-5.4-mini": "gpt5mini",
         "gpt-5-mini": "gpt5mini",
         "gpt-5-nano": "gpt5nano",
@@ -93,8 +93,8 @@ def resolve_runtime_llm_config(
     env_shim_token = os.getenv("NANOGRAPHRAG_SHIM_TOKEN")
     env_shim_url = os.getenv("NANOGRAPHRAG_SHIM_URL")
     auto_token, auto_url = _shim_from_claude_settings()
-    shim_token = auto_token or env_shim_token
-    shim_url = auto_url or env_shim_url
+    shim_token = env_shim_token or auto_token
+    shim_url = env_shim_url or auto_url
 
     return RuntimeLLMConfig(
         api_key=shim_token or explicit_api_key,

@@ -40,6 +40,7 @@ def build_config(args: argparse.Namespace) -> PipelineConfig:
         question=args.question,
         output_dir=args.output_dir,
         schema_name=args.schema,
+        graph_path=args.graph_path,
         schema_review_rounds=args.schema_review_rounds,
         schema_expectations=args.expectations or "",
         firecrawl_api_key=args.firecrawl_api_key,
@@ -56,6 +57,7 @@ def build_config(args: argparse.Namespace) -> PipelineConfig:
         similarity_threshold=args.similarity_threshold,
         self_refine=args.self_refine,
         max_gasl_iterations=args.max_gasl_iterations,
+        answer_mode=args.answer_mode,
         target_confidence=args.target_confidence,
         model=args.model,
     )
@@ -73,6 +75,11 @@ def main() -> None:
         "--schema",
         default=None,
         help="Existing domain schema name (see domain_schemas/). If omitted, a schema is synthesized.",
+    )
+    parser.add_argument(
+        "--graph-path",
+        default=None,
+        help="Existing GraphML file to seed the graph before running GASL.",
     )
     parser.add_argument("--expectations", default=None, help="Optional scope/expectation notes for schema synthesis.")
     parser.add_argument("--schema-review-rounds", type=int, default=2, help="Generate<->judge rounds for schema synthesis.")
@@ -102,6 +109,12 @@ def main() -> None:
     parser.add_argument("--self-refine", action="store_true", help="Enable extractor self-refinement (slower).")
 
     parser.add_argument("--max-gasl-iterations", type=int, default=8, help="Max GASL traversal iterations per round.")
+    parser.add_argument(
+        "--answer-mode",
+        choices=("natural", "table"),
+        default="natural",
+        help="Use 'table' to ask GASL to materialize CSV/JSON table variables.",
+    )
     parser.add_argument("--target-confidence", type=float, default=0.75, help="Stop when assessment confidence >= this and answer is sufficient.")
 
     parser.add_argument("--model", default=None, help="LLM model id (defaults to ArgoBridge default).")

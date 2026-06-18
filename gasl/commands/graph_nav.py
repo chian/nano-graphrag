@@ -242,7 +242,7 @@ class GraphNavHandler(CommandHandler):
                 text = value
         return [
             GraphNavHandler._canonicalize_relation_token(part)
-            for part in text.split(",")
+            for part in re.split(r"[,|]", text)
             if part.strip()
         ]
 

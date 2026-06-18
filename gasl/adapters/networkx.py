@@ -2,6 +2,8 @@
 NetworkX adapter for GASL system.
 """
 
+import re
+
 import networkx as nx
 from typing import Any, Dict, Iterator, List, Set
 from .base import GraphAdapter
@@ -230,26 +232,10 @@ class NetworkXAdapter(GraphAdapter):
             criteria = filters["raw_criteria"].lower()
             node_text = f"{node_id} {str(data)}".lower()
             
-            # For entity_type criteria, extract and check the entity type value
-            if "entity_type" in criteria:
-                import re
-                # Extract entity type from various formats
-                patterns = [
-                    r"entity_type\s*[=:]\s*['\"]?([a-z_]+)['\"]?",
-                    r"entity_type\s+['\"]?([a-z_]+)['\"]?",
-                ]
-                
-                entity_type_found = False
-                for pattern in patterns:
-                    match = re.search(pattern, criteria)
-                    if match:
-                        entity_type_value = match.group(1).strip()
-                        # Check if this entity type appears in the node data
-                        if entity_type_value in node_text:
-                            entity_type_found = True
-                            break
-                
-                if not entity_type_found:
+            raw_entity_types = self._entity_types_from_raw_criteria(criteria)
+            if raw_entity_types:
+                clean_node = str(data.get("entity_type") or "").strip('"').strip("'").lower()
+                if clean_node not in raw_entity_types:
                     return False
             else:
                 # For other criteria, do simple keyword matching
@@ -257,6 +243,35 @@ class NetworkXAdapter(GraphAdapter):
                     return False
         
         return True
+
+    @staticmethod
+    def _entity_types_from_raw_criteria(criteria: str) -> Set[str]:
+        entity_list_match = re.search(
+            r"(?:entity_type|label)\s+in\s*\[([^\]]+)\]", criteria, re.IGNORECASE
+        )
+        if entity_list_match:
+            return {
+                match.group(1).strip().lower()
+                for match in re.finditer(
+                    r"['\"]?([a-z0-9_]+)['\"]?",
+                    entity_list_match.group(1),
+                    re.IGNORECASE,
+                )
+            }
+
+        patterns = [
+            r"(?:entity_type|label)\s*[=:]\s*['\"]?([a-z0-9_|]+)['\"]?",
+            r"(?:entity_type|label)\s+['\"]?([a-z0-9_|]+)['\"]?",
+        ]
+        for pattern in patterns:
+            match = re.search(pattern, criteria, re.IGNORECASE)
+            if match:
+                return {
+                    entity_type.strip().lower()
+                    for entity_type in match.group(1).replace("|", ",").split(",")
+                    if entity_type.strip()
+                }
+        return set()
     
     def _edge_matches_filters(self, source: Any, target: Any, data: Dict[str, Any], filters: Dict[str, Any]) -> bool:
         """Check if edge matches filters."""

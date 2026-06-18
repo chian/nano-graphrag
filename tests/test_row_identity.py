@@ -76,6 +76,40 @@ def test_aggregate_emits_group_identity_and_keeps_context_synced():
     assert all("row_id" in row for row in result.data)
 
 
+def test_collapse_keeps_missing_group_keys_separate():
+    state, ctx, manager = _setup_manager()
+    handler = DataTransformHandler(state, ctx, llm_func=None, state_manager=manager)
+    rows = [
+        {"label": "A", "value": 1},
+        {"label": "B", "value": 2},
+    ]
+    manager.store_variable_data(
+        "candidate_rows",
+        rows,
+        contract={
+            "payload_kind": "selected_rows",
+            "grain_type": "row",
+            "grain_keys": ["row_id"],
+            "multiplicity_preserved": True,
+        },
+    )
+    state.declare_variable("collapsed_rows", "LIST", "collapsed rows")
+
+    command = GASLParser().parse_command(
+        "COLLAPSE candidate_rows BY deduplication_key COUNT AS weight AS collapsed_rows"
+    )
+    result = handler.execute(command)
+
+    assert result.status == "success"
+    assert result.count == 2
+    assert {row["weight"] for row in result.data} == {1}
+    assert len({row["deduplication_key"] for row in result.data}) == 2
+    assert all(
+        str(row["deduplication_key"]).startswith("__missing_key__")
+        for row in result.data
+    )
+
+
 def test_join_emits_join_identity_and_stores_context():
     state, ctx, manager = _setup_manager()
     handler = MultiVarHandler(state, ctx, manager)

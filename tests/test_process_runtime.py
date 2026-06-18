@@ -21,6 +21,7 @@ def _mock_items(n=100):
 def test_process_subtype_inference():
     router = ProcessSubtypeRouter()
     assert router.infer("filter where entity_type = 'X'") == "semantic_filter"
+    assert router.infer("normalize rows with country in the output") == "field_derivation"
     assert router.infer("classify nodes into categories") == "classification"
     assert router.infer("compute combined_count = a + b") == "field_derivation"
     assert router.infer("summarize cross-node implications") == "cross_node_synthesis"

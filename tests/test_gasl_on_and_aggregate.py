@@ -8,7 +8,7 @@ from gasl.adapters import NetworkXAdapter
 from gasl.commands.data_transform import DataTransformHandler
 from gasl.state import ContextStore, StateStore
 from gasl.state_manager import StateManager
-from gasl.types import ExecutionResult
+from gasl.types import ExecutionResult, Provenance
 
 
 class DummyLLM:
@@ -68,6 +68,31 @@ def test_iteration_summary_separates_errors_empties_and_expertise_context():
     assert summary["empties"][0]["status"] == "empty"
     assert summary["expertise_context"]["kg_schema"]["edge_types_count"] >= 0
     assert summary["expertise_context"]["source_coverage"]["artifacts_with_source_papers"] == 1
+
+
+def test_iteration_summary_ignores_empty_resolved_by_command_repair():
+    graph = nx.MultiDiGraph()
+    executor = GASLExecutor(NetworkXAdapter(graph), DummyLLM(), state_file=None, job_id="test_iteration_summary_repair")
+    original_command = "PROCESS source with instruction: normalize rows AS output_rows"
+
+    summary = executor._summarize_iteration_outcomes([
+        ExecutionResult(command=original_command, status="empty", count=0),
+        ExecutionResult(
+            command="PROCESS source with instruction: normalize rows permissively AS output_rows",
+            status="success",
+            count=3,
+            provenance=[
+                Provenance(
+                    source_id="command_repair",
+                    extraction={"original_command": original_command},
+                )
+            ],
+        ),
+    ])
+
+    assert summary["needs_repair"] is False
+    assert summary["errors"] == []
+    assert summary["empties"] == []
 
 
 def test_on_executes_nested_action_on_success():

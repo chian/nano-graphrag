@@ -10,6 +10,7 @@ import asyncio
 import json
 from pathlib import Path
 
+import networkx as nx
 import pytest
 
 from domain_schemas.schema_loader import DomainSchema, EntityType, RelationshipType
@@ -154,6 +155,63 @@ def fake_gasl_runner(graph, metadata, state_file):
     }
 
 
+def fake_table_gasl_runner(graph, metadata, state_file):
+    state = {
+        "variables": {
+            "disease_id50_r0_table": {
+                "_meta": {"type": "LIST"},
+                "items": [
+                    {
+                        "group_key": "measles:paper-1",
+                        "items": [
+                            {
+                                "disease": "measles",
+                                "table_name": "disease_id50_r0_table",
+                                "infectious_dose_value": None,
+                                "r0_value": "12-18",
+                                "source_refs": ["paper-1"],
+                                "evidence_gap": "ID50 missing",
+                            },
+                            {
+                                "disease": "COVID-19",
+                                "table_name": "country_r0_table",
+                                "country": "Sri Lanka",
+                                "source_refs": ["paper-2"],
+                            }
+                        ],
+                        "supporting_path_count": 1,
+                    }
+                ],
+            },
+            "country_r0_table": {
+                "_meta": {"type": "LIST"},
+                "items": [
+                    {
+                        "country_r0_table": [
+                            {
+                                "disease": "COVID-19",
+                                "country": "Sri Lanka",
+                                "r0_value": 1.02,
+                                "r0_range": "0.75-1.29",
+                                "source_refs": ["paper-2"],
+                                "evidence_gap": "",
+                            }
+                        ],
+                        "row_id": "wrapped-country-table",
+                    }
+                ],
+            },
+        }
+    }
+    Path(state_file).parent.mkdir(parents=True, exist_ok=True)
+    Path(state_file).write_text(json.dumps(state), encoding="utf-8")
+    return {
+        "final_answer": "Materialized 2 tables.",
+        "iterations": 1,
+        "final_state": state,
+    }
+
+
 def _schema() -> DomainSchema:
     return DomainSchema(
         domain_name="UV",
@@ -164,6 +222,22 @@ def _schema() -> DomainSchema:
         },
         relationship_types={"REDUCES": RelationshipType("REDUCES", "r", None, False, [])},
     )
+
+
+def _write_seed_graph(path: Path) -> None:
+    graph = nx.DiGraph()
+    graph.add_node("UV-C", entity_type="ENGINEERING_CONTROL", entity_name="UV-C")
+    graph.add_node("TB", entity_type="PATHOGEN", entity_name="TB")
+    graph.add_edge("UV-C", "TB", relation_type="REDUCES")
+    nx.write_graphml(graph, path)
+
+
+def test_gasl_job_id_scopes_checkpoints_to_run_directory():
+    job_id = QuestionPipeline._gasl_job_id(
+        "question_runs/run_20260617/answers/round_0_gasl_state.json"
+    )
+
+    assert job_id == "run_20260617_round_0_gasl_state"
 
 
 # --------------------------------------------------------------------------- #
@@ -303,3 +377,86 @@ async def test_pipeline_skips_oversized_firecrawl_results(tmp_path: Path):
     assert result["papers_fetched"] == 1
     assert len(saved_papers) == 1
     assert saved_papers[0].read_text(encoding="utf-8").startswith("UV-C")
+
+
+@pytest.mark.asyncio
+async def test_pipeline_runs_gasl_on_seed_graph_without_search(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    graph_path = tmp_path / "seed.graphml"
+    _write_seed_graph(graph_path)
+    searched = False
+
+    def search_fn(query: str, max_results: int):
+        nonlocal searched
+        searched = True
+        return []
+
+    monkeypatch.setattr("question_pipeline.pipeline.load_domain_schema", lambda name: _schema())
+    config = PipelineConfig(
+        question="How effective is upper-room UV-C against TB in hospitals?",
+        output_dir=str(tmp_path / "run"),
+        schema_name="uv",
+        graph_path=str(graph_path),
+        max_rounds=1,
+        max_papers=0,
+    )
+    pipeline = QuestionPipeline(
+        config,
+        llm=FakeLLM(),
+        search_fn=search_fn,
+        extractor_factory=lambda schema: FakeExtractor(),
+        gasl_runner=fake_gasl_runner,
+    )
+
+    result = await pipeline.run()
+
+    assert searched is False
+    assert result["papers_fetched"] == 0
+    assert result["graph_nodes"] == 2
+    assert (tmp_path / "run" / "graphs" / "current_graph.graphml").exists()
+
+
+@pytest.mark.asyncio
+async def test_table_answer_mode_exports_gasl_tables(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    graph_path = tmp_path / "seed.graphml"
+    _write_seed_graph(graph_path)
+
+    monkeypatch.setattr("question_pipeline.pipeline.load_domain_schema", lambda name: _schema())
+    config = PipelineConfig(
+        question="Build reported tables.",
+        output_dir=str(tmp_path / "run"),
+        schema_name="uv",
+        graph_path=str(graph_path),
+        max_rounds=1,
+        max_papers=0,
+        answer_mode="table",
+    )
+    pipeline = QuestionPipeline(
+        config,
+        llm=FakeLLM(),
+        extractor_factory=lambda schema: FakeExtractor(),
+        gasl_runner=fake_table_gasl_runner,
+    )
+
+    result = await pipeline.run()
+
+    disease_json = tmp_path / "run" / "answers" / "tables" / "round_0_disease_id50_r0_table.json"
+    country_csv = tmp_path / "run" / "answers" / "tables" / "round_0_country_r0_table.csv"
+    manifest = json.loads(
+        (
+            tmp_path / "run" / "answers" / "tables" / "round_0_manifest.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert result["answer_mode"] == "table"
+    assert len(result["table_exports"]) == 2
+    assert manifest[0]["validation"]["partial_rows"] == 1
+    assert "infectious_dose_unit" in manifest[0]["validation"]["missing_by_column"]
+    disease_row = json.loads(disease_json.read_text(encoding="utf-8"))[0]
+    country_text = country_csv.read_text(encoding="utf-8")
+    assert disease_row["disease"] == "measles"
+    assert disease_row["supporting_path_count"] == 1
+    assert country_text.startswith("disease,pathogen,country,reproduction_measure_type")
+    assert "Sri Lanka" in country_text

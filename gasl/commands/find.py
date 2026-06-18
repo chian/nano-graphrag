@@ -139,9 +139,9 @@ class FindHandler(CommandHandler):
         criteria = criteria.strip().rstrip(';')
         
         # Path-style semantics: source entity_type=X edge relation_type=R target entity_type=Y
-        source_match = re.search(r"source\s+entity_type\s*=\s*['\"]?([A-Z_]+)['\"]?", criteria, re.IGNORECASE)
-        target_match = re.search(r"target\s+entity_type\s*=\s*['\"]?([A-Z_]+)['\"]?", criteria, re.IGNORECASE)
-        relation_match = re.search(r"edge\s+relation_type\s*=\s*['\"]?([A-Z_]+)['\"]?", criteria, re.IGNORECASE)
+        source_match = re.search(r"source\s+entity_type\s*=\s*['\"]?([A-Z0-9_]+)['\"]?", criteria, re.IGNORECASE)
+        target_match = re.search(r"target\s+entity_type\s*=\s*['\"]?([A-Z0-9_]+)['\"]?", criteria, re.IGNORECASE)
+        relation_match = re.search(r"edge\s+relation_type\s*=\s*['\"]?([A-Z0-9_]+)['\"]?", criteria, re.IGNORECASE)
         if source_match:
             filters["source_filter"] = {"entity_type": f"\"{source_match.group(1).strip()}\""}
         if target_match:
@@ -150,26 +150,37 @@ class FindHandler(CommandHandler):
             filters["relation_type"] = relation_match.group(1).strip()
 
         # Entity type parsing - handle any variation of quotes, spaces, etc.
-        if "entity_type" in criteria.lower():
+        entity_list_match = re.search(
+            r"(?:entity_type|label)\s+in\s*\[([^\]]+)\]", criteria, re.IGNORECASE
+        )
+        if entity_list_match:
+            entity_types = self._parse_type_list(entity_list_match.group(1))
+            if entity_types:
+                filters["entity_type"] = [f'"{entity_type}"' for entity_type in entity_types]
+                print(f"DEBUG: Extracted entity_type list: {filters['entity_type']}")
+
+        if "entity_type" in criteria.lower() or "label" in criteria.lower():
+            if "entity_type" in filters:
+                pass
             # Handle OR conditions by splitting on OR and processing each part
-            if " OR " in criteria.upper():
+            elif " OR " in criteria.upper():
                 # Split on OR and process each part
                 parts = re.split(r'\s+OR\s+', criteria, flags=re.IGNORECASE)
                 entity_types = []
                 for part in parts:
                     # Match: entity_type=PERSON, entity_type="PERSON", entity_type='PERSON', entity_type = PERSON, etc.
                     patterns = [
-                        r"entity_type\s*=\s*['\"]?([A-Z_]+)['\"]?",  # entity_type=PERSON or entity_type="PERSON" or entity_type="RESISTANCE MECHANISM"
-                        r"entity_type\s*:\s*['\"]?([A-Z_]+)['\"]?",  # entity_type: PERSON
-                        r"entity_type\s+['\"]?([A-Z_]+)['\"]?",      # entity_type PERSON
+                        r"(?:entity_type|label)\s*=\s*['\"]?([A-Z0-9_|]+)['\"]?",
+                        r"(?:entity_type|label)\s*:\s*['\"]?([A-Z0-9_|]+)['\"]?",
+                        r"(?:entity_type|label)\s+['\"]?([A-Z0-9_|]+)['\"]?",
                     ]
                     
                     for pattern in patterns:
                         match = re.search(pattern, part, re.IGNORECASE)
                         if match:
-                            entity_type = match.group(1).strip()
-                            entity_types.append(f'"{entity_type}"')
-                            print(f"DEBUG: Extracted entity_type from OR part: '{entity_type}' -> '\"{entity_type}\"'")
+                            for entity_type in self._parse_type_list(match.group(1)):
+                                entity_types.append(f'"{entity_type}"')
+                                print(f"DEBUG: Extracted entity_type from OR part: '{entity_type}' -> '\"{entity_type}\"'")
                             break
                 
                 if entity_types:
@@ -178,26 +189,27 @@ class FindHandler(CommandHandler):
             else:
                 # Single entity type (no OR)
                 patterns = [
-                    r"entity_type\s*=\s*['\"]?([A-Z_]+)['\"]?",  # entity_type=PERSON or entity_type="PERSON" or entity_type="RESISTANCE MECHANISM"
-                    r"entity_type\s*:\s*['\"]?([A-Z_]+)['\"]?",  # entity_type: PERSON
-                    r"entity_type\s+['\"]?([A-Z_]+)['\"]?",      # entity_type PERSON
+                    r"(?:entity_type|label)\s*=\s*['\"]?([A-Z0-9_|]+)['\"]?",
+                    r"(?:entity_type|label)\s*:\s*['\"]?([A-Z0-9_|]+)['\"]?",
+                    r"(?:entity_type|label)\s+['\"]?([A-Z0-9_|]+)['\"]?",
                 ]
                 
                 for pattern in patterns:
                     match = re.search(pattern, criteria, re.IGNORECASE)
                     if match:
-                        entity_type = match.group(1).strip()
+                        entity_types = self._parse_type_list(match.group(1))
+                        quoted = [f'"{entity_type}"' for entity_type in entity_types]
                         # Always store with double quotes to match data format
-                        filters["entity_type"] = f'"{entity_type}"'
-                        print(f"DEBUG: Extracted entity_type: '{entity_type}' -> '{filters['entity_type']}'")
+                        filters["entity_type"] = quoted[0] if len(quoted) == 1 else quoted
+                        print(f"DEBUG: Extracted entity_type: '{match.group(1)}' -> '{filters['entity_type']}'")
                         break
         
         # Relationship name parsing
         if "relationship_name" in criteria.lower():
             patterns = [
-                r"relationship_name\s*=\s*['\"]?([A-Z_]+)['\"]?",
-                r"relationship_name\s*:\s*['\"]?([A-Z_]+)['\"]?",
-                r"relationship_name\s+['\"]?([A-Z_]+)['\"]?",
+                r"relationship_name\s*=\s*['\"]?([A-Z0-9_]+)['\"]?",
+                r"relationship_name\s*:\s*['\"]?([A-Z0-9_]+)['\"]?",
+                r"relationship_name\s+['\"]?([A-Z0-9_]+)['\"]?",
             ]
             
             for pattern in patterns:
@@ -229,6 +241,13 @@ class FindHandler(CommandHandler):
         
         print(f"DEBUG: Final filters: {filters}")
         return filters
+
+    @staticmethod
+    def _parse_type_list(raw_types: str) -> List[str]:
+        return [
+            match.group(1).strip()
+            for match in re.finditer(r"['\"]?([A-Z0-9_]+)['\"]?", raw_types.replace("|", ","), re.IGNORECASE)
+        ]
 
     def _clean_type(self, value: str | None) -> str:
         return str(value or "").strip('"').strip("'").strip()

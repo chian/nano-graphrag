@@ -65,10 +65,10 @@ class ProcessSubtypeRouter:
         text = (instruction or "").lower()
         if any(re.search(p, text) for p in self.CLASSIFY_PATTERNS):
             return "classification"
-        if any(re.search(p, text) for p in self.FILTER_PATTERNS):
-            return "semantic_filter"
         if any(re.search(p, text) for p in self.DERIVE_PATTERNS):
             return "field_derivation"
+        if any(re.search(p, text) for p in self.FILTER_PATTERNS):
+            return "semantic_filter"
         return "cross_node_synthesis"
 
     def confirm_from_result(self, initial_subtype: str, result: Dict[str, Any]) -> str:

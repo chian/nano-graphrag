@@ -123,7 +123,10 @@ class ProcessHandler(CommandHandler):
 
         diagnostics = selection.diagnostics if selection else {"strategy": "single"}
         subtype = initial_subtype
-        final_instruction = self._apply_interpretation(instruction, interpretation)
+        final_instruction = self._apply_target_table_constraint(
+            self._apply_interpretation(instruction, interpretation),
+            target_variable,
+        )
         final_data = data
         diagnostics["routed_model"] = getattr(self._llm_for_subtype(initial_subtype), "model", getattr(self.llm_func, "model", None))
         if interpretation:
@@ -137,7 +140,14 @@ class ProcessHandler(CommandHandler):
                 phase="probe",
             )
             subtype = self.subtype_router.confirm_from_result(initial_subtype, probe_result)
-            final_instruction = self.selector.refine_instruction(instruction, probe_result, subtype)
+            final_instruction = self._apply_target_table_constraint(
+                self.selector.refine_instruction(
+                    instruction,
+                    probe_result,
+                    subtype,
+                ),
+                target_variable,
+            )
             diagnostics["confirmed_subtype"] = subtype
             diagnostics["refined_instruction"] = final_instruction
             diagnostics["probe_result_count"] = len(
@@ -166,6 +176,7 @@ class ProcessHandler(CommandHandler):
                 incoming_contract=incoming_contract,
                 probe_result=probe_result,
                 stage="probe",
+                alignment=alignment,
             )
             repair = None
             if failure is not None:
@@ -183,7 +194,10 @@ class ProcessHandler(CommandHandler):
                 )
             if repair:
                 diagnostics["repair"] = repair
-                final_instruction = repair.get("refined_instruction") or final_instruction
+                final_instruction = self._apply_target_table_constraint(
+                    repair.get("refined_instruction") or final_instruction,
+                    target_variable,
+                )
                 selector_hint = repair.get("selector_hint", "keep_current")
                 if selector_hint not in {"keep_current", ""}:
                     selection = self.selector.select(
@@ -222,6 +236,11 @@ class ProcessHandler(CommandHandler):
         elif selection:
             final_data = selection.final_items
 
+        final_instruction = self._apply_target_table_constraint(
+            final_instruction,
+            target_variable,
+        )
+
         # Use MicroActionFramework for batching if available
         if self.micro_framework and isinstance(final_data, list) and len(final_data) > self.MICROACTION_THRESHOLD:
             print(f"DEBUG: PROCESS - Using MicroActionFramework for {len(final_data)} items")
@@ -238,7 +257,10 @@ class ProcessHandler(CommandHandler):
             finally:
                 self.micro_framework.llm_func = original_llm
             identity_rows, identity_meta = materialize_row_identity(
-                result.data.get("processed_items", []),
+                self._filter_target_table_items(
+                    result.data.get("processed_items", []),
+                    target_variable,
+                ),
                 spec=IdentitySpec(
                     mode="preserve",
                     grain_type=incoming_contract.get("grain_type", "row"),
@@ -247,6 +269,32 @@ class ProcessHandler(CommandHandler):
                 source_contract=incoming_contract,
                 source_rows=final_data if isinstance(final_data, list) else [],
             )
+            if not identity_rows:
+                print(
+                    f"DEBUG: PROCESS - Preserving {target_variable}; "
+                    "empty PROCESS output is not committed"
+                )
+                result.status = "empty"
+                result.data["processed_items"] = []
+                result.count = 0
+                result.contract = self._build_process_contract(
+                    source_contract=incoming_contract,
+                    interpretation=interpretation,
+                    output_data=[],
+                    subtype=subtype,
+                    strategy=diagnostics.get("strategy", ""),
+                )
+                self._record_artifact_candidate(
+                    variable=variable,
+                    target_variable=target_variable,
+                    instruction=instruction,
+                    subtype=subtype,
+                    diagnostics=diagnostics,
+                    final_result=result,
+                    source_size=len(data) if isinstance(data, list) else 1,
+                    final_size=len(final_data) if isinstance(final_data, list) else 1,
+                )
+                return result
             result.data["processed_items"] = identity_rows
             if self.context_store:
                 self.context_store.set(target_variable, identity_rows)
@@ -298,6 +346,10 @@ class ProcessHandler(CommandHandler):
         """Execute PROCESS on a single batch (original logic)."""
         result = self._run_process_batch(data, instruction, subtype=subtype, phase="main")
         normalized_items = self._normalized_items(result)
+        normalized_items = self._filter_target_table_items(
+            normalized_items,
+            target_variable,
+        )
         incoming_contract = self.state_manager.get_variable_contract(command.args["variable"], fallback_to_last_nodes=True)
         normalized_items, identity_meta = materialize_row_identity(
             normalized_items,
@@ -309,6 +361,35 @@ class ProcessHandler(CommandHandler):
             source_contract=incoming_contract,
             source_rows=data if isinstance(data, list) else [],
         )
+        if not normalized_items:
+            print(
+                f"DEBUG: PROCESS - Preserving {target_variable}; "
+                "empty PROCESS output is not committed"
+            )
+            empty_contract = self._build_process_contract(
+                source_contract=incoming_contract,
+                interpretation=None,
+                output_data=[],
+                subtype=subtype,
+                strategy="single_batch",
+            )
+            return self._create_result(
+                command=command,
+                status="empty",
+                data=[],
+                count=0,
+                provenance=[
+                    self._create_provenance(
+                        source_id="llm-process",
+                        method="process",
+                        variable=command.args["variable"],
+                        instruction=instruction,
+                        model="llm",
+                        process_subtype=subtype,
+                    )
+                ],
+                contract=empty_contract,
+            )
         print(f"🔍 PROCESS DEBUG: Parsed result keys: {list(result.keys())}")
         print(f"🔍 PROCESS DEBUG: processed_items length: {len(normalized_items)}")
         print(f"🔍 PROCESS DEBUG: processing_method: {result.get('processing_method', 'unknown')}")
@@ -437,6 +518,38 @@ class ProcessHandler(CommandHandler):
             return instruction
         return f"{instruction}\nContract: {contract}"
 
+    @staticmethod
+    def _apply_target_table_constraint(
+        instruction: str,
+        target_variable: str,
+    ) -> str:
+        if not target_variable or not target_variable.endswith("_table"):
+            return instruction
+        if f"Target table variable: {target_variable}" in instruction:
+            return instruction
+        return (
+            f"{instruction}\n"
+            f"Target table variable: {target_variable}. Return only rows for "
+            f"{target_variable}; do not emit rows for sibling tables."
+        )
+
+    @staticmethod
+    def _filter_target_table_items(
+        items: List[Dict[str, Any]],
+        target_variable: str,
+    ) -> List[Dict[str, Any]]:
+        if not target_variable or not target_variable.endswith("_table"):
+            return items
+        return [
+            item
+            for item in items
+            if not (
+                isinstance(item, dict)
+                and item.get("table_name")
+                and item.get("table_name") != target_variable
+            )
+        ]
+
     def _build_process_failure_envelope(
         self,
         *,
@@ -446,6 +559,7 @@ class ProcessHandler(CommandHandler):
         incoming_contract: Dict[str, Any],
         probe_result: Dict[str, Any],
         stage: str,
+        alignment: Optional[Dict[str, Any]] = None,
     ) -> Optional[CommandFailureEnvelope]:
         output_items = probe_result.get("filtered_items") or probe_result.get("processed_items") or []
         processing_method = str(probe_result.get("processing_method", "") or "")
@@ -453,7 +567,13 @@ class ProcessHandler(CommandHandler):
         input_count = len(data)
         error_type = ""
         error_message = ""
-        if processing_method == "error":
+        if alignment and alignment.get("aligned") is False:
+            error_type = "misaligned_output"
+            error_message = str(
+                alignment.get("alignment_reason")
+                or "PROCESS probe output is misaligned with the requested instruction."
+            )
+        elif processing_method == "error":
             error_type = "parse_or_model_error"
             error_message = str((probe_result.get("summary") or {}).get("error", "PROCESS batch error"))
         elif input_count > 0 and output_count == 0:

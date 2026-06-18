@@ -536,13 +536,14 @@ class DataTransformHandler(CommandHandler):
         source_contract = self.state_manager.get_variable_contract(variable) if self.state_manager else {}
 
         collapsed = {}
-        for item in data:
+        for idx, item in enumerate(data):
             key = self._get_nested_field(item, by_field)
-            if key is None:
-                key = "unknown"
+            if self._is_missing_collapse_key(key):
+                key = self._fallback_collapse_key(item, idx)
             if key not in collapsed:
                 collapsed[key] = {
                     "group_name": str(key),
+                    "group_key": key,
                     by_field.split(".")[-1]: key,
                     "items": [],
                     weight_field: 0,
@@ -599,6 +600,18 @@ class DataTransformHandler(CommandHandler):
             contract=contract,
             provenance=[self._create_provenance("collapse", "collapse", variable=variable, by_field=by_field)],
         )
+
+    @staticmethod
+    def _is_missing_collapse_key(key: Any) -> bool:
+        return key is None or key == ""
+
+    @staticmethod
+    def _fallback_collapse_key(item: Dict[str, Any], idx: int) -> str:
+        for field in ("row_id", "id"):
+            value = item.get(field)
+            if value not in (None, ""):
+                return f"__missing_key__{field}:{value}"
+        return f"__missing_key__index:{idx}"
 
     @staticmethod
     def _parse_project_fields(fields_text: str) -> List[tuple[str, str]]:
