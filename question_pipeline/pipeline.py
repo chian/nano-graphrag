@@ -12,7 +12,6 @@ import csv
 import json
 import os
 import sys
-import uuid
 from dataclasses import dataclass, field, asdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -26,6 +25,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from domain_schemas.schema_loader import DomainSchema, load_domain_schema
 from gasl import GASLExecutor, NetworkXAdapter
+from gasl.answer_layer import AnswerLayerCompiler
 from gasl.llm import ArgoBridgeLLM
 from graph_metadata import build_metadata, save_graph_metadata
 from hpc.common import save_graph
@@ -33,12 +33,28 @@ from nano_graphrag.entity_extraction.typed_module import (
     create_domain_extractor_from_schema,
 )
 from paper_fetching.firecrawl_client import (
-    extract_text_from_result,
+    download_paper_content,
     search_papers,
 )
 
 from . import schema_synthesis, strategy
 from .extraction import enrich_graph, extract_from_text
+from .goals import (
+    CoverageGoalState,
+    TableCoverageGoalTracker,
+    normalize_universe_estimate,
+)
+from .search import (
+    SearchBatch,
+    SearchFrontier,
+    SearchHarvester,
+    SearchTask,
+    load_seed_search_outcomes,
+    load_seed_source_records,
+    load_seen_urls,
+    table_gap_search_tasks,
+)
+from .tables import SeedTables, load_seed_tables, merge_rows_by_table
 
 
 @dataclass
@@ -61,11 +77,18 @@ class PipelineConfig:
     queries_per_round: int = 6
     min_paper_length: int = 500
     max_paper_length: Optional[int] = None
+    max_extraction_chars_per_paper: Optional[int] = None
+    search_frontier_mode: str = "batch"
+    scrape_search_results: bool = False
+    table_gap_search_tasks: int = 12
+    goal_discovery_text_chars: int = 6000
+    source_relevance_mode: str = "focused"
 
     # Extraction / merge
     chunk_size: int = 2000
     chunk_overlap: int = 200
     extraction_concurrency: int = 1
+    extraction_timeout_sec: Optional[float] = None
     similarity_threshold: float = 0.85
     auto_merge_entities: bool = True
     self_refine: bool = False
@@ -73,15 +96,14 @@ class PipelineConfig:
     # GASL
     max_gasl_iterations: int = 8
     answer_mode: str = "natural"
-    table_variables: List[str] = field(
-        default_factory=lambda: [
-            "disease_id50_r0_table",
-            "country_r0_table",
-        ]
-    )
+    table_variables: List[str] = field(default_factory=list)
+    seed_tables_dir: Optional[str] = None
+    seed_sources_dir: Optional[str] = None
 
     # Stopping
     target_confidence: float = 0.75
+    task_goal_mode: str = "off"
+    task_goal_search_tasks: int = 0
 
     # LLM
     model: Optional[str] = None
@@ -91,85 +113,30 @@ class PipelineConfig:
 
 
 TABLE_ANSWER_INSTRUCTIONS = """
-Materialize normalized tables instead of treating prose as the deliverable.
+Materialize row-shaped LIST variables for the requested tabular answer instead
+of treating prose as the deliverable.
 
-Produce these exact LIST variables:
+Use FIND, GRAPHWALK, PROJECT, COLLAPSE, and PROCESS to produce table variables
+whose names end in _table. Preserve source_refs and source_chunks on every row
+when provenance exists. Prefer one row per atomic fact, estimate, comparison,
+or context over broad joined rows that blur distinct evidence. Keep partial
+rows when a counterpart fact is absent; set missing fields to null and explain
+the missing evidence in evidence_gap.
 
-1. disease_id50_r0_table
-   One row per disease/pathogen with any infectious-dose-like evidence and any
-   R0, Rt, or Re evidence connected through disease, pathogen, strain, host,
-   exposure route, country, source, or comparison paths.
-
-   Required columns: disease, pathogen, strain_or_variant,
-   infectious_dose_measure, infectious_dose_value, infectious_dose_unit,
-   infectious_dose_route, infectious_dose_host, reproduction_measure_type,
-   r0_value, r0_range, country, time_period, relationship, source_refs,
-   source_chunks, evidence_gap.
-
-2. country_r0_table
-   One row per country-specific reproduction-number record.
-
-   Required columns: disease, pathogen, country, reproduction_measure_type,
-   r0_value, r0_range, time_period, model_or_method,
-   intervention_context, behavioral_or_condition_factor, source_refs,
-   source_chunks, evidence_gap.
-
-Use FIND, GRAPHWALK, PROJECT, COLLAPSE, and PROCESS to produce only those exact
-table variables. Do not declare or PROCESS schema-contract, summary-count, or
-bookkeeping variables; the runner validates and exports these tables directly.
-When a path table needs multiple relationship types, issue one GRAPHWALK whose
-follow clause joins all needed edge labels with |. Do not issue multiple
-GRAPHWALK commands AS the same variable; AS replaces rather than appends.
-Normalize table rows directly into disease_id50_r0_table and country_r0_table;
-every PROCESS that creates or updates either final table must end with
-AS disease_id50_r0_table or AS country_r0_table in the GASL command itself.
-Do not SELECT into current_output_symbol or COLLAPSE a scratch variable into a
-final table, because that discards the normalized required columns.
-Preserve source_refs and source_chunks. Keep rows even when a numeric field is
-missing, and explain the missing field in evidence_gap. Before any COLLAPSE BY
-a deduplication key, create a non-empty deduplication key on every candidate
-row; otherwise collapse only after required columns exist. Once both tables are
-materialized, run SHOW on each table only. The final answer should be a short
-summary of how many complete and partial rows were materialized.
+Never write COLLAPSE, GROUP, AGGREGATE, or JOIN output directly AS a final
+table variable unless every emitted row already has stable row keys and
+source-level provenance. If candidates need deduplication, first COLLAPSE into
+an intermediate variable, then PROCESS those collapsed rows into exact
+row-shaped table rows. When a path table needs multiple relationship types,
+issue one GRAPHWALK whose follow clause joins all needed edge labels with |.
+Do not issue multiple GRAPHWALK commands AS the same variable; AS replaces
+rather than appends. Before any COLLAPSE BY a deduplication key, create a
+non-empty deduplication key on every candidate row.
 """.strip()
 
 
-TABLE_REQUIRED_COLUMNS = {
-    "disease_id50_r0_table": [
-        "disease",
-        "pathogen",
-        "strain_or_variant",
-        "infectious_dose_measure",
-        "infectious_dose_value",
-        "infectious_dose_unit",
-        "infectious_dose_route",
-        "infectious_dose_host",
-        "reproduction_measure_type",
-        "r0_value",
-        "r0_range",
-        "country",
-        "time_period",
-        "relationship",
-        "source_refs",
-        "source_chunks",
-        "evidence_gap",
-    ],
-    "country_r0_table": [
-        "disease",
-        "pathogen",
-        "country",
-        "reproduction_measure_type",
-        "r0_value",
-        "r0_range",
-        "time_period",
-        "model_or_method",
-        "intervention_context",
-        "behavioral_or_condition_factor",
-        "source_refs",
-        "source_chunks",
-        "evidence_gap",
-    ],
-}
+TABLE_REQUIRED_COLUMNS: Dict[str, List[str]] = {}
+TABLE_COMPLETENESS_COLUMNS: Dict[str, List[str]] = {}
 
 
 class QuestionPipeline:
@@ -181,6 +148,7 @@ class QuestionPipeline:
         *,
         llm=None,
         search_fn: Optional[Callable[[str, int], List[Dict[str, Any]]]] = None,
+        scrape_fn: Optional[Callable[[str], Optional[Dict[str, Any]]]] = None,
         extractor_factory: Optional[Callable[[DomainSchema], Any]] = None,
         gasl_runner: Optional[Callable[[nx.DiGraph, Dict[str, Any], str], Dict[str, Any]]] = None,
     ):
@@ -193,6 +161,7 @@ class QuestionPipeline:
             self.llm = ArgoBridgeLLM()
         self._search_fn = search_fn or self._default_search_fn
         self._uses_default_search = search_fn is None
+        self._scrape_fn = scrape_fn or self._default_scrape_fn
         self._extractor_factory = extractor_factory or self._default_extractor_factory
         self._gasl_runner = gasl_runner or self._default_gasl_runner
 
@@ -201,17 +170,51 @@ class QuestionPipeline:
         self.papers_dir = self.out / "fetched_papers"
         self.answers_dir = self.out / "answers"
         self.tables_dir = self.answers_dir / "tables"
+        self.goals_dir = self.answers_dir / "goals"
         for d in (self.graphs_dir, self.papers_dir, self.answers_dir):
             d.mkdir(parents=True, exist_ok=True)
 
         self.graph = nx.DiGraph()
         self.schema: Optional[DomainSchema] = None
         self.extractor = None
-        self.seen_urls: set[str] = set()
+        self.seen_urls: set[str] = load_seen_urls(config.seed_sources_dir)
         self.queries_used: List[str] = []
         self.paper_count = 0
         self.rounds: List[Dict[str, Any]] = []
         self.table_exports: List[Dict[str, Any]] = []
+        self.search_frontier = SearchFrontier(mode=config.search_frontier_mode)
+        self.last_search_batch = SearchBatch()
+        self.search_outcomes: List[Dict[str, Any]] = []
+        if config.source_relevance_mode not in {"off", "focused", "all"}:
+            raise ValueError("source_relevance_mode must be 'off', 'focused', or 'all'")
+        if config.task_goal_mode not in {"off", "table_coverage"}:
+            raise ValueError("task_goal_mode must be 'off' or 'table_coverage'")
+        if config.task_goal_mode != "off" and config.answer_mode != "table":
+            raise ValueError("task-level table coverage goals require answer_mode='table'")
+        if config.task_goal_mode != "off" and config.task_goal_search_tasks <= 0:
+            raise ValueError("task-level table coverage goals require search tasks")
+        self.goal_tracker = (
+            TableCoverageGoalTracker(
+                table_schemas=TABLE_REQUIRED_COLUMNS,
+            )
+            if config.task_goal_mode == "table_coverage"
+            else None
+        )
+        self.goal_universe_estimate: Dict[str, Any] = {"status": "missing"}
+        self.goal_discovery_sources: List[Dict[str, Any]] = []
+        self._seen_goal_discovery_source_ids: set[str] = set()
+        seed_source_records = load_seed_source_records(config.seed_sources_dir)
+        seed_search_outcomes = self._seed_search_outcome_records(
+            seed_source_records,
+            load_seed_search_outcomes(config.seed_sources_dir),
+        )
+        self.search_frontier.mark_seen(self._seed_search_tasks(seed_source_records))
+        self.search_outcomes.extend(seed_search_outcomes)
+        self._record_goal_discovery_sources(seed_source_records)
+        self._export_seed_sources(seed_source_records)
+        self._export_seed_search_outcomes(seed_search_outcomes)
+        self.goal_states: List[Dict[str, Any]] = []
+        self.seed_tables: SeedTables = load_seed_tables(config.seed_tables_dir)
 
     # ------------------------------------------------------------------ #
     # Default real dependencies (swappable for tests)
@@ -222,7 +225,20 @@ class QuestionPipeline:
             raise RuntimeError(
                 "No Firecrawl API key. Set --firecrawl-api-key or FIRECRAWL_API_KEY."
             )
-        return search_papers(query=query, api_key=api_key, max_results=max_results)
+        return search_papers(
+            query=query,
+            api_key=api_key,
+            max_results=max_results,
+            raise_on_error=True,
+        )
+
+    def _default_scrape_fn(self, url: str) -> Optional[Dict[str, Any]]:
+        api_key = self.config.firecrawl_api_key or os.getenv("FIRECRAWL_API_KEY")
+        if not api_key:
+            raise RuntimeError(
+                "No Firecrawl API key. Set --firecrawl-api-key or FIRECRAWL_API_KEY."
+            )
+        return download_paper_content(url, api_key)
 
     def _default_extractor_factory(self, schema: DomainSchema):
         return create_domain_extractor_from_schema(
@@ -254,15 +270,58 @@ class QuestionPipeline:
     def _gasl_question(self) -> str:
         if self.config.answer_mode != "table":
             return self.config.question
-        return f"{self.config.question}\n\nTABLE ANSWER MODE:\n{TABLE_ANSWER_INSTRUCTIONS}"
+        sections = [
+            self.config.question,
+            f"TABLE ANSWER MODE:\n{TABLE_ANSWER_INSTRUCTIONS}",
+        ]
+        table_context = self._table_mode_context()
+        if table_context:
+            sections.append(table_context)
+        return "\n\n".join(sections)
 
-    def _search_budget_available(self) -> bool:
+    def _table_mode_context(self) -> str:
+        table_names = self._table_target_names()
+        if not table_names:
+            return ""
+
+        target_lines = "\n".join(f"- {name}" for name in table_names)
+        return f"""CURRENT TABLE TARGETS:
+The run is continuing or scoring these exact table variable names:
+{target_lines}
+
+Reuse an exact listed name whenever its rows match the view you are
+materializing. Do not rename a listed table by adding summary words, swapping
+token order, or using a near-synonym. Create a new `_table` variable only for a
+genuinely separate view that is not covered by a listed target."""
+
+    def _table_target_names(self) -> List[str]:
+        names = {
+            str(name).strip()
+            for name in self.config.table_variables
+            if str(name).strip()
+        }
+        names.update(self.seed_tables.rows_by_name)
+        for target in self.goal_universe_estimate.get("count_targets") or []:
+            if not isinstance(target, dict):
+                continue
+            table_name = str(target.get("target_table") or "").strip()
+            if table_name:
+                names.add(table_name)
+        return sorted(names)
+
+    def _paper_budget_available(self) -> bool:
         return (
             self.paper_count < self.config.max_papers
             and self.config.papers_per_round > 0
             and self.config.papers_per_query > 0
-            and self.config.queries_per_round > 0
         )
+
+    def _search_budget_available(self) -> bool:
+        has_query_source = (
+            self.config.queries_per_round > 0
+            or self.search_frontier.pending_count > 0
+        )
+        return self._paper_budget_available() and has_query_source
 
     def _ensure_search_ready(self) -> None:
         if not self._uses_default_search or not self._search_budget_available():
@@ -276,47 +335,118 @@ class QuestionPipeline:
     # ------------------------------------------------------------------ #
     # Fetching
     # ------------------------------------------------------------------ #
-    def _fetch_papers(self, queries: List[str], cap: int) -> List[Dict[str, Any]]:
-        """Search each query, dedup by URL, save text, respect global cap."""
-        fetched: List[Dict[str, Any]] = []
-        for query in queries:
-            if len(fetched) >= cap or self.paper_count >= self.config.max_papers:
-                break
-            self.queries_used.append(query)
-            try:
-                results = self._search_fn(query, self.config.papers_per_query)
-            except Exception as exc:  # noqa: BLE001
-                print(f"    [search] '{query}' failed: {exc}")
+    async def _fetch_papers(
+        self,
+        queries: List[str],
+        cap: int,
+        *,
+        round_idx: int = 0,
+        topic: str = "initial",
+        expansion_op: str = "llm_initial",
+    ) -> List[Dict[str, Any]]:
+        """Search each query through the shared frontier and harvest path."""
+        queued_before = self.search_frontier.pending_count
+        tasks = self.search_frontier.enqueue_queries(
+            queries,
+            round_index=round_idx,
+            topic=topic,
+            expansion_op=expansion_op,
+        )
+        wave = self.search_frontier.next_wave(queued_before + len(tasks))
+        harvester = SearchHarvester(
+            search_fn=self._search_fn,
+            scrape_fn=self._scrape_fn if self.config.scrape_search_results else None,
+            source_relevance_fn=self._source_relevance_decision,
+            papers_dir=self.papers_dir,
+            seen_urls=self.seen_urls,
+            min_paper_length=self.config.min_paper_length,
+            max_paper_length=self.config.max_paper_length,
+            max_extraction_chars_per_paper=self.config.max_extraction_chars_per_paper,
+        )
+        batch = await harvester.harvest_async(
+            wave,
+            max_results_per_task=self.config.papers_per_query,
+            per_wave_cap=cap,
+            remaining_paper_budget=self.config.max_papers - self.paper_count,
+        )
+        if batch.unattempted_tasks and self.search_frontier.persistent:
+            self.search_frontier.requeue_front(batch.unattempted_tasks)
+
+        self.search_frontier.record(batch.outcomes)
+        self.last_search_batch = batch
+        self.search_outcomes.extend(batch.outcome_dicts())
+        self.queries_used.extend(outcome.query for outcome in batch.outcomes)
+        self.paper_count += len(batch.papers)
+        self._record_goal_discovery_sources(batch.papers)
+        return batch.papers
+
+    async def _source_relevance_decision(
+        self,
+        task: SearchTask,
+        result: Dict[str, Any],
+        text: str,
+    ):
+        if not self._should_gate_source(task):
+            return None
+
+        try:
+            assessment = await strategy.assess_source_relevance(
+                self.llm,
+                self.config.question,
+                task=task.to_dict(),
+                result=self._compact_search_result(result),
+                text=text,
+            )
+        except Exception as exc:  # noqa: BLE001 - relevance gating should not drop evidence on LLM failure
+            from .search import SourceRelevanceDecision
+
+            return SourceRelevanceDecision(
+                accept=True,
+                reason=f"relevance check failed open: {exc}",
+                confidence=0.0,
+                metadata={"error": str(exc)},
+            )
+
+        from .search import SourceRelevanceDecision
+
+        return SourceRelevanceDecision(
+            accept=bool(assessment.get("accept")),
+            reason=str(assessment.get("reason") or ""),
+            confidence=float(assessment.get("confidence") or 0.0),
+            metadata={
+                "matched_needs": assessment.get("matched_needs") or [],
+                "missing_needs": assessment.get("missing_needs") or [],
+            },
+        )
+
+    def _should_gate_source(self, task: SearchTask) -> bool:
+        mode = self.config.source_relevance_mode
+        if mode == "off":
+            return False
+        if mode == "all":
+            return True
+        return task.topic in {"target_deficit", "table_gap"}
+
+    @staticmethod
+    def _compact_search_result(result: Dict[str, Any]) -> Dict[str, Any]:
+        compact: Dict[str, Any] = {}
+        for key in ("title", "url", "description", "snippet", "source", "publishedDate"):
+            value = result.get(key)
+            if value:
+                compact[key] = value
+        for key, value in result.items():
+            if key in compact or key in {"content", "markdown", "html", "rawHtml"}:
                 continue
-            for result in results:
-                if len(fetched) >= cap or self.paper_count >= self.config.max_papers:
-                    break
-                url = result.get("url", "")
-                if url and url in self.seen_urls:
-                    continue
-                text = extract_text_from_result(result)
-                if len(text) < self.config.min_paper_length:
-                    continue
-                if (
-                    self.config.max_paper_length is not None
-                    and len(text) > self.config.max_paper_length
-                ):
-                    continue
-                if url:
-                    self.seen_urls.add(url)
-                paper_id = str(uuid.uuid4())
-                (self.papers_dir / f"{paper_id}.txt").write_text(text, encoding="utf-8")
-                self.paper_count += 1
-                fetched.append(
-                    {
-                        "id": paper_id,
-                        "text": text,
-                        "url": url,
-                        "title": result.get("title", ""),
-                        "source_query": query,
-                    }
-                )
-        return fetched
+            if isinstance(value, (str, int, float, bool)) or value is None:
+                compact[key] = value
+            elif isinstance(value, dict):
+                compact[key] = {
+                    nested_key: nested_value
+                    for nested_key, nested_value in value.items()
+                    if isinstance(nested_value, (str, int, float, bool))
+                    and len(str(nested_value)) <= 500
+                }
+        return compact
 
     # ------------------------------------------------------------------ #
     # Schema resolution
@@ -419,6 +549,7 @@ class QuestionPipeline:
                 chunk_size=self.config.chunk_size,
                 overlap=self.config.chunk_overlap,
                 concurrency=self.config.extraction_concurrency,
+                timeout=self.config.extraction_timeout_sec,
             )
             if not entities:
                 continue
@@ -434,28 +565,77 @@ class QuestionPipeline:
         return added
 
     def _export_gasl_tables(
-        self, round_idx: int, gasl_result: Dict[str, Any]
+        self, round_idx: int | str, gasl_result: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         if self.config.answer_mode != "table":
             return []
 
         final_state = gasl_result.get("final_state") or {}
-        variables = final_state.get("variables") or {}
-        table_names = set(self.config.table_variables)
         exports: List[Dict[str, Any]] = []
+        rows_by_name = self._compiled_answer_view_tables(final_state)
+        raw_rows_by_name = self._raw_gasl_table_variables(final_state)
+        for name, rows in raw_rows_by_name.items():
+            rows_by_name.setdefault(name, rows)
 
-        for name, variable in variables.items():
-            if not (
-                isinstance(variable, dict)
-                and variable.get("_meta", {}).get("type") == "LIST"
-                and (name in table_names or name.endswith("_table"))
-            ):
-                continue
+        current_rows = {
+            name: self._table_export_rows(name, rows)
+            for name, rows in rows_by_name.items()
+            if isinstance(rows, list)
+        }
+        merged_rows = merge_rows_by_table(
+            self.seed_tables.rows_by_name,
+            current_rows,
+        )
+        exports = self._write_table_exports(
+            round_idx,
+            merged_rows,
+            seed_row_counts={
+                name: len(rows)
+                for name, rows in self.seed_tables.rows_by_name.items()
+            },
+            new_row_counts={
+                name: len(rows)
+                for name, rows in current_rows.items()
+            },
+        )
+        self.seed_tables = SeedTables(
+            rows_by_name=merged_rows,
+            sources=self.seed_tables.sources,
+        )
+        return exports
 
-            raw_items = variable.get("items") or []
-            if not isinstance(raw_items, list):
+    def _export_seed_tables(
+        self, round_idx: int | str = "seed",
+    ) -> List[Dict[str, Any]]:
+        if self.config.answer_mode != "table":
+            return []
+        if not self.seed_tables.rows_by_name:
+            return []
+
+        return self._write_table_exports(
+            round_idx,
+            self.seed_tables.rows_by_name,
+            seed_row_counts={
+                name: len(rows)
+                for name, rows in self.seed_tables.rows_by_name.items()
+            },
+            new_row_counts={},
+        )
+
+    def _write_table_exports(
+        self,
+        round_idx: int | str,
+        rows_by_name: Dict[str, List[Dict[str, Any]]],
+        *,
+        seed_row_counts: Dict[str, int],
+        new_row_counts: Dict[str, int],
+    ) -> List[Dict[str, Any]]:
+        exports: List[Dict[str, Any]] = []
+        table_names = self.config.table_variables or sorted(rows_by_name)
+        for name in table_names:
+            items = rows_by_name.get(name)
+            if not isinstance(items, list):
                 continue
-            items = self._table_export_rows(name, raw_items)
 
             self.tables_dir.mkdir(parents=True, exist_ok=True)
             json_path = self.tables_dir / f"round_{round_idx}_{name}.json"
@@ -473,9 +653,12 @@ class QuestionPipeline:
                 "round": round_idx,
                 "variable": name,
                 "rows": len(items),
+                "seed_rows": seed_row_counts.get(name, 0),
+                "new_rows": new_row_counts.get(name, 0),
                 "json_path": str(json_path),
                 "csv_path": str(csv_path) if csv_written else None,
                 "validation": self._validate_table(name, items),
+                "gaps": self._diagnostic_table_gaps(name, items),
             }
             exports.append(record)
             self.table_exports.append(record)
@@ -487,6 +670,43 @@ class QuestionPipeline:
             )
 
         return exports
+
+    @staticmethod
+    def _compiled_answer_view_tables(
+        final_state: Dict[str, Any],
+    ) -> Dict[str, List[Dict[str, Any]]]:
+        runtime_view = {
+            "state_variables": final_state.get("variables", {}),
+            "context_variables": {},
+            "produced_artifacts": final_state.get("produced_artifacts", []),
+            "history": final_state.get("history", []),
+        }
+        views = AnswerLayerCompiler().build_views(runtime_view)
+        tables: Dict[str, List[Dict[str, Any]]] = {}
+        for view in views:
+            table_name = view.payload.get("table_name")
+            rows = view.payload.get("rows")
+            if table_name and isinstance(rows, list):
+                tables[table_name] = rows
+        return tables
+
+    @staticmethod
+    def _raw_gasl_table_variables(
+        final_state: Dict[str, Any],
+    ) -> Dict[str, List[Any]]:
+        tables: Dict[str, List[Any]] = {}
+        for name, variable in (final_state.get("variables") or {}).items():
+            if not (
+                isinstance(variable, dict)
+                and variable.get("_meta", {}).get("type") == "LIST"
+                and name.endswith("_table")
+            ):
+                continue
+
+            raw_items = variable.get("items") or []
+            if isinstance(raw_items, list):
+                tables[name] = raw_items
+        return tables
 
     @classmethod
     def _table_export_rows(cls, name: str, rows: List[Any]) -> List[Any]:
@@ -556,23 +776,37 @@ class QuestionPipeline:
         row: Dict[str, Any],
     ) -> Dict[str, Any]:
         return {
-            **{column: row.get(column, "") for column in TABLE_REQUIRED_COLUMNS.get(name, [])},
+            **{
+                column: row.get(column, "")
+                for column in TABLE_REQUIRED_COLUMNS.get(name, [])
+            },
             **row,
         }
 
     @classmethod
     def _validate_table(cls, name: str, rows: List[Any]) -> Dict[str, Any]:
         required = TABLE_REQUIRED_COLUMNS.get(name, [])
+        completeness_columns = TABLE_COMPLETENESS_COLUMNS.get(name, [])
         row_dicts = [row for row in rows if isinstance(row, dict)]
         missing_by_column = {
-            column: sum(1 for row in row_dicts if cls._is_missing(row.get(column)))
-            for column in required
+            column: sum(
+                1 for row in row_dicts if cls._is_missing(row.get(column))
+            )
+            for column in completeness_columns
         }
-        complete_rows = sum(
-            1
-            for row in row_dicts
-            if all(not cls._is_missing(row.get(column)) for column in required)
-        )
+        if any("completeness" in row for row in row_dicts):
+            complete_rows = sum(
+                1 for row in row_dicts if row.get("completeness") == "complete"
+            )
+        else:
+            complete_rows = sum(
+                1
+                for row in row_dicts
+                if all(
+                    not cls._is_missing(row.get(column))
+                    for column in completeness_columns or required
+                )
+            )
         return {
             "required_columns": required,
             "rows": len(rows),
@@ -585,6 +819,27 @@ class QuestionPipeline:
                 if missing
             },
         }
+
+    @classmethod
+    def _diagnostic_table_gaps(cls, name: str, rows: List[Any]) -> List[str]:
+        if name != "measurement_gap_table":
+            return []
+
+        gaps: List[str] = []
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            subject = (
+                row.get("subject")
+                or row.get("target")
+                or row.get("entity")
+                or row.get("name")
+                or "unknown subject"
+            )
+            missing = row.get("missing_measurement") or "measurement"
+            evidence_gap = row.get("evidence_gap") or "missing cross-view evidence"
+            gaps.append(f"{missing} missing for {subject}: {evidence_gap}")
+        return gaps
 
     @staticmethod
     def _is_missing(value: Any) -> bool:
@@ -612,7 +867,7 @@ class QuestionPipeline:
 
         by_variable = {export.get("variable"): export for export in exports}
         gaps: List[str] = []
-        for table_name in self.config.table_variables:
+        for table_name in (self.config.table_variables or list(by_variable)):
             export = by_variable.get(table_name)
             if export is None:
                 gaps.append(f"{table_name} was not materialized.")
@@ -622,12 +877,797 @@ class QuestionPipeline:
             if not validation.get("rows"):
                 gaps.append(f"{table_name} was materialized with zero rows.")
 
+            gaps.extend(export.get("gaps") or [])
+
             missing = validation.get("missing_by_column") or {}
             rows = validation.get("dict_rows") or validation.get("rows") or 0
             for column, count in sorted(missing.items(), key=lambda item: -item[1])[:5]:
                 gaps.append(f"{table_name} is missing {column} in {count}/{rows} rows.")
 
         return gaps
+
+    def _enqueue_table_gap_searches(
+        self,
+        round_idx: int,
+        exports: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        if self.config.answer_mode != "table":
+            return []
+        if self.config.table_gap_search_tasks <= 0:
+            return []
+
+        gap_rows: List[Dict[str, Any]] = []
+        for export in exports:
+            variable = str(export.get("variable") or "")
+            if "gap" in variable:
+                gap_rows.extend(self._read_export_rows(exports, variable))
+        if not gap_rows:
+            return []
+
+        tasks = table_gap_search_tasks(
+            gap_rows,
+            round_index=round_idx,
+            max_tasks=self.config.table_gap_search_tasks,
+        )
+        accepted = self.search_frontier.enqueue(tasks)
+        if accepted:
+            print(
+                f"  Queued {len(accepted)} table-gap searches "
+                f"for round {round_idx}"
+            )
+        return [task.to_dict() for task in accepted]
+
+    def _record_goal_discovery_sources(self, papers: List[Dict[str, Any]]) -> None:
+        for paper in papers:
+            if paper.get("search_topic") != "goal_catalog":
+                continue
+            source_id = str(paper.get("id") or "")
+            if not source_id or source_id in self._seen_goal_discovery_source_ids:
+                continue
+            self._seen_goal_discovery_source_ids.add(source_id)
+            self.goal_discovery_sources.append(
+                {
+                    "id": source_id,
+                    "title": paper.get("title", ""),
+                    "url": paper.get("url", ""),
+                    "source_query": paper.get("source_query", ""),
+                    "text": str(paper.get("text") or "")[
+                        : self.config.goal_discovery_text_chars
+                    ],
+                }
+            )
+
+    def _export_seed_sources(self, records: List[Dict[str, Any]]) -> None:
+        if not records:
+            return
+
+        jsonl_records: List[Dict[str, Any]] = []
+        for record in records:
+            source_id = str(record.get("id") or "").strip()
+            text = str(record.get("text") or "")
+            if not source_id or not text:
+                continue
+
+            sidecar = {
+                key: value
+                for key, value in record.items()
+                if key != "text"
+            }
+            jsonl_records.append(sidecar)
+            json_path = self.papers_dir / f"{source_id}.json"
+            text_path = self.papers_dir / f"{source_id}.txt"
+            if not json_path.exists():
+                json_path.write_text(
+                    json.dumps(sidecar, indent=2, default=str),
+                    encoding="utf-8",
+                )
+            if not text_path.exists():
+                text_path.write_text(text, encoding="utf-8")
+
+        if jsonl_records:
+            seed_index = self.papers_dir / "seed_sources.jsonl"
+            seed_index.write_text(
+                "".join(
+                    json.dumps(record, default=str) + "\n"
+                    for record in jsonl_records
+                ),
+                encoding="utf-8",
+            )
+
+    def _export_seed_search_outcomes(self, records: List[Dict[str, Any]]) -> None:
+        if not records:
+            return
+
+        path = self.papers_dir / "seed_search_outcomes.jsonl"
+        path.write_text(
+            "".join(json.dumps(record, default=str) + "\n" for record in records),
+            encoding="utf-8",
+        )
+
+    @staticmethod
+    def _seed_search_tasks(records: List[Dict[str, Any]]) -> List[SearchTask]:
+        tasks: List[SearchTask] = []
+        seen: set[str] = set()
+        for record in records:
+            task = QuestionPipeline._seed_search_task(record)
+            if task is None or task.id in seen:
+                continue
+            seen.add(task.id)
+            tasks.append(task)
+        return tasks
+
+    @staticmethod
+    def _seed_search_task(record: Dict[str, Any]) -> Optional[SearchTask]:
+        payload = record.get("search_task")
+        if isinstance(payload, dict):
+            query = str(payload.get("query") or "").strip()
+            if query:
+                return SearchTask(
+                    query=query,
+                    id=str(payload.get("id") or ""),
+                    parent_id=payload.get("parent_id"),
+                    topic=str(payload.get("topic") or "batch"),
+                    expansion_op=str(payload.get("expansion_op") or "direct"),
+                    gap=str(payload.get("gap") or ""),
+                    round_index=int(payload.get("round_index") or 0),
+                    depth=int(payload.get("depth") or 0),
+                    metadata=(
+                        dict(payload.get("metadata"))
+                        if isinstance(payload.get("metadata"), dict)
+                        else {}
+                    ),
+                )
+
+        query = str(record.get("source_query") or "").strip()
+        if not query:
+            return None
+        return SearchTask(
+            query=query,
+            id=str(record.get("search_task_id") or ""),
+            topic=str(record.get("search_topic") or "batch"),
+            expansion_op=str(record.get("search_expansion_op") or "direct"),
+            gap=str(record.get("search_gap") or ""),
+            round_index=int(record.get("search_round_index") or 0),
+            metadata=(
+                dict(record.get("search_metadata"))
+                if isinstance(record.get("search_metadata"), dict)
+                else {}
+            ),
+        )
+
+    @staticmethod
+    def _seed_search_outcomes(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        outcomes: Dict[str, Dict[str, Any]] = {}
+        for record in records:
+            task = QuestionPipeline._seed_search_task(record)
+            if task is None:
+                continue
+            outcome = outcomes.setdefault(
+                task.id,
+                {
+                    "task_id": task.id,
+                    "query": task.query,
+                    "topic": task.topic,
+                    "expansion_op": task.expansion_op,
+                    "gap": task.gap,
+                    "round_index": task.round_index,
+                    "firecrawl_hits": 0,
+                    "accepted_source_ids": [],
+                    "accepted_urls": [],
+                    "duplicate_urls": [],
+                    "skipped_by_reason": {},
+                    "scrape_failed_urls": [],
+                    "text_reductions": [],
+                    "metadata": dict(task.metadata),
+                    "error": "",
+                },
+            )
+            outcome["firecrawl_hits"] += 1
+            source_id = str(record.get("id") or "").strip()
+            if source_id:
+                outcome["accepted_source_ids"].append(source_id)
+            url = str(record.get("url") or "").strip()
+            if url:
+                outcome["accepted_urls"].append(url)
+        return list(outcomes.values())
+
+    @staticmethod
+    def _seed_search_outcome_records(
+        source_records: List[Dict[str, Any]],
+        outcome_records: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        task_ids_with_outcomes = {
+            str(record.get("task_id") or "")
+            for record in outcome_records
+            if isinstance(record, dict)
+        }
+        synthetic_outcomes = [
+            outcome
+            for outcome in QuestionPipeline._seed_search_outcomes(source_records)
+            if outcome.get("task_id") not in task_ids_with_outcomes
+        ]
+        return [*outcome_records, *synthetic_outcomes]
+
+    async def _estimate_task_goal_universe(
+        self,
+        round_idx: int | str,
+        table_rows: Dict[str, List[Dict[str, Any]]],
+        gaps: List[str],
+    ) -> Dict[str, Any]:
+        if self.goal_tracker is None:
+            return self.goal_universe_estimate
+        if not self.goal_discovery_sources:
+            self.goal_universe_estimate = normalize_universe_estimate(
+                self.goal_universe_estimate,
+                table_rows=table_rows,
+            )
+            return self.goal_universe_estimate
+
+        estimate = await strategy.estimate_coverage_universe(
+            self.llm,
+            self.config.question,
+            goal_context=self.goal_tracker.prompt_context(
+                table_rows,
+                gaps,
+                self.goal_universe_estimate,
+            ),
+            discovery_sources=self.goal_discovery_sources,
+            previous_estimate=self.goal_universe_estimate,
+        )
+        self.goal_universe_estimate = normalize_universe_estimate(
+            estimate,
+            table_rows=table_rows,
+        )
+        self.goals_dir.mkdir(parents=True, exist_ok=True)
+        path = self.goals_dir / f"round_{round_idx}_universe_estimate.json"
+        path.write_text(
+            json.dumps(estimate, indent=2, default=str),
+            encoding="utf-8",
+        )
+        return estimate
+
+    async def _enqueue_catalog_searches(
+        self,
+        round_idx: int,
+        table_rows: Dict[str, List[Dict[str, Any]]],
+        gaps: List[str],
+    ) -> List[Dict[str, Any]]:
+        if self.goal_tracker is None:
+            return []
+        if self.config.task_goal_search_tasks <= 0:
+            return []
+        if not self._paper_budget_available():
+            return []
+
+        queries = await strategy.catalog_queries(
+            self.llm,
+            self.config.question,
+            goal_context=self.goal_tracker.prompt_context(
+                table_rows,
+                gaps,
+                self.goal_universe_estimate,
+            ),
+            universe_estimate=self.goal_universe_estimate,
+            search_outcomes=[
+                outcome
+                for outcome in self.search_outcomes[-20:]
+                if outcome.get("topic") == "goal_catalog"
+            ],
+            n=self.config.task_goal_search_tasks,
+        )
+        for query in self.goal_universe_estimate.get("suggested_queries") or []:
+            if isinstance(query, str) and query.strip():
+                queries.append(query)
+        tasks = [
+            SearchTask(
+                query=query,
+                topic="goal_catalog",
+                expansion_op="llm_goal_catalog",
+                round_index=round_idx,
+                metadata={
+                    "goal_mode": self.config.task_goal_mode,
+                    "goal_search_tasks": self.config.task_goal_search_tasks,
+                },
+            )
+            for query in queries
+        ]
+        accepted = self.search_frontier.enqueue(tasks)
+        if accepted:
+            print(
+                f"  Queued {len(accepted)} catalog searches "
+                f"for round {round_idx}"
+            )
+        return [task.to_dict() for task in accepted]
+
+    async def _enqueue_target_deficit_searches(
+        self,
+        round_idx: int,
+        table_rows: Dict[str, List[Dict[str, Any]]],
+        goal_state: CoverageGoalState,
+    ) -> List[Dict[str, Any]]:
+        if self.goal_tracker is None:
+            return []
+        if self.config.task_goal_search_tasks <= 0:
+            return []
+        if not self._paper_budget_available():
+            return []
+
+        deficits = self._deficits_with_strategy_history(
+            goal_state.target_catalog.get("unmet_count_targets") or []
+        )
+        if not deficits:
+            return []
+
+        planned = await strategy.target_deficit_queries(
+            self.llm,
+            self.config.question,
+            goal_context=self.goal_tracker.prompt_context(
+                table_rows,
+                [],
+                self.goal_universe_estimate,
+            ),
+            deficits=deficits,
+            n=max(self.config.task_goal_search_tasks, len(deficits)),
+        )
+        targets_by_name = {
+            str(target.get("name") or "").lower(): target
+            for target in deficits
+            if isinstance(target, dict)
+        }
+        targets_by_id = {
+            str(target.get("id") or ""): target
+            for target in deficits
+            if isinstance(target, dict)
+        }
+        tasks = []
+        for item in planned:
+            target = targets_by_id.get(str(item.get("target_id") or ""))
+            if target is None:
+                target = targets_by_name.get(
+                    str(item.get("target_name") or "").lower(),
+                )
+            if target is None and len(deficits) == 1:
+                target = deficits[0]
+            if not isinstance(target, dict):
+                continue
+            target_id = str(target.get("id") or "")
+            tasks.append(
+                self._target_deficit_search_task(
+                    query=item["query"],
+                    target=target,
+                    round_idx=round_idx,
+                    rationale=item.get("rationale", ""),
+                    strategy_origin="llm",
+                )
+            )
+
+        accepted = self.search_frontier.enqueue(tasks)
+        covered_target_ids = {
+            str(task.metadata.get("target_id") or "")
+            for task in accepted
+        }
+        fallback_tasks = []
+        for target in deficits:
+            target_id = str(target.get("id") or "")
+            if target_id in covered_target_ids:
+                continue
+            fallback_query = self._fallback_target_deficit_query(target)
+            if not fallback_query:
+                continue
+            fallback_tasks.append(
+                self._target_deficit_search_task(
+                    query=fallback_query,
+                    target=target,
+                    round_idx=round_idx,
+                    rationale="Fallback strategy for a target omitted by the planner.",
+                    strategy_origin="fallback",
+                )
+            )
+        if fallback_tasks:
+            accepted.extend(self.search_frontier.enqueue(fallback_tasks))
+        if accepted:
+            print(
+                f"  Queued {len(accepted)} target-deficit searches "
+                f"for round {round_idx}"
+            )
+        return [task.to_dict() for task in accepted]
+
+    @staticmethod
+    def _target_deficit_search_task(
+        *,
+        query: str,
+        target: Dict[str, Any],
+        round_idx: int,
+        rationale: str,
+        strategy_origin: str,
+    ) -> SearchTask:
+        target_id = str(target.get("id") or "")
+        return SearchTask(
+            query=query,
+            topic="target_deficit",
+            expansion_op="llm_target_deficit",
+            gap=target_id,
+            round_index=round_idx,
+            metadata={
+                "target_id": target_id,
+                "target_name": target.get("name", ""),
+                "target_table": target.get("target_table", ""),
+                "key_columns": target.get("key_columns", []),
+                "expected_minimum_count": target.get("expected_minimum_count"),
+                "observed_count": target.get("observed_count"),
+                "deficit_count": target.get("deficit_count"),
+                "known_missing_examples": target.get(
+                    "known_missing_examples",
+                    [],
+                ),
+                "rationale": rationale,
+                "strategy_origin": strategy_origin,
+            },
+        )
+
+    @staticmethod
+    def _fallback_target_deficit_query(target: Dict[str, Any]) -> str:
+        examples = list(target.get("known_missing_examples") or [])[:3]
+        key_columns = " ".join(str(column) for column in target.get("key_columns") or [])
+        candidates = [
+            [target.get("name"), *examples[:1], target.get("description")],
+            [*examples[1:2], target.get("name"), target.get("target_table")],
+            [target.get("description"), key_columns, target.get("name")],
+            [target.get("name"), target.get("target_table"), key_columns],
+        ]
+        attempted = {
+            str(attempt.get("query") or "").strip().lower()
+            for attempt in target.get("strategy_history") or []
+            if isinstance(attempt, dict)
+        }
+        for parts in candidates:
+            words = " ".join(str(part or "").strip() for part in parts).split()
+            query = " ".join(words[:10])
+            if query and query.lower() not in attempted:
+                return query
+        return ""
+
+    def _deficits_with_strategy_history(
+        self,
+        deficits: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        enriched: List[Dict[str, Any]] = []
+        for target in deficits:
+            if not isinstance(target, dict):
+                continue
+            target_id = str(target.get("id") or "")
+            if not target_id:
+                continue
+            target_name = str(target.get("name") or "").lower()
+            attempts = [
+                {
+                    "round": outcome.get("round_index"),
+                    "query": outcome.get("query", ""),
+                    "accepted_source_count": len(
+                        outcome.get("accepted_source_ids") or []
+                    ),
+                    "skipped_by_reason": outcome.get("skipped_by_reason") or {},
+                    "post_round_observed_delta": (
+                        outcome.get("metadata", {}).get(
+                            "post_round_observed_delta"
+                        )
+                        if isinstance(outcome.get("metadata"), dict)
+                        else None
+                    ),
+                    "post_round_observed_count": (
+                        outcome.get("metadata", {}).get(
+                            "post_round_observed_count"
+                        )
+                        if isinstance(outcome.get("metadata"), dict)
+                        else None
+                    ),
+                    "error": outcome.get("error", ""),
+                }
+                for outcome in self.search_outcomes[-50:]
+                if self._search_outcome_matches_target(
+                    outcome,
+                    target_id=target_id,
+                    target_name=target_name,
+                    target_table=str(target.get("target_table") or ""),
+                    key_columns=target.get("key_columns") or [],
+                )
+            ]
+            enriched.append({**target, "strategy_history": attempts[-8:]})
+        return enriched
+
+    @staticmethod
+    def _search_outcome_matches_target(
+        outcome: Dict[str, Any],
+        *,
+        target_id: str,
+        target_name: str,
+        target_table: str,
+        key_columns: List[str],
+    ) -> bool:
+        if outcome.get("topic") != "target_deficit":
+            return False
+
+        metadata = outcome.get("metadata") or {}
+        if not isinstance(metadata, dict):
+            metadata = {}
+        if metadata.get("target_id") == target_id:
+            return True
+
+        outcome_name = str(metadata.get("target_name") or "").lower()
+        if target_name and outcome_name == target_name:
+            return True
+
+        outcome_table = str(metadata.get("target_table") or "")
+        if not target_table or outcome_table != target_table:
+            return False
+
+        current_keys = {
+            str(column).strip()
+            for column in key_columns
+            if str(column).strip()
+        }
+        previous_keys = {
+            str(column).strip()
+            for column in metadata.get("key_columns") or []
+            if str(column).strip()
+        }
+        return bool(current_keys & previous_keys)
+
+    def _annotate_recent_target_outcomes(
+        self,
+        goal_state: Optional[CoverageGoalState],
+    ) -> None:
+        if goal_state is None:
+            return
+
+        targets = goal_state.target_estimate.get("count_targets") or []
+        if not targets or not self.last_search_batch.outcomes:
+            return
+
+        annotations: Dict[str, Dict[str, Any]] = {}
+        for outcome in self.last_search_batch.outcomes:
+            metadata = outcome.metadata
+            if outcome.topic != "target_deficit":
+                continue
+            if not isinstance(metadata, dict):
+                continue
+            target = self._target_for_outcome_metadata(metadata, targets)
+            if target is None:
+                continue
+
+            previous_count = int(metadata.get("observed_count") or 0)
+            observed_count = int(target.get("observed_count") or 0)
+            annotation = {
+                "post_round_observed_count": observed_count,
+                "post_round_observed_delta": observed_count - previous_count,
+                "post_round_deficit_count": target.get("deficit_count"),
+                "post_round_target_status": target.get("status"),
+            }
+            metadata.update(annotation)
+            annotations[outcome.task_id] = annotation
+
+        if not annotations:
+            return
+
+        for outcome in self.search_outcomes:
+            task_id = str(outcome.get("task_id") or "")
+            annotation = annotations.get(task_id)
+            if annotation is None:
+                continue
+            metadata = outcome.get("metadata")
+            if not isinstance(metadata, dict):
+                metadata = {}
+                outcome["metadata"] = metadata
+            metadata.update(annotation)
+        self._rewrite_search_outcomes()
+
+    @staticmethod
+    def _target_for_outcome_metadata(
+        metadata: Dict[str, Any],
+        targets: List[Dict[str, Any]],
+    ) -> Optional[Dict[str, Any]]:
+        target_id = str(metadata.get("target_id") or "")
+        target_name = str(metadata.get("target_name") or "").lower()
+        target_table = str(metadata.get("target_table") or "")
+        key_columns = {
+            str(column).strip()
+            for column in metadata.get("key_columns") or []
+            if str(column).strip()
+        }
+        for target in targets:
+            if not isinstance(target, dict):
+                continue
+            if target_id and str(target.get("id") or "") == target_id:
+                return target
+            if target_name and str(target.get("name") or "").lower() == target_name:
+                return target
+            if target_table and str(target.get("target_table") or "") == target_table:
+                target_keys = {
+                    str(column).strip()
+                    for column in target.get("key_columns") or []
+                    if str(column).strip()
+                }
+                if key_columns & target_keys:
+                    return target
+        return None
+
+    def _rewrite_search_outcomes(self) -> None:
+        path = self.papers_dir / "search_outcomes.jsonl"
+        path.write_text(
+            "".join(
+                json.dumps(outcome, default=str) + "\n"
+                for outcome in self.search_outcomes
+            ),
+            encoding="utf-8",
+        )
+
+    def _record_task_goal(
+        self,
+        round_idx: int | str,
+        table_exports: List[Dict[str, Any]],
+        *,
+        gap_search_tasks: List[Dict[str, Any]],
+        goal_search_tasks: List[Dict[str, Any]],
+        update_history: bool = True,
+    ) -> Optional[CoverageGoalState]:
+        if self.goal_tracker is None:
+            return None
+
+        rows_by_variable = self._table_rows_by_variable(table_exports)
+        state = self.goal_tracker.evaluate(
+            round_idx=round_idx,
+            table_rows=rows_by_variable,
+            universe_estimate=self.goal_universe_estimate,
+            search_frontier=self.search_frontier.to_dict(),
+            search_outcomes=self.search_outcomes,
+            paper_count=self.paper_count,
+            max_papers=self.config.max_papers,
+            paper_budget_available=self._paper_budget_available(),
+            gap_search_tasks=gap_search_tasks,
+            goal_search_tasks=goal_search_tasks,
+            update_history=update_history,
+        )
+        self.goals_dir.mkdir(parents=True, exist_ok=True)
+        path = self.goals_dir / f"round_{round_idx}_stop_criteria.json"
+        payload = state.to_dict()
+        path.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
+        entry = {**payload, "json_path": str(path)}
+        self.goal_states = [
+            previous
+            for previous in self.goal_states
+            if previous.get("round") != round_idx
+        ]
+        self.goal_states.append(entry)
+        return state
+
+    async def _bootstrap_task_goal(self) -> List[Dict[str, Any]]:
+        if self.goal_tracker is None:
+            return []
+
+        seed_exports = self._export_seed_tables()
+        seed_table_rows = self._table_rows_by_variable(seed_exports)
+        bootstrap_idx = 0
+
+        while (
+            self._paper_budget_available()
+            and not self._universe_estimate_actionable()
+        ):
+            source_count_before = len(self.goal_discovery_sources)
+            catalog_tasks = await self._enqueue_catalog_searches(
+                bootstrap_idx,
+                seed_table_rows,
+                [],
+            )
+            if self.search_frontier.pending_count <= 0:
+                break
+
+            wave_papers = await self._fetch_papers(
+                [],
+                cap=self.config.papers_per_round,
+                round_idx=bootstrap_idx,
+                topic="goal_catalog",
+                expansion_op="llm_goal_bootstrap",
+            )
+            print(
+                "  Fetched "
+                f"{len(wave_papers)} catalog papers "
+                f"in bootstrap wave {bootstrap_idx}"
+            )
+
+            await self._estimate_task_goal_universe(
+                f"bootstrap_{bootstrap_idx}",
+                seed_table_rows,
+                [],
+            )
+            self._record_task_goal(
+                f"bootstrap_{bootstrap_idx}",
+                seed_exports,
+                gap_search_tasks=[],
+                goal_search_tasks=catalog_tasks,
+            )
+            bootstrap_idx += 1
+
+            if not wave_papers and not catalog_tasks:
+                break
+            if (
+                len(self.goal_discovery_sources) == source_count_before
+                and self._universe_estimate_actionable()
+            ):
+                break
+
+        if bootstrap_idx == 0:
+            self._record_task_goal(
+                "bootstrap_0",
+                seed_exports,
+                gap_search_tasks=[],
+                goal_search_tasks=[],
+            )
+
+        return seed_exports
+
+    async def _enqueue_deficit_searches(
+        self,
+        round_idx: int,
+        table_exports: List[Dict[str, Any]],
+        goal_state: Optional[CoverageGoalState],
+    ) -> tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+        if goal_state is None or goal_state.fulfilled:
+            return [], []
+
+        table_rows = self._table_rows_by_variable(table_exports)
+        table_gap_tasks = self._enqueue_table_gap_searches(
+            round_idx,
+            table_exports,
+        )
+        target_deficit_tasks = await self._enqueue_target_deficit_searches(
+            round_idx,
+            table_rows,
+            goal_state,
+        )
+        return table_gap_tasks, target_deficit_tasks
+
+    def _universe_estimate_ready(self) -> bool:
+        return (
+            self.goal_universe_estimate.get("status") == "estimated"
+            and bool(self.goal_universe_estimate.get("count_targets"))
+        )
+
+    def _universe_estimate_actionable(self) -> bool:
+        return bool(self.goal_universe_estimate.get("count_targets"))
+
+    def _table_rows_by_variable(
+        self,
+        exports: List[Dict[str, Any]],
+    ) -> Dict[str, List[Dict[str, Any]]]:
+        table_names = self.config.table_variables or [
+            str(export.get("variable"))
+            for export in exports
+            if export.get("variable")
+        ]
+        return {
+            table_name: self._read_export_rows(exports, table_name)
+            for table_name in table_names
+        }
+
+    @staticmethod
+    def _read_export_rows(
+        exports: List[Dict[str, Any]],
+        variable: str,
+    ) -> List[Dict[str, Any]]:
+        export = next((item for item in exports if item.get("variable") == variable), None)
+        if not export or not export.get("json_path"):
+            return []
+
+        path = Path(str(export["json_path"]))
+        if not path.exists():
+            return []
+
+        try:
+            rows = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return []
+
+        return [row for row in rows if isinstance(row, dict)]
 
     @staticmethod
     def _write_table_csv(
@@ -661,6 +1701,14 @@ class QuestionPipeline:
         cfg = self.config
         print(f"\n{'='*70}\nQuestion-driven pipeline\n{'='*70}")
         print(f"Question: {cfg.question}\nOutput:   {self.out}\n")
+        if self.seed_tables.row_count:
+            print(
+                "  Loaded seed tables: "
+                f"{self.seed_tables.row_count} rows across "
+                f"{len(self.seed_tables.rows_by_name)} tables"
+            )
+        if self.seen_urls:
+            print(f"  Loaded {len(self.seen_urls)} seed source URLs")
 
         seeded_from_graph = self._load_seed_graph()
 
@@ -678,7 +1726,13 @@ class QuestionPipeline:
                 self.llm, cfg.question, n=cfg.queries_per_round, schema_hint=schema_hint
             )
             print(f"  Initial queries: {queries}")
-            seed_papers = self._fetch_papers(queries, cap=cfg.papers_per_round)
+            seed_papers = await self._fetch_papers(
+                queries,
+                cap=cfg.papers_per_round,
+                round_idx=0,
+                topic="initial",
+                expansion_op="llm_initial",
+            )
             print(f"  Fetched {len(seed_papers)} seed papers")
 
             await self._resolve_schema(seed_papers[:2])
@@ -686,17 +1740,82 @@ class QuestionPipeline:
         gaps: List[str] = []
         last_answer = ""
         final_assessment: Dict[str, Any] = {}
+        if self.goal_tracker is not None:
+            print("  Bootstrapping task-level goal from current tables...")
+            seed_exports = await self._bootstrap_task_goal()
+            if not self._universe_estimate_actionable():
+                final_assessment = {
+                    "sufficient": False,
+                    "confidence": 0.0,
+                    "gaps": ["Task-level answer universe was not estimated."],
+                    "rationale": (
+                        "Goal-discovery search exhausted the available search "
+                        "frontier or paper budget before count targets could "
+                        "be estimated."
+                    ),
+                }
+                print("  No task-level universe estimate; stopping before GASL.")
+                return self._finalize(last_answer, final_assessment)
+            bootstrap_goal_state = self._record_task_goal(
+                "bootstrap_deficit",
+                seed_exports,
+                gap_search_tasks=[],
+                goal_search_tasks=[],
+            )
+            gap_search_tasks, goal_search_tasks = await self._enqueue_deficit_searches(
+                0,
+                seed_exports,
+                bootstrap_goal_state,
+            )
+            if gap_search_tasks or goal_search_tasks:
+                self._record_task_goal(
+                    "bootstrap_deficit",
+                    seed_exports,
+                    gap_search_tasks=gap_search_tasks,
+                    goal_search_tasks=goal_search_tasks,
+                    update_history=False,
+                )
 
         for round_idx in range(cfg.max_rounds):
             print(f"\n{'#'*70}\nROUND {round_idx}\n{'#'*70}")
 
             if round_idx == 0 and seeded_from_graph:
-                round_papers = []
-                print("  Reusing seed graph; running GASL before new search.")
+                if self.search_frontier.pending_count > 0:
+                    queries = []
+                    round_papers = await self._fetch_papers(
+                        queries,
+                        cap=cfg.papers_per_round,
+                        round_idx=round_idx,
+                        topic="queued",
+                        expansion_op="task_frontier",
+                    )
+                    print(f"  Fetched {len(round_papers)} queued papers")
+                else:
+                    round_papers = []
+                    print("  Reusing seed graph for GASL.")
             elif round_idx == 0:
                 round_papers = seed_papers
             else:
-                if self._search_budget_available():
+                if (
+                    self.goal_tracker is not None
+                    and self.search_frontier.pending_count > 0
+                    and self._paper_budget_available()
+                ):
+                    queries = []
+                    round_papers = await self._fetch_papers(
+                        queries,
+                        cap=cfg.papers_per_round,
+                        round_idx=round_idx,
+                        topic="queued",
+                        expansion_op="task_frontier",
+                    )
+                    print(f"  Fetched {len(round_papers)} queued papers")
+                elif self.goal_tracker is not None:
+                    queries = []
+                    round_papers = []
+                    print("  No queued table-coverage searches.")
+                    break
+                elif self._search_budget_available():
                     self._ensure_search_ready()
                     queries = await strategy.followup_queries(
                         self.llm,
@@ -707,7 +1826,13 @@ class QuestionPipeline:
                         n=cfg.queries_per_round,
                     )
                     print(f"  Follow-up queries: {queries}")
-                    round_papers = self._fetch_papers(queries, cap=cfg.papers_per_round)
+                    round_papers = await self._fetch_papers(
+                        queries,
+                        cap=cfg.papers_per_round,
+                        round_idx=round_idx,
+                        topic="followup",
+                        expansion_op="llm_followup",
+                    )
                     print(f"  Fetched {len(round_papers)} papers")
                 else:
                     queries = []
@@ -750,6 +1875,50 @@ class QuestionPipeline:
                 f"confidence={assessment.get('confidence')} | gaps={len(gaps)}"
             )
 
+            sufficient = bool(assessment.get("sufficient"))
+            confident = float(assessment.get("confidence", 0.0) or 0.0) >= cfg.target_confidence
+            gap_search_tasks: List[Dict[str, Any]] = []
+            goal_search_tasks: List[Dict[str, Any]] = []
+            await self._estimate_task_goal_universe(
+                round_idx,
+                self._table_rows_by_variable(table_exports),
+                gaps,
+            )
+            goal_state = self._record_task_goal(
+                round_idx,
+                table_exports,
+                gap_search_tasks=gap_search_tasks,
+                goal_search_tasks=goal_search_tasks,
+            )
+            self._annotate_recent_target_outcomes(goal_state)
+
+            should_expand_for_goal = (
+                goal_state is not None and not goal_state.fulfilled
+            )
+            should_expand_for_answer = (
+                goal_state is None and not (sufficient and confident)
+            )
+            if self._paper_budget_available() and (
+                should_expand_for_goal or should_expand_for_answer
+            ):
+                table_gap_tasks, target_deficit_tasks = (
+                    await self._enqueue_deficit_searches(
+                        round_idx + 1,
+                        table_exports,
+                        goal_state,
+                    )
+                )
+                gap_search_tasks.extend(table_gap_tasks)
+                goal_search_tasks.extend(target_deficit_tasks)
+                if should_expand_for_goal:
+                    goal_state = self._record_task_goal(
+                        round_idx,
+                        table_exports,
+                        gap_search_tasks=gap_search_tasks,
+                        goal_search_tasks=goal_search_tasks,
+                        update_history=False,
+                    )
+
             round_record = {
                 "round": round_idx,
                 "queries": queries,
@@ -759,16 +1928,29 @@ class QuestionPipeline:
                 "answer": last_answer,
                 "assessment": assessment,
                 "gasl_iterations": gasl_result.get("iterations"),
+                "search_outcomes": self.last_search_batch.outcome_dicts(),
                 "table_exports": table_exports,
+                "gap_search_tasks": gap_search_tasks,
+                "goal_search_tasks": goal_search_tasks,
+                "task_goal": goal_state.to_dict() if goal_state else None,
             }
             self.rounds.append(round_record)
             (self.answers_dir / f"round_{round_idx}.json").write_text(
                 json.dumps(round_record, indent=2, default=str), encoding="utf-8"
             )
 
-            sufficient = bool(assessment.get("sufficient"))
-            confident = float(assessment.get("confidence", 0.0) or 0.0) >= cfg.target_confidence
-            if sufficient and confident:
+            if goal_state is not None:
+                print(
+                    "  Task goal: "
+                    f"fulfilled={goal_state.fulfilled} "
+                    f"targets={len(goal_state.target_estimate.get('count_targets') or [])} "
+                    f"unmet={len(goal_state.target_catalog.get('unmet_count_targets') or [])} "
+                    f"pending={goal_state.search_frontier['pending_tasks']}"
+                )
+            if goal_state is not None and goal_state.fulfilled:
+                print("\n  Task-level stop criteria fulfilled; stopping.")
+                break
+            if goal_state is None and sufficient and confident:
                 print("\n  Answer is sufficient and confident; stopping.")
                 break
             if self.paper_count >= cfg.max_papers:
@@ -797,6 +1979,11 @@ class QuestionPipeline:
             "graph_path": str(self.graphs_dir / "current_graph.graphml"),
             "answer_mode": self.config.answer_mode,
             "table_exports": self.table_exports,
+            "search_frontier": self.search_frontier.to_dict(),
+            "search_outcomes": self.search_outcomes,
+            "task_goals": self.goal_states,
+            "goal_universe_estimate": self.goal_universe_estimate,
+            "goal_discovery_sources": self.goal_discovery_sources,
             "completed_at": datetime.now(timezone.utc).isoformat(),
             "config": self.config.to_dict(),
         }

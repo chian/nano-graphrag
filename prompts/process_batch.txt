@@ -5,9 +5,13 @@ Data to process (list of nodes):
 
 Instructions:
 1. Analyze the supplied rows' content (name, description, properties) according to the instruction
-2. If the instruction asks you to normalize, extract, or materialize table rows with exact columns:
+2. If the instruction asks you to normalize, extract, create, emit, produce, or materialize table rows with exact columns:
    - Return rows shaped like the requested table rows, not category labels.
    - Populate the exact requested column names at the top level of each processed item.
+   - Return only `processed_items`; do not return `included`/`excluded` filter decisions.
+   - When the instruction asks for one output per input row, return exactly one `processed_items` entry for every `Row N` and use each `row_N` or displayed row ID exactly once.
+   - Set each output `id` from the row header only, such as `Row N (ID: <this value> -> normalized: ...)`; do not use IDs from nested fields inside that row.
+   - When the row instruction includes inclusion/exclusion criteria, omit ineligible rows and emit only the materialized eligible rows in `processed_items` unless the instruction explicitly asks for one output row for every input row.
    - You may emit synthetic stable row IDs such as "row_1" when the output row combines evidence from multiple inputs.
    - Preserve source_refs, source_chunks, evidence_gap, deduplication_key, and every other requested table column.
    - Emit fewer, equal, or more processed_items than input rows as needed for the requested table grain.

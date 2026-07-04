@@ -3,6 +3,7 @@ Main execution engine for GASL system.
 """
 
 import json
+import re
 import time
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -427,6 +428,8 @@ class GASLExecutor:
             print(f"DEBUG: Executing command: {command.command_type} - {command.args}")
             print(f"🔍 STATE DEBUG: Before command, state variables: {list(self.state_store.get_state().get('variables', {}).keys())}")
             result = handler.execute(command)
+            if not result.command:
+                result.command = command.raw_text
             result.duration_ms = int((time.time() - start_time) * 1000)
             print(f"DEBUG: Command result: {result.status} - count: {result.count}")
             print(f"🔍 STATE DEBUG: After command, state variables: {list(self.state_store.get_state().get('variables', {}).keys())}")
@@ -789,6 +792,15 @@ class GASLExecutor:
                             plan_repair_response.get("planner_constraints", [])
                         )
                         continue
+                    planner_constraints = plan_repair_response.get(
+                        "planner_constraints",
+                        [],
+                    )
+                    if planner_constraints:
+                        self.state_store.set_planner_constraints(
+                            planner_constraints,
+                        )
+                        continue
 
                     current_schema = self.get_schema()
                     strategy_prompt = self.llm_func.create_strategy_adaptation_prompt(query, variables, iteration, current_schema, self.state_store.get_state())
@@ -868,11 +880,17 @@ class GASLExecutor:
         """Summarize iteration outcomes for planning while preserving the operational retry gate."""
         errors: List[Dict[str, Any]] = []
         empties: List[Dict[str, Any]] = []
+        successful_table_outputs = self._successful_table_outputs(results)
         for index, result in enumerate(results):
             status = getattr(result, "status", None)
             if status not in {"error", "empty"}:
                 continue
             if self._superseded_by_successful_command_repair(result, results[index + 1:index + 2]):
+                continue
+            if status == "empty" and self._empty_intermediate_is_nonblocking(
+                result,
+                successful_table_outputs=successful_table_outputs,
+            ):
                 continue
             entry = {
                 "command": getattr(result, "command", ""),
@@ -893,6 +911,49 @@ class GASLExecutor:
             # Backward-compatible alias for older prompt/tests.
             "reasons": reasons,
         }
+
+    def _empty_intermediate_is_nonblocking(
+        self,
+        result: ExecutionResult,
+        *,
+        successful_table_outputs: set[str],
+    ) -> bool:
+        outputs = self._command_output_variables(getattr(result, "command", ""))
+        if not outputs:
+            return False
+        if any(output.endswith("_table") for output in outputs):
+            return False
+        return bool(successful_table_outputs)
+
+    def _successful_table_outputs(self, results: List[ExecutionResult]) -> set[str]:
+        outputs: set[str] = set()
+        for result in results:
+            if getattr(result, "status", None) != "success":
+                continue
+            outputs.update(
+                output
+                for output in self._command_output_variables(getattr(result, "command", ""))
+                if output.endswith("_table")
+            )
+        return outputs
+
+    def _command_output_variables(self, command: str) -> set[str]:
+        names: set[str] = set()
+        try:
+            parsed = self.parser.parse_command(command, 0)
+        except Exception:
+            parsed = None
+
+        if parsed is not None:
+            for key in ("result_var", "result_variable", "target", "target_variable"):
+                value = parsed.args.get(key)
+                if isinstance(value, str) and value:
+                    names.add(value)
+
+        for match in re.finditer(r"\bAS\s+([A-Za-z_][A-Za-z0-9_]*)\b", command or "", flags=re.IGNORECASE):
+            names.add(match.group(1))
+
+        return names
 
     @staticmethod
     def _superseded_by_successful_command_repair(
@@ -933,7 +994,7 @@ class GASLExecutor:
                 "edge_properties_count": len(schema.get("edge_properties", []) or []),
             },
             "source_coverage": {
-                "artifacts_with_source_papers": sum(1 for fields in artifact_fields if "source_papers" in fields),
+                "artifacts_with_source_refs": sum(1 for fields in artifact_fields if "source_refs" in fields),
                 "artifacts_with_source_chunks": sum(1 for fields in artifact_fields if "source_chunks" in fields),
                 "history_entries_with_provenance": sum(1 for entry in history if entry.get("provenance")),
             },

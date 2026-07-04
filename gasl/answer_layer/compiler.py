@@ -1,6 +1,14 @@
 from __future__ import annotations
 
-from .builders import comparison, distribution, evidence_table, frontier, grouped_summary, provenance, ranking
+from .builders import (
+    comparison,
+    distribution,
+    evidence_table,
+    frontier,
+    grouped_summary,
+    provenance,
+    ranking,
+)
 from .selector import AnswerViewSelector
 from .types import AnswerSelection, AnswerView
 from .utils import enumerate_row_variables

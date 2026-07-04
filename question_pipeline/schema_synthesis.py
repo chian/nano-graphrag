@@ -131,6 +131,10 @@ _SCHEMA_JSON_SHAPE = """Return JSON with this exact shape:
   ]
 }"""
 
+_SCHEMA_SYSTEM_PROMPT = """You are a rigorous typed-graph schema designer.
+Return only one complete valid JSON object in the exact shape requested by the
+user. Do not include markdown fences, prose, comments, or partial drafts."""
+
 
 async def generate_candidate_schema(
     llm,
@@ -155,7 +159,7 @@ mechanistic links, study/evidence provenance, and the key actors of the domain.
 Do not include generic catch-all types like "CONCEPT" or "THING".
 
 {_SCHEMA_JSON_SHAPE}"""
-    return await ask_json(llm, prompt)
+    return await ask_json(llm, prompt, system_prompt=_SCHEMA_SYSTEM_PROMPT)
 
 
 async def critique_schema(
@@ -186,7 +190,7 @@ Return JSON:
   "missing_relationship_types": ["NAME: why"],
   "redundant_types": ["NAME", "..."]
 }}"""
-    return await ask_json(llm, prompt)
+    return await ask_json(llm, prompt, system_prompt=_SCHEMA_SYSTEM_PROMPT)
 
 
 async def revise_schema(
@@ -213,7 +217,7 @@ Apply the feedback: add missing types, drop or merge redundant ones, sharpen
 vague descriptions. Keep what already works. Return the FULL revised schema.
 
 {_SCHEMA_JSON_SHAPE}"""
-    return await ask_json(llm, prompt)
+    return await ask_json(llm, prompt, system_prompt=_SCHEMA_SYSTEM_PROMPT)
 
 
 async def revise_schema_from_test(
@@ -247,7 +251,7 @@ Notes on reading the results:
 Return the FULL revised schema (add types the documents clearly need, prune dead ones).
 
 {_SCHEMA_JSON_SHAPE}"""
-    return await ask_json(llm, prompt)
+    return await ask_json(llm, prompt, system_prompt=_SCHEMA_SYSTEM_PROMPT)
 
 
 # --------------------------------------------------------------------------- #

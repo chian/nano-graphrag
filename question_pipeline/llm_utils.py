@@ -18,12 +18,29 @@ class LLMJSONError(RuntimeError):
     """Raised when the model never returns parseable JSON."""
 
 
-async def ask_text(llm, prompt: str) -> str:
+async def _call_llm(llm, prompt: str, *, system_prompt: str | None = None) -> str:
+    try:
+        return await llm.call_async(prompt, system_prompt=system_prompt)
+    except TypeError as exc:
+        if system_prompt is None or "system_prompt" not in str(exc):
+            raise
+        return await llm.call_async(
+            f"SYSTEM:\n{system_prompt}\n\nUSER:\n{prompt}"
+        )
+
+
+async def ask_text(llm, prompt: str, *, system_prompt: str | None = None) -> str:
     """Call the LLM asynchronously and return the raw string response."""
-    return await llm.call_async(prompt)
+    return await _call_llm(llm, prompt, system_prompt=system_prompt)
 
 
-async def ask_json(llm, prompt: str, *, retries: int = 2) -> Any:
+async def ask_json(
+    llm,
+    prompt: str,
+    *,
+    system_prompt: str | None = None,
+    retries: int = 2,
+) -> Any:
     """Call the LLM and parse a JSON object/array from its response.
 
     Reuses nano_graphrag's tolerant extractor (handles ```json fences and
@@ -33,7 +50,7 @@ async def ask_json(llm, prompt: str, *, retries: int = 2) -> Any:
     last_raw = ""
     current_prompt = prompt
     for attempt in range(retries + 1):
-        last_raw = await llm.call_async(current_prompt)
+        last_raw = await _call_llm(llm, current_prompt, system_prompt=system_prompt)
         parsed = extract_first_complete_json(last_raw)
         if isinstance(parsed, (dict, list)):
             return parsed

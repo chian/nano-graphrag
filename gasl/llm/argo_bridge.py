@@ -47,10 +47,9 @@ class ArgoBridgeLLM:
         )
         if runtime_cfg.model:
             self.model = runtime_cfg.model
-        client_kwargs = {
-            "api_key": runtime_cfg.api_key or "",
-            "base_url": runtime_cfg.base_url or "https://apps-dev.inside.anl.gov/argoapi/v1",
-        }
+        client_kwargs = {"api_key": runtime_cfg.api_key or ""}
+        if runtime_cfg.base_url:
+            client_kwargs["base_url"] = runtime_cfg.base_url
         if self._transport == "shim":
             client_kwargs["default_headers"] = {
                 **client_kwargs.get("default_headers", {}),
@@ -66,9 +65,20 @@ class ArgoBridgeLLM:
         self._read_timeout_sec = float(os.getenv("LLM_READ_TIMEOUT_SEC", "300.0"))
         self._write_timeout_sec = float(os.getenv("LLM_WRITE_TIMEOUT_SEC", "300.0"))
         self._pool_timeout_sec = float(os.getenv("LLM_POOL_TIMEOUT_SEC", "30.0"))
+        self._call_timeout_sec = float(
+            os.getenv(
+                "LLM_CALL_TIMEOUT_SEC",
+                str(self._connect_timeout_sec + self._read_timeout_sec + 30.0),
+            )
+        )
         self._max_connections = int(os.getenv("LLM_MAX_CONNECTIONS", "128"))
         self._max_keepalive_connections = int(os.getenv("LLM_MAX_KEEPALIVE_CONNECTIONS", "64"))
         self._connection_retries = int(os.getenv("LLM_CONNECTION_RETRIES", "3"))
+        self._reasoning_token_floor = int(os.getenv("LLM_REASONING_TOKEN_FLOOR", "16000"))
+        self._shim_connection_retries = int(
+            os.getenv("LLM_SHIM_CONNECTION_RETRIES", str(max(self._connection_retries, 60)))
+        )
+        self._shim_retry_max_sleep_sec = float(os.getenv("LLM_SHIM_RETRY_MAX_SLEEP_SEC", "8.0"))
         self._loop_id: Optional[int] = None
         self._loop_http_client: Optional[httpx.AsyncClient] = None
         self._loop_openai_client: Optional[AsyncOpenAI] = None
@@ -136,10 +146,20 @@ class ArgoBridgeLLM:
         m = (self.model or "").lower()
         return self._is_reasoning_model() or m.startswith("gpt-5") or m.startswith("gpt5")
 
-    def _build_create_kwargs(self, prompt: str, *, stream: bool) -> dict:
+    def _build_create_kwargs(
+        self,
+        prompt: str,
+        *,
+        stream: bool,
+        system_prompt: Optional[str] = None,
+    ) -> dict:
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
         kwargs = {
             "model": self.model,
-            "messages": [{"role": "user", "content": prompt}],
+            "messages": messages,
         }
         if self._transport == "shim":
             kwargs["user"] = self._shim_user
@@ -150,8 +170,8 @@ class ArgoBridgeLLM:
         # token cap: reasoning models include reasoning tokens in this budget,
         # so give them more headroom.
         token_cap = self.max_tokens
-        if self._is_reasoning_model() and token_cap < 8000:
-            token_cap = 8000
+        if self._is_reasoning_model() and token_cap < self._reasoning_token_floor:
+            token_cap = self._reasoning_token_floor
         if self._uses_max_completion_tokens():
             kwargs["max_completion_tokens"] = token_cap
         else:
@@ -231,10 +251,28 @@ class ArgoBridgeLLM:
             self._loop_id = loop_id
         return self._loop_openai_client
 
-    async def _call_direct_once(self, prompt: str) -> str:
+    @staticmethod
+    def _shim_response_retryable(response: httpx.Response) -> bool:
+        if response.status_code in {500, 502, 503, 504}:
+            return True
+        return (
+            response.status_code == 404
+            and "DeploymentNotFound" in response.text
+        )
+
+    async def _call_direct_once(
+        self,
+        prompt: str,
+        *,
+        system_prompt: Optional[str] = None,
+    ) -> str:
         client = self._get_loop_openai_client()
         if self.stream_callback is not None:
-            kwargs = self._build_create_kwargs(prompt, stream=True)
+            kwargs = self._build_create_kwargs(
+                prompt,
+                stream=True,
+                system_prompt=system_prompt,
+            )
             stream = await client.chat.completions.create(**kwargs)
             full_text = ""
             async for chunk in stream:
@@ -250,7 +288,11 @@ class ArgoBridgeLLM:
                 print("="*80)
             return full_text
 
-        kwargs = self._build_create_kwargs(prompt, stream=False)
+        kwargs = self._build_create_kwargs(
+            prompt,
+            stream=False,
+            system_prompt=system_prompt,
+        )
         response = await client.chat.completions.create(**kwargs)
         result = response.choices[0].message.content
         u = getattr(response, "usage", None)
@@ -264,22 +306,42 @@ class ArgoBridgeLLM:
             print("="*80)
         return result
 
-    async def call_async(self, prompt: str) -> str:
+    async def call_async(self, prompt: str, system_prompt: Optional[str] = None) -> str:
         """Make async LLM call, streaming tokens if stream_callback is set."""
         if self.debug:
             print(f"DEBUG: LLM PROMPT SENT:\n{prompt}\n")
             print("="*80)
         try:
             if self._transport == "shim":
-                payload = self._build_create_kwargs(prompt, stream=False)
+                payload = self._build_create_kwargs(
+                    prompt,
+                    stream=False,
+                    system_prompt=system_prompt,
+                )
+                last_response: httpx.Response | None = None
                 async with httpx.AsyncClient(
                     headers={"x-api-key": self._client_kwargs.get("api_key", "")},
-                    timeout=300.0,
+                    timeout=httpx.Timeout(
+                        connect=self._connect_timeout_sec,
+                        read=self._read_timeout_sec,
+                        write=self._write_timeout_sec,
+                        pool=self._pool_timeout_sec,
+                    ),
                 ) as client:
-                    response = await client.post(
-                        self._client_kwargs["base_url"].rstrip("/") + "/chat/completions",
-                        json=payload,
-                    )
+                    for attempt in range(self._shim_connection_retries + 1):
+                        response = await client.post(
+                            self._client_kwargs["base_url"].rstrip("/") + "/chat/completions",
+                            json=payload,
+                        )
+                        last_response = response
+                        if not self._shim_response_retryable(response):
+                            break
+                        if attempt >= self._shim_connection_retries:
+                            break
+                        await asyncio.sleep(min(2 ** attempt, self._shim_retry_max_sleep_sec))
+                response = last_response
+                if response is None:
+                    raise RuntimeError("LLM shim call exhausted retries without a terminal response")
                 if response.status_code == 401:
                     raise LLMError(
                         f"LLM call failed: Unauthorized: {response.text}",
@@ -312,18 +374,39 @@ class ArgoBridgeLLM:
             last_exc: Optional[Exception] = None
             for attempt in range(self._connection_retries + 1):
                 try:
-                    return await self._call_direct_once(prompt)
-                except (APIConnectionError, APITimeoutError, RateLimitError, InternalServerError) as exc:
+                    direct_call = self._call_direct_once(
+                        prompt,
+                        system_prompt=system_prompt,
+                    )
+                    if self._call_timeout_sec > 0:
+                        return await asyncio.wait_for(
+                            direct_call,
+                            timeout=self._call_timeout_sec,
+                        )
+                    return await direct_call
+                except (
+                    APIConnectionError,
+                    APITimeoutError,
+                    RateLimitError,
+                    InternalServerError,
+                    TimeoutError,
+                ) as exc:
+                    if isinstance(exc, TimeoutError) and not isinstance(exc, asyncio.TimeoutError):
+                        raise
                     last_exc = exc
+                    await self._reset_loop_client()
+                except asyncio.CancelledError:
+                    await self._reset_loop_client()
+                    raise
                 except APIStatusError as exc:
                     if getattr(exc, "status_code", None) not in retryable_codes:
                         raise
                     last_exc = exc
+                    await self._reset_loop_client()
                 if attempt >= self._connection_retries:
                     if last_exc is not None:
                         raise last_exc
                     break
-                await self._reset_loop_client()
                 await asyncio.sleep(min(2 ** attempt, 8))
             if last_exc is not None:
                 raise last_exc
@@ -348,7 +431,7 @@ class ArgoBridgeLLM:
                 original_type=type(e).__name__,
                 fatal=True,
             )
-        except (APIConnectionError, APITimeoutError) as e:
+        except (APIConnectionError, APITimeoutError, asyncio.TimeoutError) as e:
             raise LLMError(
                 f"LLM call failed: {e}",
                 "argo_bridge",

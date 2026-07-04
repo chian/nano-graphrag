@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import networkx as nx
 
@@ -37,6 +37,8 @@ def chunk_text(text: str, chunk_size: int = 2000, overlap: int = 200) -> List[st
         chunks.append(text[start:end])
         if end >= len(text):
             break
+        if len(text) - end <= overlap:
+            break
         start = end - overlap
     return chunks
 
@@ -49,6 +51,7 @@ async def extract_from_text(
     chunk_size: int = 2000,
     overlap: int = 200,
     concurrency: int = 1,
+    timeout: Optional[float] = None,
 ) -> Tuple[Dict[str, dict], List[dict]]:
     """Run the typed extractor over chunked text.
 
@@ -67,7 +70,17 @@ async def extract_from_text(
         chunk_id = f"{source_id}_chunk_{idx}"
         try:
             async with semaphore:
-                prediction = await extractor.forward(chunk)
+                extraction = extractor.forward(chunk)
+                if timeout is not None and timeout > 0:
+                    prediction = await asyncio.wait_for(
+                        extraction,
+                        timeout=timeout,
+                    )
+                else:
+                    prediction = await extraction
+        except asyncio.TimeoutError:
+            print(f"    [extract] chunk {idx} timed out after {timeout}s")
+            return idx, chunk_id, [], []
         except Exception as exc:  # noqa: BLE001 - one bad chunk shouldn't abort
             print(f"    [extract] chunk {idx} failed: {exc}")
             return idx, chunk_id, [], []

@@ -10,6 +10,7 @@ class AnswerViewSelector:
         if not views:
             return AnswerSelection(view=None, rationale="no views built")
         tokens = tokenize_query(query)
+        views_by_id = {view.view_id: view for view in views}
         scored: list[tuple[tuple[int, int, int], AnswerView, str]] = []
         grouped_candidates: list[AnswerView] = []
         provenance_candidates: list[AnswerView] = []
@@ -18,6 +19,9 @@ class AnswerViewSelector:
                 continue
             intent_score = 0
             rationale = "highest sufficiency"
+            if view.kind == "answer_bundle" and tokens & {"table", "tables", "view", "views"}:
+                intent_score += 8
+                rationale = "multi-view table intent"
             if view.kind == "grouped_summary":
                 grouped_candidates.append(view)
             if view.kind == "provenance":
@@ -72,4 +76,17 @@ class AnswerViewSelector:
         elif view.kind == "frontier":
             supporting.extend(v for v in grouped_candidates if v.source_variable == view.source_variable)
             supporting.extend(v for v in provenance_candidates if v.source_variable == view.source_variable)
-        return AnswerSelection(view=view, supporting_views=supporting[:3], rationale=rationale)
+        elif view.kind == "answer_bundle":
+            for view_id in [
+                *view.payload.get("primary_view_ids", []),
+                *view.payload.get("diagnostic_view_ids", []),
+            ]:
+                supporting_view = views_by_id.get(view_id)
+                if supporting_view is not None and supporting_view.sufficient:
+                    supporting.append(supporting_view)
+        support_limit = 8 if view.kind == "answer_bundle" else 3
+        return AnswerSelection(
+            view=view,
+            supporting_views=supporting[:support_limit],
+            rationale=rationale,
+        )

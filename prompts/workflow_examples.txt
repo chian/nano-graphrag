@@ -22,15 +22,15 @@ This file contains common workflow patterns and examples for the GASL (Graph Ana
 
 ## Complex Multi-Hop Queries
 
-### Example 3: Find Countries with High Disease Reports
+### Example 3: Find Locations with High Incident Reports
 ```
-1. FIND nodes with entity_type="GEOGRAPHICAL" AS geo_nodes
-2. GRAPHWALK from geo_nodes follow "reports" depth 2 AS related_reports
-3. PROCESS related_reports with instruction: "Extract disease type and sample count" AS disease_data
-4. COUNT disease_data where disease_type = "cVDPV1" AS cvdpv1_reports
-5. COUNT disease_data where environmental_samples >= 2 AS high_sample_reports
-6. JOIN cvdpv1_reports with high_sample_reports on geo_id AS combined_data
-7. COUNT combined_data where cvdpv1_count > 10 AS high_risk_countries
+1. FIND nodes with entity_type="LOCATION" AS locations
+2. GRAPHWALK from locations follow "reports" depth 2 AS related_reports
+3. PROCESS related_reports with instruction: "Extract incident type and sample count" AS incident_data
+4. COUNT incident_data where incident_type = "sensor_fault" AS sensor_fault_reports
+5. COUNT incident_data where sample_count >= 2 AS repeated_reports
+6. JOIN sensor_fault_reports with repeated_reports on location_id AS combined_data
+7. COUNT combined_data where sensor_fault_count > 10 AS high_signal_locations
 ```
 
 ### Example 4: Author Collaboration Analysis
@@ -71,13 +71,13 @@ This file contains common workflow patterns and examples for the GASL (Graph Ana
 4. COUNT org_clusters AS cluster_count
 ```
 
-### Example 8: Disease Outbreak Pattern Detection
+### Example 8: Alert Pattern Detection
 ```
-1. FIND nodes with entity_type="DISEASE" AS diseases
-2. GRAPHWALK from diseases follow "reported_in" AS disease_locations
-3. PROCESS disease_locations with instruction: "Extract location and case count" AS outbreak_data
-4. DETECT patterns in outbreak_data with type: "geographical_clustering" AS outbreak_patterns
-5. RANK outbreak_patterns by severity AS critical_outbreaks
+1. FIND nodes with entity_type="EQUIPMENT" AS equipment
+2. GRAPHWALK from equipment follow "reported_in" AS alert_locations
+3. PROCESS alert_locations with instruction: "Extract location and alert count" AS alert_data
+4. DETECT patterns in alert_data with type: "geographical_clustering" AS alert_patterns
+5. RANK alert_patterns by severity AS critical_alerts
 ```
 
 ## Multi-Variable Operations

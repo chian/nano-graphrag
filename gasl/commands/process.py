@@ -8,11 +8,15 @@ from typing import Any, List, Dict, Optional
 from .base import CommandHandler
 from ..types import Command, ExecutionResult, Provenance
 from ..utils import normalize_node_id
+from ..json_utils import extract_json
 from ..state_manager import StateManager
 from ..process_runtime import (
     CandidateSelector,
     DerivedArtifactRegistry,
+    normalize_table_items,
     ProcessSubtypeRouter,
+    requires_input_row_preservation,
+    requires_row_materialization,
 )
 from ..command_repair_agent import LLMCommandRepairAgent, CommandFailureEnvelope, ProcessAlignmentRequest
 from ..contracts import make_contract, merge_contract
@@ -108,6 +112,16 @@ class ProcessHandler(CommandHandler):
             if isinstance(data, list) and data
             else None
         )
+        row_preserving = self._is_row_preserving_instruction(
+            instruction,
+            interpretation,
+            target_variable=target_variable,
+            incoming_contract=incoming_contract,
+        )
+        row_materializing = requires_row_materialization(
+            instruction,
+            target_variable,
+        )
 
         selection = (
             self.selector.select(
@@ -117,11 +131,13 @@ class ProcessHandler(CommandHandler):
                 subtype=initial_subtype,
                 strategy_hint="stratified",
             )
-            if isinstance(data, list)
+            if isinstance(data, list) and not row_preserving and not row_materializing
             else None
         )
 
-        diagnostics = selection.diagnostics if selection else {"strategy": "single"}
+        diagnostics = selection.diagnostics if selection else {"strategy": "all_rows" if row_preserving else "single"}
+        diagnostics["row_preserving"] = row_preserving
+        diagnostics["row_materializing"] = row_materializing
         subtype = initial_subtype
         final_instruction = self._apply_target_table_constraint(
             self._apply_interpretation(instruction, interpretation),
@@ -252,7 +268,9 @@ class ProcessHandler(CommandHandler):
                     command_type="PROCESS",
                     instruction=final_instruction,
                     batch_size=None,
-                    target_variable=target_variable
+                    target_variable=target_variable,
+                    preserve_input_count=row_preserving,
+                    store_target=False,
                 )
             finally:
                 self.micro_framework.llm_func = original_llm
@@ -267,7 +285,10 @@ class ProcessHandler(CommandHandler):
                     preserve_multiplicity=bool(incoming_contract.get("multiplicity_preserved", True)),
                 ),
                 source_contract=incoming_contract,
-                source_rows=final_data if isinstance(final_data, list) else [],
+                source_rows=self._identity_source_rows(
+                    final_data,
+                    preserve_input_count=row_preserving,
+                ),
             )
             if not identity_rows:
                 print(
@@ -306,7 +327,14 @@ class ProcessHandler(CommandHandler):
                 strategy=diagnostics.get("strategy", ""),
             )
             process_contract = merge_contract(process_contract, identity_meta)
-            self.state_manager.store_variable_contract(target_variable, process_contract, store_in_state=True, store_in_context=True)
+            self.state_manager.store_variable_data(
+                target_variable,
+                identity_rows,
+                store_in_state=True,
+                store_in_context=True,
+                description=f"Processed data from {target_variable}",
+                contract=process_contract,
+            )
             result.contract = process_contract
             self._record_artifact_candidate(
                 variable=variable,
@@ -321,7 +349,14 @@ class ProcessHandler(CommandHandler):
             return result
 
         print(f"DEBUG: PROCESS - Processing {len(final_data) if isinstance(final_data, list) else 1} items normally")
-        result = self._execute_single_batch(final_data, final_instruction, command, target_variable, subtype=subtype)
+        result = self._execute_single_batch(
+            final_data,
+            final_instruction,
+            command,
+            target_variable,
+            subtype=subtype,
+            preserve_input_count=row_preserving,
+        )
         self._record_artifact_candidate(
             variable=variable,
             target_variable=target_variable,
@@ -342,15 +377,83 @@ class ProcessHandler(CommandHandler):
         target_variable: str,
         *,
         subtype: str,
+        preserve_input_count: bool = False,
     ) -> ExecutionResult:
         """Execute PROCESS on a single batch (original logic)."""
         result = self._run_process_batch(data, instruction, subtype=subtype, phase="main")
+        if (
+            result.get("processing_method") == "filter"
+            and requires_row_materialization(instruction, target_variable)
+        ):
+            incoming_contract = self.state_manager.get_variable_contract(command.args["variable"], fallback_to_last_nodes=True)
+            error_contract = self._build_process_contract(
+                source_contract=incoming_contract,
+                interpretation=None,
+                output_data=[],
+                subtype=subtype,
+                strategy="row_materialization",
+            )
+            return self._create_result(
+                command=command,
+                status="error",
+                data=[],
+                count=len(result.get("filtered_items") or []),
+                error_message=(
+                    "PROCESS was required to materialize row objects but "
+                    "returned filter decisions."
+                ),
+                provenance=[
+                    self._create_provenance(
+                        source_id="llm-process",
+                        method="process",
+                        variable=command.args["variable"],
+                        instruction=instruction,
+                        model="llm",
+                        process_subtype=subtype,
+                    )
+                ],
+                contract=error_contract,
+            )
+
         normalized_items = self._normalized_items(result)
         normalized_items = self._filter_target_table_items(
             normalized_items,
             target_variable,
         )
         incoming_contract = self.state_manager.get_variable_contract(command.args["variable"], fallback_to_last_nodes=True)
+        if (
+            preserve_input_count
+            and isinstance(data, list)
+            and len(normalized_items) != len(data)
+        ):
+            error_contract = self._build_process_contract(
+                source_contract=incoming_contract,
+                interpretation=None,
+                output_data=[],
+                subtype=subtype,
+                strategy="row_preserving",
+            )
+            return self._create_result(
+                command=command,
+                status="error",
+                data=[],
+                count=len(normalized_items),
+                error_message=(
+                    "Row-preserving PROCESS expected "
+                    f"{len(data)} output rows but produced {len(normalized_items)}"
+                ),
+                provenance=[
+                    self._create_provenance(
+                        source_id="llm-process",
+                        method="process",
+                        variable=command.args["variable"],
+                        instruction=instruction,
+                        model="llm",
+                        process_subtype=subtype,
+                    )
+                ],
+                contract=error_contract,
+            )
         normalized_items, identity_meta = materialize_row_identity(
             normalized_items,
             spec=IdentitySpec(
@@ -359,7 +462,10 @@ class ProcessHandler(CommandHandler):
                 preserve_multiplicity=bool(incoming_contract.get("multiplicity_preserved", True)),
             ),
             source_contract=incoming_contract,
-            source_rows=data if isinstance(data, list) else [],
+            source_rows=self._identity_source_rows(
+                data,
+                preserve_input_count=preserve_input_count,
+            ),
         )
         if not normalized_items:
             print(
@@ -538,17 +644,32 @@ class ProcessHandler(CommandHandler):
         items: List[Dict[str, Any]],
         target_variable: str,
     ) -> List[Dict[str, Any]]:
-        if not target_variable or not target_variable.endswith("_table"):
-            return items
-        return [
-            item
-            for item in items
-            if not (
-                isinstance(item, dict)
-                and item.get("table_name")
-                and item.get("table_name") != target_variable
-            )
-        ]
+        return normalize_table_items(items, target_variable)
+
+    @staticmethod
+    def _identity_source_rows(
+        data: Any,
+        *,
+        preserve_input_count: bool,
+    ) -> List[Dict[str, Any]]:
+        if preserve_input_count and isinstance(data, list):
+            return data
+        return []
+
+    @staticmethod
+    def _is_row_preserving_instruction(
+        instruction: str,
+        interpretation: Optional[Dict[str, Any]] = None,
+        *,
+        target_variable: Optional[str] = None,
+        incoming_contract: Optional[Dict[str, Any]] = None,
+    ) -> bool:
+        return requires_input_row_preservation(
+            instruction,
+            interpretation,
+            target_variable=target_variable,
+            source_contract=incoming_contract,
+        )
 
     def _build_process_failure_envelope(
         self,
@@ -725,7 +846,21 @@ Data to process (list of nodes):
 
 Instructions:
 1. Analyze each node's content (name, description, properties) according to the instruction
-2. If the instruction asks to FILTER or SELECT nodes, return a JSON object with this structure:
+2. If the instruction asks to create, emit, produce, materialize, transform, normalize, derive, calculate, count, or add fields to rows, return a JSON object with this structure:
+{{
+  "processed_items": [
+    {{"id": "node_id", "name": "node_name", "new_field": "value", "reason": "explanation"}},
+    ...
+  ],
+  "summary": {{
+    "total_processed": 0,
+    "processing_type": "description of what was processed",
+    "fields_created": ["list", "of", "fields"]
+  }}
+}}
+
+3. If the instruction asks for row objects, a table, exact output fields, or a target table variable, do not return included/excluded decisions. Omit ineligible inputs and return only processed_items shaped like the requested rows.
+4. If the instruction only asks to FILTER or SELECT existing nodes without creating new row fields, return a JSON object with this structure:
 {{
   "included": [
     {{"id": "node_id", "name": "node_name", "reason": "why included"}},
@@ -740,19 +875,6 @@ Instructions:
     "included_count": 0,
     "excluded_count": 0,
     "categories_found": []
-  }}
-}}
-
-3. If the instruction asks to CALCULATE, COUNT, or ADD FIELDS, return a JSON object with this structure:
-{{
-  "processed_items": [
-    {{"id": "node_id", "name": "node_name", "calculated_field": "value", "reason": "explanation"}},
-    ...
-  ],
-  "summary": {{
-    "total_processed": 0,
-    "calculation_type": "description of what was calculated",
-    "fields_added": ["list", "of", "new", "fields"]
   }}
 }}
 
@@ -879,6 +1001,14 @@ Rules:
                     yield next_prefix, value
                 elif isinstance(value, dict):
                     yield from ProcessHandler._iter_scalar_fields(value, next_prefix, depth=depth + 1, max_depth=max_depth)
+                elif isinstance(value, list):
+                    for index, entry in enumerate(value[:2]):
+                        yield from ProcessHandler._iter_scalar_fields(
+                            entry,
+                            f"{next_prefix}[{index}]",
+                            depth=depth + 1,
+                            max_depth=max_depth,
+                        )
         elif isinstance(item, (str, int, float, bool)):
             yield prefix or "value", item
 
@@ -1059,10 +1189,7 @@ Rules:
     
     @staticmethod
     def _strip_json_fences(text: str) -> str:
-        import re
-        text = text.strip()
-        match = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```', text)
-        return match.group(1).strip() if match else text
+        return extract_json(text)
 
     def _parse_process_response(self, llm_response: str, original_data: Any) -> Dict[str, Any]:
         """Parse LLM response for PROCESS command."""

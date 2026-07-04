@@ -28,6 +28,33 @@ class RuntimeLLMConfig:
     transport: str
 
 
+_REPO_ENV_LOADED = False
+
+
+def load_repo_env_files() -> None:
+    """Load repo-local env files without overriding shell-provided values."""
+    global _REPO_ENV_LOADED
+    if _REPO_ENV_LOADED:
+        return
+    _REPO_ENV_LOADED = True
+
+    repo_root = Path(__file__).resolve().parents[2]
+    for path in (repo_root / ".env", repo_root / ".viz.local.env"):
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            continue
+        for raw in lines:
+            line = raw.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            os.environ.setdefault(
+                key.strip(),
+                value.strip().strip("'").strip('"'),
+            )
+
+
 def _shim_from_claude_settings() -> tuple[Optional[str], Optional[str]]:
     settings_path = Path.home() / ".claude" / "settings.json"
     try:
@@ -81,11 +108,18 @@ def resolve_runtime_llm_config(
     explicit_base_url: Optional[str] = None,
     explicit_model: Optional[str] = None,
 ) -> RuntimeLLMConfig:
+    load_repo_env_files()
+
     transport = os.getenv("NANOGRAPHRAG_LLM_TRANSPORT", "direct").strip().lower()
     if transport != "shim":
         return RuntimeLLMConfig(
-            api_key=explicit_api_key,
-            base_url=explicit_base_url,
+            api_key=(
+                explicit_api_key
+                or os.getenv("LLM_API_KEY")
+                or os.getenv("OPENAI_API_KEY")
+                or os.getenv("VIZ_API_KEY")
+            ),
+            base_url=explicit_base_url or os.getenv("OPENAI_BASE_URL"),
             model=explicit_model,
             transport="direct",
         )

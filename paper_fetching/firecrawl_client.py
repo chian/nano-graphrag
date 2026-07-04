@@ -49,7 +49,8 @@ def search_papers(
     query: str,
     api_key: str,
     max_results: int = 10,
-    format: str = 'markdown'
+    format: str = 'markdown',
+    raise_on_error: bool = False,
 ) -> List[Dict]:
     """
     Search for scientific papers using Firecrawl API.
@@ -59,6 +60,7 @@ def search_papers(
         api_key: Firecrawl API key
         max_results: Maximum number of results to return
         format: Content format ('markdown', 'html', 'text')
+        raise_on_error: Raise Firecrawl request errors instead of returning [].
 
     Returns:
         List of search results with URLs and metadata
@@ -110,6 +112,8 @@ def search_papers(
 
     except requests.exceptions.RequestException as e:
         print(f"  ✗ Error searching: {e}")
+        if raise_on_error:
+            raise
         return []
 
 

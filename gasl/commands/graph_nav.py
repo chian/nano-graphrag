@@ -9,13 +9,18 @@ from ..types import Command, ExecutionResult, Provenance
 from ..search_refinement_agent import LLMSearchRefinementAgent
 from ..adapters.base import GraphAdapter
 from ..contracts import make_contract
+from ..state_manager import StateManager
 
 
 class GraphNavHandler(CommandHandler):
     """Handles graph navigation commands: GRAPHWALK, GRAPHCONNECT, SUBGRAPH, GRAPHPATTERN."""
     
     def __init__(self, state_store, context_store, adapter: GraphAdapter, llm_func=None, state_manager=None):
-        super().__init__(state_store, context_store, state_manager)
+        super().__init__(
+            state_store,
+            context_store,
+            state_manager or StateManager(state_store, context_store),
+        )
         self.adapter = adapter
         self.search_refinement_agent = LLMSearchRefinementAgent(llm_func)
     

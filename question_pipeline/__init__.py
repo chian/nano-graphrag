@@ -17,5 +17,33 @@ The public entry point is `QuestionPipeline` / `PipelineConfig` in `pipeline`.
 """
 
 from .pipeline import PipelineConfig, QuestionPipeline
+from .goals import CoverageGoalState, TableCoverageGoalTracker
+from .search import (
+    SearchFrontier,
+    SearchHarvester,
+    SearchOutcome,
+    SourceRelevanceDecision,
+    SearchTask,
+    load_seed_search_outcomes,
+    load_seed_source_records,
+    measurement_gap_search_tasks,
+    reduce_text_to_relevant_windows,
+    table_gap_search_tasks,
+)
 
-__all__ = ["PipelineConfig", "QuestionPipeline"]
+__all__ = [
+    "PipelineConfig",
+    "QuestionPipeline",
+    "CoverageGoalState",
+    "SearchFrontier",
+    "SearchHarvester",
+    "SearchOutcome",
+    "SourceRelevanceDecision",
+    "SearchTask",
+    "TableCoverageGoalTracker",
+    "load_seed_search_outcomes",
+    "load_seed_source_records",
+    "measurement_gap_search_tasks",
+    "reduce_text_to_relevant_windows",
+    "table_gap_search_tasks",
+]

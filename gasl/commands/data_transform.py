@@ -454,6 +454,7 @@ class DataTransformHandler(CommandHandler):
         for item in data:
             grain_rows = self._project_rows_for_grain(item, grain, field_specs)
             for row in grain_rows:
+                self._preserve_projection_identity(item, row, grain)
                 if not row.get("id") and item.get("id"):
                     row["id"] = item["id"]
                 if not preserve:
@@ -657,6 +658,22 @@ class DataTransformHandler(CommandHandler):
                 return [{**base_row, "chunk_id": None}]
             return [{**base_row, "chunk_id": chunk_id} for chunk_id in chunks]
         return [base_row]
+
+    def _preserve_projection_identity(
+        self,
+        source: Dict[str, Any],
+        row: Dict[str, Any],
+        grain: str,
+    ) -> None:
+        if grain not in {"edge", "path"}:
+            return
+
+        for field in ("src_id", "tgt_id", "relation_type", "path_depth", "source_chunk"):
+            if row.get(field) not in (None, ""):
+                continue
+            value = self._get_nested_field(source, field)
+            if value not in (None, ""):
+                row[field] = value
 
     def _explode_csv_field(self, item: Dict[str, Any], candidate_paths: List[str]) -> List[str]:
         for path in candidate_paths:
