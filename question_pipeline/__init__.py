@@ -22,6 +22,7 @@ The public entry point is `QuestionPipeline` / `PipelineConfig` in `pipeline`.
 from .pipeline import PipelineConfig, QuestionPipeline
 from .goals import (
     CoverageGoalState,
+    FillDeficit,
     FillGoalState,
     TableCoverageGoalTracker,
     TableFillGoalTracker,
@@ -43,6 +44,7 @@ __all__ = [
     "PipelineConfig",
     "QuestionPipeline",
     "CoverageGoalState",
+    "FillDeficit",
     "FillGoalState",
     "SearchFrontier",
     "SearchHarvester",

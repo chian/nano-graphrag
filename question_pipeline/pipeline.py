@@ -1248,7 +1248,9 @@ genuinely separate view that is not covered by a listed target."""
             return []
 
         deficits = self._deficits_with_strategy_history(
-            goal_state.target_catalog.get("unmet_count_targets") or []
+            goal_state.target_catalog.get("fill_deficits")
+            or goal_state.target_catalog.get("unmet_count_targets")
+            or []
         )
         if not deficits:
             return []
@@ -1262,13 +1264,20 @@ genuinely separate view that is not covered by a listed target."""
                 self.goal_universe_estimate,
             ),
             deficits=deficits,
-            n=max(self.config.task_goal_search_tasks, len(deficits)),
+            n=max(
+                self.config.task_goal_search_tasks,
+                min(len(deficits), self.config.task_goal_search_tasks * 2),
+            ),
         )
-        targets_by_name = {
-            str(target.get("name") or "").lower(): target
-            for target in deficits
-            if isinstance(target, dict)
-        }
+        targets_by_name = {}
+        for target in deficits:
+            if not isinstance(target, dict):
+                continue
+            target_name = str(
+                target.get("target_name") or target.get("name") or ""
+            ).strip()
+            if target_name:
+                targets_by_name[target_name.lower()] = target
         targets_by_id = {
             str(target.get("id") or ""): target
             for target in deficits
@@ -1285,26 +1294,26 @@ genuinely separate view that is not covered by a listed target."""
                 target = deficits[0]
             if not isinstance(target, dict):
                 continue
-            target_id = str(target.get("id") or "")
             tasks.append(
                 self._target_deficit_search_task(
                     query=item["query"],
                     target=target,
                     round_idx=round_idx,
                     rationale=item.get("rationale", ""),
+                    strategy_family=item.get("strategy_family", ""),
                     strategy_origin="llm",
                 )
             )
 
         accepted = self.search_frontier.enqueue(tasks)
         covered_target_ids = {
-            str(task.metadata.get("target_id") or "")
+            str(task.metadata.get("fill_deficit_id") or "")
             for task in accepted
         }
         fallback_tasks = []
         for target in deficits:
-            target_id = str(target.get("id") or "")
-            if target_id in covered_target_ids:
+            deficit_id = str(target.get("id") or "")
+            if deficit_id in covered_target_ids:
                 continue
             fallback_query = self._fallback_target_deficit_query(target)
             if not fallback_query:
@@ -1315,6 +1324,7 @@ genuinely separate view that is not covered by a listed target."""
                     target=target,
                     round_idx=round_idx,
                     rationale="Fallback strategy for a target omitted by the planner.",
+                    strategy_family="fallback_anchor",
                     strategy_origin="fallback",
                 )
             )
@@ -1334,20 +1344,27 @@ genuinely separate view that is not covered by a listed target."""
         target: Dict[str, Any],
         round_idx: int,
         rationale: str,
+        strategy_family: str,
         strategy_origin: str,
     ) -> SearchTask:
-        target_id = str(target.get("id") or "")
+        deficit_id = str(target.get("id") or "")
+        target_id = str(target.get("target_id") or deficit_id)
         return SearchTask(
             query=query,
             topic="target_deficit",
             expansion_op="llm_target_deficit",
-            gap=target_id,
+            gap=deficit_id,
             round_index=round_idx,
             metadata={
+                "fill_deficit_id": deficit_id,
+                "fill_deficit_type": target.get("deficit_type", ""),
                 "target_id": target_id,
-                "target_name": target.get("name", ""),
+                "target_name": target.get("target_name") or target.get("name", ""),
                 "target_table": target.get("target_table", ""),
                 "key_columns": target.get("key_columns", []),
+                "missing_fields": target.get("missing_fields", []),
+                "anchor_values": target.get("anchor_values", {}),
+                "evidence_gap": target.get("evidence_gap", ""),
                 "expected_minimum_count": target.get("expected_minimum_count"),
                 "observed_count": target.get("observed_count"),
                 "deficit_count": target.get("deficit_count"),
@@ -1356,19 +1373,52 @@ genuinely separate view that is not covered by a listed target."""
                     [],
                 ),
                 "rationale": rationale,
+                "strategy_family": strategy_family,
                 "strategy_origin": strategy_origin,
             },
         )
 
     @staticmethod
     def _fallback_target_deficit_query(target: Dict[str, Any]) -> str:
-        examples = list(target.get("known_missing_examples") or [])[:3]
-        key_columns = " ".join(str(column) for column in target.get("key_columns") or [])
+        examples = [
+            QuestionPipeline._search_text(example)
+            for example in list(target.get("known_missing_examples") or [])[:2]
+        ]
+        key_columns = QuestionPipeline._search_text(
+            " ".join(str(column) for column in target.get("key_columns") or [])
+        )
+        missing_fields = QuestionPipeline._search_text(
+            " ".join(str(column) for column in target.get("missing_fields") or [])
+        )
+        anchors = []
+        anchor_values = target.get("anchor_values") or {}
+        if isinstance(anchor_values, dict):
+            anchors = [
+                QuestionPipeline._search_text(value)
+                for value in anchor_values.values()
+                if value
+            ]
         candidates = [
-            [target.get("name"), *examples[:1], target.get("description")],
-            [*examples[1:2], target.get("name"), target.get("target_table")],
-            [target.get("description"), key_columns, target.get("name")],
-            [target.get("name"), target.get("target_table"), key_columns],
+            [
+                QuestionPipeline._search_text(target.get("description")),
+                missing_fields,
+                *anchors[:2],
+            ],
+            [
+                QuestionPipeline._search_text(target.get("target_table")),
+                missing_fields,
+                *anchors[:2],
+            ],
+            [
+                QuestionPipeline._search_text(target.get("target_name")),
+                *examples[:1],
+                QuestionPipeline._search_text(target.get("description")),
+            ],
+            [
+                *examples[1:2],
+                QuestionPipeline._search_text(target.get("target_name")),
+                key_columns,
+            ],
         ]
         attempted = {
             str(attempt.get("query") or "").strip().lower()
@@ -1382,6 +1432,20 @@ genuinely separate view that is not covered by a listed target."""
                 return query
         return ""
 
+    @staticmethod
+    def _search_text(value: Any) -> str:
+        if value is None:
+            return ""
+        if isinstance(value, dict):
+            value = " ".join(
+                str(inner)
+                for inner in value.values()
+                if inner is not None
+            )
+        elif isinstance(value, (list, tuple, set)):
+            value = " ".join(str(inner) for inner in value if inner is not None)
+        return " ".join(str(value).replace("_", " ").replace("-", " ").split())
+
     def _deficits_with_strategy_history(
         self,
         deficits: List[Dict[str, Any]],
@@ -1390,16 +1454,34 @@ genuinely separate view that is not covered by a listed target."""
         for target in deficits:
             if not isinstance(target, dict):
                 continue
-            target_id = str(target.get("id") or "")
-            if not target_id:
+            deficit_id = str(target.get("id") or "")
+            target_id = str(target.get("target_id") or deficit_id)
+            if not deficit_id:
                 continue
-            target_name = str(target.get("name") or "").lower()
+            target_name = str(
+                target.get("target_name") or target.get("name") or ""
+            ).lower()
             attempts = [
                 {
                     "round": outcome.get("round_index"),
                     "query": outcome.get("query", ""),
+                    "strategy_family": (
+                        outcome.get("metadata", {}).get("strategy_family")
+                        if isinstance(outcome.get("metadata"), dict)
+                        else ""
+                    ),
+                    "search_yield": (
+                        outcome.get("metadata", {}).get("search_yield")
+                        if isinstance(outcome.get("metadata"), dict)
+                        else None
+                    )
+                    or self._search_yield_summary(outcome),
+                    "firecrawl_hits": outcome.get("firecrawl_hits", 0),
                     "accepted_source_count": len(
                         outcome.get("accepted_source_ids") or []
+                    ),
+                    "duplicate_url_count": len(
+                        outcome.get("duplicate_urls") or []
                     ),
                     "skipped_by_reason": outcome.get("skipped_by_reason") or {},
                     "post_round_observed_delta": (
@@ -1421,6 +1503,7 @@ genuinely separate view that is not covered by a listed target."""
                 for outcome in self.search_outcomes[-50:]
                 if self._search_outcome_matches_target(
                     outcome,
+                    fill_deficit_id=deficit_id,
                     target_id=target_id,
                     target_name=target_name,
                     target_table=str(target.get("target_table") or ""),
@@ -1434,6 +1517,7 @@ genuinely separate view that is not covered by a listed target."""
     def _search_outcome_matches_target(
         outcome: Dict[str, Any],
         *,
+        fill_deficit_id: str,
         target_id: str,
         target_name: str,
         target_table: str,
@@ -1445,6 +1529,8 @@ genuinely separate view that is not covered by a listed target."""
         metadata = outcome.get("metadata") or {}
         if not isinstance(metadata, dict):
             metadata = {}
+        if metadata.get("fill_deficit_id") == fill_deficit_id:
+            return True
         if metadata.get("target_id") == target_id:
             return True
 
@@ -1476,45 +1562,62 @@ genuinely separate view that is not covered by a listed target."""
             return
 
         targets = goal_state.target_estimate.get("count_targets") or []
-        if not targets or not self.last_search_batch.outcomes:
+        if not self.last_search_batch.outcomes:
             return
 
-        annotations: Dict[str, Dict[str, Any]] = {}
+        metadata_updates: Dict[str, Dict[str, Any]] = {}
         for outcome in self.last_search_batch.outcomes:
             metadata = outcome.metadata
             if outcome.topic != "target_deficit":
                 continue
             if not isinstance(metadata, dict):
                 continue
-            target = self._target_for_outcome_metadata(metadata, targets)
-            if target is None:
-                continue
-
-            previous_count = int(metadata.get("observed_count") or 0)
-            observed_count = int(target.get("observed_count") or 0)
-            annotation = {
-                "post_round_observed_count": observed_count,
-                "post_round_observed_delta": observed_count - previous_count,
-                "post_round_deficit_count": target.get("deficit_count"),
-                "post_round_target_status": target.get("status"),
+            update = {
+                "search_yield": self._search_yield_summary(outcome.to_dict()),
             }
-            metadata.update(annotation)
-            annotations[outcome.task_id] = annotation
+            target = self._target_for_outcome_metadata(metadata, targets)
+            if target is not None:
+                previous_count = int(metadata.get("observed_count") or 0)
+                observed_count = int(target.get("observed_count") or 0)
+                update.update(
+                    {
+                        "post_round_observed_count": observed_count,
+                        "post_round_observed_delta": observed_count - previous_count,
+                        "post_round_deficit_count": target.get("deficit_count"),
+                        "post_round_target_status": target.get("status"),
+                    }
+                )
+            metadata.update(update)
+            metadata_updates[outcome.task_id] = update
 
-        if not annotations:
+        if not metadata_updates:
             return
 
         for outcome in self.search_outcomes:
             task_id = str(outcome.get("task_id") or "")
-            annotation = annotations.get(task_id)
-            if annotation is None:
+            update = metadata_updates.get(task_id)
+            if update is None:
                 continue
             metadata = outcome.get("metadata")
             if not isinstance(metadata, dict):
                 metadata = {}
                 outcome["metadata"] = metadata
-            metadata.update(annotation)
+            metadata.update(update)
         self._rewrite_search_outcomes()
+
+    @staticmethod
+    def _search_yield_summary(outcome: Dict[str, Any]) -> Dict[str, Any]:
+        skipped = outcome.get("skipped_by_reason")
+        if not isinstance(skipped, dict):
+            skipped = {}
+        return {
+            "firecrawl_hits": int(outcome.get("firecrawl_hits") or 0),
+            "accepted_source_count": len(outcome.get("accepted_source_ids") or []),
+            "duplicate_url_count": len(outcome.get("duplicate_urls") or []),
+            "scrape_failed_count": len(outcome.get("scrape_failed_urls") or []),
+            "not_relevant_count": int(skipped.get("not_relevant") or 0),
+            "error": str(outcome.get("error") or ""),
+        }
 
     @staticmethod
     def _target_for_outcome_metadata(

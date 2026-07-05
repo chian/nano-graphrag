@@ -160,7 +160,7 @@ async def target_deficit_queries(
     deficits: List[Dict[str, Any]],
     n: int = 4,
 ) -> List[Dict[str, Any]]:
-    """Generate focused searches for unmet answer-universe count targets."""
+    """Generate focused searches for concrete table-fill deficits."""
     if n <= 0 or not deficits:
         return []
 
@@ -170,19 +170,20 @@ async def target_deficit_queries(
 CURRENT COVERAGE STATE JSON:
 {json.dumps(goal_context, indent=2, default=str)[:4500]}
 
-UNMET TARGETS JSON:
+UNMET FILL DEFICITS JSON:
 {json.dumps(deficits, indent=2, default=str)[:6000]}
 
-Produce up to {n} focused searches that are likely to add rows for the unmet
-target families. Cover every target in UNMET TARGETS at least once before
-adding a second query for any target. Each query must map to one target.
+Produce up to {n} focused searches that are likely to fill the highest-priority
+missing pieces. Prefer high-priority deficits, but diversify across target
+tables and deficit types when several deficits have similar priority. Each
+query must map to one fill-deficit id.
 
-Use each target's strategy_history to avoid stalled search behavior. If earlier
-queries for a target accepted no sources, produced only duplicates, or returned
+Use each deficit's strategy_history to avoid stalled search behavior. If earlier
+queries for a deficit accepted no sources, produced only duplicates, or returned
 errors, mutate the next query by changing terminology, changing specificity, or
 aiming at a different source shape. Do not repeat a previous query for the same
-target. Prefer source queries that can fill multiple missing rows in the target
-table, and use known missing examples only when they are present in the target.
+deficit. Prefer source queries that can fill multiple missing rows in the target
+table, and use known missing examples only when they are present in the deficit.
 
 Keep each query concise (3-10 words), no boolean operators.
 
@@ -191,8 +192,9 @@ Return JSON:
   "queries": [
     {{
       "query": "search text",
-      "target_id": "matching target id",
-      "target_name": "matching target name",
+      "target_id": "matching fill-deficit id",
+      "target_name": "matching target or table name",
+      "strategy_family": "exact_anchor | review_or_table | dataset_or_appendix | terminology_mutation | context_expansion",
       "rationale": "why this can add missing rows"
     }}
   ]
@@ -217,6 +219,7 @@ Return JSON:
                 "query": query,
                 "target_id": str(item.get("target_id") or "").strip(),
                 "target_name": str(item.get("target_name") or "").strip(),
+                "strategy_family": str(item.get("strategy_family") or "").strip(),
                 "rationale": str(item.get("rationale") or "").strip(),
             }
         )

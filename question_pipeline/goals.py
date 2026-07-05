@@ -44,6 +44,50 @@ class TargetSlot:
         }
 
 
+@dataclass(frozen=True)
+class FillDeficit:
+    """One generic missing piece the table-fill scheduler can search for."""
+
+    id: str
+    deficit_type: str
+    target_table: str
+    priority: float
+    description: str
+    target_id: str = ""
+    target_name: str = ""
+    key_columns: tuple[str, ...] = ()
+    missing_fields: tuple[str, ...] = ()
+    anchor_values: dict[str, Any] = field(default_factory=dict)
+    evidence_gap: str = ""
+    expected_minimum_count: int = 0
+    observed_count: int = 0
+    deficit_count: int = 0
+    gap_row_count: int = 0
+    row_count: int = 0
+    known_missing_examples: tuple[str, ...] = ()
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "deficit_type": self.deficit_type,
+            "target_id": self.target_id,
+            "target_name": self.target_name,
+            "target_table": self.target_table,
+            "priority": round(self.priority, 3),
+            "description": self.description,
+            "key_columns": list(self.key_columns),
+            "missing_fields": list(self.missing_fields),
+            "anchor_values": dict(self.anchor_values),
+            "evidence_gap": self.evidence_gap,
+            "expected_minimum_count": self.expected_minimum_count,
+            "observed_count": self.observed_count,
+            "deficit_count": self.deficit_count,
+            "gap_row_count": self.gap_row_count,
+            "row_count": self.row_count,
+            "known_missing_examples": list(self.known_missing_examples),
+        }
+
+
 @dataclass
 class FillGoalState:
     round: int | str
@@ -202,6 +246,13 @@ class TableFillGoalTracker:
             "slot_counts": _slot_counts(slots),
             "open_slot_counts": _slot_counts(open_slots),
             "unmet_count_targets": unmet_targets,
+            "fill_deficits": [
+                deficit.to_dict()
+                for deficit in build_fill_deficits(
+                    table_rows,
+                    estimate,
+                )
+            ],
         }
         coverage = {
             "table_rows": {
@@ -415,6 +466,41 @@ def _target_id(target: Mapping[str, Any]) -> str:
     return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
 
 
+def build_fill_deficits(
+    table_rows: Mapping[str, list[dict[str, Any]]],
+    universe_estimate: Mapping[str, Any] | None,
+    *,
+    max_row_gaps_per_table: int = 4,
+    max_total: int = 32,
+) -> list[FillDeficit]:
+    """Build concrete, generic search deficits for the next fill round."""
+    estimate = normalize_universe_estimate(
+        universe_estimate,
+        table_rows=table_rows,
+    )
+    deficits: dict[str, FillDeficit] = {}
+
+    for target in estimate.get("count_targets") or []:
+        if _as_int(target.get("deficit_count")) <= 0:
+            continue
+        deficit = _count_fill_deficit(target, table_rows)
+        deficits[deficit.id] = deficit
+
+    for table_name, rows in table_rows.items():
+        table_deficits = _table_gap_fill_deficits(
+            table_name,
+            rows,
+            max_row_gaps=max_row_gaps_per_table,
+        )
+        for deficit in table_deficits:
+            deficits.setdefault(deficit.id, deficit)
+
+    return sorted(
+        deficits.values(),
+        key=lambda deficit: (-deficit.priority, deficit.target_table, deficit.id),
+    )[:max_total]
+
+
 def _observed_slots(
     table_rows: Mapping[str, list[dict[str, Any]]],
     table_schemas: Mapping[str, Sequence[str]],
@@ -484,6 +570,21 @@ def _analysis_rows(
                 "slots than the discovery evidence says likely exist"
             ),
             "interpretation": criteria[2]["detail"],
+        },
+        {
+            "scope": "in_scope",
+            "outcome": (
+                f"{len(catalog.get('fill_deficits') or [])} concrete fill "
+                "deficits identified"
+            ),
+            "what_it_means": (
+                "the fill scheduler has table-level, row-level, and count-level "
+                "missing pieces to prioritize rather than only broad row counts"
+            ),
+            "interpretation": (
+                "nonzero concrete deficits keep the next search batch focused on "
+                "specific missing fields or row families"
+            ),
         },
         {
             "scope": "in_scope",
@@ -590,6 +691,239 @@ def _distinct_count(
         if any(key):
             keys.add(key)
     return len(keys)
+
+
+def _count_fill_deficit(
+    target: Mapping[str, Any],
+    table_rows: Mapping[str, list[dict[str, Any]]],
+) -> FillDeficit:
+    table_name = _clean_display(target.get("target_table"))
+    rows = table_rows.get(table_name, [])
+    expected = _as_int(target.get("expected_minimum_count"))
+    observed = _as_int(target.get("observed_count"))
+    deficit_count = _as_int(target.get("deficit_count"))
+    shortfall_ratio = deficit_count / max(expected, 1)
+    key_columns = tuple(_unique(target.get("key_columns")))
+    missing_fields = tuple(_top_missing_columns(rows, key_columns, limit=6))
+    description = (
+        _clean_display(target.get("description"))
+        or _clean_display(target.get("name"))
+        or f"Fill missing rows for {table_name}"
+    )
+    target_id = _clean_display(target.get("id"))
+    deficit_id = _fill_deficit_id(
+        "count_shortfall",
+        table_name,
+        target_id,
+        missing_fields,
+    )
+    return FillDeficit(
+        id=deficit_id,
+        deficit_type="count_shortfall",
+        target_id=target_id,
+        target_name=_clean_display(target.get("name")),
+        target_table=table_name,
+        priority=80 + min(20.0, shortfall_ratio * 20),
+        description=description,
+        key_columns=key_columns,
+        missing_fields=missing_fields,
+        expected_minimum_count=expected,
+        observed_count=observed,
+        deficit_count=deficit_count,
+        row_count=len(rows),
+        known_missing_examples=tuple(_unique(target.get("known_missing_examples"))),
+    )
+
+
+def _table_gap_fill_deficits(
+    table_name: str,
+    rows: list[dict[str, Any]],
+    *,
+    max_row_gaps: int,
+) -> list[FillDeficit]:
+    if not rows:
+        return []
+
+    columns = _fill_candidate_columns(rows)
+    gapped = [
+        (index, row)
+        for index, row in enumerate(rows)
+        if _row_evidence_gap(row)
+    ]
+    if not gapped:
+        return []
+
+    gap_ratio = len(gapped) / max(len(rows), 1)
+    missing_fields = tuple(
+        _top_missing_columns([row for _, row in gapped], columns, limit=8)
+    )
+    deficits = [
+        FillDeficit(
+            id=_fill_deficit_id(
+                "table_gap_saturation",
+                table_name,
+                table_name,
+                missing_fields,
+            ),
+            deficit_type="table_gap_saturation",
+            target_table=table_name,
+            priority=70 + min(25.0, gap_ratio * 25) + min(5, len(missing_fields)),
+            description=(
+                f"Fill recurring gaps in {table_name}: "
+                f"{len(gapped)}/{len(rows)} rows record evidence gaps"
+            ),
+            missing_fields=missing_fields,
+            gap_row_count=len(gapped),
+            row_count=len(rows),
+        )
+    ]
+
+    ranked_rows = sorted(
+        gapped,
+        key=lambda item: _row_gap_score(item[1], columns),
+        reverse=True,
+    )
+    for index, row in ranked_rows[: max(0, max_row_gaps)]:
+        row_missing_fields = tuple(_missing_columns(row, columns)[:8])
+        anchor_values = _anchor_values(row, columns)
+        evidence_gap = _row_evidence_gap(row)
+        deficits.append(
+            FillDeficit(
+                id=_fill_deficit_id(
+                    "row_gap",
+                    table_name,
+                    f"{index}:{evidence_gap}",
+                    row_missing_fields,
+                    anchor_values,
+                ),
+                deficit_type="row_gap",
+                target_table=table_name,
+                priority=(
+                    50
+                    + min(25, len(row_missing_fields) * 4)
+                    + min(10, len(anchor_values))
+                ),
+                description=f"Fill one partial row in {table_name}",
+                missing_fields=row_missing_fields,
+                anchor_values=anchor_values,
+                evidence_gap=evidence_gap,
+                gap_row_count=1,
+                row_count=len(rows),
+            )
+        )
+
+    return deficits
+
+
+_FILL_COLUMN_SKIP = {
+    "deduplication_key",
+    "description",
+    "entity_name",
+    "entity_type",
+    "evidence_gap",
+    "group_key",
+    "group_name",
+    "id",
+    "occurrence_count",
+    "path_depth",
+    "relation_type",
+    "row_id",
+    "source_chunk",
+    "source_chunks",
+    "source_refs",
+    "src_id",
+    "supporting_path_count",
+    "table_name",
+    "tgt_id",
+}
+
+
+def _fill_candidate_columns(rows: list[dict[str, Any]]) -> list[str]:
+    columns: list[str] = []
+    for row in rows[:200]:
+        for column in row:
+            if column.startswith("_") or column in _FILL_COLUMN_SKIP:
+                continue
+            if column not in columns:
+                columns.append(column)
+    return columns
+
+
+def _top_missing_columns(
+    rows: list[dict[str, Any]],
+    columns: Sequence[str],
+    *,
+    limit: int,
+) -> list[str]:
+    if not rows or not columns:
+        return []
+
+    counts = [
+        (
+            column,
+            sum(1 for row in rows if _missing(row.get(column))),
+        )
+        for column in columns
+    ]
+    return [
+        column
+        for column, count in sorted(counts, key=lambda item: (-item[1], item[0]))
+        if count > 0
+    ][:limit]
+
+
+def _missing_columns(row: Mapping[str, Any], columns: Sequence[str]) -> list[str]:
+    return [column for column in columns if _missing(row.get(column))]
+
+
+def _anchor_values(
+    row: Mapping[str, Any],
+    columns: Sequence[str],
+    *,
+    limit: int = 8,
+) -> dict[str, Any]:
+    anchors: dict[str, Any] = {}
+    for column in columns:
+        if len(anchors) >= limit:
+            break
+        value = row.get(column)
+        if _missing(value):
+            continue
+        anchors[column] = _compact_value(value)
+    return anchors
+
+
+def _row_evidence_gap(row: Mapping[str, Any]) -> str:
+    for column in ("evidence_gap", "gap", "caveats"):
+        value = _clean_display(row.get(column))
+        if value:
+            return value
+    return ""
+
+
+def _row_gap_score(row: Mapping[str, Any], columns: Sequence[str]) -> int:
+    return (
+        len(_anchor_values(row, columns)) * 2
+        + len(_missing_columns(row, columns))
+    )
+
+
+def _fill_deficit_id(
+    deficit_type: str,
+    table_name: str,
+    anchor: str,
+    missing_fields: Sequence[str],
+    anchor_values: Mapping[str, Any] | None = None,
+) -> str:
+    payload = {
+        "anchor": _clean_display(anchor),
+        "anchor_values": _sample_row_values(anchor_values or {}),
+        "deficit_type": deficit_type,
+        "missing_fields": list(missing_fields),
+        "table_name": table_name,
+    }
+    raw = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
 
 
 def _row_status(row: Mapping[str, Any], missing_fields: Sequence[str]) -> str:
