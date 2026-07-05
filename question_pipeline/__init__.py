@@ -10,14 +10,22 @@ Given a single question, this package runs one iterative loop that:
    knowledge graph.
 4. Runs a GASL hypothesis-driven traversal to answer the question against the
    current graph.
-5. Assesses the answer for gaps and, if it is not yet well-supported, feeds the
-   gaps back into the next round of search.
+5. In answer mode, assesses the answer for gaps and feeds the gaps back into
+   the next round of search.
+6. In table-fill mode, estimates final-table count targets, tracks incomplete
+   rows, and keeps a persistent search frontier aimed at filling missing
+   answer-table facts.
 
 The public entry point is `QuestionPipeline` / `PipelineConfig` in `pipeline`.
 """
 
 from .pipeline import PipelineConfig, QuestionPipeline
-from .goals import CoverageGoalState, TableCoverageGoalTracker
+from .goals import (
+    CoverageGoalState,
+    FillGoalState,
+    TableCoverageGoalTracker,
+    TableFillGoalTracker,
+)
 from .search import (
     SearchFrontier,
     SearchHarvester,
@@ -35,12 +43,14 @@ __all__ = [
     "PipelineConfig",
     "QuestionPipeline",
     "CoverageGoalState",
+    "FillGoalState",
     "SearchFrontier",
     "SearchHarvester",
     "SearchOutcome",
     "SourceRelevanceDecision",
     "SearchTask",
     "TableCoverageGoalTracker",
+    "TableFillGoalTracker",
     "load_seed_search_outcomes",
     "load_seed_source_records",
     "measurement_gap_search_tasks",

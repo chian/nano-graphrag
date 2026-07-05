@@ -1,4 +1,4 @@
-"""Question-level answer-universe tracking for iterative table aggregation."""
+"""Question-level fill goals for iterative table aggregation."""
 
 from __future__ import annotations
 
@@ -45,7 +45,7 @@ class TargetSlot:
 
 
 @dataclass
-class CoverageGoalState:
+class FillGoalState:
     round: int | str
     mode: str
     fulfilled: bool
@@ -64,8 +64,8 @@ class CoverageGoalState:
 
 
 @dataclass
-class TableCoverageGoalTracker:
-    """Track whether exported answer tables satisfy a searched universe estimate."""
+class TableFillGoalTracker:
+    """Track whether exported answer tables fill a searched universe estimate."""
 
     table_schemas: Mapping[str, Sequence[str]] = field(default_factory=dict)
     all_seen_slot_keys: set[str] = field(default_factory=set)
@@ -117,7 +117,7 @@ class TableCoverageGoalTracker:
         gap_search_tasks: list[dict[str, Any]],
         goal_search_tasks: list[dict[str, Any]],
         update_history: bool = True,
-    ) -> CoverageGoalState:
+    ) -> FillGoalState:
         slots = _observed_slots(table_rows, self.table_schemas)
         slot_keys = {slot.key for slot in slots}
         open_slots = [slot for slot in slots if slot.status != "covered"]
@@ -244,9 +244,9 @@ class TableCoverageGoalTracker:
                 }
             )
 
-        return CoverageGoalState(
+        return FillGoalState(
             round=round_idx,
-            mode="table_coverage",
+            mode="table_fill",
             fulfilled=fulfilled,
             stop_rule=(
                 "Stop only after Firecrawl-backed discovery evidence yields a "
@@ -268,6 +268,10 @@ class TableCoverageGoalTracker:
                 },
             },
         )
+
+
+CoverageGoalState = FillGoalState
+TableCoverageGoalTracker = TableFillGoalTracker
 
 
 def normalize_universe_estimate(

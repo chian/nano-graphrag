@@ -1,8 +1,12 @@
 """Question-driven iterative GraphRAG pipeline orchestrator.
 
-One question in; one well-supported answer out. Each round searches the web,
-extends a typed knowledge graph, answers the question with GASL, and uses the
-identified gaps to steer the next search.
+The default answer mode tries to produce one well-supported answer. Each round
+searches the web, extends a typed knowledge graph, answers the question with
+GASL, and uses identified gaps to steer the next search.
+
+The table-fill mode treats the answer tables as the deliverable. It estimates
+the searched answer universe, keeps a durable search frontier, and searches to
+fill missing final-table rows until the count targets are covered.
 """
 
 from __future__ import annotations
@@ -40,8 +44,8 @@ from paper_fetching.firecrawl_client import (
 from . import schema_synthesis, strategy
 from .extraction import enrich_graph, extract_from_text
 from .goals import (
-    CoverageGoalState,
-    TableCoverageGoalTracker,
+    FillGoalState,
+    TableFillGoalTracker,
     normalize_universe_estimate,
 )
 from .search import (
@@ -60,6 +64,7 @@ from .tables import SeedTables, load_seed_tables, merge_rows_by_table
 @dataclass
 class PipelineConfig:
     question: str
+    pipeline_mode: str = "answer"
     output_dir: str = "./question_runs/run"
 
     # Schema: if schema_name is set, load it; otherwise synthesize one.
@@ -137,6 +142,30 @@ non-empty deduplication key on every candidate row.
 
 TABLE_REQUIRED_COLUMNS: Dict[str, List[str]] = {}
 TABLE_COMPLETENESS_COLUMNS: Dict[str, List[str]] = {}
+PIPELINE_MODE_ANSWER = "answer"
+PIPELINE_MODE_TABLE_FILL = "table_fill"
+TASK_GOAL_OFF = "off"
+TASK_GOAL_TABLE_FILL = "table_fill"
+
+
+def _normalize_mode(value: str) -> str:
+    return str(value or "").strip().replace("-", "_")
+
+
+def _normalize_pipeline_mode(value: str) -> str:
+    mode = _normalize_mode(value or PIPELINE_MODE_ANSWER)
+    if mode not in {PIPELINE_MODE_ANSWER, PIPELINE_MODE_TABLE_FILL}:
+        raise ValueError("pipeline_mode must be 'answer' or 'table_fill'")
+    return mode
+
+
+def _normalize_task_goal_mode(value: str) -> str:
+    mode = _normalize_mode(value or TASK_GOAL_OFF)
+    if mode == "table_coverage":
+        return TASK_GOAL_TABLE_FILL
+    if mode not in {TASK_GOAL_OFF, TASK_GOAL_TABLE_FILL}:
+        raise ValueError("task_goal_mode must be 'off' or 'table_fill'")
+    return mode
 
 
 class QuestionPipeline:
@@ -153,6 +182,23 @@ class QuestionPipeline:
         gasl_runner: Optional[Callable[[nx.DiGraph, Dict[str, Any], str], Dict[str, Any]]] = None,
     ):
         self.config = config
+        config.pipeline_mode = _normalize_pipeline_mode(config.pipeline_mode)
+        config.task_goal_mode = _normalize_task_goal_mode(config.task_goal_mode)
+        if (
+            config.pipeline_mode == PIPELINE_MODE_ANSWER
+            and config.task_goal_mode != TASK_GOAL_OFF
+        ):
+            config.pipeline_mode = PIPELINE_MODE_TABLE_FILL
+        if config.pipeline_mode == PIPELINE_MODE_TABLE_FILL:
+            if config.answer_mode == "natural":
+                config.answer_mode = "table"
+            if config.task_goal_mode == TASK_GOAL_OFF:
+                config.task_goal_mode = TASK_GOAL_TABLE_FILL
+            if config.search_frontier_mode == "batch":
+                config.search_frontier_mode = "persistent"
+            if config.task_goal_search_tasks <= 0:
+                config.task_goal_search_tasks = 4
+
         if llm is not None:
             self.llm = llm
         elif config.model:
@@ -187,17 +233,26 @@ class QuestionPipeline:
         self.search_outcomes: List[Dict[str, Any]] = []
         if config.source_relevance_mode not in {"off", "focused", "all"}:
             raise ValueError("source_relevance_mode must be 'off', 'focused', or 'all'")
-        if config.task_goal_mode not in {"off", "table_coverage"}:
-            raise ValueError("task_goal_mode must be 'off' or 'table_coverage'")
-        if config.task_goal_mode != "off" and config.answer_mode != "table":
-            raise ValueError("task-level table coverage goals require answer_mode='table'")
-        if config.task_goal_mode != "off" and config.task_goal_search_tasks <= 0:
-            raise ValueError("task-level table coverage goals require search tasks")
+        if config.pipeline_mode == PIPELINE_MODE_TABLE_FILL:
+            if config.answer_mode != "table":
+                raise ValueError("table_fill pipeline_mode requires answer_mode='table'")
+            if config.task_goal_mode != TASK_GOAL_TABLE_FILL:
+                raise ValueError(
+                    "table_fill pipeline_mode requires task_goal_mode='table_fill'"
+                )
+            if config.search_frontier_mode != "persistent":
+                raise ValueError(
+                    "table_fill pipeline_mode requires search_frontier_mode='persistent'"
+                )
+        if config.task_goal_mode != TASK_GOAL_OFF and config.answer_mode != "table":
+            raise ValueError("table-fill goals require answer_mode='table'")
+        if config.task_goal_mode != TASK_GOAL_OFF and config.task_goal_search_tasks <= 0:
+            raise ValueError("table-fill goals require search tasks")
         self.goal_tracker = (
-            TableCoverageGoalTracker(
+            TableFillGoalTracker(
                 table_schemas=TABLE_REQUIRED_COLUMNS,
             )
-            if config.task_goal_mode == "table_coverage"
+            if config.task_goal_mode == TASK_GOAL_TABLE_FILL
             else None
         )
         self.goal_universe_estimate: Dict[str, Any] = {"status": "missing"}
@@ -1183,7 +1238,7 @@ genuinely separate view that is not covered by a listed target."""
         self,
         round_idx: int,
         table_rows: Dict[str, List[Dict[str, Any]]],
-        goal_state: CoverageGoalState,
+        goal_state: FillGoalState,
     ) -> List[Dict[str, Any]]:
         if self.goal_tracker is None:
             return []
@@ -1415,7 +1470,7 @@ genuinely separate view that is not covered by a listed target."""
 
     def _annotate_recent_target_outcomes(
         self,
-        goal_state: Optional[CoverageGoalState],
+        goal_state: Optional[FillGoalState],
     ) -> None:
         if goal_state is None:
             return
@@ -1509,7 +1564,7 @@ genuinely separate view that is not covered by a listed target."""
         gap_search_tasks: List[Dict[str, Any]],
         goal_search_tasks: List[Dict[str, Any]],
         update_history: bool = True,
-    ) -> Optional[CoverageGoalState]:
+    ) -> Optional[FillGoalState]:
         if self.goal_tracker is None:
             return None
 
@@ -1609,7 +1664,7 @@ genuinely separate view that is not covered by a listed target."""
         self,
         round_idx: int,
         table_exports: List[Dict[str, Any]],
-        goal_state: Optional[CoverageGoalState],
+        goal_state: Optional[FillGoalState],
     ) -> tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
         if goal_state is None or goal_state.fulfilled:
             return [], []
@@ -1813,7 +1868,7 @@ genuinely separate view that is not covered by a listed target."""
                 elif self.goal_tracker is not None:
                     queries = []
                     round_papers = []
-                    print("  No queued table-coverage searches.")
+                    print("  No queued table-fill searches.")
                     break
                 elif self._search_budget_available():
                     self._ensure_search_ready()

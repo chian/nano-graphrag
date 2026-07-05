@@ -2,23 +2,37 @@
 """
 Question-driven GraphRAG pipeline.
 
-Starts from a single question and runs one iterative loop:
+The default `answer` pipeline mode starts from a single question and runs one
+iterative loop:
   search (Firecrawl) -> build/expand a typed knowledge graph ->
   answer with GASL -> assess gaps -> search again until the answer is
   well-supported or budgets are exhausted.
+
+The `table-fill` pipeline mode is for aggregation tasks. It materializes GASL
+answer tables, estimates the answer universe, keeps a persistent search
+frontier, and searches to fill missing final-table rows until the searched
+universe is covered or budget/frontier limits stop the run.
 
 If no --schema is given, a domain schema is synthesized for the question
 (generate -> judge -> test on real search results -> refine) before the loop.
 
 Examples:
   # Synthesize a schema and answer from scratch
-  FIRECRAWL_API_KEY=... python run_question_pipeline.py \
-      --question "How effective is upper-room UV-C at reducing TB transmission in hospitals?" \
+  FIRECRAWL_API_KEY=... python run_question_pipeline.py \\
+      --question "How effective is upper-room UV-C at reducing TB transmission in hospitals?" \\
       --output-dir question_runs/uvc_tb
 
   # Reuse an existing domain schema
-  python run_question_pipeline.py \
+  python run_question_pipeline.py \\
       --question "..." --schema engineering_control --max-rounds 3
+
+  # Fill table answers from a saved graph and prior tables/sources
+  python run_question_pipeline.py \\
+      --pipeline-mode table-fill \\
+      --question "..." \\
+      --graph-path question_runs/previous/graphs/current_graph.graphml \\
+      --seed-tables-dir question_runs/previous/answers/tables \\
+      --seed-sources-dir question_runs/previous/fetched_papers
 """
 
 from __future__ import annotations
@@ -36,7 +50,24 @@ from question_pipeline import PipelineConfig, QuestionPipeline
 
 
 def build_config(args: argparse.Namespace) -> PipelineConfig:
+    pipeline_mode = args.pipeline_mode.replace("-", "_")
+    table_fill = pipeline_mode == "table_fill"
+    answer_mode = args.answer_mode or ("table" if table_fill else "natural")
+    task_goal_mode = args.task_goal_mode or ("table_fill" if table_fill else "off")
+    task_goal_mode = task_goal_mode.replace("-", "_")
+    if task_goal_mode == "table_coverage":
+        task_goal_mode = "table_fill"
+    search_frontier_mode = args.search_frontier_mode or (
+        "persistent" if table_fill else "batch"
+    )
+    task_goal_search_tasks = (
+        args.task_goal_search_tasks
+        if args.task_goal_search_tasks is not None
+        else (4 if table_fill else 0)
+    )
+
     return PipelineConfig(
+        pipeline_mode=pipeline_mode,
         question=args.question,
         output_dir=args.output_dir,
         schema_name=args.schema,
@@ -52,13 +83,13 @@ def build_config(args: argparse.Namespace) -> PipelineConfig:
         min_paper_length=args.min_paper_length,
         max_paper_length=args.max_paper_length,
         max_extraction_chars_per_paper=args.max_extraction_chars_per_paper,
-        search_frontier_mode=args.search_frontier_mode,
+        search_frontier_mode=search_frontier_mode,
         scrape_search_results=args.scrape_search_results,
         table_gap_search_tasks=args.table_gap_search_tasks,
         goal_discovery_text_chars=args.goal_discovery_text_chars,
         source_relevance_mode=args.source_relevance_mode,
-        task_goal_mode=args.task_goal_mode,
-        task_goal_search_tasks=args.task_goal_search_tasks,
+        task_goal_mode=task_goal_mode,
+        task_goal_search_tasks=task_goal_search_tasks,
         chunk_size=args.chunk_size,
         chunk_overlap=args.chunk_overlap,
         extraction_concurrency=args.extraction_concurrency,
@@ -66,7 +97,7 @@ def build_config(args: argparse.Namespace) -> PipelineConfig:
         similarity_threshold=args.similarity_threshold,
         self_refine=args.self_refine,
         max_gasl_iterations=args.max_gasl_iterations,
-        answer_mode=args.answer_mode,
+        answer_mode=answer_mode,
         seed_tables_dir=args.seed_tables_dir,
         seed_sources_dir=args.seed_sources_dir,
         target_confidence=args.target_confidence,
@@ -81,6 +112,16 @@ def main() -> None:
         epilog=__doc__,
     )
     parser.add_argument("--question", required=True, help="The question to answer.")
+    parser.add_argument(
+        "--pipeline-mode",
+        choices=("answer", "table-fill"),
+        default="answer",
+        help=(
+            "Use answer for the normal question-answer loop, or table-fill for "
+            "a persistent aggregation loop that materializes tables, estimates "
+            "the answer universe, and searches to fill missing final rows."
+        ),
+    )
     parser.add_argument("--output-dir", default="./question_runs/run", help="Output directory.")
     parser.add_argument(
         "--schema",
@@ -103,8 +144,12 @@ def main() -> None:
     parser.add_argument(
         "--search-frontier-mode",
         choices=("batch", "persistent"),
-        default="batch",
-        help="Use batch for one-wave query execution or persistent for deduplicated task-frontier search.",
+        default=None,
+        help=(
+            "Use batch for one-wave query execution or persistent for "
+            "deduplicated task-frontier search. Defaults to persistent in "
+            "table-fill mode and batch in answer mode."
+        ),
     )
     parser.add_argument(
         "--scrape-search-results",
@@ -190,21 +235,31 @@ def main() -> None:
     parser.add_argument(
         "--answer-mode",
         choices=("natural", "table"),
-        default="natural",
-        help="Use 'table' to ask GASL to materialize CSV/JSON table variables.",
+        default=None,
+        help=(
+            "Ask GASL for a natural answer or row-shaped CSV/JSON table "
+            "variables. Defaults to table in table-fill mode and natural in "
+            "answer mode."
+        ),
     )
     parser.add_argument("--target-confidence", type=float, default=0.75, help="Stop when assessment confidence >= this and answer is sufficient.")
     parser.add_argument(
         "--task-goal-mode",
-        choices=("off", "table_coverage"),
-        default="off",
-        help="Use a task-level stop rule instead of natural-answer sufficiency.",
+        choices=("off", "table-fill", "table_coverage"),
+        default=None,
+        help=(
+            "Low-level fill stop rule. Prefer --pipeline-mode table-fill; "
+            "table_coverage is accepted as a legacy alias."
+        ),
     )
     parser.add_argument(
         "--task-goal-search-tasks",
         type=int,
-        default=0,
-        help="Broad stop-criterion search tasks to enqueue after each table round.",
+        default=None,
+        help=(
+            "Fill/search tasks to enqueue for each table-fill step. Defaults "
+            "to 4 in table-fill mode and 0 in answer mode."
+        ),
     )
     parser.add_argument("--model", default=None, help="LLM model id (defaults to ArgoBridge default).")
     parser.add_argument("--firecrawl-api-key", default=None, help="Firecrawl API key (or set FIRECRAWL_API_KEY).")
