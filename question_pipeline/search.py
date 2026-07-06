@@ -54,7 +54,6 @@ class SearchTask:
             "parent_id": self.parent_id or "",
             "topic": self.topic,
             "expansion_op": self.expansion_op,
-            "gap": normalize_text(self.gap),
         }
         raw = json.dumps(payload, sort_keys=True, separators=(",", ":"))
         return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]

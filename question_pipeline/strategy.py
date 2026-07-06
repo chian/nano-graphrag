@@ -178,12 +178,20 @@ missing pieces. Prefer high-priority deficits, but diversify across target
 tables and deficit types when several deficits have similar priority. Each
 query must map to one fill-deficit id.
 
-Use each deficit's strategy_history to avoid stalled search behavior. If earlier
-queries for a deficit accepted no sources, produced only duplicates, or returned
-errors, mutate the next query by changing terminology, changing specificity, or
-aiming at a different source shape. Do not repeat a previous query for the same
-deficit. Prefer source queries that can fill multiple missing rows in the target
-table, and use known missing examples only when they are present in the deficit.
+Use each deficit's strategy_history and strategy_memory to avoid stalled search
+behavior. Treat accepted-source terms, matched needs, missing needs, rejection
+reasons, and failed query terms as memory that must shape the next search
+strategy. If earlier queries for a deficit accepted no sources, produced only
+duplicates, or returned errors, mutate the next query by changing terminology,
+changing specificity, or aiming at a different source shape.
+
+Queries must use terms that could appear in external source titles, abstracts,
+tables, appendices, or dataset descriptions. Do not repeat a previous query for
+the same deficit. Do not include internal table names, column identifiers,
+deficit descriptions, count strings, or workflow phrases unless they also occur
+as real subject terms in known examples or accepted source context. Prefer
+source queries that can fill multiple missing rows in the target table, and use
+known missing examples only when they are present in the deficit.
 
 Keep each query concise (3-10 words), no boolean operators.
 

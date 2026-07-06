@@ -39,6 +39,7 @@ from .search import (
     reduce_text_to_relevant_windows,
     table_gap_search_tasks,
 )
+from .search_memory import SearchMemory
 
 __all__ = [
     "PipelineConfig",
@@ -49,6 +50,7 @@ __all__ = [
     "SearchFrontier",
     "SearchHarvester",
     "SearchOutcome",
+    "SearchMemory",
     "SourceRelevanceDecision",
     "SearchTask",
     "TableCoverageGoalTracker",

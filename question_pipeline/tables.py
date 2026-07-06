@@ -9,17 +9,25 @@ from pathlib import Path
 from typing import Any, Iterable, Mapping
 
 
-_ROUND_TABLE_RE = re.compile(r"^round_\d+_(?P<table>.+)\.json$")
+_ROUND_MANIFEST_RE = re.compile(r"^round_(?P<round>\d+)_manifest\.json$")
+_ROUND_TABLE_RE = re.compile(r"^round_(?P<round>\d+)_(?P<table>.+)\.json$")
 
 
 @dataclass
 class SeedTables:
     rows_by_name: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
     sources: list[dict[str, Any]] = field(default_factory=list)
+    max_round_index: int | None = None
 
     @property
     def row_count(self) -> int:
         return sum(len(rows) for rows in self.rows_by_name.values())
+
+    @property
+    def next_round_index(self) -> int:
+        if self.max_round_index is None:
+            return 0
+        return self.max_round_index + 1
 
 
 def load_seed_tables(path: str | Path | None) -> SeedTables:
@@ -79,8 +87,13 @@ def merge_rows(*groups: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
 def _load_manifest_tables(manifests: Iterable[Path]) -> SeedTables:
     rows_by_name: dict[str, list[dict[str, Any]]] = {}
     sources: list[dict[str, Any]] = []
+    max_round_index: int | None = None
 
     for manifest_path in manifests:
+        max_round_index = _max_round_index(
+            max_round_index,
+            _round_index_from_manifest_path(manifest_path),
+        )
         entries = _read_json(manifest_path)
         if not isinstance(entries, list):
             continue
@@ -100,6 +113,10 @@ def _load_manifest_tables(manifests: Iterable[Path]) -> SeedTables:
             if not rows:
                 continue
 
+            max_round_index = _max_round_index(
+                max_round_index,
+                _round_index_from_value(entry.get("round")),
+            )
             rows_by_name[table_name] = merge_rows(
                 rows_by_name.get(table_name, []),
                 rows,
@@ -113,12 +130,17 @@ def _load_manifest_tables(manifests: Iterable[Path]) -> SeedTables:
                 }
             )
 
-    return SeedTables(rows_by_name=rows_by_name, sources=sources)
+    return SeedTables(
+        rows_by_name=rows_by_name,
+        sources=sources,
+        max_round_index=max_round_index,
+    )
 
 
 def _load_table_files(paths: Iterable[Path]) -> SeedTables:
     rows_by_name: dict[str, list[dict[str, Any]]] = {}
     sources: list[dict[str, Any]] = []
+    max_round_index: int | None = None
 
     for path in paths:
         table_name = _table_name_from_path(path)
@@ -129,6 +151,10 @@ def _load_table_files(paths: Iterable[Path]) -> SeedTables:
         if not rows:
             continue
 
+        max_round_index = _max_round_index(
+            max_round_index,
+            _round_index_from_table_path(path),
+        )
         rows_by_name[table_name] = merge_rows(rows_by_name.get(table_name, []), rows)
         sources.append(
             {
@@ -139,7 +165,11 @@ def _load_table_files(paths: Iterable[Path]) -> SeedTables:
             }
         )
 
-    return SeedTables(rows_by_name=rows_by_name, sources=sources)
+    return SeedTables(
+        rows_by_name=rows_by_name,
+        sources=sources,
+        max_round_index=max_round_index,
+    )
 
 
 def _table_name_from_path(path: Path) -> str:
@@ -149,6 +179,37 @@ def _table_name_from_path(path: Path) -> str:
     if path.stem == "manifest" or path.stem.endswith("_manifest"):
         return ""
     return path.stem
+
+
+def _round_index_from_manifest_path(path: Path) -> int | None:
+    match = _ROUND_MANIFEST_RE.match(path.name)
+    if not match:
+        return None
+    return _round_index_from_value(match.group("round"))
+
+
+def _round_index_from_table_path(path: Path) -> int | None:
+    match = _ROUND_TABLE_RE.match(path.name)
+    if not match:
+        return None
+    return _round_index_from_value(match.group("round"))
+
+
+def _round_index_from_value(value: Any) -> int | None:
+    try:
+        round_index = int(value)
+    except (TypeError, ValueError):
+        return None
+    if round_index < 0:
+        return None
+    return round_index
+
+
+def _max_round_index(*values: int | None) -> int | None:
+    numeric = [value for value in values if value is not None]
+    if not numeric:
+        return None
+    return max(numeric)
 
 
 def _resolve_table_path(value: Any, *, manifest_path: Path) -> Path:

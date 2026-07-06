@@ -58,6 +58,7 @@ from .search import (
     load_seen_urls,
     table_gap_search_tasks,
 )
+from .search_memory import SearchMemory
 from .tables import SeedTables, load_seed_tables, merge_rows_by_table
 
 
@@ -100,10 +101,13 @@ class PipelineConfig:
 
     # GASL
     max_gasl_iterations: int = 8
+    gasl_graph_scope: str = "auto"
+    gasl_new_source_hops: int = 1
     answer_mode: str = "natural"
     table_variables: List[str] = field(default_factory=list)
     seed_tables_dir: Optional[str] = None
     seed_sources_dir: Optional[str] = None
+    round_offset: Optional[int] = None
 
     # Stopping
     target_confidence: float = 0.75
@@ -233,6 +237,11 @@ class QuestionPipeline:
         self.search_outcomes: List[Dict[str, Any]] = []
         if config.source_relevance_mode not in {"off", "focused", "all"}:
             raise ValueError("source_relevance_mode must be 'off', 'focused', or 'all'")
+        config.gasl_graph_scope = _normalize_mode(config.gasl_graph_scope)
+        if config.gasl_graph_scope not in {"auto", "full", "new_sources"}:
+            raise ValueError("gasl_graph_scope must be 'auto', 'full', or 'new_sources'")
+        if config.gasl_new_source_hops < 0:
+            raise ValueError("gasl_new_source_hops must be nonnegative")
         if config.pipeline_mode == PIPELINE_MODE_TABLE_FILL:
             if config.answer_mode != "table":
                 raise ValueError("table_fill pipeline_mode requires answer_mode='table'")
@@ -258,6 +267,15 @@ class QuestionPipeline:
         self.goal_universe_estimate: Dict[str, Any] = {"status": "missing"}
         self.goal_discovery_sources: List[Dict[str, Any]] = []
         self._seen_goal_discovery_source_ids: set[str] = set()
+        self.seed_tables: SeedTables = load_seed_tables(config.seed_tables_dir)
+        if config.round_offset is not None and config.round_offset < 0:
+            raise ValueError("round_offset must be nonnegative")
+        self.round_offset = (
+            config.round_offset
+            if config.round_offset is not None
+            else self.seed_tables.next_round_index
+        )
+
         seed_source_records = load_seed_source_records(config.seed_sources_dir)
         seed_search_outcomes = self._seed_search_outcome_records(
             seed_source_records,
@@ -265,11 +283,15 @@ class QuestionPipeline:
         )
         self.search_frontier.mark_seen(self._seed_search_tasks(seed_source_records))
         self.search_outcomes.extend(seed_search_outcomes)
+        self.search_frontier.mark_seen(
+            self._search_outcome_tasks(seed_search_outcomes)
+        )
         self._record_goal_discovery_sources(seed_source_records)
         self._export_seed_sources(seed_source_records)
         self._export_seed_search_outcomes(seed_search_outcomes)
+        self.search_memory = SearchMemory.from_outcomes(self.search_outcomes)
+        self._persist_search_memory()
         self.goal_states: List[Dict[str, Any]] = []
-        self.seed_tables: SeedTables = load_seed_tables(config.seed_tables_dir)
 
     # ------------------------------------------------------------------ #
     # Default real dependencies (swappable for tests)
@@ -387,6 +409,9 @@ genuinely separate view that is not covered by a listed target."""
             "No Firecrawl API key. Set --firecrawl-api-key or FIRECRAWL_API_KEY."
         )
 
+    def _round_label(self, local_round_idx: int) -> int:
+        return self.round_offset + local_round_idx
+
     # ------------------------------------------------------------------ #
     # Fetching
     # ------------------------------------------------------------------ #
@@ -433,6 +458,7 @@ genuinely separate view that is not covered by a listed target."""
         self.queries_used.extend(outcome.query for outcome in batch.outcomes)
         self.paper_count += len(batch.papers)
         self._record_goal_discovery_sources(batch.papers)
+        self._refresh_search_memory()
         return batch.papers
 
     async def _source_relevance_decision(
@@ -584,11 +610,20 @@ genuinely separate view that is not covered by a listed target."""
         save_graph_metadata(self.graphs_dir, metadata)
         return metadata
 
-    async def _run_gasl(self, round_idx: int, metadata: Dict[str, Any]) -> Dict[str, Any]:
+    async def _run_gasl(
+        self,
+        round_idx: int,
+        metadata: Dict[str, Any],
+        *,
+        graph: Optional[nx.DiGraph] = None,
+    ) -> Dict[str, Any]:
         state_file = str(self.answers_dir / f"round_{round_idx}_gasl_state.json")
         # GASL is synchronous and chatty; run it off the event loop.
         return await asyncio.to_thread(
-            self._gasl_runner, self.graph, metadata, state_file
+            self._gasl_runner,
+            graph if graph is not None else self.graph,
+            metadata,
+            state_file,
         )
 
     # ------------------------------------------------------------------ #
@@ -618,6 +653,75 @@ genuinely separate view that is not covered by a listed target."""
             )
             added += 1
         return added
+
+    def _gasl_graph_for_round(self, round_papers: List[Dict[str, Any]]) -> nx.DiGraph:
+        scope = self.config.gasl_graph_scope
+        use_new_sources = scope == "new_sources" or (
+            scope == "auto"
+            and self.config.pipeline_mode == PIPELINE_MODE_TABLE_FILL
+            and bool(round_papers)
+        )
+        if not use_new_sources:
+            return self.graph
+
+        source_ids = {
+            str(paper.get("id") or "").strip()
+            for paper in round_papers
+            if str(paper.get("id") or "").strip()
+        }
+        if not source_ids:
+            return self.graph
+
+        nodes = self._source_neighborhood_nodes(
+            source_ids,
+            hops=self.config.gasl_new_source_hops,
+        )
+        if not nodes:
+            return self.graph
+        return self.graph.subgraph(nodes).copy()
+
+    def _source_neighborhood_nodes(
+        self,
+        source_ids: set[str],
+        *,
+        hops: int,
+    ) -> set[Any]:
+        nodes: set[Any] = set()
+        for node_id, data in self.graph.nodes(data=True):
+            if str(node_id) in source_ids or self._mentions_any(data, source_ids):
+                nodes.add(node_id)
+
+        for src, dst, data in self.graph.edges(data=True):
+            if self._mentions_any(data, source_ids):
+                nodes.add(src)
+                nodes.add(dst)
+
+        frontier = set(nodes)
+        for _ in range(hops):
+            expanded: set[Any] = set()
+            for node_id in frontier:
+                if node_id not in self.graph:
+                    continue
+                expanded.update(self.graph.predecessors(node_id))
+                expanded.update(self.graph.successors(node_id))
+            expanded -= nodes
+            if not expanded:
+                break
+            nodes.update(expanded)
+            frontier = expanded
+        return nodes
+
+    @classmethod
+    def _mentions_any(cls, value: Any, needles: set[str]) -> bool:
+        if value is None:
+            return False
+        if isinstance(value, str):
+            return any(needle in value for needle in needles)
+        if isinstance(value, dict):
+            return any(cls._mentions_any(inner, needles) for inner in value.values())
+        if isinstance(value, (list, tuple, set)):
+            return any(cls._mentions_any(inner, needles) for inner in value)
+        return any(needle in str(value) for needle in needles)
 
     def _export_gasl_tables(
         self, round_idx: int | str, gasl_result: Dict[str, Any]
@@ -1127,6 +1231,29 @@ genuinely separate view that is not covered by a listed target."""
         return list(outcomes.values())
 
     @staticmethod
+    def _search_outcome_tasks(records: List[Dict[str, Any]]) -> List[SearchTask]:
+        tasks: List[SearchTask] = []
+        for record in records:
+            query = str(record.get("query") or "").strip()
+            if not query:
+                continue
+            metadata = record.get("metadata")
+            if not isinstance(metadata, dict):
+                metadata = {}
+            tasks.append(
+                SearchTask(
+                    query=query,
+                    id=str(record.get("task_id") or ""),
+                    topic=str(record.get("topic") or "batch"),
+                    expansion_op=str(record.get("expansion_op") or "direct"),
+                    gap=str(record.get("gap") or ""),
+                    round_index=int(record.get("round_index") or 0),
+                    metadata=metadata,
+                )
+            )
+        return tasks
+
+    @staticmethod
     def _seed_search_outcome_records(
         source_records: List[Dict[str, Any]],
         outcome_records: List[Dict[str, Any]],
@@ -1384,12 +1511,6 @@ genuinely separate view that is not covered by a listed target."""
             QuestionPipeline._search_text(example)
             for example in list(target.get("known_missing_examples") or [])[:2]
         ]
-        key_columns = QuestionPipeline._search_text(
-            " ".join(str(column) for column in target.get("key_columns") or [])
-        )
-        missing_fields = QuestionPipeline._search_text(
-            " ".join(str(column) for column in target.get("missing_fields") or [])
-        )
         anchors = []
         anchor_values = target.get("anchor_values") or {}
         if isinstance(anchor_values, dict):
@@ -1398,26 +1519,38 @@ genuinely separate view that is not covered by a listed target."""
                 for value in anchor_values.values()
                 if value
             ]
+        memory_terms: List[str] = []
+        for memory in target.get("strategy_memory") or []:
+            if not isinstance(memory, dict):
+                continue
+            for field_name in (
+                "successful_query_terms",
+                "matched_needs",
+                "missing_needs",
+            ):
+                memory_terms.extend(
+                    QuestionPipeline._search_text(value)
+                    for value in memory.get(field_name) or []
+                    if value
+                )
         candidates = [
-            [
-                QuestionPipeline._search_text(target.get("description")),
-                missing_fields,
-                *anchors[:2],
-            ],
-            [
-                QuestionPipeline._search_text(target.get("target_table")),
-                missing_fields,
-                *anchors[:2],
-            ],
             [
                 QuestionPipeline._search_text(target.get("target_name")),
                 *examples[:1],
-                QuestionPipeline._search_text(target.get("description")),
+                *memory_terms[:3],
             ],
             [
+                *anchors[:2],
                 *examples[1:2],
-                QuestionPipeline._search_text(target.get("target_name")),
-                key_columns,
+                *memory_terms[:3],
+            ],
+            [
+                *examples[:2],
+                *memory_terms[:4],
+            ],
+            [
+                *anchors[:3],
+                *memory_terms[:3],
             ],
         ]
         attempted = {
@@ -1455,62 +1588,31 @@ genuinely separate view that is not covered by a listed target."""
             if not isinstance(target, dict):
                 continue
             deficit_id = str(target.get("id") or "")
-            target_id = str(target.get("target_id") or deficit_id)
             if not deficit_id:
                 continue
-            target_name = str(
-                target.get("target_name") or target.get("name") or ""
-            ).lower()
+            memory_records = self.search_memory.to_deficit_context(target)
             attempts = [
-                {
-                    "round": outcome.get("round_index"),
-                    "query": outcome.get("query", ""),
-                    "strategy_family": (
-                        outcome.get("metadata", {}).get("strategy_family")
-                        if isinstance(outcome.get("metadata"), dict)
-                        else ""
-                    ),
-                    "search_yield": (
-                        outcome.get("metadata", {}).get("search_yield")
-                        if isinstance(outcome.get("metadata"), dict)
-                        else None
-                    )
-                    or self._search_yield_summary(outcome),
-                    "firecrawl_hits": outcome.get("firecrawl_hits", 0),
-                    "accepted_source_count": len(
-                        outcome.get("accepted_source_ids") or []
-                    ),
-                    "duplicate_url_count": len(
-                        outcome.get("duplicate_urls") or []
-                    ),
-                    "skipped_by_reason": outcome.get("skipped_by_reason") or {},
-                    "post_round_observed_delta": (
-                        outcome.get("metadata", {}).get(
-                            "post_round_observed_delta"
-                        )
-                        if isinstance(outcome.get("metadata"), dict)
-                        else None
-                    ),
-                    "post_round_observed_count": (
-                        outcome.get("metadata", {}).get(
-                            "post_round_observed_count"
-                        )
-                        if isinstance(outcome.get("metadata"), dict)
-                        else None
-                    ),
-                    "error": outcome.get("error", ""),
-                }
-                for outcome in self.search_outcomes[-50:]
-                if self._search_outcome_matches_target(
-                    outcome,
-                    fill_deficit_id=deficit_id,
-                    target_id=target_id,
-                    target_name=target_name,
-                    target_table=str(target.get("target_table") or ""),
-                    key_columns=target.get("key_columns") or [],
-                )
+                attempt
+                for record in memory_records
+                for attempt in record.get("attempts", [])
+                if isinstance(attempt, dict)
             ]
-            enriched.append({**target, "strategy_history": attempts[-8:]})
+            attempts = sorted(
+                attempts,
+                key=lambda attempt: (
+                    int(attempt.get("round") or -1)
+                    if str(attempt.get("round") or "").isdigit()
+                    else -1,
+                    str(attempt.get("query") or ""),
+                ),
+            )
+            enriched.append(
+                {
+                    **target,
+                    "strategy_history": attempts[-8:],
+                    "strategy_memory": memory_records,
+                }
+            )
         return enriched
 
     @staticmethod
@@ -1561,7 +1663,11 @@ genuinely separate view that is not covered by a listed target."""
         if goal_state is None:
             return
 
-        targets = goal_state.target_estimate.get("count_targets") or []
+        targets = (
+            goal_state.target_catalog.get("fill_deficits")
+            or goal_state.target_estimate.get("count_targets")
+            or []
+        )
         if not self.last_search_batch.outcomes:
             return
 
@@ -1604,6 +1710,7 @@ genuinely separate view that is not covered by a listed target."""
                 outcome["metadata"] = metadata
             metadata.update(update)
         self._rewrite_search_outcomes()
+        self._refresh_search_memory()
 
     @staticmethod
     def _search_yield_summary(outcome: Dict[str, Any]) -> Dict[str, Any]:
@@ -1659,6 +1766,20 @@ genuinely separate view that is not covered by a listed target."""
             encoding="utf-8",
         )
 
+    def _refresh_search_memory(self) -> None:
+        self.search_memory = SearchMemory.from_outcomes(self.search_outcomes)
+        self._persist_search_memory()
+
+    def _persist_search_memory(self) -> None:
+        if not getattr(self, "search_memory", None):
+            return
+        self.goals_dir.mkdir(parents=True, exist_ok=True)
+        path = self.goals_dir / "search_memory.json"
+        path.write_text(
+            json.dumps(self.search_memory.to_dict(), indent=2, default=str),
+            encoding="utf-8",
+        )
+
     def _record_task_goal(
         self,
         round_idx: int | str,
@@ -1704,6 +1825,7 @@ genuinely separate view that is not covered by a listed target."""
 
         seed_exports = self._export_seed_tables()
         seed_table_rows = self._table_rows_by_variable(seed_exports)
+        bootstrap_round_idx = self._round_label(0)
         bootstrap_idx = 0
 
         while (
@@ -1712,7 +1834,7 @@ genuinely separate view that is not covered by a listed target."""
         ):
             source_count_before = len(self.goal_discovery_sources)
             catalog_tasks = await self._enqueue_catalog_searches(
-                bootstrap_idx,
+                bootstrap_round_idx,
                 seed_table_rows,
                 [],
             )
@@ -1722,7 +1844,7 @@ genuinely separate view that is not covered by a listed target."""
             wave_papers = await self._fetch_papers(
                 [],
                 cap=self.config.papers_per_round,
-                round_idx=bootstrap_idx,
+                round_idx=bootstrap_round_idx,
                 topic="goal_catalog",
                 expansion_op="llm_goal_bootstrap",
             )
@@ -1733,12 +1855,12 @@ genuinely separate view that is not covered by a listed target."""
             )
 
             await self._estimate_task_goal_universe(
-                f"bootstrap_{bootstrap_idx}",
+                f"bootstrap_{bootstrap_round_idx}_{bootstrap_idx}",
                 seed_table_rows,
                 [],
             )
             self._record_task_goal(
-                f"bootstrap_{bootstrap_idx}",
+                f"bootstrap_{bootstrap_round_idx}_{bootstrap_idx}",
                 seed_exports,
                 gap_search_tasks=[],
                 goal_search_tasks=catalog_tasks,
@@ -1755,7 +1877,7 @@ genuinely separate view that is not covered by a listed target."""
 
         if bootstrap_idx == 0:
             self._record_task_goal(
-                "bootstrap_0",
+                f"bootstrap_{bootstrap_round_idx}",
                 seed_exports,
                 gap_search_tasks=[],
                 goal_search_tasks=[],
@@ -1878,7 +2000,10 @@ genuinely separate view that is not covered by a listed target."""
             self._ensure_search_ready()
 
             # Round 0 search seeds both the schema and the graph.
-            print("Round 0: seeding search from the question...")
+            print(
+                f"Round {self._round_label(0)}: "
+                "seeding search from the question..."
+            )
             schema_hint = cfg.schema_name or ""
             queries = await strategy.initial_queries(
                 self.llm, cfg.question, n=cfg.queries_per_round, schema_hint=schema_hint
@@ -1887,7 +2012,7 @@ genuinely separate view that is not covered by a listed target."""
             seed_papers = await self._fetch_papers(
                 queries,
                 cap=cfg.papers_per_round,
-                round_idx=0,
+                round_idx=self._round_label(0),
                 topic="initial",
                 expansion_op="llm_initial",
             )
@@ -1915,29 +2040,30 @@ genuinely separate view that is not covered by a listed target."""
                 print("  No task-level universe estimate; stopping before GASL.")
                 return self._finalize(last_answer, final_assessment)
             bootstrap_goal_state = self._record_task_goal(
-                "bootstrap_deficit",
+                f"bootstrap_deficit_{self._round_label(0)}",
                 seed_exports,
                 gap_search_tasks=[],
                 goal_search_tasks=[],
             )
             gap_search_tasks, goal_search_tasks = await self._enqueue_deficit_searches(
-                0,
+                self._round_label(0),
                 seed_exports,
                 bootstrap_goal_state,
             )
             if gap_search_tasks or goal_search_tasks:
                 self._record_task_goal(
-                    "bootstrap_deficit",
+                    f"bootstrap_deficit_{self._round_label(0)}",
                     seed_exports,
                     gap_search_tasks=gap_search_tasks,
                     goal_search_tasks=goal_search_tasks,
                     update_history=False,
                 )
 
-        for round_idx in range(cfg.max_rounds):
+        for local_round_idx in range(cfg.max_rounds):
+            round_idx = self._round_label(local_round_idx)
             print(f"\n{'#'*70}\nROUND {round_idx}\n{'#'*70}")
 
-            if round_idx == 0 and seeded_from_graph:
+            if local_round_idx == 0 and seeded_from_graph:
                 if self.search_frontier.pending_count > 0:
                     queries = []
                     round_papers = await self._fetch_papers(
@@ -1951,7 +2077,7 @@ genuinely separate view that is not covered by a listed target."""
                 else:
                     round_papers = []
                     print("  Reusing seed graph for GASL.")
-            elif round_idx == 0:
+            elif local_round_idx == 0:
                 round_papers = seed_papers
             else:
                 if (
@@ -2000,8 +2126,88 @@ genuinely separate view that is not covered by a listed target."""
             if round_papers:
                 ingested = await self._ingest_papers(round_papers)
                 print(f"  Ingested {ingested} papers -> {self._graph_summary()}")
-            elif round_idx > 0:
+            elif local_round_idx > 0:
                 print("  No new papers this round; stopping search.")
+
+            if (
+                self.goal_tracker is not None
+                and seeded_from_graph
+                and not round_papers
+                and self.seed_tables.row_count
+            ):
+                print(
+                    "  No new papers accepted; recording current tables "
+                    "without rerunning GASL."
+                )
+                table_exports = self._write_table_exports(
+                    round_idx,
+                    self.seed_tables.rows_by_name,
+                    seed_row_counts={
+                        name: len(rows)
+                        for name, rows in self.seed_tables.rows_by_name.items()
+                    },
+                    new_row_counts={},
+                )
+                gaps = self._table_gaps(table_exports)
+                assessment = {
+                    "sufficient": False,
+                    "confidence": 0.0,
+                    "gaps": gaps,
+                    "rationale": (
+                        "Table-fill mode controls stopping through exported "
+                        "table coverage and task-level stop criteria."
+                    ),
+                }
+                final_assessment = assessment
+                await self._estimate_task_goal_universe(
+                    round_idx,
+                    self._table_rows_by_variable(table_exports),
+                    gaps,
+                )
+                goal_state = self._record_task_goal(
+                    round_idx,
+                    table_exports,
+                    gap_search_tasks=[],
+                    goal_search_tasks=[],
+                )
+                self._annotate_recent_target_outcomes(goal_state)
+                round_record = {
+                    "round": round_idx,
+                    "queries": queries,
+                    "papers_ingested": 0,
+                    "graph_nodes": self.graph.number_of_nodes(),
+                    "graph_edges": self.graph.number_of_edges(),
+                    "answer": last_answer,
+                    "assessment": assessment,
+                    "gasl_iterations": 0,
+                    "search_outcomes": self.last_search_batch.outcome_dicts(),
+                    "table_exports": table_exports,
+                    "gap_search_tasks": [],
+                    "goal_search_tasks": [],
+                    "task_goal": goal_state.to_dict() if goal_state else None,
+                    "skipped_gasl": True,
+                    "skip_reason": "no_new_papers",
+                }
+                self.rounds.append(round_record)
+                (self.answers_dir / f"round_{round_idx}.json").write_text(
+                    json.dumps(round_record, indent=2, default=str),
+                    encoding="utf-8",
+                )
+                if goal_state is not None:
+                    print(
+                        "  Task goal: "
+                        f"fulfilled={goal_state.fulfilled} "
+                        f"targets={len(goal_state.target_estimate.get('count_targets') or [])} "
+                        f"unmet={len(goal_state.target_catalog.get('unmet_count_targets') or [])} "
+                        f"pending={goal_state.search_frontier['pending_tasks']}"
+                    )
+                if goal_state is not None and goal_state.fulfilled:
+                    print("\n  Task-level stop criteria fulfilled; stopping.")
+                    break
+                if self.search_frontier.pending_count <= 0:
+                    print("\n  Search frontier exhausted; stopping.")
+                    break
+                continue
 
             if self.graph.number_of_nodes() == 0:
                 print("  Graph is still empty; cannot answer yet.")
@@ -2014,24 +2220,50 @@ genuinely separate view that is not covered by a listed target."""
             metadata = self._write_metadata()
 
             print("  Running GASL traversal...")
-            gasl_result = await self._run_gasl(round_idx, metadata)
+            gasl_graph = self._gasl_graph_for_round(round_papers)
+            if gasl_graph is not self.graph:
+                print(
+                    "  GASL graph scope: "
+                    f"{gasl_graph.number_of_nodes()} nodes, "
+                    f"{gasl_graph.number_of_edges()} edges"
+                )
+            gasl_result = await self._run_gasl(round_idx, metadata, graph=gasl_graph)
             table_exports = self._export_gasl_tables(round_idx, gasl_result)
             last_answer = gasl_result.get("final_answer", "") or ""
-            print(f"  Answer ({len(last_answer)} chars): {last_answer[:300]}")
-
-            assessment = await strategy.assess_answer(
-                self.llm,
-                cfg.question,
-                answer=last_answer,
-                graph_summary=self._graph_summary(),
-            )
-            gaps = assessment.get("gaps", []) or []
-            gaps = [*gaps, *self._table_gaps(table_exports)]
+            if self.goal_tracker is not None:
+                print(
+                    "  GASL materialized "
+                    f"{len(table_exports)} table export(s) "
+                    f"({len(last_answer)} chars of summary text)"
+                )
+                gaps = self._table_gaps(table_exports)
+                assessment = {
+                    "sufficient": False,
+                    "confidence": 0.0,
+                    "gaps": gaps,
+                    "rationale": (
+                        "Table-fill mode controls stopping through exported "
+                        "table coverage and task-level stop criteria."
+                    ),
+                }
+                print(f"  Table gaps: {len(gaps)}")
+            else:
+                print(f"  Answer ({len(last_answer)} chars): {last_answer[:300]}")
+                assessment = await strategy.assess_answer(
+                    self.llm,
+                    cfg.question,
+                    answer=last_answer,
+                    graph_summary=self._graph_summary(),
+                )
+                gaps = [
+                    *(assessment.get("gaps", []) or []),
+                    *self._table_gaps(table_exports),
+                ]
+                print(
+                    f"  Assessment: sufficient={assessment.get('sufficient')} "
+                    f"confidence={assessment.get('confidence')} | gaps={len(gaps)}"
+                )
             final_assessment = assessment
-            print(
-                f"  Assessment: sufficient={assessment.get('sufficient')} "
-                f"confidence={assessment.get('confidence')} | gaps={len(gaps)}"
-            )
 
             sufficient = bool(assessment.get("sufficient"))
             confident = float(assessment.get("confidence", 0.0) or 0.0) >= cfg.target_confidence
@@ -2061,7 +2293,7 @@ genuinely separate view that is not covered by a listed target."""
             ):
                 table_gap_tasks, target_deficit_tasks = (
                     await self._enqueue_deficit_searches(
-                        round_idx + 1,
+                        self._round_label(local_round_idx + 1),
                         table_exports,
                         goal_state,
                     )
@@ -2139,6 +2371,7 @@ genuinely separate view that is not covered by a listed target."""
             "table_exports": self.table_exports,
             "search_frontier": self.search_frontier.to_dict(),
             "search_outcomes": self.search_outcomes,
+            "search_memory": self.search_memory.to_dict(),
             "task_goals": self.goal_states,
             "goal_universe_estimate": self.goal_universe_estimate,
             "goal_discovery_sources": self.goal_discovery_sources,
@@ -2148,6 +2381,12 @@ genuinely separate view that is not covered by a listed target."""
         (self.out / "final_answer.json").write_text(
             json.dumps(result, indent=2, default=str), encoding="utf-8"
         )
-        print(f"\n{'='*70}\nFINAL ANSWER\n{'='*70}\n{answer}\n")
+        if self.config.pipeline_mode == PIPELINE_MODE_TABLE_FILL:
+            print(
+                f"\n{'='*70}\nTABLE FILL COMPLETE\n{'='*70}\n"
+                f"Exported {len(self.table_exports)} table snapshots.\n"
+            )
+        else:
+            print(f"\n{'='*70}\nFINAL ANSWER\n{'='*70}\n{answer}\n")
         print(f"Saved: {self.out / 'final_answer.json'}")
         return result

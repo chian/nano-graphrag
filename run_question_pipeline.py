@@ -97,9 +97,12 @@ def build_config(args: argparse.Namespace) -> PipelineConfig:
         similarity_threshold=args.similarity_threshold,
         self_refine=args.self_refine,
         max_gasl_iterations=args.max_gasl_iterations,
+        gasl_graph_scope=args.gasl_graph_scope,
+        gasl_new_source_hops=args.gasl_new_source_hops,
         answer_mode=answer_mode,
         seed_tables_dir=args.seed_tables_dir,
         seed_sources_dir=args.seed_sources_dir,
+        round_offset=args.round_offset,
         target_confidence=args.target_confidence,
         model=args.model,
     )
@@ -219,6 +222,23 @@ def main() -> None:
 
     parser.add_argument("--max-gasl-iterations", type=int, default=8, help="Max GASL traversal iterations per round.")
     parser.add_argument(
+        "--gasl-graph-scope",
+        choices=("auto", "full", "new-sources"),
+        default="auto",
+        help=(
+            "Graph handed to GASL each round. auto uses the full graph for "
+            "normal answering and scopes table-fill rounds with newly fetched "
+            "sources to the new-source neighborhood; full always uses the "
+            "whole graph; new-sources always uses only new-source neighborhoods."
+        ),
+    )
+    parser.add_argument(
+        "--gasl-new-source-hops",
+        type=int,
+        default=1,
+        help="Neighbor hops to include when --gasl-graph-scope selects new-source scope.",
+    )
+    parser.add_argument(
         "--seed-tables-dir",
         default=None,
         help="Directory or JSON file of previously exported answer tables to merge into new table exports.",
@@ -230,6 +250,16 @@ def main() -> None:
             "Directory or JSON/JSONL file of previous source metadata used to "
             "seed URL deduplication; pass multiple paths separated by the OS "
             "path separator."
+        ),
+    )
+    parser.add_argument(
+        "--round-offset",
+        type=int,
+        default=None,
+        help=(
+            "Global round number for the first round in this run. Defaults to "
+            "one greater than the highest numeric round found in "
+            "--seed-tables-dir, or 0 without seed table manifests."
         ),
     )
     parser.add_argument(
