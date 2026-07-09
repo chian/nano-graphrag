@@ -40,6 +40,10 @@ from .search import (
     table_gap_search_tasks,
 )
 from .search_memory import SearchMemory
+from .numeric_candidates import (
+    NUMERIC_CANDIDATE_COLUMNS,
+    numeric_candidates_from_tables,
+)
 
 __all__ = [
     "PipelineConfig",
@@ -51,6 +55,7 @@ __all__ = [
     "SearchHarvester",
     "SearchOutcome",
     "SearchMemory",
+    "NUMERIC_CANDIDATE_COLUMNS",
     "SourceRelevanceDecision",
     "SearchTask",
     "TableCoverageGoalTracker",
@@ -59,5 +64,6 @@ __all__ = [
     "load_seed_source_records",
     "measurement_gap_search_tasks",
     "reduce_text_to_relevant_windows",
+    "numeric_candidates_from_tables",
     "table_gap_search_tasks",
 ]

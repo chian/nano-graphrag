@@ -103,6 +103,7 @@ def build_config(args: argparse.Namespace) -> PipelineConfig:
         seed_tables_dir=args.seed_tables_dir,
         seed_sources_dir=args.seed_sources_dir,
         round_offset=args.round_offset,
+        numeric_candidate_mode=args.numeric_candidate_mode,
         target_confidence=args.target_confidence,
         model=args.model,
     )
@@ -270,6 +271,16 @@ def main() -> None:
             "Ask GASL for a natural answer or row-shaped CSV/JSON table "
             "variables. Defaults to table in table-fill mode and natural in "
             "answer mode."
+        ),
+    )
+    parser.add_argument(
+        "--numeric-candidate-mode",
+        choices=("off", "parsed", "all"),
+        default="parsed",
+        help=(
+            "Write auxiliary derived numeric-candidate tables next to table-fill "
+            "exports. parsed keeps exact, range, approximate, and bound values; "
+            "all also keeps relative and ordinal textual candidates."
         ),
     )
     parser.add_argument("--target-confidence", type=float, default=0.75, help="Stop when assessment confidence >= this and answer is sufficient.")

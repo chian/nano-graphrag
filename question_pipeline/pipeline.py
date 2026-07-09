@@ -60,6 +60,10 @@ from .search import (
 )
 from .search_memory import SearchMemory
 from .tables import SeedTables, load_seed_tables, merge_rows_by_table
+from .numeric_candidates import (
+    NUMERIC_CANDIDATE_COLUMNS,
+    numeric_candidates_from_tables,
+)
 
 
 @dataclass
@@ -108,6 +112,7 @@ class PipelineConfig:
     seed_tables_dir: Optional[str] = None
     seed_sources_dir: Optional[str] = None
     round_offset: Optional[int] = None
+    numeric_candidate_mode: str = "parsed"
 
     # Stopping
     target_confidence: float = 0.75
@@ -172,6 +177,13 @@ def _normalize_task_goal_mode(value: str) -> str:
     return mode
 
 
+def _normalize_numeric_candidate_mode(value: str) -> str:
+    mode = _normalize_mode(value or "parsed")
+    if mode not in {"off", "parsed", "all"}:
+        raise ValueError("numeric_candidate_mode must be 'off', 'parsed', or 'all'")
+    return mode
+
+
 class QuestionPipeline:
     """Iterative search + KG build + GASL answer loop for one question."""
 
@@ -220,6 +232,7 @@ class QuestionPipeline:
         self.papers_dir = self.out / "fetched_papers"
         self.answers_dir = self.out / "answers"
         self.tables_dir = self.answers_dir / "tables"
+        self.derived_dir = self.answers_dir / "derived"
         self.goals_dir = self.answers_dir / "goals"
         for d in (self.graphs_dir, self.papers_dir, self.answers_dir):
             d.mkdir(parents=True, exist_ok=True)
@@ -242,6 +255,9 @@ class QuestionPipeline:
             raise ValueError("gasl_graph_scope must be 'auto', 'full', or 'new_sources'")
         if config.gasl_new_source_hops < 0:
             raise ValueError("gasl_new_source_hops must be nonnegative")
+        config.numeric_candidate_mode = _normalize_numeric_candidate_mode(
+            config.numeric_candidate_mode,
+        )
         if config.pipeline_mode == PIPELINE_MODE_TABLE_FILL:
             if config.answer_mode != "table":
                 raise ValueError("table_fill pipeline_mode requires answer_mode='table'")
@@ -292,6 +308,8 @@ class QuestionPipeline:
         self.search_memory = SearchMemory.from_outcomes(self.search_outcomes)
         self._persist_search_memory()
         self.goal_states: List[Dict[str, Any]] = []
+        self.derived_table_exports: List[Dict[str, Any]] = []
+        self.last_derived_table_exports: List[Dict[str, Any]] = []
 
     # ------------------------------------------------------------------ #
     # Default real dependencies (swappable for tests)
@@ -828,7 +846,53 @@ genuinely separate view that is not covered by a listed target."""
                 json.dumps(exports, indent=2, default=str), encoding="utf-8"
             )
 
+        self.last_derived_table_exports = self._write_numeric_candidate_exports(
+            round_idx,
+            rows_by_name,
+        )
         return exports
+
+    def _write_numeric_candidate_exports(
+        self,
+        round_idx: int | str,
+        rows_by_name: Dict[str, List[Dict[str, Any]]],
+    ) -> List[Dict[str, Any]]:
+        if self.config.answer_mode != "table":
+            return []
+        if self.config.numeric_candidate_mode == "off":
+            return []
+
+        rows = numeric_candidates_from_tables(
+            rows_by_name,
+            mode=self.config.numeric_candidate_mode,
+        )
+        self.derived_dir.mkdir(parents=True, exist_ok=True)
+        json_path = self.derived_dir / f"round_{round_idx}_numeric_candidates.json"
+        csv_path = self.derived_dir / f"round_{round_idx}_numeric_candidates.csv"
+        manifest_path = self.derived_dir / f"round_{round_idx}_manifest.json"
+        json_path.write_text(
+            json.dumps(rows, indent=2, default=str),
+            encoding="utf-8",
+        )
+        self._write_rows_csv(
+            csv_path,
+            rows,
+            fieldnames=list(NUMERIC_CANDIDATE_COLUMNS),
+        )
+        record = {
+            "round": round_idx,
+            "variable": "numeric_candidates",
+            "mode": self.config.numeric_candidate_mode,
+            "rows": len(rows),
+            "json_path": str(json_path),
+            "csv_path": str(csv_path),
+        }
+        manifest_path.write_text(
+            json.dumps([record], indent=2, default=str),
+            encoding="utf-8",
+        )
+        self.derived_table_exports.append(record)
+        return [record]
 
     @staticmethod
     def _compiled_answer_view_tables(
@@ -1962,6 +2026,20 @@ genuinely separate view that is not covered by a listed target."""
                 if key not in fieldnames:
                     fieldnames.append(key)
 
+        QuestionPipeline._write_rows_csv(path, rows, fieldnames=fieldnames)
+
+    @staticmethod
+    def _write_rows_csv(
+        path: Path,
+        rows: List[Dict[str, Any]],
+        *,
+        fieldnames: List[str],
+    ) -> None:
+        for row in rows:
+            for key in row:
+                if key not in fieldnames:
+                    fieldnames.append(key)
+
         with path.open("w", newline="", encoding="utf-8") as handle:
             writer = csv.DictWriter(handle, fieldnames=fieldnames)
             writer.writeheader()
@@ -2182,6 +2260,7 @@ genuinely separate view that is not covered by a listed target."""
                     "gasl_iterations": 0,
                     "search_outcomes": self.last_search_batch.outcome_dicts(),
                     "table_exports": table_exports,
+                    "derived_table_exports": self.last_derived_table_exports,
                     "gap_search_tasks": [],
                     "goal_search_tasks": [],
                     "task_goal": goal_state.to_dict() if goal_state else None,
@@ -2320,6 +2399,7 @@ genuinely separate view that is not covered by a listed target."""
                 "gasl_iterations": gasl_result.get("iterations"),
                 "search_outcomes": self.last_search_batch.outcome_dicts(),
                 "table_exports": table_exports,
+                "derived_table_exports": self.last_derived_table_exports,
                 "gap_search_tasks": gap_search_tasks,
                 "goal_search_tasks": goal_search_tasks,
                 "task_goal": goal_state.to_dict() if goal_state else None,
@@ -2369,6 +2449,7 @@ genuinely separate view that is not covered by a listed target."""
             "graph_path": str(self.graphs_dir / "current_graph.graphml"),
             "answer_mode": self.config.answer_mode,
             "table_exports": self.table_exports,
+            "derived_table_exports": self.derived_table_exports,
             "search_frontier": self.search_frontier.to_dict(),
             "search_outcomes": self.search_outcomes,
             "search_memory": self.search_memory.to_dict(),
