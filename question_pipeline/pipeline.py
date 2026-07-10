@@ -57,6 +57,7 @@ from .search import (
     load_seed_search_outcomes,
     load_seed_source_records,
     load_seen_urls,
+    normalize_query,
     table_gap_search_tasks,
 )
 from .search_memory import SearchMemory
@@ -421,6 +422,7 @@ class QuestionPipeline:
             api_key=api_key,
             max_results=max_results,
             raise_on_error=True,
+            scrape_results=not self.config.scrape_search_results,
         )
 
     def _default_scrape_fn(self, url: str) -> Optional[Dict[str, Any]]:
@@ -1484,7 +1486,8 @@ genuinely separate view that is not covered by a listed target."""
     ) -> List[Dict[str, Any]]:
         if self.goal_tracker is None:
             return []
-        if self.config.task_goal_search_tasks <= 0:
+        catalog_search_tasks = self._catalog_search_task_limit()
+        if catalog_search_tasks <= 0:
             return []
         if self.search_provider_error:
             print(
@@ -1515,11 +1518,12 @@ genuinely separate view that is not covered by a listed target."""
                 for outcome in self.search_outcomes[-20:]
                 if outcome.get("topic") == "goal_catalog"
             ],
-            n=self.config.task_goal_search_tasks,
+            n=catalog_search_tasks,
         )
         for query in self.goal_universe_estimate.get("suggested_queries") or []:
             if isinstance(query, str) and query.strip():
                 queries.append(query)
+        queries = self._limited_unique_queries(queries, catalog_search_tasks)
         tasks = [
             SearchTask(
                 query=query,
@@ -1529,6 +1533,8 @@ genuinely separate view that is not covered by a listed target."""
                 metadata={
                     "goal_mode": self.config.task_goal_mode,
                     "goal_search_tasks": self.config.task_goal_search_tasks,
+                    "catalog_search_tasks": catalog_search_tasks,
+                    "queries_per_round": self.config.queries_per_round,
                     **self._catalog_baseline_metadata(),
                     **_operator_metadata(operator_plan),
                 },
@@ -1542,6 +1548,30 @@ genuinely separate view that is not covered by a listed target."""
                 f"for round {round_idx}"
             )
         return [task.to_dict() for task in accepted]
+
+    def _catalog_search_task_limit(self) -> int:
+        limit = self.config.task_goal_search_tasks
+        if self.config.queries_per_round > 0:
+            limit = min(limit, self.config.queries_per_round)
+        return max(0, limit)
+
+    @staticmethod
+    def _limited_unique_queries(
+        queries: List[str],
+        limit: int,
+    ) -> List[str]:
+        unique_queries: List[str] = []
+        seen: set[str] = set()
+        for query in queries:
+            query = str(query).strip()
+            normalized = normalize_query(query)
+            if not query or not normalized or normalized in seen:
+                continue
+            seen.add(normalized)
+            unique_queries.append(query)
+            if len(unique_queries) >= limit:
+                break
+        return unique_queries
 
     async def _enqueue_target_deficit_searches(
         self,
