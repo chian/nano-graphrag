@@ -100,8 +100,6 @@ def memory_key(metadata: Mapping[str, Any]) -> str:
         "table": table,
         "deficit_type": deficit_type,
         "identity": identity,
-        "key_columns": _clean_list(metadata.get("key_columns")),
-        "missing_fields": _clean_list(metadata.get("missing_fields")),
     }
     raw = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
     return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
@@ -129,6 +127,7 @@ def _new_record(key: str, metadata: Mapping[str, Any]) -> dict[str, Any]:
         "rejected_urls": [],
         "skipped_by_reason": Counter(),
         "strategy_families": Counter(),
+        "strategy_operators": Counter(),
         "successful_query_terms": Counter(),
         "failed_query_terms": Counter(),
         "matched_needs": Counter(),
@@ -191,6 +190,9 @@ def _merge_outcome(record: dict[str, Any], outcome: Mapping[str, Any]) -> None:
     strategy_family = str(metadata.get("strategy_family") or "")
     if strategy_family:
         record["strategy_families"][strategy_family] += 1
+    strategy_operator = str(metadata.get("strategy_operator") or strategy_family)
+    if strategy_operator:
+        record["strategy_operators"][strategy_operator] += 1
 
     query = str(outcome.get("query") or "")
     terms = _query_terms(query)
@@ -213,7 +215,14 @@ def _merge_outcome(record: dict[str, Any], outcome: Mapping[str, Any]) -> None:
             "round": outcome.get("round_index"),
             "query": query,
             "strategy_family": strategy_family,
+            "strategy_operator": strategy_operator,
+            "source_family": metadata.get("source_family", ""),
             "strategy_origin": metadata.get("strategy_origin", ""),
+            "operator_attempt": metadata.get("operator_attempt"),
+            "operator_last_failure_class": metadata.get(
+                "operator_last_failure_class",
+                "",
+            ),
             "rationale": metadata.get("rationale", ""),
             "firecrawl_hits": int(outcome.get("firecrawl_hits") or 0),
             "accepted_source_count": len(accepted_source_ids),
@@ -229,6 +238,12 @@ def _merge_outcome(record: dict[str, Any], outcome: Mapping[str, Any]) -> None:
                 8,
             ),
             "post_round_observed_delta": metadata.get("post_round_observed_delta"),
+            "post_round_graph_node_delta": metadata.get(
+                "post_round_graph_node_delta",
+            ),
+            "post_round_graph_edge_delta": metadata.get(
+                "post_round_graph_edge_delta",
+            ),
             "post_round_deficit_count": metadata.get("post_round_deficit_count"),
             "error": str(outcome.get("error") or "")[:500],
         }
@@ -253,6 +268,7 @@ def _finalize_record(record: dict[str, Any]) -> dict[str, Any]:
         "rejected_urls": _unique(record["rejected_urls"])[:20],
         "skipped_by_reason": dict(record["skipped_by_reason"]),
         "strategy_families": dict(record["strategy_families"]),
+        "strategy_operators": dict(record["strategy_operators"]),
         "successful_query_terms": _top_counter(record["successful_query_terms"], 12),
         "failed_query_terms": _top_counter(record["failed_query_terms"], 12),
         "matched_needs": _top_counter(record["matched_needs"], 12),
@@ -269,6 +285,7 @@ def _compact_record(record: Mapping[str, Any], *, score: int) -> dict[str, Any]:
         "accepted_source_count": record.get("accepted_source_count", 0),
         "skipped_by_reason": record.get("skipped_by_reason", {}),
         "strategy_families": record.get("strategy_families", {}),
+        "strategy_operators": record.get("strategy_operators", {}),
         "successful_query_terms": record.get("successful_query_terms", []),
         "failed_query_terms": record.get("failed_query_terms", []),
         "matched_needs": record.get("matched_needs", []),

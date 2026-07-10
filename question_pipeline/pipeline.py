@@ -46,6 +46,7 @@ from .extraction import enrich_graph, extract_from_text
 from .goals import (
     FillGoalState,
     TableFillGoalTracker,
+    merge_universe_estimates,
     normalize_universe_estimate,
 )
 from .search import (
@@ -63,6 +64,11 @@ from .tables import SeedTables, load_seed_tables, merge_rows_by_table
 from .numeric_candidates import (
     NUMERIC_CANDIDATE_COLUMNS,
     numeric_candidates_from_tables,
+)
+from .strategy_state import (
+    fallback_query_for_operator,
+    plan_catalog_operator,
+    plan_target_operator,
 )
 
 
@@ -157,6 +163,95 @@ TASK_GOAL_OFF = "off"
 TASK_GOAL_TABLE_FILL = "table_fill"
 
 
+def _operator_metadata(operator_plan: Dict[str, Any]) -> Dict[str, Any]:
+    operator = str(operator_plan.get("operator") or "")
+    source_family = str(operator_plan.get("source_family") or "")
+    return {
+        "strategy_operator": operator,
+        "strategy_family": operator,
+        "source_family": source_family,
+        "operator_attempt": operator_plan.get("attempt_index"),
+        "operator_last_failure_class": operator_plan.get(
+            "last_failure_class",
+            "",
+        ),
+        "operator_exhausted": operator_plan.get("exhausted_operators", []),
+        "operator_constraints": operator_plan.get("constraints", []),
+    }
+
+
+_CATALOG_STATUS_RANK = {
+    "missing": 0,
+    "insufficient_evidence": 1,
+    "estimated": 2,
+}
+
+
+def _catalog_snapshot_metadata(
+    prefix: str,
+    snapshot: Dict[str, Any],
+) -> Dict[str, Any]:
+    return {
+        f"{prefix}_status": snapshot.get("status", "missing"),
+        f"{prefix}_count_target_count": int(
+            snapshot.get("count_target_count") or 0,
+        ),
+        f"{prefix}_unestimated_count": int(
+            snapshot.get("unestimated_count") or 0,
+        ),
+        f"{prefix}_target_family_count": int(
+            snapshot.get("target_family_count") or 0,
+        ),
+    }
+
+
+def _catalog_snapshot_from_metadata(metadata: Dict[str, Any]) -> Dict[str, Any]:
+    status = str(metadata.get("baseline_catalog_status") or "missing")
+    count_target_count = int(metadata.get("baseline_catalog_count_target_count") or 0)
+    unestimated_count = int(metadata.get("baseline_catalog_unestimated_count") or 0)
+    target_family_count = int(metadata.get("baseline_catalog_target_family_count") or 0)
+    return {
+        "status": status,
+        "status_rank": _CATALOG_STATUS_RANK.get(status, 0),
+        "count_target_count": count_target_count,
+        "unestimated_count": unestimated_count,
+        "target_family_count": target_family_count,
+    }
+
+
+def _catalog_progress_delta_metadata(
+    baseline: Dict[str, Any],
+    post: Dict[str, Any],
+) -> Dict[str, Any]:
+    status_delta = int(post.get("status_rank") or 0) - int(
+        baseline.get("status_rank") or 0,
+    )
+    count_target_delta = int(post.get("count_target_count") or 0) - int(
+        baseline.get("count_target_count") or 0,
+    )
+    unestimated_delta = int(baseline.get("unestimated_count") or 0) - int(
+        post.get("unestimated_count") or 0,
+    )
+    target_family_delta = int(post.get("target_family_count") or 0) - int(
+        baseline.get("target_family_count") or 0,
+    )
+    return {
+        "post_catalog_status_delta": status_delta,
+        "post_catalog_count_target_delta": count_target_delta,
+        "post_catalog_unestimated_delta": unestimated_delta,
+        "post_catalog_target_family_delta": target_family_delta,
+        "post_catalog_progress_delta": sum(
+            max(0, delta)
+            for delta in (
+                status_delta,
+                count_target_delta,
+                unestimated_delta,
+                target_family_delta,
+            )
+        ),
+    }
+
+
 def _normalize_mode(value: str) -> str:
     return str(value or "").strip().replace("-", "_")
 
@@ -247,6 +342,7 @@ class QuestionPipeline:
         self.table_exports: List[Dict[str, Any]] = []
         self.search_frontier = SearchFrontier(mode=config.search_frontier_mode)
         self.last_search_batch = SearchBatch()
+        self.search_provider_error = ""
         self.search_outcomes: List[Dict[str, Any]] = []
         if config.source_relevance_mode not in {"off", "focused", "all"}:
             raise ValueError("source_relevance_mode must be 'off', 'focused', or 'all'")
@@ -467,8 +563,15 @@ genuinely separate view that is not covered by a listed target."""
             per_wave_cap=cap,
             remaining_paper_budget=self.config.max_papers - self.paper_count,
         )
-        if batch.unattempted_tasks and self.search_frontier.persistent:
+        if (
+            batch.unattempted_tasks
+            and self.search_frontier.persistent
+            and not batch.fatal_error
+        ):
             self.search_frontier.requeue_front(batch.unattempted_tasks)
+        if batch.fatal_error:
+            self.search_provider_error = batch.fatal_error
+            print(f"  Search provider stopped the wave: {batch.fatal_error}")
 
         self.search_frontier.record(batch.outcomes)
         self.last_search_batch = batch
@@ -1360,7 +1463,8 @@ genuinely separate view that is not covered by a listed target."""
             discovery_sources=self.goal_discovery_sources,
             previous_estimate=self.goal_universe_estimate,
         )
-        self.goal_universe_estimate = normalize_universe_estimate(
+        self.goal_universe_estimate = merge_universe_estimates(
+            self.goal_universe_estimate,
             estimate,
             table_rows=table_rows,
         )
@@ -1382,7 +1486,18 @@ genuinely separate view that is not covered by a listed target."""
             return []
         if self.config.task_goal_search_tasks <= 0:
             return []
+        if self.search_provider_error:
+            print(
+                "  Catalog search paused after provider error: "
+                f"{self.search_provider_error}"
+            )
+            return []
         if not self._paper_budget_available():
+            return []
+
+        operator_plan = plan_catalog_operator(self.search_outcomes)
+        if operator_plan.get("exhausted"):
+            print("  Catalog search operators exhausted for current goal state.")
             return []
 
         queries = await strategy.catalog_queries(
@@ -1393,6 +1508,7 @@ genuinely separate view that is not covered by a listed target."""
                 gaps,
                 self.goal_universe_estimate,
             ),
+            operator_plan=operator_plan,
             universe_estimate=self.goal_universe_estimate,
             search_outcomes=[
                 outcome
@@ -1413,6 +1529,8 @@ genuinely separate view that is not covered by a listed target."""
                 metadata={
                     "goal_mode": self.config.task_goal_mode,
                     "goal_search_tasks": self.config.task_goal_search_tasks,
+                    **self._catalog_baseline_metadata(),
+                    **_operator_metadata(operator_plan),
                 },
             )
             for query in queries
@@ -1435,6 +1553,12 @@ genuinely separate view that is not covered by a listed target."""
             return []
         if self.config.task_goal_search_tasks <= 0:
             return []
+        if self.search_provider_error:
+            print(
+                "  Target search paused after provider error: "
+                f"{self.search_provider_error}"
+            )
+            return []
         if not self._paper_budget_available():
             return []
 
@@ -1443,6 +1567,14 @@ genuinely separate view that is not covered by a listed target."""
             or goal_state.target_catalog.get("unmet_count_targets")
             or []
         )
+        deficits = [
+            deficit
+            for deficit in deficits
+            if not (
+                isinstance(deficit.get("operator_plan"), dict)
+                and deficit["operator_plan"].get("exhausted")
+            )
+        ]
         if not deficits:
             return []
 
@@ -1485,16 +1617,16 @@ genuinely separate view that is not covered by a listed target."""
                 target = deficits[0]
             if not isinstance(target, dict):
                 continue
-            tasks.append(
-                self._target_deficit_search_task(
-                    query=item["query"],
-                    target=target,
-                    round_idx=round_idx,
-                    rationale=item.get("rationale", ""),
-                    strategy_family=item.get("strategy_family", ""),
-                    strategy_origin="llm",
-                )
+            task = self._target_deficit_search_task(
+                query=item["query"],
+                target=target,
+                round_idx=round_idx,
+                rationale=item.get("rationale", ""),
+                operator_plan=target.get("operator_plan") or {},
+                strategy_origin="llm",
             )
+            self._record_strategy_baseline(task)
+            tasks.append(task)
 
         accepted = self.search_frontier.enqueue(tasks)
         covered_target_ids = {
@@ -1509,16 +1641,16 @@ genuinely separate view that is not covered by a listed target."""
             fallback_query = self._fallback_target_deficit_query(target)
             if not fallback_query:
                 continue
-            fallback_tasks.append(
-                self._target_deficit_search_task(
-                    query=fallback_query,
-                    target=target,
-                    round_idx=round_idx,
-                    rationale="Fallback strategy for a target omitted by the planner.",
-                    strategy_family="fallback_anchor",
-                    strategy_origin="fallback",
-                )
+            task = self._target_deficit_search_task(
+                query=fallback_query,
+                target=target,
+                round_idx=round_idx,
+                rationale="Fallback strategy for a target omitted by the planner.",
+                operator_plan=target.get("operator_plan") or {},
+                strategy_origin="fallback",
             )
+            self._record_strategy_baseline(task)
+            fallback_tasks.append(task)
         if fallback_tasks:
             accepted.extend(self.search_frontier.enqueue(fallback_tasks))
         if accepted:
@@ -1535,11 +1667,12 @@ genuinely separate view that is not covered by a listed target."""
         target: Dict[str, Any],
         round_idx: int,
         rationale: str,
-        strategy_family: str,
+        operator_plan: Dict[str, Any],
         strategy_origin: str,
     ) -> SearchTask:
         deficit_id = str(target.get("id") or "")
         target_id = str(target.get("target_id") or deficit_id)
+        operator_metadata = _operator_metadata(operator_plan)
         return SearchTask(
             query=query,
             topic="target_deficit",
@@ -1564,84 +1697,24 @@ genuinely separate view that is not covered by a listed target."""
                     [],
                 ),
                 "rationale": rationale,
-                "strategy_family": strategy_family,
+                **operator_metadata,
                 "strategy_origin": strategy_origin,
             },
         )
 
-    @staticmethod
-    def _fallback_target_deficit_query(target: Dict[str, Any]) -> str:
-        examples = [
-            QuestionPipeline._search_text(example)
-            for example in list(target.get("known_missing_examples") or [])[:2]
-        ]
-        anchors = []
-        anchor_values = target.get("anchor_values") or {}
-        if isinstance(anchor_values, dict):
-            anchors = [
-                QuestionPipeline._search_text(value)
-                for value in anchor_values.values()
-                if value
-            ]
-        memory_terms: List[str] = []
-        for memory in target.get("strategy_memory") or []:
-            if not isinstance(memory, dict):
-                continue
-            for field_name in (
-                "successful_query_terms",
-                "matched_needs",
-                "missing_needs",
-            ):
-                memory_terms.extend(
-                    QuestionPipeline._search_text(value)
-                    for value in memory.get(field_name) or []
-                    if value
-                )
-        candidates = [
-            [
-                QuestionPipeline._search_text(target.get("target_name")),
-                *examples[:1],
-                *memory_terms[:3],
-            ],
-            [
-                *anchors[:2],
-                *examples[1:2],
-                *memory_terms[:3],
-            ],
-            [
-                *examples[:2],
-                *memory_terms[:4],
-            ],
-            [
-                *anchors[:3],
-                *memory_terms[:3],
-            ],
-        ]
-        attempted = {
-            str(attempt.get("query") or "").strip().lower()
-            for attempt in target.get("strategy_history") or []
-            if isinstance(attempt, dict)
-        }
-        for parts in candidates:
-            words = " ".join(str(part or "").strip() for part in parts).split()
-            query = " ".join(words[:10])
-            if query and query.lower() not in attempted:
-                return query
-        return ""
+    def _record_strategy_baseline(self, task: SearchTask) -> None:
+        task.metadata["baseline_graph_nodes"] = self.graph.number_of_nodes()
+        task.metadata["baseline_graph_edges"] = self.graph.number_of_edges()
+
+    def _catalog_baseline_metadata(self) -> Dict[str, Any]:
+        return _catalog_snapshot_metadata(
+            "baseline_catalog",
+            self._catalog_progress_snapshot(self.goal_universe_estimate),
+        )
 
     @staticmethod
-    def _search_text(value: Any) -> str:
-        if value is None:
-            return ""
-        if isinstance(value, dict):
-            value = " ".join(
-                str(inner)
-                for inner in value.values()
-                if inner is not None
-            )
-        elif isinstance(value, (list, tuple, set)):
-            value = " ".join(str(inner) for inner in value if inner is not None)
-        return " ".join(str(value).replace("_", " ").replace("-", " ").split())
+    def _fallback_target_deficit_query(target: Dict[str, Any]) -> str:
+        return fallback_query_for_operator(target)
 
     def _deficits_with_strategy_history(
         self,
@@ -1670,13 +1743,13 @@ genuinely separate view that is not covered by a listed target."""
                     str(attempt.get("query") or ""),
                 ),
             )
-            enriched.append(
-                {
-                    **target,
-                    "strategy_history": attempts[-8:],
-                    "strategy_memory": memory_records,
-                }
-            )
+            enriched_target = {
+                **target,
+                "strategy_history": attempts[-8:],
+                "strategy_memory": memory_records,
+            }
+            enriched_target["operator_plan"] = plan_target_operator(enriched_target)
+            enriched.append(enriched_target)
         return enriched
 
     @staticmethod
@@ -1749,10 +1822,24 @@ genuinely separate view that is not covered by a listed target."""
             if target is not None:
                 previous_count = int(metadata.get("observed_count") or 0)
                 observed_count = int(target.get("observed_count") or 0)
+                baseline_nodes = int(
+                    metadata.get("baseline_graph_nodes")
+                    or self.graph.number_of_nodes()
+                )
+                baseline_edges = int(
+                    metadata.get("baseline_graph_edges")
+                    or self.graph.number_of_edges()
+                )
                 update.update(
                     {
                         "post_round_observed_count": observed_count,
                         "post_round_observed_delta": observed_count - previous_count,
+                        "post_round_graph_node_delta": (
+                            self.graph.number_of_nodes() - baseline_nodes
+                        ),
+                        "post_round_graph_edge_delta": (
+                            self.graph.number_of_edges() - baseline_edges
+                        ),
                         "post_round_deficit_count": target.get("deficit_count"),
                         "post_round_target_status": target.get("status"),
                     }
@@ -1775,6 +1862,64 @@ genuinely separate view that is not covered by a listed target."""
             metadata.update(update)
         self._rewrite_search_outcomes()
         self._refresh_search_memory()
+
+    def _annotate_recent_catalog_outcomes(self) -> None:
+        if not self.last_search_batch.outcomes:
+            return
+
+        post = self._catalog_progress_snapshot(self.goal_universe_estimate)
+        post_metadata = _catalog_snapshot_metadata("post_catalog", post)
+        metadata_updates: Dict[str, Dict[str, Any]] = {}
+        for outcome in self.last_search_batch.outcomes:
+            if outcome.topic != "goal_catalog":
+                continue
+            metadata = outcome.metadata
+            if not isinstance(metadata, dict):
+                continue
+            baseline = _catalog_snapshot_from_metadata(metadata)
+            update = {
+                **post_metadata,
+                **_catalog_progress_delta_metadata(baseline, post),
+                "search_yield": self._search_yield_summary(outcome.to_dict()),
+            }
+            metadata.update(update)
+            metadata_updates[outcome.task_id] = update
+
+        if not metadata_updates:
+            return
+
+        for outcome in self.search_outcomes:
+            task_id = str(outcome.get("task_id") or "")
+            update = metadata_updates.get(task_id)
+            if update is None:
+                continue
+            metadata = outcome.get("metadata")
+            if not isinstance(metadata, dict):
+                metadata = {}
+                outcome["metadata"] = metadata
+            metadata.update(update)
+        self._rewrite_search_outcomes()
+
+    @staticmethod
+    def _catalog_progress_snapshot(estimate: Dict[str, Any]) -> Dict[str, Any]:
+        count_targets = [
+            target
+            for target in estimate.get("count_targets") or []
+            if isinstance(target, dict)
+        ]
+        unestimated_targets = [
+            target
+            for target in estimate.get("unestimated_count_targets") or []
+            if isinstance(target, dict)
+        ]
+        status = str(estimate.get("status") or "missing").strip() or "missing"
+        return {
+            "status": status,
+            "status_rank": _CATALOG_STATUS_RANK.get(status, 0),
+            "count_target_count": len(count_targets),
+            "unestimated_count": len(unestimated_targets),
+            "target_family_count": len(count_targets) + len(unestimated_targets),
+        }
 
     @staticmethod
     def _search_yield_summary(outcome: Dict[str, Any]) -> Dict[str, Any]:
@@ -1929,6 +2074,7 @@ genuinely separate view that is not covered by a listed target."""
                 gap_search_tasks=[],
                 goal_search_tasks=catalog_tasks,
             )
+            self._annotate_recent_catalog_outcomes()
             bootstrap_idx += 1
 
             if not wave_papers and not catalog_tasks:
@@ -1977,7 +2123,7 @@ genuinely separate view that is not covered by a listed target."""
         )
 
     def _universe_estimate_actionable(self) -> bool:
-        return bool(self.goal_universe_estimate.get("count_targets"))
+        return self._universe_estimate_ready()
 
     def _table_rows_by_variable(
         self,

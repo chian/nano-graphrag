@@ -190,6 +190,7 @@ class TableFillGoalTracker:
 
         pending_tasks = int(search_frontier.get("pending_tasks") or 0)
         count_targets = estimate.get("count_targets") or []
+        unestimated_targets = estimate.get("unestimated_count_targets") or []
         unmet_targets = [
             target
             for target in count_targets
@@ -223,6 +224,14 @@ class TableFillGoalTracker:
                 "detail": f"{len(count_targets)} answer-universe count targets",
             },
             {
+                "name": "all target families quantified",
+                "satisfied": not unestimated_targets,
+                "detail": (
+                    f"{len(unestimated_targets)} row families still lack "
+                    "source-supported lower bounds"
+                ),
+            },
+            {
                 "name": "all estimated count targets covered",
                 "satisfied": bool(count_targets) and not unmet_targets,
                 "detail": f"{len(unmet_targets)}/{len(count_targets)} count targets still short",
@@ -246,6 +255,7 @@ class TableFillGoalTracker:
             "slot_counts": _slot_counts(slots),
             "open_slot_counts": _slot_counts(open_slots),
             "unmet_count_targets": unmet_targets,
+            "unestimated_count_targets": unestimated_targets,
             "fill_deficits": [
                 deficit.to_dict()
                 for deficit in build_fill_deficits(
@@ -301,7 +311,8 @@ class TableFillGoalTracker:
             fulfilled=fulfilled,
             stop_rule=(
                 "Stop only after Firecrawl-backed discovery evidence yields a "
-                "question-specific answer-universe estimate, every estimated "
+                "question-specific answer-universe estimate, every final row "
+                "family has a source-supported lower-bound count, every estimated "
                 "count target is covered by the exported answer tables, and the "
                 "search frontier has no queued work."
             ),
@@ -340,68 +351,113 @@ def normalize_universe_estimate(
         if str(name).strip()
     }
     targets: list[dict[str, Any]] = []
+    unestimated_targets: list[dict[str, Any]] = []
     out_of_scope_targets: list[dict[str, Any]] = []
-    for item in _as_list(raw.get("count_targets") or raw.get("targets")):
+    for raw_index, item in enumerate(_as_list(raw.get("count_targets") or raw.get("targets"))):
         if not isinstance(item, Mapping):
             continue
-        expected_minimum = _as_int(
-            item.get("expected_minimum_count")
-            or item.get("minimum_expected_count")
-            or item.get("min_count")
-            or item.get("lower_bound")
+        target, expected_minimum = _coerce_count_target(
+            item,
+            raw,
+            fallback_index=raw_index + 1,
         )
-        if expected_minimum <= 0:
-            continue
-
-        target_table = str(item.get("target_table") or "").strip()
-        target = {
-            "name": _clean_display(item.get("name")) or f"target_{len(targets) + 1}",
-            "description": _clean_display(item.get("description")),
-            "target_table": target_table,
-            "key_columns": [
-                str(column).strip()
-                for column in _as_list(item.get("key_columns"))
-                if str(column).strip()
-            ],
-            "expected_minimum_count": expected_minimum,
-            "expected_maximum_count": _optional_int(
-                item.get("expected_maximum_count")
-                or item.get("maximum_expected_count")
-                or item.get("max_count")
-                or item.get("upper_bound")
-            ),
-            "basis": _clean_display(item.get("basis") or item.get("rationale")),
-            "supporting_source_ids": _unique(
-                item.get("supporting_source_ids") or item.get("source_ids")
-            ),
-            "known_missing_examples": _unique(
-                item.get("known_missing_examples") or item.get("missing_examples")
-            ),
-        }
-        target["id"] = _target_id(target)
-        if not _target_table_is_deliverable(target_table, deliverable_tables):
+        if not _target_table_is_deliverable(
+            str(target.get("target_table") or ""),
+            deliverable_tables,
+        ):
             out_of_scope_targets.append(
                 {
                     **target,
                     "reason": _target_table_rejection_reason(
-                        target_table,
+                        str(target.get("target_table") or ""),
                         deliverable_tables,
                     ),
                 }
             )
             continue
+        target_errors = _target_validation_errors(target)
+        if expected_minimum <= 0 or target_errors:
+            reason = (
+                "expected_minimum_count is missing"
+                if expected_minimum <= 0
+                else "; ".join(target_errors)
+            )
+            unestimated_targets.append({**target, "reason": reason})
+            continue
         targets.append(_attach_observed_count(target, table_rows or {}))
+
+    for raw_index, item in enumerate(_as_list(raw.get("unestimated_count_targets"))):
+        if not isinstance(item, Mapping):
+            continue
+        target, _ = _coerce_count_target(
+            item,
+            raw,
+            fallback_index=len(targets) + len(unestimated_targets) + raw_index + 1,
+        )
+        if not _target_table_is_deliverable(
+            str(target.get("target_table") or ""),
+            deliverable_tables,
+        ):
+            out_of_scope_targets.append(
+                {
+                    **target,
+                    "reason": _target_table_rejection_reason(
+                        str(target.get("target_table") or ""),
+                        deliverable_tables,
+                    ),
+                }
+            )
+            continue
+        unestimated_targets.append(
+            {
+                **target,
+                "reason": (
+                    _clean_display(item.get("reason"))
+                    or "expected_minimum_count is missing"
+                ),
+            }
+        )
+
+    for raw_index, item in enumerate(_as_list(raw.get("out_of_scope_count_targets"))):
+        if not isinstance(item, Mapping):
+            continue
+        target, _ = _coerce_count_target(
+            item,
+            raw,
+            fallback_index=(
+                len(targets)
+                + len(unestimated_targets)
+                + len(out_of_scope_targets)
+                + raw_index
+                + 1
+            ),
+        )
+        out_of_scope_targets.append(
+            {
+                **target,
+                "reason": (
+                    _clean_display(item.get("reason"))
+                    or _target_table_rejection_reason(
+                        str(target.get("target_table") or ""),
+                        deliverable_tables,
+                    )
+                ),
+            }
+        )
 
     status = _clean_display(raw.get("status")).lower() or "missing"
     if status not in {"missing", "insufficient_evidence", "estimated"}:
         status = "estimated" if targets else "insufficient_evidence"
-    if status == "estimated" and not targets:
+    if targets and not unestimated_targets:
+        status = "estimated"
+    elif status == "estimated":
         status = "insufficient_evidence"
 
     return {
         "status": status,
         "scope_summary": _clean_display(raw.get("scope_summary")),
         "count_targets": targets,
+        "unestimated_count_targets": unestimated_targets,
         "out_of_scope_count_targets": out_of_scope_targets,
         "supporting_source_ids": _unique(raw.get("supporting_source_ids")),
         "supporting_queries": _unique(raw.get("supporting_queries")),
@@ -409,6 +465,164 @@ def normalize_universe_estimate(
         "suggested_queries": _unique(raw.get("suggested_queries")),
         "raw": dict(raw),
     }
+
+
+def merge_universe_estimates(
+    previous: Mapping[str, Any] | None,
+    current: Mapping[str, Any] | None,
+    *,
+    table_rows: Mapping[str, list[dict[str, Any]]] | None = None,
+) -> dict[str, Any]:
+    """Merge a fresh estimate without dropping previously discovered families."""
+    base = normalize_universe_estimate(previous, table_rows=table_rows)
+    fresh = normalize_universe_estimate(current, table_rows=table_rows)
+
+    out_of_scope = _merge_targets(
+        fresh.get("out_of_scope_count_targets") or [],
+        base.get("out_of_scope_count_targets") or [],
+    )
+    out_of_scope_keys = _target_keys(out_of_scope)
+
+    count_targets = _merge_targets(
+        fresh.get("count_targets") or [],
+        base.get("count_targets") or [],
+        exclude_keys=out_of_scope_keys,
+    )
+    count_keys = _target_keys(count_targets)
+
+    unestimated_targets = _merge_targets(
+        fresh.get("unestimated_count_targets") or [],
+        base.get("unestimated_count_targets") or [],
+        exclude_keys=count_keys | out_of_scope_keys,
+    )
+
+    merged = {
+        **fresh,
+        "count_targets": [
+            _attach_observed_count(target, table_rows or {})
+            for target in count_targets
+        ],
+        "unestimated_count_targets": unestimated_targets,
+        "out_of_scope_count_targets": out_of_scope,
+        "supporting_source_ids": _unique(
+            [
+                *(base.get("supporting_source_ids") or []),
+                *(fresh.get("supporting_source_ids") or []),
+            ],
+        ),
+        "supporting_queries": _unique(
+            [
+                *(base.get("supporting_queries") or []),
+                *(fresh.get("supporting_queries") or []),
+            ],
+        ),
+        "unresolved_questions": _unique(
+            [
+                *(fresh.get("unresolved_questions") or []),
+                *(base.get("unresolved_questions") or []),
+            ],
+        ),
+        "suggested_queries": _unique(
+            [
+                *(fresh.get("suggested_queries") or []),
+                *(base.get("suggested_queries") or []),
+            ],
+        ),
+    }
+    if merged["count_targets"] and not merged["unestimated_count_targets"]:
+        merged["status"] = "estimated"
+    elif not merged["count_targets"] and not merged["unestimated_count_targets"]:
+        merged["status"] = "missing"
+    else:
+        merged["status"] = "insufficient_evidence"
+    return merged
+
+
+def _merge_targets(
+    primary: Iterable[Mapping[str, Any]],
+    secondary: Iterable[Mapping[str, Any]],
+    *,
+    exclude_keys: set[str] | None = None,
+) -> list[dict[str, Any]]:
+    exclude_keys = exclude_keys or set()
+    merged: dict[str, dict[str, Any]] = {}
+    for target in [*list(primary), *list(secondary)]:
+        if not isinstance(target, Mapping):
+            continue
+        key = _target_family_key(target)
+        if not key or key in exclude_keys or key in merged:
+            continue
+        merged[key] = dict(target)
+    return list(merged.values())
+
+
+def _target_keys(targets: Iterable[Mapping[str, Any]]) -> set[str]:
+    return {
+        key
+        for target in targets
+        if isinstance(target, Mapping)
+        for key in [_target_family_key(target)]
+        if key
+    }
+
+
+def _target_family_key(target: Mapping[str, Any]) -> str:
+    table = _clean_key(target.get("target_table"))
+    if table:
+        return table
+
+    columns = tuple(
+        sorted(_clean_key(column) for column in _as_list(target.get("key_columns")))
+    )
+    columns = tuple(column for column in columns if column)
+    payload = {
+        "name": _clean_key(target.get("name")),
+        "key_columns": columns,
+    }
+    raw = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
+
+
+def _coerce_count_target(
+    item: Mapping[str, Any],
+    raw: Mapping[str, Any],
+    *,
+    fallback_index: int,
+) -> tuple[dict[str, Any], int]:
+    expected_minimum = _as_int(
+        item.get("expected_minimum_count")
+        or item.get("minimum_expected_count")
+        or item.get("min_count")
+        or item.get("lower_bound")
+    )
+    target = {
+        "name": _clean_display(item.get("name")) or f"target_{fallback_index}",
+        "description": _clean_display(item.get("description")),
+        "target_table": str(item.get("target_table") or "").strip(),
+        "key_columns": [
+            str(column).strip()
+            for column in _as_list(item.get("key_columns"))
+            if str(column).strip()
+        ],
+        "expected_minimum_count": expected_minimum if expected_minimum > 0 else None,
+        "expected_maximum_count": _optional_int(
+            item.get("expected_maximum_count")
+            or item.get("maximum_expected_count")
+            or item.get("max_count")
+            or item.get("upper_bound")
+        ),
+        "basis": _clean_display(item.get("basis") or item.get("rationale")),
+        "supporting_source_ids": _unique(
+            item.get("supporting_source_ids")
+            or item.get("source_ids")
+            or raw.get("supporting_source_ids")
+        ),
+        "known_missing_examples": _unique(
+            item.get("known_missing_examples") or item.get("missing_examples")
+        ),
+    }
+    target["id"] = _target_id(target)
+    return target, expected_minimum
 
 
 def _target_table_is_deliverable(
@@ -430,6 +644,25 @@ def _target_table_rejection_reason(
         "target_table is outside the currently materialized final tables: "
         f"{', '.join(sorted(deliverable_tables))}"
     )
+
+
+def _target_validation_errors(target: Mapping[str, Any]) -> list[str]:
+    errors: list[str] = []
+    if not target.get("supporting_source_ids"):
+        errors.append("no supporting discovery source ids")
+
+    basis = _clean_key(target.get("basis"))
+    circular_patterns = (
+        r"\bcurrent(?:-[a-z0-9]+){0,4}-table\b",
+        r"\bcurrent-table\b",
+        r"\bcurrent-row",
+        r"\balready-contains-\d+",
+        r"\bexisting-\d+-rows\b",
+        r"\bcurrent-\d+-rows\b",
+    )
+    if any(re.search(pattern, basis) for pattern in circular_patterns):
+        errors.append("expected count appears to rely on current exported rows")
+    return errors
 
 
 def _attach_observed_count(
@@ -540,6 +773,7 @@ def _analysis_rows(
     search_state: dict[str, Any],
 ) -> list[dict[str, Any]]:
     count_targets = estimate.get("count_targets") or []
+    unestimated_targets = estimate.get("unestimated_count_targets") or []
     rows = [
         {
             "scope": "in_scope",
@@ -561,6 +795,15 @@ def _analysis_rows(
         },
         {
             "scope": "in_scope",
+            "outcome": f"{len(unestimated_targets)} target families still unquantified",
+            "what_it_means": (
+                "every final row family needs a searched lower bound before "
+                "the run can know what complete means"
+            ),
+            "interpretation": criteria[2]["detail"],
+        },
+        {
+            "scope": "in_scope",
             "outcome": (
                 f"{len(catalog.get('unmet_count_targets') or [])} count targets "
                 "below their searched lower bound"
@@ -569,7 +812,7 @@ def _analysis_rows(
                 "a nonzero value means the run has found fewer distinct table "
                 "slots than the discovery evidence says likely exist"
             ),
-            "interpretation": criteria[2]["detail"],
+            "interpretation": criteria[3]["detail"],
         },
         {
             "scope": "in_scope",
@@ -593,7 +836,7 @@ def _analysis_rows(
                 "queued Firecrawl tasks still have to run before search can be "
                 "considered drained"
             ),
-            "interpretation": criteria[3]["detail"],
+            "interpretation": criteria[4]["detail"],
         },
     ]
     for target in count_targets[:8]:
@@ -672,6 +915,18 @@ def _compact_estimate(
                 )
             }
             for target in normalized.get("out_of_scope_count_targets", [])[:10]
+        ],
+        "unestimated_count_targets": [
+            {
+                key: target.get(key)
+                for key in (
+                    "name",
+                    "target_table",
+                    "expected_minimum_count",
+                    "reason",
+                )
+            }
+            for target in normalized.get("unestimated_count_targets", [])[:10]
         ],
         "unresolved_questions": normalized.get("unresolved_questions", [])[:10],
         "suggested_queries": normalized.get("suggested_queries", [])[:10],

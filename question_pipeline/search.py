@@ -27,6 +27,7 @@ _BLOCKED_PAGE_MARKERS = (
     "cf-browser-verification",
     "attention required! | cloudflare",
 )
+_FATAL_SEARCH_STATUS_CODES = {401, 402, 403, 429}
 
 
 @dataclass(frozen=True)
@@ -114,6 +115,7 @@ class SearchBatch:
     unattempted_tasks: list[SearchTask] = field(default_factory=list)
     papers: list[dict[str, Any]] = field(default_factory=list)
     outcomes: list[SearchOutcome] = field(default_factory=list)
+    fatal_error: str = ""
 
     def outcome_dicts(self) -> list[dict[str, Any]]:
         return [outcome.to_dict() for outcome in self.outcomes]
@@ -275,6 +277,10 @@ class SearchHarvester:
                 outcome.skip("search_failed")
                 batch.outcomes.append(outcome)
                 self._record_outcome(outcome)
+                if is_fatal_search_error(exc):
+                    batch.fatal_error = str(exc)
+                    batch.unattempted_tasks = tasks[task_index + 1 :]
+                    break
                 continue
 
             outcome.firecrawl_hits = len(results)
@@ -313,6 +319,10 @@ class SearchHarvester:
                 outcome.skip("search_failed")
                 batch.outcomes.append(outcome)
                 self._record_outcome(outcome)
+                if is_fatal_search_error(exc):
+                    batch.fatal_error = str(exc)
+                    batch.unattempted_tasks = tasks[task_index + 1 :]
+                    break
                 continue
 
             outcome.firecrawl_hits = len(results)
@@ -503,6 +513,28 @@ class SearchHarvester:
 def is_blocked_page_text(text: str) -> bool:
     normalized = normalize_query(text)
     return any(marker in normalized for marker in _BLOCKED_PAGE_MARKERS)
+
+
+def is_fatal_search_error(exc: Exception) -> bool:
+    response = getattr(exc, "response", None)
+    status_code = getattr(response, "status_code", None)
+    if status_code in _FATAL_SEARCH_STATUS_CODES:
+        return True
+
+    message = str(exc).lower()
+    return any(
+        marker in message
+        for marker in (
+            "401 client error",
+            "402 client error",
+            "403 client error",
+            "429 client error",
+            "payment required",
+            "too many requests",
+            "unauthorized",
+            "forbidden",
+        )
+    )
 
 
 _REDUCTION_STOPWORDS = {

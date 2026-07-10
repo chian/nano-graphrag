@@ -120,6 +120,7 @@ async def catalog_queries(
     question: str,
     *,
     goal_context: Dict[str, Any],
+    operator_plan: Dict[str, Any] | None = None,
     universe_estimate: Dict[str, Any] | None = None,
     search_outcomes: List[Dict[str, Any]] | None = None,
     n: int = 4,
@@ -136,6 +137,9 @@ CURRENT COVERAGE STATE JSON:
 CURRENT ANSWER-UNIVERSE ESTIMATE JSON:
 {json.dumps(universe_estimate or {}, indent=2, default=str)[:2500]}
 
+SELECTED SEARCH OPERATOR JSON:
+{json.dumps(operator_plan or {}, indent=2, default=str)[:1800]}
+
 RECENT CATALOG SEARCH OUTCOMES JSON:
 {json.dumps(search_outcomes or [], indent=2, default=str)[:2500]}
 
@@ -144,6 +148,11 @@ families needed for the final answer. Prefer reviews, comparative papers, large
 curated tables, and multi-subject or multi-context sources that can reveal
 missing target categories and counts. Avoid a single known gap unless the query
 would also reveal a broader list, table, review, or benchmark.
+
+Use SELECTED SEARCH OPERATOR JSON as the concrete search move for this batch.
+Honor its source_family and constraints while keeping every query grounded in
+terms that could appear in external source titles, abstracts, tables,
+appendices, or dataset descriptions.
 
 Keep each query concise (3-10 words), no boolean operators.
 
@@ -178,12 +187,12 @@ missing pieces. Prefer high-priority deficits, but diversify across target
 tables and deficit types when several deficits have similar priority. Each
 query must map to one fill-deficit id.
 
-Use each deficit's strategy_history and strategy_memory to avoid stalled search
+Each deficit has an operator_plan selected by deterministic code. Instantiate
+that operator only; do not invent a different strategy_family. Use each
+deficit's strategy_history and strategy_memory to avoid stalled search
 behavior. Treat accepted-source terms, matched needs, missing needs, rejection
-reasons, and failed query terms as memory that must shape the next search
-strategy. If earlier queries for a deficit accepted no sources, produced only
-duplicates, or returned errors, mutate the next query by changing terminology,
-changing specificity, or aiming at a different source shape.
+reasons, failed query terms, and exhausted_operators as memory that must shape
+the next query text.
 
 Queries must use terms that could appear in external source titles, abstracts,
 tables, appendices, or dataset descriptions. Do not repeat a previous query for
