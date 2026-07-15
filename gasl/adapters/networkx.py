@@ -224,7 +224,13 @@ class NetworkXAdapter(GraphAdapter):
         # Check description contains filter
         if "description_contains" in filters:
             description = data.get("description", "")
-            if filters["description_contains"].lower() not in description.lower():
+            description_filters = filters["description_contains"]
+            if isinstance(description_filters, str):
+                description_filters = [description_filters]
+            if not any(
+                str(term).lower() in description.lower()
+                for term in description_filters
+            ):
                 return False
         
         # Check raw criteria (bulletproof keyword matching)
@@ -237,8 +243,10 @@ class NetworkXAdapter(GraphAdapter):
                 clean_node = str(data.get("entity_type") or "").strip('"').strip("'").lower()
                 if clean_node not in raw_entity_types:
                     return False
-            else:
-                # For other criteria, do simple keyword matching
+            elif not self._has_structured_filter(
+                filters,
+                {"id_filter", "entity_type", "relationship_name", "description_contains"},
+            ):
                 if criteria not in node_text:
                     return False
         
@@ -304,17 +312,39 @@ class NetworkXAdapter(GraphAdapter):
         # Check description contains filter
         if "description_contains" in filters:
             description = data.get("description", "")
-            if filters["description_contains"].lower() not in description.lower():
+            description_filters = filters["description_contains"]
+            if isinstance(description_filters, str):
+                description_filters = [description_filters]
+            if not any(
+                str(term).lower() in description.lower()
+                for term in description_filters
+            ):
                 return False
 
         # Check raw criteria
         if "raw_criteria" in filters:
             criteria = filters["raw_criteria"].lower()
             edge_text = f"{source} {target} {str(data)}".lower()
-            if criteria not in edge_text:
+            if (
+                not self._has_structured_filter(
+                    filters,
+                    {
+                        "source",
+                        "target",
+                        "relationship_name",
+                        "relation_type",
+                        "description_contains",
+                    },
+                )
+                and criteria not in edge_text
+            ):
                 return False
 
         return True
+
+    @staticmethod
+    def _has_structured_filter(filters: Dict[str, Any], keys: Set[str]) -> bool:
+        return any(key in filters for key in keys)
     
     def _get_nodes_by_filter(self, filters: Dict[str, Any]) -> List[Any]:
         """Get nodes matching specific filters."""

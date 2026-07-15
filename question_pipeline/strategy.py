@@ -202,6 +202,12 @@ as real subject terms in known examples or accepted source context. Prefer
 source queries that can fill multiple missing rows in the target table, and use
 known missing examples only when they are present in the deficit.
 
+When the selected operator asks for contextual-grain or temporal-window
+expansion, vary the place, site, population, scenario, period, phase, season,
+or before/after wording used to find the same missing piece. Preserve the most
+specific context and observation window reported by source authors instead of
+collapsing every row to one broad bucket.
+
 Keep each query concise (3-10 words), no boolean operators.
 
 Return JSON:
@@ -336,6 +342,13 @@ count_targets for auxiliary catalogs or search-space summaries that are not
 themselves final answer rows.
 
 Choose key_columns from fields that can count distinct rows for that family.
+When the final rows vary by place, site, subgroup, scenario, observation
+window, method, or before/after context, retain those axes in key_columns
+instead of collapsing them to one broad row. When multiple current final
+tables represent different required row families, keep an executable
+count_target or an unestimated_count_target for each family until retrieved
+discovery evidence supports a lower bound.
+
 Use lower bounds that are explicitly defensible from searched source text. If
 the sources do not support any useful lower bound yet, set status to
 "insufficient_evidence" and propose broader queries in suggested_queries.

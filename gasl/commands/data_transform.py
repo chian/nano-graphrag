@@ -585,7 +585,7 @@ class DataTransformHandler(CommandHandler):
             self.state_manager.store_variable_data(
                 result_variable,
                 result_rows,
-                store_in_state=self.state_store.has_variable(result_variable),
+                store_in_state=True,
                 store_in_context=True,
                 description=f"Collapsed rows from {variable}",
                 contract=contract,

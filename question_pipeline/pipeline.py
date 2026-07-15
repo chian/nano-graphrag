@@ -30,6 +30,7 @@ if str(REPO_ROOT) not in sys.path:
 from domain_schemas.schema_loader import DomainSchema, load_domain_schema
 from gasl import GASLExecutor, NetworkXAdapter
 from gasl.answer_layer import AnswerLayerCompiler
+from gasl.contracts import make_contract
 from gasl.llm import ArgoBridgeLLM
 from graph_metadata import build_metadata, save_graph_metadata
 from hpc.common import save_graph
@@ -54,6 +55,7 @@ from .search import (
     SearchFrontier,
     SearchHarvester,
     SearchTask,
+    load_seed_frontier_tasks,
     load_seed_search_outcomes,
     load_seed_source_records,
     load_seen_urls,
@@ -114,10 +116,12 @@ class PipelineConfig:
     max_gasl_iterations: int = 8
     gasl_graph_scope: str = "auto"
     gasl_new_source_hops: int = 1
+    gasl_source_seed_limit: int = 100
     answer_mode: str = "natural"
     table_variables: List[str] = field(default_factory=list)
     seed_tables_dir: Optional[str] = None
     seed_sources_dir: Optional[str] = None
+    seed_frontier_path: Optional[str] = None
     round_offset: Optional[int] = None
     numeric_candidate_mode: str = "parsed"
 
@@ -153,9 +157,17 @@ issue one GRAPHWALK whose follow clause joins all needed edge labels with |.
 Do not issue multiple GRAPHWALK commands AS the same variable; AS replaces
 rather than appends. Before any COLLAPSE BY a deduplication key, create a
 non-empty deduplication key on every candidate row.
+
+When the state already contains `round_source_nodes`, those rows are the
+current round's newly accepted source-evidenced graph nodes. Treat that
+variable as the first source frontier: GRAPHWALK or PROCESS it before issuing
+broad FIND commands. Use broad FIND only as a supplemental fallback after
+source-seeded paths have been checked, because continuation rounds should
+extract new evidence before revisiting the older graph.
 """.strip()
 
 
+ROUND_SOURCE_NODES_VAR = "round_source_nodes"
 TABLE_REQUIRED_COLUMNS: Dict[str, List[str]] = {}
 TABLE_COMPLETENESS_COLUMNS: Dict[str, List[str]] = {}
 PIPELINE_MODE_ANSWER = "answer"
@@ -172,6 +184,7 @@ def _operator_metadata(operator_plan: Dict[str, Any]) -> Dict[str, Any]:
         "strategy_family": operator,
         "source_family": source_family,
         "operator_attempt": operator_plan.get("attempt_index"),
+        "operator_context_tags": operator_plan.get("context_tags", []),
         "operator_last_failure_class": operator_plan.get(
             "last_failure_class",
             "",
@@ -352,6 +365,8 @@ class QuestionPipeline:
             raise ValueError("gasl_graph_scope must be 'auto', 'full', or 'new_sources'")
         if config.gasl_new_source_hops < 0:
             raise ValueError("gasl_new_source_hops must be nonnegative")
+        if config.gasl_source_seed_limit < 0:
+            raise ValueError("gasl_source_seed_limit must be nonnegative")
         config.numeric_candidate_mode = _normalize_numeric_candidate_mode(
             config.numeric_candidate_mode,
         )
@@ -399,6 +414,9 @@ class QuestionPipeline:
         self.search_frontier.mark_seen(
             self._search_outcome_tasks(seed_search_outcomes)
         )
+        self.seed_frontier_tasks = load_seed_frontier_tasks(
+            config.seed_frontier_path,
+        )
         self._record_goal_discovery_sources(seed_source_records)
         self._export_seed_sources(seed_source_records)
         self._export_seed_search_outcomes(seed_search_outcomes)
@@ -407,6 +425,8 @@ class QuestionPipeline:
         self.goal_states: List[Dict[str, Any]] = []
         self.derived_table_exports: List[Dict[str, Any]] = []
         self.last_derived_table_exports: List[Dict[str, Any]] = []
+        self._bootstrap_papers: List[Dict[str, Any]] = []
+        self._gasl_source_seed_nodes: List[Dict[str, Any]] = []
 
     # ------------------------------------------------------------------ #
     # Default real dependencies (swappable for tests)
@@ -451,8 +471,40 @@ class QuestionPipeline:
             state_file,
             job_id=self._gasl_job_id(state_file),
         )
+        self._seed_gasl_source_nodes(executor)
         return executor.run_hypothesis_driven_traversal(
             self._gasl_question(), self.config.max_gasl_iterations
+        )
+
+    def _seed_gasl_source_nodes(self, executor: GASLExecutor) -> None:
+        if not self._gasl_source_seed_nodes:
+            return
+
+        contract = make_contract(
+            payload_kind="nodes",
+            data=self._gasl_source_seed_nodes,
+            label_field="data.entity_name",
+            scope="current_round_new_sources",
+            usable_by=["PROCESS", "GRAPHWALK", "SHOW", "SELECT"],
+            confidence=0.98,
+            grain_type="node",
+            grain_keys=["id"],
+            multiplicity_preserved=True,
+            notes=[
+                "Nodes directly evidenced by papers accepted in the current "
+                "round; use before broad graph FIND commands.",
+            ],
+        )
+        executor.state_manager.store_variable_data(
+            ROUND_SOURCE_NODES_VAR,
+            list(self._gasl_source_seed_nodes),
+            store_in_state=True,
+            store_in_context=True,
+            description=(
+                "Current-round source-evidenced graph nodes. Start table-fill "
+                "GRAPHWALK commands from this list before broad FIND fallbacks."
+            ),
+            contract=contract,
         )
 
     @staticmethod
@@ -795,13 +847,60 @@ genuinely separate view that is not covered by a listed target."""
         if not source_ids:
             return self.graph
 
-        nodes = self._source_neighborhood_nodes(
+        graph = self._source_neighborhood_graph(
             source_ids,
             hops=self.config.gasl_new_source_hops,
         )
-        if not nodes:
+        if graph.number_of_nodes() == 0:
             return self.graph
-        return self.graph.subgraph(nodes).copy()
+        return graph
+
+    def _gasl_source_seed_nodes_for_round(
+        self,
+        round_papers: List[Dict[str, Any]],
+        *,
+        graph: nx.DiGraph,
+    ) -> List[Dict[str, Any]]:
+        if self.config.gasl_source_seed_limit <= 0:
+            return []
+
+        source_ids = {
+            str(paper.get("id") or "").strip()
+            for paper in round_papers
+            if str(paper.get("id") or "").strip()
+        }
+        if not source_ids:
+            return []
+
+        scored_ids: Dict[Any, tuple[int, int, str]] = {}
+        for node_id, data in graph.nodes(data=True):
+            if str(node_id) in source_ids or self._mentions_any(data, source_ids):
+                scored_ids[node_id] = (0, graph.degree(node_id), str(node_id))
+
+        for src, dst, data in graph.edges(data=True):
+            if not self._mentions_any(data, source_ids):
+                continue
+            for node_id in (src, dst):
+                scored_ids.setdefault(
+                    node_id,
+                    (1, graph.degree(node_id), str(node_id)),
+                )
+
+        return [
+            {
+                "id": node_id,
+                "data": dict(graph.nodes[node_id]),
+                "type": "node",
+            }
+            for node_id in sorted(
+                scored_ids,
+                key=lambda node_id: (
+                    scored_ids[node_id][0],
+                    -scored_ids[node_id][1],
+                    scored_ids[node_id][2],
+                ),
+            )[: self.config.gasl_source_seed_limit]
+        ]
 
     def _source_neighborhood_nodes(
         self,
@@ -833,6 +932,84 @@ genuinely separate view that is not covered by a listed target."""
             nodes.update(expanded)
             frontier = expanded
         return nodes
+
+    def _source_neighborhood_graph(
+        self,
+        source_ids: set[str],
+        *,
+        hops: int,
+    ) -> nx.DiGraph:
+        scoped = self.graph.__class__()
+        scoped.graph.update(self.graph.graph)
+
+        for node_id, data in self.graph.nodes(data=True):
+            if str(node_id) in source_ids or self._mentions_any(data, source_ids):
+                scoped.add_node(node_id, **dict(data))
+
+        for src, dst, key, data in self._iter_graph_edges():
+            if not self._mentions_any(data, source_ids):
+                continue
+            self._copy_node(scoped, src)
+            self._copy_node(scoped, dst)
+            self._copy_edge(scoped, src, dst, key, data)
+
+        seen = set(scoped.nodes)
+        frontier = set(scoped.nodes)
+        for _ in range(max(0, hops)):
+            expanded: set[Any] = set()
+            for node_id in frontier:
+                for src, dst, key, data in self._iter_incident_edges(node_id):
+                    self._copy_node(scoped, src)
+                    self._copy_node(scoped, dst)
+                    self._copy_edge(scoped, src, dst, key, data)
+                    expanded.add(src)
+                    expanded.add(dst)
+            expanded -= seen
+            if not expanded:
+                break
+            seen.update(expanded)
+            frontier = expanded
+
+        return scoped
+
+    def _iter_graph_edges(self):
+        if self.graph.is_multigraph():
+            yield from self.graph.edges(keys=True, data=True)
+            return
+        for src, dst, data in self.graph.edges(data=True):
+            yield src, dst, None, data
+
+    def _iter_incident_edges(self, node_id: Any):
+        if node_id not in self.graph:
+            return
+        if self.graph.is_multigraph():
+            yield from self.graph.out_edges(node_id, keys=True, data=True)
+            if self.graph.is_directed():
+                yield from self.graph.in_edges(node_id, keys=True, data=True)
+            return
+        for src, dst, data in self.graph.out_edges(node_id, data=True):
+            yield src, dst, None, data
+        if self.graph.is_directed():
+            for src, dst, data in self.graph.in_edges(node_id, data=True):
+                yield src, dst, None, data
+
+    def _copy_node(self, graph: nx.DiGraph, node_id: Any) -> None:
+        if node_id in graph or node_id not in self.graph:
+            return
+        graph.add_node(node_id, **dict(self.graph.nodes[node_id]))
+
+    @staticmethod
+    def _copy_edge(
+        graph: nx.DiGraph,
+        src: Any,
+        dst: Any,
+        key: Any,
+        data: Dict[str, Any],
+    ) -> None:
+        if graph.is_multigraph():
+            graph.add_edge(src, dst, key=key, **dict(data))
+        else:
+            graph.add_edge(src, dst, **dict(data))
 
     @classmethod
     def _mentions_any(cls, value: Any, needles: set[str]) -> bool:
@@ -2092,6 +2269,7 @@ genuinely separate view that is not covered by a listed target."""
                 f"{len(wave_papers)} catalog papers "
                 f"in bootstrap wave {bootstrap_idx}"
             )
+            self._bootstrap_papers.extend(wave_papers)
 
             await self._estimate_task_goal_universe(
                 f"bootstrap_{bootstrap_round_idx}_{bootstrap_idx}",
@@ -2125,6 +2303,11 @@ genuinely separate view that is not covered by a listed target."""
 
         return seed_exports
 
+    def _drain_bootstrap_papers(self) -> List[Dict[str, Any]]:
+        papers = self._bootstrap_papers
+        self._bootstrap_papers = []
+        return papers
+
     async def _enqueue_deficit_searches(
         self,
         round_idx: int,
@@ -2139,12 +2322,46 @@ genuinely separate view that is not covered by a listed target."""
             round_idx,
             table_exports,
         )
+        catalog_tasks: List[Dict[str, Any]] = []
+        if self._needs_more_catalog_search(goal_state):
+            catalog_tasks = await self._enqueue_catalog_searches(
+                round_idx,
+                table_rows,
+                [],
+            )
         target_deficit_tasks = await self._enqueue_target_deficit_searches(
             round_idx,
             table_rows,
             goal_state,
         )
-        return table_gap_tasks, target_deficit_tasks
+        return table_gap_tasks, [*catalog_tasks, *target_deficit_tasks]
+
+    def _enqueue_seed_frontier_searches(self, round_idx: int) -> List[Dict[str, Any]]:
+        if not self.seed_frontier_tasks:
+            return []
+
+        tasks = [
+            SearchTask(
+                query=task.query,
+                id=task.id,
+                parent_id=task.parent_id,
+                topic=task.topic,
+                expansion_op=task.expansion_op,
+                gap=task.gap,
+                round_index=round_idx,
+                depth=task.depth,
+                metadata=dict(task.metadata),
+            )
+            for task in self.seed_frontier_tasks
+        ]
+        self.seed_frontier_tasks = []
+        accepted = self.search_frontier.enqueue(tasks)
+        if accepted:
+            print(
+                f"  Requeued {len(accepted)} seed frontier searches "
+                f"for round {round_idx}"
+            )
+        return [task.to_dict() for task in accepted]
 
     def _universe_estimate_ready(self) -> bool:
         return (
@@ -2153,7 +2370,15 @@ genuinely separate view that is not covered by a listed target."""
         )
 
     def _universe_estimate_actionable(self) -> bool:
-        return self._universe_estimate_ready()
+        return bool(self.goal_universe_estimate.get("count_targets"))
+
+    @staticmethod
+    def _needs_more_catalog_search(goal_state: FillGoalState) -> bool:
+        estimate = goal_state.target_estimate
+        return (
+            estimate.get("status") != "estimated"
+            or bool(estimate.get("unestimated_count_targets"))
+        )
 
     def _table_rows_by_variable(
         self,
@@ -2280,7 +2505,14 @@ genuinely separate view that is not covered by a listed target."""
         if self.goal_tracker is not None:
             print("  Bootstrapping task-level goal from current tables...")
             seed_exports = await self._bootstrap_task_goal()
-            if not self._universe_estimate_actionable():
+            seed_goal_search_tasks = self._enqueue_seed_frontier_searches(
+                self._round_label(0),
+            )
+            if (
+                not self._universe_estimate_actionable()
+                and not seed_goal_search_tasks
+                and not self._bootstrap_papers
+            ):
                 final_assessment = {
                     "sufficient": False,
                     "confidence": 0.0,
@@ -2297,13 +2529,24 @@ genuinely separate view that is not covered by a listed target."""
                 f"bootstrap_deficit_{self._round_label(0)}",
                 seed_exports,
                 gap_search_tasks=[],
-                goal_search_tasks=[],
+                goal_search_tasks=seed_goal_search_tasks,
             )
-            gap_search_tasks, goal_search_tasks = await self._enqueue_deficit_searches(
-                self._round_label(0),
-                seed_exports,
-                bootstrap_goal_state,
-            )
+            gap_search_tasks: List[Dict[str, Any]] = []
+            goal_search_tasks: List[Dict[str, Any]] = []
+            if self._universe_estimate_actionable():
+                gap_search_tasks, goal_search_tasks = (
+                    await self._enqueue_deficit_searches(
+                        self._round_label(0),
+                        seed_exports,
+                        bootstrap_goal_state,
+                    )
+                )
+                goal_search_tasks = [
+                    *seed_goal_search_tasks,
+                    *goal_search_tasks,
+                ]
+            else:
+                goal_search_tasks = seed_goal_search_tasks
             if gap_search_tasks or goal_search_tasks:
                 self._record_task_goal(
                     f"bootstrap_deficit_{self._round_label(0)}",
@@ -2318,18 +2561,24 @@ genuinely separate view that is not covered by a listed target."""
             print(f"\n{'#'*70}\nROUND {round_idx}\n{'#'*70}")
 
             if local_round_idx == 0 and seeded_from_graph:
+                round_papers = self._drain_bootstrap_papers()
                 if self.search_frontier.pending_count > 0:
                     queries = []
-                    round_papers = await self._fetch_papers(
+                    queued_papers = await self._fetch_papers(
                         queries,
                         cap=cfg.papers_per_round,
                         round_idx=round_idx,
                         topic="queued",
                         expansion_op="task_frontier",
                     )
-                    print(f"  Fetched {len(round_papers)} queued papers")
+                    round_papers.extend(queued_papers)
+                    print(f"  Fetched {len(queued_papers)} queued papers")
+                if round_papers:
+                    print(
+                        "  Processing "
+                        f"{len(round_papers)} accepted bootstrap/queued paper(s)."
+                    )
                 else:
-                    round_papers = []
                     print("  Reusing seed graph for GASL.")
             elif local_round_idx == 0:
                 round_papers = seed_papers
@@ -2482,7 +2731,24 @@ genuinely separate view that is not covered by a listed target."""
                     f"{gasl_graph.number_of_nodes()} nodes, "
                     f"{gasl_graph.number_of_edges()} edges"
                 )
-            gasl_result = await self._run_gasl(round_idx, metadata, graph=gasl_graph)
+            self._gasl_source_seed_nodes = self._gasl_source_seed_nodes_for_round(
+                round_papers,
+                graph=gasl_graph,
+            )
+            if self._gasl_source_seed_nodes:
+                print(
+                    "  Seeded GASL with "
+                    f"{len(self._gasl_source_seed_nodes)} "
+                    "current-source node(s)"
+                )
+            try:
+                gasl_result = await self._run_gasl(
+                    round_idx,
+                    metadata,
+                    graph=gasl_graph,
+                )
+            finally:
+                self._gasl_source_seed_nodes = []
             table_exports = self._export_gasl_tables(round_idx, gasl_result)
             last_answer = gasl_result.get("final_answer", "") or ""
             if self.goal_tracker is not None:

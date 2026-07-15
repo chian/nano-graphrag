@@ -99,9 +99,11 @@ def build_config(args: argparse.Namespace) -> PipelineConfig:
         max_gasl_iterations=args.max_gasl_iterations,
         gasl_graph_scope=args.gasl_graph_scope,
         gasl_new_source_hops=args.gasl_new_source_hops,
+        gasl_source_seed_limit=args.gasl_source_seed_limit,
         answer_mode=answer_mode,
         seed_tables_dir=args.seed_tables_dir,
         seed_sources_dir=args.seed_sources_dir,
+        seed_frontier_path=args.seed_frontier_path,
         round_offset=args.round_offset,
         numeric_candidate_mode=args.numeric_candidate_mode,
         target_confidence=args.target_confidence,
@@ -240,6 +242,16 @@ def main() -> None:
         help="Neighbor hops to include when --gasl-graph-scope selects new-source scope.",
     )
     parser.add_argument(
+        "--gasl-source-seed-limit",
+        type=int,
+        default=100,
+        help=(
+            "Max current-round source-evidenced nodes to seed directly into "
+            "GASL state for continuation rounds. Set 0 to disable source "
+            "anchoring."
+        ),
+    )
+    parser.add_argument(
         "--seed-tables-dir",
         default=None,
         help="Directory or JSON file of previously exported answer tables to merge into new table exports.",
@@ -251,6 +263,15 @@ def main() -> None:
             "Directory or JSON/JSONL file of previous source metadata used to "
             "seed URL deduplication; pass multiple paths separated by the OS "
             "path separator."
+        ),
+    )
+    parser.add_argument(
+        "--seed-frontier-path",
+        default=None,
+        help=(
+            "Previous round JSON, stop-criteria JSON, or run directory whose "
+            "queued search tasks should be requeued before generating new "
+            "table-fill deficit searches."
         ),
     )
     parser.add_argument(

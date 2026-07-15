@@ -222,6 +222,10 @@ class SearchFrontier:
         return {
             "mode": self.mode,
             "pending_tasks": len(self._pending),
+            "pending_task_records": [
+                task.to_dict()
+                for task in self._pending.values()
+            ],
             "seen_tasks": len(self._seen_task_ids),
             "completed_tasks": len(self.outcomes),
         }
@@ -761,6 +765,16 @@ def load_seed_search_outcomes(path: str | Path | None) -> list[dict[str, Any]]:
     return list(outcomes.values())
 
 
+def load_seed_frontier_tasks(path: str | Path | None) -> list[SearchTask]:
+    """Load still-pending search tasks from previous round artifacts."""
+    tasks: "OrderedDict[str, SearchTask]" = OrderedDict()
+    for root in _seed_source_roots(path):
+        for file_path in _seed_frontier_files(root):
+            for task in _iter_frontier_tasks(_read_json(file_path)):
+                tasks.setdefault(task.id, task)
+    return list(tasks.values())
+
+
 def _seed_source_roots(path: str | Path | None) -> list[Path]:
     if not path:
         return []
@@ -800,6 +814,70 @@ def _seed_search_outcome_files(root: Path) -> list[Path]:
             if candidate is not None and candidate.exists()
         )
     return sorted(candidate for name in names for candidate in root.glob(name))
+
+
+def _seed_frontier_files(root: Path) -> list[Path]:
+    if root.is_file():
+        return [root]
+
+    candidates: list[Path] = []
+    for directory in (root, root / "answers", root / "answers" / "goals"):
+        if directory.exists():
+            candidates.extend(directory.glob("round_*.json"))
+    return sorted(set(candidates))
+
+
+def _iter_frontier_tasks(payload: Any) -> Iterable[SearchTask]:
+    if isinstance(payload, list):
+        for item in payload:
+            task = _search_task_from_record(item)
+            if task is not None:
+                yield task
+        return
+
+    if not isinstance(payload, dict):
+        return
+
+    for key in ("gap_search_tasks", "goal_search_tasks", "pending_task_records"):
+        value = payload.get(key)
+        if not isinstance(value, list):
+            continue
+        for item in value:
+            task = _search_task_from_record(item)
+            if task is not None:
+                yield task
+
+    search_frontier = payload.get("search_frontier")
+    if isinstance(search_frontier, dict):
+        for item in search_frontier.get("pending_task_records") or []:
+            task = _search_task_from_record(item)
+            if task is not None:
+                yield task
+
+
+def _search_task_from_record(payload: Any) -> Optional[SearchTask]:
+    if not isinstance(payload, dict):
+        return None
+
+    query = str(payload.get("query") or "").strip()
+    if not query:
+        return None
+
+    metadata = payload.get("metadata")
+    if not isinstance(metadata, dict):
+        metadata = {}
+
+    return SearchTask(
+        query=query,
+        id=str(payload.get("id") or ""),
+        parent_id=payload.get("parent_id"),
+        topic=str(payload.get("topic") or "batch"),
+        expansion_op=str(payload.get("expansion_op") or "direct"),
+        gap=str(payload.get("gap") or ""),
+        round_index=int(payload.get("round_index") or 0),
+        depth=int(payload.get("depth") or 0),
+        metadata=dict(metadata),
+    )
 
 
 def _iter_source_records(path: Path) -> Iterable[dict[str, Any]]:

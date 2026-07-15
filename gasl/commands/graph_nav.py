@@ -198,8 +198,8 @@ class GraphNavHandler(CommandHandler):
                 for current_node in current_nodes:
                     if len(walked_data) >= max_nodes:
                         break
-                    edges = self.adapter.find_edges({"source": current_node["id"]})
-                    for edge in edges[:edge_cap]:
+                    edges = self._incident_edges(current_node["id"])
+                    for edge, traversal_direction in edges[:edge_cap]:
                         if len(walked_data) >= max_nodes:
                             break
                         edge_rel = (
@@ -210,31 +210,86 @@ class GraphNavHandler(CommandHandler):
                         canonical_edge_rel = self._canonicalize_relation_token(edge_rel)
                         if follow_filters and canonical_edge_rel not in follow_filters:
                             continue
-                        target_nodes = self.adapter.find_nodes({"id_filter": edge["target"]})
-                        if not target_nodes:
+                        neighbor_id = (
+                            edge["target"]
+                            if traversal_direction == "out"
+                            else edge["source"]
+                        )
+                        neighbor_nodes = self.adapter.find_nodes({"id_filter": neighbor_id})
+                        if not neighbor_nodes:
                             continue
-                        target_node = target_nodes[0]
-                        target_id = target_node["id"]
-                        hop_key = (current_node["id"], target_id, step + 1, canonical_edge_rel)
+                        neighbor_node = neighbor_nodes[0]
+                        neighbor_id = neighbor_node["id"]
+                        hop_key = (
+                            current_node["id"],
+                            edge["source"],
+                            edge["target"],
+                            step + 1,
+                            canonical_edge_rel,
+                            traversal_direction,
+                        )
                         if hop_key in visited_hops:
                             continue
                         visited_hops.add(hop_key)
-                        enriched_target = {
-                            **target_node,
+                        target_data = dict(neighbor_node.get("data", {}))
+                        edge_data = dict(edge.get("data", {}))
+                        row_data = {
+                            **target_data,
                             "src_id": current_node["id"],
-                            "tgt_id": target_id,
-                            "data": {
-                                **target_node.get("data", {}),
-                                "src_id": current_node["id"],
-                                "tgt_id": target_id,
-                                "relation_type": edge_rel,
-                                "path_depth": step + 1,
-                            },
+                            "tgt_id": neighbor_id,
+                            "edge_src_id": edge["source"],
+                            "edge_tgt_id": edge["target"],
+                            "relation_type": edge_rel,
+                            "traversal_direction": traversal_direction,
+                            "path_depth": step + 1,
+                            "edge_relation_type": edge_rel,
+                            "edge_source_refs": edge_data.get("source_refs"),
+                            "edge_source_chunks": edge_data.get("source_chunks"),
+                            "edge_source_chunk": edge_data.get("source_chunk"),
+                            "edge_description": edge_data.get("description"),
+                        }
+                        for provenance_key in (
+                            "source_refs",
+                            "source_chunks",
+                            "source_chunk",
+                        ):
+                            edge_value = edge_data.get(provenance_key)
+                            if edge_value:
+                                row_data[provenance_key] = edge_value
+                        enriched_target = {
+                            **neighbor_node,
+                            "src_id": current_node["id"],
+                            "tgt_id": neighbor_id,
+                            "edge_data": edge_data,
+                            "data": row_data,
                         }
                         next_nodes.append(enriched_target)
                 current_nodes = next_nodes
             walked_data.extend(current_nodes)
         return walked_data
+
+    def _incident_edges(self, node_id: Any) -> list[tuple[dict, str]]:
+        edges: list[tuple[dict, str]] = []
+        seen: set[tuple[str, str, str]] = set()
+        for direction, filters in (
+            ("out", {"source": node_id}),
+            ("in", {"target": node_id}),
+        ):
+            for edge in self.adapter.find_edges(filters):
+                key = (
+                    str(edge.get("source")),
+                    str(edge.get("target")),
+                    str(
+                        edge.get("data", {}).get("relation_type")
+                        or edge.get("data", {}).get("relationship_name")
+                        or ""
+                    ),
+                )
+                if key in seen:
+                    continue
+                seen.add(key)
+                edges.append((edge, direction))
+        return edges
 
     @staticmethod
     def _normalize_follow_types(follow_types: str) -> list[str]:

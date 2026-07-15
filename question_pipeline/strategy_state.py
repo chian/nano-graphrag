@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections import Counter
 from typing import Any, Mapping
 
@@ -108,6 +109,50 @@ QUERY_OPERATORS: dict[str, dict[str, Any]] = {
             "Avoid source neighborhoods that only produced duplicates.",
         ],
     },
+    "target_context_grain": {
+        "phase": "target",
+        "source_family": "stratified table",
+        "max_attempts": 2,
+        "description": (
+            "Search the same row family at a different reported contextual "
+            "grain, such as a narrower or broader place, site, subgroup, or "
+            "scenario."
+        ),
+        "query_terms": [
+            "regional",
+            "site",
+            "stratified",
+        ],
+        "constraints": [
+            "Vary the context grain instead of assuming one aggregation level.",
+            (
+                "Prefer sources that report estimates split by place, site, "
+                "subgroup, or scenario."
+            ),
+        ],
+    },
+    "target_temporal_window": {
+        "phase": "target",
+        "source_family": "time stratified study",
+        "max_attempts": 2,
+        "description": (
+            "Search the same row family with an explicit observation window, "
+            "phase, season, or before/after context."
+        ),
+        "query_terms": [
+            "longitudinal",
+            "seasonal",
+            "time",
+            "series",
+        ],
+        "constraints": [
+            "Vary the observation window when rows are distinguished by time.",
+            (
+                "Prefer sources that report estimates by period, phase, "
+                "season, or before/after context."
+            ),
+        ],
+    },
 }
 
 _CATALOG_DEFAULT_ORDER = (
@@ -134,6 +179,64 @@ _TARGET_ROW_ORDER = (
     "target_source_shift",
     "target_batch_family",
 )
+_CONTEXT_RECOVERY_FAILURES = {
+    "accepted_no_graph_delta",
+    "all_duplicates",
+    "graph_delta_no_table_delta",
+    "no_accepted_source",
+    "no_hits",
+    "source_unusable",
+}
+_CONTEXT_GRAIN_MARKERS = {
+    "area",
+    "city",
+    "cohort",
+    "context",
+    "country",
+    "facility",
+    "geographic",
+    "geography",
+    "group",
+    "jurisdiction",
+    "local",
+    "location",
+    "national",
+    "place",
+    "population",
+    "province",
+    "regional",
+    "region",
+    "setting",
+    "site",
+    "spatial",
+    "state",
+    "stratum",
+    "subgroup",
+    "subnational",
+    "territory",
+}
+_TEMPORAL_WINDOW_MARKERS = {
+    "after",
+    "baseline",
+    "before",
+    "date",
+    "duration",
+    "followup",
+    "interval",
+    "month",
+    "observation",
+    "period",
+    "phase",
+    "post",
+    "pre",
+    "season",
+    "temporal",
+    "time",
+    "wave",
+    "week",
+    "window",
+    "year",
+}
 _FAILURE_ROUTES = {
     "useful_table_delta": (
         "same",
@@ -235,6 +338,7 @@ def plan_target_operator(target: Mapping[str, Any]) -> dict[str, Any]:
         attempts,
         productive_failures=_TARGET_PRODUCTIVE_FAILURES,
     )
+    context_tags = _target_context_tags(target)
     return _operator_plan(
         operator,
         attempts,
@@ -242,6 +346,7 @@ def plan_target_operator(target: Mapping[str, Any]) -> dict[str, Any]:
         phase="target",
         operators=default_order,
         productive_failures=_TARGET_PRODUCTIVE_FAILURES,
+        context_tags=context_tags,
     )
 
 
@@ -250,7 +355,14 @@ def fallback_query_for_operator(target: Mapping[str, Any]) -> str:
     plan = _mapping(target.get("operator_plan"))
     operator = str(plan.get("operator") or "target_batch_family")
     spec = QUERY_OPERATORS.get(operator, QUERY_OPERATORS["target_batch_family"])
-    source_terms = str(spec.get("source_family") or "").replace("_", " ").split()
+    source_terms = [
+        *str(spec.get("source_family") or "").replace("_", " ").split(),
+        *[
+            _search_text(term)
+            for term in spec.get("query_terms") or []
+            if _search_text(term)
+        ],
+    ]
 
     examples = [
         _search_text(example)
@@ -277,6 +389,8 @@ def fallback_query_for_operator(target: Mapping[str, Any]) -> str:
         if isinstance(attempt, Mapping)
     }
     for parts in candidates:
+        if not any(part in parts for part in (*anchors, *examples, *memory_terms)):
+            continue
         query = _dedupe_words(parts)
         if query and query.lower() not in attempted:
             return query
@@ -347,14 +461,28 @@ def _target_order(
     latest: Mapping[str, Any],
 ) -> tuple[str, ...]:
     routed = _FAILURE_ROUTES.get(failure, ())
-    previous = str(latest.get("strategy_operator") or latest.get("strategy_family") or "")
-    return _expand_same(routed, previous) + _default_target_order(target)
+    previous = str(
+        latest.get("strategy_operator")
+        or latest.get("strategy_family")
+        or ""
+    )
+    if failure in _CONTEXT_RECOVERY_FAILURES:
+        routed = (*_target_context_order(target), *routed)
+    return _dedupe_order(_expand_same(routed, previous) + _default_target_order(target))
 
 
 def _default_target_order(target: Mapping[str, Any]) -> tuple[str, ...]:
-    if str(target.get("deficit_type") or "") == "count_shortfall":
-        return _TARGET_COUNT_ORDER
-    return _TARGET_ROW_ORDER
+    context_order = _target_context_order(target)
+    if str(target.get("deficit_type") or "") in {
+        "count_shortfall",
+        "table_gap_saturation",
+    }:
+        return _dedupe_order(
+            (_TARGET_COUNT_ORDER[0], *context_order, *_TARGET_COUNT_ORDER[1:]),
+        )
+    return _dedupe_order(
+        (*_TARGET_ROW_ORDER[:2], *context_order, *_TARGET_ROW_ORDER[2:]),
+    )
 
 
 def _expand_same(order: tuple[str, ...], previous: str) -> tuple[str, ...]:
@@ -406,6 +534,7 @@ def _operator_plan(
     phase: str,
     operators: tuple[str, ...],
     productive_failures: tuple[str, ...],
+    context_tags: tuple[str, ...] = (),
 ) -> dict[str, Any]:
     spec = dict(QUERY_OPERATORS.get(operator) or {})
     counts = Counter(
@@ -431,9 +560,58 @@ def _operator_plan(
         "last_failure_class": failure,
         "attempt_index": counts.get(operator, 0) + 1 if operator else 0,
         "attempted_operator_counts": dict(counts),
+        "context_tags": list(context_tags),
         "exhausted": not bool(operator),
         "exhausted_operators": exhausted,
     }
+
+
+def _target_context_order(target: Mapping[str, Any]) -> tuple[str, ...]:
+    tags = set(_target_context_tags(target))
+    order: list[str] = []
+    if "context_grain" in tags:
+        order.append("target_context_grain")
+    if "temporal_window" in tags:
+        order.append("target_temporal_window")
+    return tuple(order)
+
+
+def _target_context_tags(target: Mapping[str, Any]) -> tuple[str, ...]:
+    text_parts = [
+        target.get("target_table"),
+        target.get("target_name"),
+        target.get("description"),
+        target.get("evidence_gap"),
+        target.get("key_columns"),
+        target.get("missing_fields"),
+        target.get("known_missing_examples"),
+    ]
+    anchors = _mapping(target.get("anchor_values"))
+    text_parts.extend(anchors.keys())
+    text_parts.extend(anchors.values())
+
+    tokens = set(re.findall(r"[a-z]+", _search_text(text_parts).lower()))
+    tags: list[str] = []
+    if _has_any_token(tokens, _CONTEXT_GRAIN_MARKERS):
+        tags.append("context_grain")
+    if _has_any_token(tokens, _TEMPORAL_WINDOW_MARKERS):
+        tags.append("temporal_window")
+    return tuple(tags)
+
+
+def _has_any_token(tokens: set[str], markers: set[str]) -> bool:
+    return any(token in markers for token in tokens)
+
+
+def _dedupe_order(order: tuple[str, ...]) -> tuple[str, ...]:
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for value in order:
+        if value in seen:
+            continue
+        seen.add(value)
+        deduped.append(value)
+    return tuple(deduped)
 
 
 def _catalog_attempts_from_outcomes(

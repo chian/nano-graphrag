@@ -21,6 +21,18 @@ from .llm.argo_bridge import ArgoBridgeLLM
 from .utils import normalize_node_id
 
 
+_IMMUTABLE_IDENTITY_FIELDS = {
+    "id",
+    "row_id",
+    "left_row_id",
+    "right_row_id",
+    "parent_row_id",
+}
+_ROW_PRESERVING_SYNTHETIC_FALLBACK_ERROR_PREFIX = (
+    "Row-preserving PROCESS synthesized "
+)
+
+
 class MicroActionFramework:
     """Shared framework for all batching operations across commands."""
 
@@ -138,16 +150,11 @@ class MicroActionFramework:
 
         # If all data fits in one batch, process normally (no checkpoint overhead)
         if batch_size >= len(data):
-            result = self._execute_single_batch(
+            return self._execute_batch_with_retries(
                 data,
                 command_type,
                 instruction,
                 target_variable=target_variable,
-                preserve_input_count=preserve_input_count,
-            )
-            return self._enforce_input_count(
-                result,
-                expected_count=len(data),
                 preserve_input_count=preserve_input_count,
             )
 
@@ -210,11 +217,6 @@ class MicroActionFramework:
                 command_type,
                 instruction,
                 target_variable=target_variable,
-                preserve_input_count=preserve_input_count,
-            )
-            batch_result = self._enforce_input_count(
-                batch_result,
-                expected_count=len(batch),
                 preserve_input_count=preserve_input_count,
             )
             print(f"DEBUG: MICRO_ACTIONS - Batch {batch_index+1} status: {batch_result.status}")
@@ -292,14 +294,15 @@ class MicroActionFramework:
         *,
         expected_count: int,
         preserve_input_count: bool,
+        allow_synthesized_fallbacks: bool = False,
     ) -> ExecutionResult:
         if not preserve_input_count or result.status != "success":
             return result
         items = self._items_for_result(result)
         synthetic_repairs = self._count_synthesized_missing_rows(items)
-        if synthetic_repairs:
+        if synthetic_repairs and not allow_synthesized_fallbacks:
             return self._create_error_result(
-                "Row-preserving PROCESS synthesized "
+                f"{_ROW_PRESERVING_SYNTHETIC_FALLBACK_ERROR_PREFIX}"
                 f"{synthetic_repairs} fallback rows; retrying the batch "
                 "instead of accepting incomplete LLM output"
             )
@@ -431,30 +434,61 @@ class MicroActionFramework:
                 target_variable=target_variable,
                 preserve_input_count=preserve_input_count,
             )
-            result = self._enforce_input_count(
+            checked_result = self._enforce_input_count(
                 result,
                 expected_count=len(batch),
                 preserve_input_count=preserve_input_count,
             )
-            if result.status == "success":
+            if checked_result.status == "success":
                 if attempt:
                     print(
                         "DEBUG: MICRO_ACTIONS - "
                         f"Batch recovered on retry {attempt}/{self.batch_retries}"
                     )
-                return result
+                return checked_result
 
-            last_result = result
-            if not self._batch_result_retryable(result):
-                return result
+            if (
+                attempt >= self.batch_retries
+                and self._only_failed_on_synthesized_fallbacks(checked_result)
+            ):
+                final_result = self._enforce_input_count(
+                    result,
+                    expected_count=len(batch),
+                    preserve_input_count=preserve_input_count,
+                    allow_synthesized_fallbacks=True,
+                )
+                if final_result.status == "success":
+                    synthetic_repairs = self._count_synthesized_missing_rows(
+                        self._items_for_result(final_result)
+                    )
+                    print(
+                        "DEBUG: MICRO_ACTIONS - Accepting "
+                        f"{synthetic_repairs} synthesized row-preserving "
+                        "fallback rows after retries were exhausted"
+                    )
+                    return final_result
+
+            last_result = checked_result
+            if not self._batch_result_retryable(checked_result):
+                return checked_result
             if attempt < self.batch_retries:
                 print(
                     "DEBUG: MICRO_ACTIONS - "
                     f"Retrying failed batch {attempt + 1}/{self.batch_retries}: "
-                    f"{result.error_message or result.status}"
+                    f"{checked_result.error_message or checked_result.status}"
                 )
 
         return last_result or self._create_error_result("Batch failed")
+
+    @staticmethod
+    def _only_failed_on_synthesized_fallbacks(result: ExecutionResult) -> bool:
+        return (
+            result.status == "error"
+            and bool(result.error_message)
+            and result.error_message.startswith(
+                _ROW_PRESERVING_SYNTHETIC_FALLBACK_ERROR_PREFIX
+            )
+        )
 
     @staticmethod
     def _batch_result_retryable(result: ExecutionResult) -> bool:
@@ -674,22 +708,23 @@ class MicroActionFramework:
     ) -> tuple[Dict[int, Dict], List[Dict]]:
         slots: Dict[int, Dict] = {}
         unmatched: List[Dict] = []
+        ordinal_candidates: List[tuple[int, Dict, str]] = []
+
         for index, processed_item in enumerate(raw_processed_items):
             if not isinstance(processed_item, dict):
                 continue
 
-            processed_id = processed_item.get("id", "")
+            processed_id = (
+                processed_item.get("id")
+                or processed_item.get("row_id")
+                or processed_item.get("group_key")
+                or ""
+            )
             original_index = (
                 self._find_original_node_index(batch, processed_id)
                 if processed_id
                 else None
             )
-            if (
-                original_index is None
-                and not processed_id
-                and len(raw_processed_items) == len(batch)
-            ):
-                original_index = index
 
             found = original_index is not None and original_index not in slots
             print(f"DEBUG: MICRO_ACTIONS - Looking for node ID '{processed_id}', found: {found}")
@@ -700,10 +735,56 @@ class MicroActionFramework:
                 )
                 continue
 
-            if not preserve_input_count:
+            if original_index is None:
+                ordinal_candidates.append((index, processed_item, str(processed_id)))
+            elif not preserve_input_count:
                 unmatched.append(processed_item.copy())
 
+        for index, processed_item, processed_id in ordinal_candidates:
+            original_index = self._ordinal_fallback_index(
+                batch,
+                raw_processed_items,
+                output_index=index,
+                slots=slots,
+                preserve_input_count=preserve_input_count,
+                processed_id=processed_id,
+            )
+            if original_index is None:
+                if not preserve_input_count:
+                    unmatched.append(processed_item.copy())
+                continue
+
+            print(
+                "DEBUG: MICRO_ACTIONS - Mapping unmatched node ID "
+                f"'{processed_id}' by output ordinal {index}"
+            )
+            slots[original_index] = self._merge_processed_item(
+                batch[original_index],
+                processed_item,
+            )
+
         return slots, unmatched
+
+    @staticmethod
+    def _ordinal_fallback_index(
+        batch: List[Dict],
+        raw_processed_items: List[Any],
+        *,
+        output_index: int,
+        slots: Dict[int, Dict],
+        preserve_input_count: bool,
+        processed_id: str,
+    ) -> int | None:
+        if output_index >= len(batch) or output_index in slots:
+            return None
+
+        if preserve_input_count:
+            return output_index
+
+        if not processed_id and len(raw_processed_items) == len(batch):
+            return output_index
+
+        return None
 
     def _merge_processed_item(
         self,
@@ -713,7 +794,7 @@ class MicroActionFramework:
         updated_node = original_node.copy()
         new_fields = []
         for key, value in processed_item.items():
-            if key not in ["id", "name", "reason"]:
+            if key not in _IMMUTABLE_IDENTITY_FIELDS and key not in ["name", "reason"]:
                 updated_node[key] = value
                 new_fields.append(f"{key}={value}")
 

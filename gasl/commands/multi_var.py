@@ -146,33 +146,98 @@ class MultiVarHandler(CommandHandler):
         
         # Get data from all variables
         all_data = []
+        contracts = []
         for var_name in variables:
             var_data = self._get_variable_data(var_name)
             if var_data:
                 all_data.extend(var_data)
+            if self.state_manager:
+                contracts.append(
+                    self.state_manager.get_variable_contract(
+                        var_name,
+                        fallback_to_last_nodes=False,
+                    )
+                )
         
         if not all_data:
             return self._create_result(command=command, status="error",
                                      error_message="No data found in specified variables")
         
-        # Remove duplicates based on ID if present
-        seen_ids = set()
+        source_contract = self._merge_contracts(contracts)
+        row_shaped_merge = any(isinstance(item, dict) and item.get("row_id") for item in all_data)
+
+        # Entity lists should dedupe by entity id; row streams must preserve
+        # multiplicity because many projected path rows can share one entity id.
+        seen_keys = set()
         merged_data = []
-        for item in all_data:
-            item_id = item.get("id")
-            if item_id and item_id not in seen_ids:
-                seen_ids.add(item_id)
-                merged_data.append(item)
-            elif not item_id:
-                merged_data.append(item)
+        for index, item in enumerate(all_data):
+            identity_key = self._merge_identity_key(
+                item,
+                index,
+                prefer_row_id=row_shaped_merge,
+            )
+            if identity_key in seen_keys:
+                continue
+            seen_keys.add(identity_key)
+            if row_shaped_merge and isinstance(item, dict) and not item.get("row_id"):
+                item = {
+                    **item,
+                    "row_id": f"merge-ordinal-{index}",
+                }
+            merged_data.append(item)
+
+        if row_shaped_merge:
+            merged_data, identity_meta = materialize_row_identity(
+                merged_data,
+                spec=IdentitySpec(
+                    mode="preserve",
+                    grain_type=source_contract.get("grain_type") or "row",
+                    preserve_multiplicity=True,
+                ),
+                source_contract=source_contract,
+                source_rows=all_data,
+            )
+        else:
+            identity_meta = {
+                "row_schema": [],
+                "grain_type": source_contract.get("grain_type", ""),
+                "grain_keys": source_contract.get("grain_keys", []),
+                "multiplicity_preserved": False,
+            }
+
+        merged_contract = merge_contract(source_contract, make_contract(
+            payload_kind="merged_rows" if row_shaped_merge else "merged_items",
+            data=merged_data,
+            row_schema=identity_meta["row_schema"],
+            label_field=source_contract.get("label_field", ""),
+            metric_field=source_contract.get("metric_field", ""),
+            scope="current_rows_only",
+            usable_by=["PROCESS", "AGGREGATE", "SHOW", "SELECT", "JOIN", "COLLAPSE"],
+            confidence=0.96,
+            grain_type=identity_meta["grain_type"],
+            grain_keys=identity_meta["grain_keys"],
+            multiplicity_preserved=identity_meta["multiplicity_preserved"],
+            row_weight_field=source_contract.get("row_weight_field", ""),
+            notes=[f"merge_from={','.join(variables)}"],
+        ))
         
         # Create or update target variable
-        if not self.state_store.has_variable(target_var):
-            self.state_store.declare_variable(target_var, "LIST", f"Merged data from {', '.join(variables)}")
-        
-        var_data = self.state_store.get_variable(target_var)
-        var_data["items"] = merged_data
-        self.state_store._save_state()
+        if self.state_manager:
+            self.state_manager.store_variable_data(
+                target_var,
+                merged_data,
+                store_in_state=True,
+                store_in_context=True,
+                description=f"Merged data from {', '.join(variables)}",
+                contract=merged_contract,
+            )
+        else:
+            if not self.state_store.has_variable(target_var):
+                self.state_store.declare_variable(target_var, "LIST", f"Merged data from {', '.join(variables)}")
+
+            var_data = self.state_store.get_variable(target_var)
+            var_data["items"] = merged_data
+            self.state_store._save_state()
         
         print(f"DEBUG: MERGE - merged {len(merged_data)} items from {len(variables)} variables")
         
@@ -181,6 +246,7 @@ class MultiVarHandler(CommandHandler):
             status="success",
             data=merged_data,
             count=len(merged_data),
+            contract=merged_contract,
             provenance=[self._create_provenance("merge", "merge", variables=variables)]
         )
     
@@ -268,6 +334,29 @@ class MultiVarHandler(CommandHandler):
                 return var_data if isinstance(var_data, list) else [var_data]
         
         return []
+
+    def _merge_contracts(self, contracts: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Merge input contracts into a best-effort source contract."""
+        result: Dict[str, Any] = {}
+        for contract in contracts:
+            result = merge_contract(result, contract or {})
+        return result
+
+    def _merge_identity_key(self, item: Dict[str, Any], index: int, *, prefer_row_id: bool) -> Any:
+        """Return the key MERGE should use to identify one incoming item."""
+        if not isinstance(item, dict):
+            return ("ordinal", index)
+
+        if prefer_row_id:
+            row_id = item.get("row_id")
+            if row_id:
+                return ("row_id", row_id)
+            return ("ordinal", index)
+
+        item_id = item.get("id")
+        if item_id:
+            return ("id", item_id)
+        return ("ordinal", index)
     
     def _fields_match(self, item1: Dict, item2: Dict, join_field: str) -> bool:
         """Check if join field values match between two items."""

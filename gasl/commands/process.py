@@ -41,6 +41,11 @@ class ProcessHandler(CommandHandler):
         "nine": 9,
         "ten": 10,
     }
+    TARGET_TABLE_PATTERN = re.compile(
+        r"\b(?:materiali[sz]e|populate|emit|produce|return)\s+"
+        r"([A-Za-z_][A-Za-z0-9_]*_table)\b",
+        flags=re.IGNORECASE,
+    )
 
     def __init__(
         self,
@@ -79,7 +84,11 @@ class ProcessHandler(CommandHandler):
         args = command.args
         variable = args["variable"]
         instruction = args["instruction"]
-        target_variable = args.get("target_variable", variable)  # Default to same variable
+        target_variable = (
+            args.get("target_variable")
+            or self._infer_target_variable(instruction)
+            or variable
+        )
         
         print(f"🔍 PROCESS DEBUG: execute called with variable='{variable}', target_variable='{target_variable}', instruction='{instruction[:100]}...'")
         
@@ -645,6 +654,14 @@ class ProcessHandler(CommandHandler):
         target_variable: str,
     ) -> List[Dict[str, Any]]:
         return normalize_table_items(items, target_variable)
+
+    @classmethod
+    def _infer_target_variable(cls, instruction: str) -> Optional[str]:
+        """Infer a missing PROCESS target only for explicit table materializers."""
+        match = cls.TARGET_TABLE_PATTERN.search(instruction or "")
+        if match:
+            return match.group(1)
+        return None
 
     @staticmethod
     def _identity_source_rows(

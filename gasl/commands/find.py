@@ -156,7 +156,7 @@ class FindHandler(CommandHandler):
         if entity_list_match:
             entity_types = self._parse_type_list(entity_list_match.group(1))
             if entity_types:
-                filters["entity_type"] = [f'"{entity_type}"' for entity_type in entity_types]
+                filters["entity_type"] = entity_types
                 print(f"DEBUG: Extracted entity_type list: {filters['entity_type']}")
 
         if "entity_type" in criteria.lower() or "label" in criteria.lower():
@@ -179,8 +179,8 @@ class FindHandler(CommandHandler):
                         match = re.search(pattern, part, re.IGNORECASE)
                         if match:
                             for entity_type in self._parse_type_list(match.group(1)):
-                                entity_types.append(f'"{entity_type}"')
-                                print(f"DEBUG: Extracted entity_type from OR part: '{entity_type}' -> '\"{entity_type}\"'")
+                                entity_types.append(entity_type)
+                                print(f"DEBUG: Extracted entity_type from OR part: '{entity_type}'")
                             break
                 
                 if entity_types:
@@ -198,9 +198,11 @@ class FindHandler(CommandHandler):
                     match = re.search(pattern, criteria, re.IGNORECASE)
                     if match:
                         entity_types = self._parse_type_list(match.group(1))
-                        quoted = [f'"{entity_type}"' for entity_type in entity_types]
-                        # Always store with double quotes to match data format
-                        filters["entity_type"] = quoted[0] if len(quoted) == 1 else quoted
+                        filters["entity_type"] = (
+                            entity_types[0]
+                            if len(entity_types) == 1
+                            else entity_types
+                        )
                         print(f"DEBUG: Extracted entity_type: '{match.group(1)}' -> '{filters['entity_type']}'")
                         break
         
@@ -211,7 +213,6 @@ class FindHandler(CommandHandler):
                 r"relationship_name\s*:\s*['\"]?([A-Z0-9_]+)['\"]?",
                 r"relationship_name\s+['\"]?([A-Z0-9_]+)['\"]?",
             ]
-            
             for pattern in patterns:
                 match = re.search(pattern, criteria, re.IGNORECASE)
                 if match:
@@ -228,7 +229,40 @@ class FindHandler(CommandHandler):
                 r"description\s*=\s*contains\s+['\"]([^'\"]*)['\"]",
             ]
             
+            any_match = re.search(
+                r"description\s+contains\s+any\s+of\s*\[([^\]]+)\]",
+                criteria,
+                re.IGNORECASE,
+            )
+            if any_match:
+                terms = [
+                    match.group(1).strip()
+                    for match in re.finditer(
+                        r"['\"]([^'\"]+)['\"]",
+                        any_match.group(1),
+                    )
+                    if match.group(1).strip()
+                ]
+                if terms:
+                    filters["description_contains"] = terms
+                    print(f"DEBUG: Extracted description_contains any: {terms}")
+
+            or_terms = [
+                match.group(1).strip()
+                for match in re.finditer(
+                    r"description\s+contains\s+['\"]([^'\"]+)['\"]",
+                    criteria,
+                    re.IGNORECASE,
+                )
+                if match.group(1).strip()
+            ]
+            if len(or_terms) > 1:
+                filters["description_contains"] = or_terms
+                print(f"DEBUG: Extracted description_contains OR terms: {or_terms}")
+
             for pattern in patterns:
+                if "description_contains" in filters:
+                    break
                 match = re.search(pattern, criteria, re.IGNORECASE)
                 if match:
                     desc_text = match.group(1).strip()
