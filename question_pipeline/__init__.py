@@ -44,6 +44,29 @@ from .numeric_candidates import (
     NUMERIC_CANDIDATE_COLUMNS,
     numeric_candidates_from_tables,
 )
+from .reward import (
+    REWARD_COMPONENT_COLUMNS,
+    load_seed_best_guess_rows,
+    merge_best_guess_rows,
+    score_table_fill_round,
+)
+from .best_guess import (
+    BEST_GUESS_CANDIDATE_COLUMNS,
+    BEST_GUESS_CONTEXT_COLUMNS,
+    run_best_guess_recovery,
+)
+from .derived_context import (
+    DERIVED_CONTEXT_COLUMNS,
+    infer_best_guess_context,
+)
+from .table_specs import (
+    TableSpec,
+    load_table_spec,
+)
+from .progress_judge import (
+    ProgressJudgment,
+    judge_progress,
+)
 
 __all__ = [
     "PipelineConfig",
@@ -56,6 +79,10 @@ __all__ = [
     "SearchOutcome",
     "SearchMemory",
     "NUMERIC_CANDIDATE_COLUMNS",
+    "REWARD_COMPONENT_COLUMNS",
+    "DERIVED_CONTEXT_COLUMNS",
+    "BEST_GUESS_CANDIDATE_COLUMNS",
+    "BEST_GUESS_CONTEXT_COLUMNS",
     "SourceRelevanceDecision",
     "SearchTask",
     "TableCoverageGoalTracker",
@@ -65,5 +92,14 @@ __all__ = [
     "measurement_gap_search_tasks",
     "reduce_text_to_relevant_windows",
     "numeric_candidates_from_tables",
+    "load_seed_best_guess_rows",
+    "merge_best_guess_rows",
+    "score_table_fill_round",
+    "infer_best_guess_context",
+    "run_best_guess_recovery",
     "table_gap_search_tasks",
+    "TableSpec",
+    "load_table_spec",
+    "ProgressJudgment",
+    "judge_progress",
 ]

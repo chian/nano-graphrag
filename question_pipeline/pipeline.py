@@ -13,13 +13,15 @@ from __future__ import annotations
 
 import asyncio
 import csv
+import hashlib
 import json
 import os
+import re
 import sys
 from dataclasses import dataclass, field, asdict
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Mapping, Optional
 
 import networkx as nx
 
@@ -43,6 +45,14 @@ from paper_fetching.firecrawl_client import (
 )
 
 from . import schema_synthesis, strategy
+from .best_guess import (
+    BEST_GUESS_CANDIDATE_COLUMNS,
+    BEST_GUESS_CONTEXT_COLUMNS,
+    best_guess_context_by_row_key,
+    run_best_guess_recovery,
+    run_best_guess_recovery_local,
+)
+from .derived_context import context_slots_from_count_targets
 from .extraction import enrich_graph, extract_from_text
 from .goals import (
     FillGoalState,
@@ -55,6 +65,7 @@ from .search import (
     SearchFrontier,
     SearchHarvester,
     SearchTask,
+    compact_search_result,
     load_seed_frontier_tasks,
     load_seed_search_outcomes,
     load_seed_source_records,
@@ -68,10 +79,22 @@ from .numeric_candidates import (
     NUMERIC_CANDIDATE_COLUMNS,
     numeric_candidates_from_tables,
 )
+from .reward import (
+    REWARD_COMPONENT_COLUMNS,
+    load_seed_best_guess_rows,
+    merge_best_guess_rows,
+    score_table_fill_round,
+)
 from .strategy_state import (
     fallback_query_for_operator,
     plan_catalog_operator,
     plan_target_operator,
+)
+from .table_specs import (
+    TableSpec,
+    dump_table_spec_yaml,
+    load_table_spec,
+    observed_table_spec,
 )
 
 
@@ -119,11 +142,16 @@ class PipelineConfig:
     gasl_source_seed_limit: int = 100
     answer_mode: str = "natural"
     table_variables: List[str] = field(default_factory=list)
+    table_spec_path: Optional[str] = None
     seed_tables_dir: Optional[str] = None
     seed_sources_dir: Optional[str] = None
     seed_frontier_path: Optional[str] = None
     round_offset: Optional[int] = None
     numeric_candidate_mode: str = "parsed"
+    best_guess_mode: str = "llm"
+    best_guess_max_tasks: int = 160
+    best_guess_evidence_chars: int = 5000
+    best_guess_llm_batch_size: int = 8
 
     # Stopping
     target_confidence: float = 0.75
@@ -147,6 +175,13 @@ when provenance exists. Prefer one row per atomic fact, estimate, comparison,
 or context over broad joined rows that blur distinct evidence. Keep partial
 rows when a counterpart fact is absent; set missing fields to null and explain
 the missing evidence in evidence_gap.
+
+For every row about a quantitative estimate, preserve every row-level
+qualifier that makes the estimate interpretable. Use the target key columns,
+the user's question, and the source authors' strata to decide which qualifiers
+belong in the row. When a source states a narrow qualifier plus an
+unambiguous broader qualifier, carry both instead of collapsing the row to one
+broad bucket.
 
 Never write COLLAPSE, GROUP, AGGREGATE, or JOIN output directly AS a final
 table variable unless every emitted row already has stable row keys and
@@ -293,6 +328,13 @@ def _normalize_numeric_candidate_mode(value: str) -> str:
     return mode
 
 
+def _normalize_best_guess_mode(value: str) -> str:
+    mode = _normalize_mode(value or "llm")
+    if mode not in {"off", "local", "llm"}:
+        raise ValueError("best_guess_mode must be 'off', 'local', or 'llm'")
+    return mode
+
+
 class QuestionPipeline:
     """Iterative search + KG build + GASL answer loop for one question."""
 
@@ -343,6 +385,8 @@ class QuestionPipeline:
         self.tables_dir = self.answers_dir / "tables"
         self.derived_dir = self.answers_dir / "derived"
         self.goals_dir = self.answers_dir / "goals"
+        self.table_specs_dir = self.answers_dir / "table_specs"
+        self.judgments_dir = self.answers_dir / "judgments"
         for d in (self.graphs_dir, self.papers_dir, self.answers_dir):
             d.mkdir(parents=True, exist_ok=True)
 
@@ -370,6 +414,13 @@ class QuestionPipeline:
         config.numeric_candidate_mode = _normalize_numeric_candidate_mode(
             config.numeric_candidate_mode,
         )
+        config.best_guess_mode = _normalize_best_guess_mode(config.best_guess_mode)
+        if config.best_guess_max_tasks < 0:
+            raise ValueError("best_guess_max_tasks must be nonnegative")
+        if config.best_guess_evidence_chars <= 0:
+            raise ValueError("best_guess_evidence_chars must be positive")
+        if config.best_guess_llm_batch_size <= 0:
+            raise ValueError("best_guess_llm_batch_size must be positive")
         if config.pipeline_mode == PIPELINE_MODE_TABLE_FILL:
             if config.answer_mode != "table":
                 raise ValueError("table_fill pipeline_mode requires answer_mode='table'")
@@ -385,9 +436,19 @@ class QuestionPipeline:
             raise ValueError("table-fill goals require answer_mode='table'")
         if config.task_goal_mode != TASK_GOAL_OFF and config.task_goal_search_tasks <= 0:
             raise ValueError("table-fill goals require search tasks")
+        self.table_spec: TableSpec = load_table_spec(config.table_spec_path)
+        self.table_spec_id = self._table_spec_id(self.table_spec)
+        self._required_columns_by_table = self.table_spec.required_columns_by_table()
+        self._completeness_columns_by_table = (
+            self.table_spec.completeness_columns_by_table()
+        )
         self.goal_tracker = (
             TableFillGoalTracker(
-                table_schemas=TABLE_REQUIRED_COLUMNS,
+                table_schemas=(
+                    self._required_columns_by_table
+                    if not self.table_spec.is_empty
+                    else TABLE_REQUIRED_COLUMNS
+                ),
             )
             if config.task_goal_mode == TASK_GOAL_TABLE_FILL
             else None
@@ -396,6 +457,12 @@ class QuestionPipeline:
         self.goal_discovery_sources: List[Dict[str, Any]] = []
         self._seen_goal_discovery_source_ids: set[str] = set()
         self.seed_tables: SeedTables = load_seed_tables(config.seed_tables_dir)
+        self._ensure_declared_seed_tables()
+        self._seed_table_inputs_consumed = False
+        self._active_seed_migrations: List[Dict[str, Any]] = []
+        self.goal_universe_estimate = self._load_seed_universe_estimate(
+            config.seed_tables_dir,
+        )
         if config.round_offset is not None and config.round_offset < 0:
             raise ValueError("round_offset must be nonnegative")
         self.round_offset = (
@@ -425,6 +492,14 @@ class QuestionPipeline:
         self.goal_states: List[Dict[str, Any]] = []
         self.derived_table_exports: List[Dict[str, Any]] = []
         self.last_derived_table_exports: List[Dict[str, Any]] = []
+        self.best_guess_exports: List[Dict[str, Any]] = []
+        self.last_best_guess_exports: List[Dict[str, Any]] = []
+        self.reward_exports: List[Dict[str, Any]] = []
+        self.last_reward_exports: List[Dict[str, Any]] = []
+        self.last_reward_report: Dict[str, Any] = {}
+        self.seed_best_guess_rows: List[Dict[str, Any]] = load_seed_best_guess_rows(
+            config.seed_tables_dir,
+        )
         self._bootstrap_papers: List[Dict[str, Any]] = []
         self._gasl_source_seed_nodes: List[Dict[str, Any]] = []
 
@@ -472,6 +547,7 @@ class QuestionPipeline:
             job_id=self._gasl_job_id(state_file),
         )
         self._seed_gasl_source_nodes(executor)
+        self._seed_gasl_table_inputs(executor)
         return executor.run_hypothesis_driven_traversal(
             self._gasl_question(), self.config.max_gasl_iterations
         )
@@ -507,6 +583,76 @@ class QuestionPipeline:
             contract=contract,
         )
 
+    def _seed_gasl_table_inputs(self, executor: GASLExecutor) -> None:
+        self._active_seed_migrations = []
+        if not self._seed_table_migrations_available():
+            return
+
+        for migration in self.table_spec.migrations:
+            source_table_name = migration.from_table
+            target_table = self.table_spec.tables.get(migration.to_table)
+            if target_table is None:
+                continue
+
+            source_rows = self.seed_tables.rows_by_name.get(source_table_name, [])
+            rows: List[Dict[str, Any]] = []
+            for index, row in enumerate(source_rows):
+                if not isinstance(row, dict):
+                    continue
+                match = self._seed_row_match(row, target_table)
+                if not match.get("matches"):
+                    continue
+                rows.append(
+                    {
+                        **row,
+                        "_seed_table": source_table_name,
+                        "_seed_source_table": source_table_name,
+                        "_seed_target_table": migration.to_table,
+                        "_seed_row_index": index,
+                        "_seed_match_columns": match["matched_columns"],
+                        "_seed_unmatched_required_columns": match[
+                            "unmatched_required_columns"
+                        ],
+                    }
+                )
+            if not rows:
+                continue
+
+            variable_name = migration.input_variable_name()
+            self._active_seed_migrations.append(migration.to_dict())
+            notes = [
+                f"Rows exported by {source_table_name} in a prior "
+                f"table-fill run and prefiltered as candidates for "
+                f"{migration.to_table}.",
+                "Candidate rows may be dropped when they do not satisfy "
+                "the destination table contract.",
+                migration.instructions,
+            ]
+            contract = make_contract(
+                payload_kind="rows",
+                data=rows,
+                scope="prior_exported_table_rows",
+                usable_by=["PROCESS", "SHOW", "SELECT"],
+                confidence=0.99,
+                grain_type="seed_table_row",
+                grain_keys=["_seed_table", "_seed_row_index"],
+                multiplicity_preserved=False,
+                notes=[note for note in notes if note],
+            )
+            executor.state_manager.store_variable_data(
+                variable_name,
+                rows,
+                store_in_state=True,
+                store_in_context=True,
+                description=(
+                    f"Prefiltered prior rows from {source_table_name} for "
+                    f"migration into {migration.to_table}."
+                ),
+                contract=contract,
+            )
+
+        self._seed_table_inputs_consumed = True
+
     @staticmethod
     def _gasl_job_id(state_file: str) -> str:
         path = Path(state_file)
@@ -530,9 +676,27 @@ class QuestionPipeline:
             return ""
 
         target_lines = "\n".join(f"- {name}" for name in table_names)
+        spec_section = ""
+        if not self.table_spec.is_empty:
+            prompt_context = self.table_spec.prompt_context()
+            if self._active_seed_migrations:
+                prompt_context["migrations"] = self._active_seed_migrations
+            else:
+                prompt_context["migrations"] = []
+            spec_section = (
+                "\n\nTABLE SPEC JSON:\n"
+                f"{json.dumps(prompt_context, indent=2)}\n"
+                "\nTreat the table spec as the complete final deliverable "
+                "contract. If migrations are present, each input_variable is "
+                "already prefiltered for its from_table to to_table edge; "
+                "PROCESS that variable into the listed to_table before mining "
+                "the graph for additional evidence, and drop remaining "
+                "candidate rows that do not fit the destination contract."
+            )
         return f"""CURRENT TABLE TARGETS:
 The run is continuing or scoring these exact table variable names:
 {target_lines}
+{spec_section}
 
 Reuse an exact listed name whenever its rows match the view you are
 materializing. Do not rename a listed table by adding summary words, swapping
@@ -540,6 +704,13 @@ token order, or using a near-synonym. Create a new `_table` variable only for a
 genuinely separate view that is not covered by a listed target."""
 
     def _table_target_names(self) -> List[str]:
+        if not self.table_spec.is_empty:
+            return sorted(
+                str(name).strip()
+                for name in self.table_spec.deliverable_names()
+                if str(name).strip()
+            )
+
         names = {
             str(name).strip()
             for name in self.config.table_variables
@@ -649,6 +820,7 @@ genuinely separate view that is not covered by a listed target."""
             assessment = await strategy.assess_source_relevance(
                 self.llm,
                 self.config.question,
+                task_state=self._source_relevance_task_state(task),
                 task=task.to_dict(),
                 result=self._compact_search_result(result),
                 text=text,
@@ -665,13 +837,25 @@ genuinely separate view that is not covered by a listed target."""
 
         from .search import SourceRelevanceDecision
 
+        self._record_source_progress_judgment(task, result, assessment)
+        progress_judgment = assessment.get("progress_judgment") or {}
         return SourceRelevanceDecision(
             accept=bool(assessment.get("accept")),
             reason=str(assessment.get("reason") or ""),
             confidence=float(assessment.get("confidence") or 0.0),
             metadata={
+                "progress_judgment": progress_judgment,
+                "decision": assessment.get("decision"),
+                "coverage_delta": assessment.get("coverage_delta"),
+                "fruitfulness_score": assessment.get("fruitfulness_score"),
+                "novelty_score": assessment.get("novelty_score"),
+                "specificity_score": assessment.get("specificity_score"),
                 "matched_needs": assessment.get("matched_needs") or [],
                 "missing_needs": assessment.get("missing_needs") or [],
+                "offtopic_axes": assessment.get("offtopic_axes") or [],
+                "failure_modes": assessment.get("failure_modes") or [],
+                "better_search_cues": assessment.get("better_search_cues") or [],
+                "avoid_cues": assessment.get("avoid_cues") or [],
             },
         )
 
@@ -681,28 +865,70 @@ genuinely separate view that is not covered by a listed target."""
             return False
         if mode == "all":
             return True
+        if self.config.pipeline_mode == PIPELINE_MODE_TABLE_FILL:
+            return task.topic in {"goal_catalog", "target_deficit", "table_gap"}
         return task.topic in {"target_deficit", "table_gap"}
 
     @staticmethod
     def _compact_search_result(result: Dict[str, Any]) -> Dict[str, Any]:
-        compact: Dict[str, Any] = {}
-        for key in ("title", "url", "description", "snippet", "source", "publishedDate"):
-            value = result.get(key)
-            if value:
-                compact[key] = value
-        for key, value in result.items():
-            if key in compact or key in {"content", "markdown", "html", "rawHtml"}:
-                continue
-            if isinstance(value, (str, int, float, bool)) or value is None:
-                compact[key] = value
-            elif isinstance(value, dict):
-                compact[key] = {
-                    nested_key: nested_value
-                    for nested_key, nested_value in value.items()
-                    if isinstance(nested_value, (str, int, float, bool))
-                    and len(str(nested_value)) <= 500
-                }
-        return compact
+        return compact_search_result(result)
+
+    def _source_relevance_task_state(self, task: SearchTask) -> Dict[str, Any]:
+        latest_goal = self.goal_states[-1] if self.goal_states else {}
+        if isinstance(latest_goal, dict):
+            latest_goal = {
+                "round": latest_goal.get("round"),
+                "fulfilled": latest_goal.get("fulfilled"),
+                "unmet_criteria": latest_goal.get("unmet_criteria", [])[:8],
+                "criteria": latest_goal.get("criteria", [])[:8],
+            }
+        else:
+            latest_goal = {}
+
+        return {
+            "pipeline_mode": self.config.pipeline_mode,
+            "task_goal_mode": self.config.task_goal_mode,
+            "task_topic": task.topic,
+            "task_metadata": dict(task.metadata or {}),
+            "table_spec": (
+                self.table_spec.prompt_context()
+                if not self.table_spec.is_empty
+                else {}
+            ),
+            "catalog_progress": self._catalog_progress_snapshot(
+                self.goal_universe_estimate,
+            ),
+            "goal_universe_estimate": normalize_universe_estimate(
+                self.goal_universe_estimate,
+                table_rows=self._empty_deliverable_rows(),
+            ),
+            "latest_goal_state": latest_goal,
+        }
+
+    def _empty_deliverable_rows(self) -> Dict[str, List[Dict[str, Any]]]:
+        if not self.table_spec.is_empty:
+            return self.table_spec.empty_rows_by_table()
+        return {table_name: [] for table_name in self._table_target_names()}
+
+    def _record_source_progress_judgment(
+        self,
+        task: SearchTask,
+        result: Dict[str, Any],
+        assessment: Mapping[str, Any],
+    ) -> None:
+        self.judgments_dir.mkdir(parents=True, exist_ok=True)
+        record = {
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "kind": "source_candidate",
+            "task": task.to_dict(),
+            "result": self._compact_search_result(result),
+            "judgment": assessment.get("progress_judgment") or dict(assessment),
+        }
+        with (self.judgments_dir / "progress_judgments.jsonl").open(
+            "a",
+            encoding="utf-8",
+        ) as handle:
+            handle.write(json.dumps(record, default=str) + "\n")
 
     # ------------------------------------------------------------------ #
     # Schema resolution
@@ -1023,7 +1249,7 @@ genuinely separate view that is not covered by a listed target."""
             return any(cls._mentions_any(inner, needles) for inner in value)
         return any(needle in str(value) for needle in needles)
 
-    def _export_gasl_tables(
+    async def _export_gasl_tables(
         self, round_idx: int | str, gasl_result: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         if self.config.answer_mode != "table":
@@ -1037,7 +1263,11 @@ genuinely separate view that is not covered by a listed target."""
             rows_by_name.setdefault(name, rows)
 
         current_rows = {
-            name: self._table_export_rows(name, rows)
+            name: self._table_export_rows(
+                name,
+                rows,
+                required_columns=self._required_columns(name),
+            )
             for name, rows in rows_by_name.items()
             if isinstance(rows, list)
         }
@@ -1045,7 +1275,7 @@ genuinely separate view that is not covered by a listed target."""
             self.seed_tables.rows_by_name,
             current_rows,
         )
-        exports = self._write_table_exports(
+        exports = await self._write_table_exports(
             round_idx,
             merged_rows,
             seed_row_counts={
@@ -1063,7 +1293,7 @@ genuinely separate view that is not covered by a listed target."""
         )
         return exports
 
-    def _export_seed_tables(
+    async def _export_seed_tables(
         self, round_idx: int | str = "seed",
     ) -> List[Dict[str, Any]]:
         if self.config.answer_mode != "table":
@@ -1071,7 +1301,7 @@ genuinely separate view that is not covered by a listed target."""
         if not self.seed_tables.rows_by_name:
             return []
 
-        return self._write_table_exports(
+        return await self._write_table_exports(
             round_idx,
             self.seed_tables.rows_by_name,
             seed_row_counts={
@@ -1081,7 +1311,7 @@ genuinely separate view that is not covered by a listed target."""
             new_row_counts={},
         )
 
-    def _write_table_exports(
+    async def _write_table_exports(
         self,
         round_idx: int | str,
         rows_by_name: Dict[str, List[Dict[str, Any]]],
@@ -1090,7 +1320,11 @@ genuinely separate view that is not covered by a listed target."""
         new_row_counts: Dict[str, int],
     ) -> List[Dict[str, Any]]:
         exports: List[Dict[str, Any]] = []
-        table_names = self.config.table_variables or sorted(rows_by_name)
+        rows_by_name = {
+            **self.table_spec.empty_rows_by_table(),
+            **rows_by_name,
+        }
+        table_names = self._export_table_names(rows_by_name)
         for name in table_names:
             items = rows_by_name.get(name)
             if not isinstance(items, list):
@@ -1127,17 +1361,198 @@ genuinely separate view that is not covered by a listed target."""
             manifest_path.write_text(
                 json.dumps(exports, indent=2, default=str), encoding="utf-8"
             )
+            self._write_observed_table_spec(round_idx, rows_by_name, table_names)
 
-        self.last_derived_table_exports = self._write_numeric_candidate_exports(
+        self.last_derived_table_exports = await self._write_derived_exports(
+            round_idx,
+            {
+                table_name: rows_by_name.get(table_name, [])
+                for table_name in table_names
+            },
+        )
+        return exports
+
+    async def _write_derived_exports(
+        self,
+        round_idx: int | str,
+        rows_by_name: Dict[str, List[Dict[str, Any]]],
+    ) -> List[Dict[str, Any]]:
+        best_guess_state = await self._run_best_guess_recovery(
             round_idx,
             rows_by_name,
         )
+        best_guess_context = best_guess_context_by_row_key(best_guess_state)
+        numeric_exports = self._write_numeric_candidate_exports(
+            round_idx,
+            rows_by_name,
+            best_guess_context_by_row=best_guess_context,
+        )
+        self.last_reward_exports = self._write_reward_exports(
+            round_idx,
+            previous_rows_by_name=self.seed_tables.rows_by_name,
+            current_rows_by_name=rows_by_name,
+            best_guess_state=best_guess_state,
+        )
+        self.seed_best_guess_rows = merge_best_guess_rows(
+            self.seed_best_guess_rows,
+            best_guess_state.get("resolutions") or [],
+        )
+        exports = [
+            *self.last_best_guess_exports,
+            *numeric_exports,
+            *self.last_reward_exports,
+        ]
+        self._write_derived_manifest(round_idx, exports)
+        return exports
+
+    async def _run_best_guess_recovery(
+        self,
+        round_idx: int | str,
+        rows_by_name: Dict[str, List[Dict[str, Any]]],
+    ) -> Dict[str, Any]:
+        if self.config.best_guess_mode == "off":
+            self.last_best_guess_exports = []
+            return {}
+
+        source_records = self._source_records_with_text_by_id()
+        source_texts = {
+            source_id: str(record.get("text") or "")
+            for source_id, record in source_records.items()
+        }
+        source_metadata = {
+            source_id: {
+                key: value
+                for key, value in record.items()
+                if key != "text"
+            }
+            for source_id, record in source_records.items()
+        }
+        graph_records = self._graph_records_by_source_id(
+            set(source_records),
+            per_source_limit=16,
+        )
+
+        kwargs = {
+            "count_targets": [
+                *(self.goal_universe_estimate.get("count_targets") or []),
+                *(self.goal_universe_estimate.get("unestimated_count_targets") or []),
+            ],
+            "slot_targets": self.table_spec.best_guess_slot_targets(),
+            "source_records": source_metadata,
+            "graph_records": graph_records,
+            "max_tasks": self.config.best_guess_max_tasks,
+        }
+        if self.config.best_guess_mode == "llm":
+            state = await run_best_guess_recovery(
+                rows_by_name,
+                **kwargs,
+                source_texts=source_texts,
+                evidence_chars=self.config.best_guess_evidence_chars,
+                llm_batch_size=self.config.best_guess_llm_batch_size,
+                extract_fn=self._infer_best_guess_candidates,
+            )
+        else:
+            state = run_best_guess_recovery_local(rows_by_name, **kwargs)
+
+        self.last_best_guess_exports = self._write_best_guess_exports(
+            round_idx,
+            state,
+        )
+        return state
+
+    async def _infer_best_guess_candidates(
+        self,
+        operator: str,
+        tasks: List[Dict[str, Any]],
+        evidence: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        return await strategy.infer_best_guess_candidates(
+            self.llm,
+            self.config.question,
+            operator=operator,
+            tasks=tasks,
+            evidence=evidence,
+        )
+
+    def _write_best_guess_exports(
+        self,
+        round_idx: int | str,
+        state: Dict[str, Any],
+    ) -> List[Dict[str, Any]]:
+        self.derived_dir.mkdir(parents=True, exist_ok=True)
+        records = [
+            (
+                "best_guess_plan",
+                state.get("plan") or [],
+                None,
+            ),
+            (
+                "best_guess_attempts",
+                state.get("attempts") or [],
+                None,
+            ),
+            (
+                "best_guess_tasks",
+                state.get("tasks") or [],
+                None,
+            ),
+            (
+                "best_guess_candidates",
+                state.get("candidates") or [],
+                list(BEST_GUESS_CANDIDATE_COLUMNS),
+            ),
+            (
+                "best_guess_context",
+                state.get("resolutions") or [],
+                list(BEST_GUESS_CONTEXT_COLUMNS),
+            ),
+            (
+                "best_guess_strategy_state",
+                [
+                    {
+                        "coverage": state.get("coverage") or {},
+                        "operator_summary": state.get("operator_summary") or [],
+                        "overlap": state.get("overlap") or [],
+                    }
+                ],
+                None,
+            ),
+        ]
+        exports: List[Dict[str, Any]] = []
+        for variable, rows, columns in records:
+            json_path = self.derived_dir / f"round_{round_idx}_{variable}.json"
+            csv_path = self.derived_dir / f"round_{round_idx}_{variable}.csv"
+            json_path.write_text(
+                json.dumps(rows, indent=2, default=str),
+                encoding="utf-8",
+            )
+            if columns is None:
+                columns = []
+                for row in rows:
+                    if isinstance(row, dict):
+                        columns.extend(
+                            key for key in row if key not in columns
+                        )
+            self._write_rows_csv(csv_path, rows, fieldnames=columns)
+            exports.append(
+                {
+                    "round": round_idx,
+                    "variable": variable,
+                    "rows": len(rows),
+                    "json_path": str(json_path),
+                    "csv_path": str(csv_path),
+                }
+            )
+
+        self.best_guess_exports.extend(exports)
         return exports
 
     def _write_numeric_candidate_exports(
         self,
         round_idx: int | str,
         rows_by_name: Dict[str, List[Dict[str, Any]]],
+        *,
+        best_guess_context_by_row: Dict[str, Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
         if self.config.answer_mode != "table":
             return []
@@ -1147,11 +1562,13 @@ genuinely separate view that is not covered by a listed target."""
         rows = numeric_candidates_from_tables(
             rows_by_name,
             mode=self.config.numeric_candidate_mode,
+            context_slots=self._derived_context_slots(),
+            source_records=self._source_records_by_id(),
+            best_guess_context_by_row=best_guess_context_by_row,
         )
         self.derived_dir.mkdir(parents=True, exist_ok=True)
         json_path = self.derived_dir / f"round_{round_idx}_numeric_candidates.json"
         csv_path = self.derived_dir / f"round_{round_idx}_numeric_candidates.csv"
-        manifest_path = self.derived_dir / f"round_{round_idx}_manifest.json"
         json_path.write_text(
             json.dumps(rows, indent=2, default=str),
             encoding="utf-8",
@@ -1169,12 +1586,70 @@ genuinely separate view that is not covered by a listed target."""
             "json_path": str(json_path),
             "csv_path": str(csv_path),
         }
-        manifest_path.write_text(
-            json.dumps([record], indent=2, default=str),
-            encoding="utf-8",
-        )
         self.derived_table_exports.append(record)
         return [record]
+
+    def _write_reward_exports(
+        self,
+        round_idx: int | str,
+        *,
+        previous_rows_by_name: Dict[str, List[Dict[str, Any]]],
+        current_rows_by_name: Dict[str, List[Dict[str, Any]]],
+        best_guess_state: Dict[str, Any],
+    ) -> List[Dict[str, Any]]:
+        if self.config.answer_mode != "table":
+            return []
+
+        report = score_table_fill_round(
+            previous_rows_by_name,
+            current_rows_by_name,
+            best_guess_state=best_guess_state,
+            previous_best_guess_rows=self.seed_best_guess_rows,
+        )
+        self.last_reward_report = report
+        self.derived_dir.mkdir(parents=True, exist_ok=True)
+        json_path = self.derived_dir / f"round_{round_idx}_reward.json"
+        csv_path = self.derived_dir / f"round_{round_idx}_reward.csv"
+        components = [
+            row
+            for row in report.get("components") or []
+            if isinstance(row, dict)
+        ]
+        json_path.write_text(
+            json.dumps(report, indent=2, default=str),
+            encoding="utf-8",
+        )
+        self._write_rows_csv(
+            csv_path,
+            components,
+            fieldnames=list(REWARD_COMPONENT_COLUMNS),
+        )
+        record = {
+            "round": round_idx,
+            "variable": "table_fill_reward",
+            "score": report.get("score"),
+            "normalized_score": report.get("normalized_score"),
+            "rows": len(components),
+            "json_path": str(json_path),
+            "csv_path": str(csv_path),
+        }
+        self.reward_exports.append(record)
+        self.derived_table_exports.append(record)
+        return [record]
+
+    def _write_derived_manifest(
+        self,
+        round_idx: int | str,
+        exports: List[Dict[str, Any]],
+    ) -> None:
+        if not exports:
+            return
+        self.derived_dir.mkdir(parents=True, exist_ok=True)
+        manifest_path = self.derived_dir / f"round_{round_idx}_manifest.json"
+        manifest_path.write_text(
+            json.dumps(exports, indent=2, default=str),
+            encoding="utf-8",
+        )
 
     @staticmethod
     def _compiled_answer_view_tables(
@@ -1214,7 +1689,13 @@ genuinely separate view that is not covered by a listed target."""
         return tables
 
     @classmethod
-    def _table_export_rows(cls, name: str, rows: List[Any]) -> List[Any]:
+    def _table_export_rows(
+        cls,
+        name: str,
+        rows: List[Any],
+        *,
+        required_columns: List[str] | None = None,
+    ) -> List[Any]:
         export_rows: List[Any] = []
         for row in rows:
             if not isinstance(row, dict):
@@ -1242,11 +1723,12 @@ genuinely separate view that is not covered by a listed target."""
                                 name,
                                 nested_row,
                                 row,
+                                required_columns=required_columns,
                             )
                         )
                     continue
 
-            export_rows.append(cls._with_required_table_columns(name, row))
+            export_rows.append(cls._with_required_table_columns(row, required_columns))
 
         return export_rows
 
@@ -1261,6 +1743,8 @@ genuinely separate view that is not covered by a listed target."""
         name: str,
         nested_row: Dict[str, Any],
         group_row: Dict[str, Any],
+        *,
+        required_columns: List[str] | None = None,
     ) -> Dict[str, Any]:
         row = dict(nested_row)
         for field in (
@@ -1272,30 +1756,28 @@ genuinely separate view that is not covered by a listed target."""
         ):
             if field in group_row and cls._is_missing(row.get(field)):
                 row[field] = group_row[field]
-        return cls._with_required_table_columns(name, row)
+        return cls._with_required_table_columns(row, required_columns)
 
-    @classmethod
+    @staticmethod
     def _with_required_table_columns(
-        cls,
-        name: str,
         row: Dict[str, Any],
+        required_columns: List[str] | None = None,
     ) -> Dict[str, Any]:
         return {
             **{
                 column: row.get(column, "")
-                for column in TABLE_REQUIRED_COLUMNS.get(name, [])
+                for column in (required_columns or [])
             },
             **row,
         }
 
-    @classmethod
-    def _validate_table(cls, name: str, rows: List[Any]) -> Dict[str, Any]:
-        required = TABLE_REQUIRED_COLUMNS.get(name, [])
-        completeness_columns = TABLE_COMPLETENESS_COLUMNS.get(name, [])
+    def _validate_table(self, name: str, rows: List[Any]) -> Dict[str, Any]:
+        required = self._required_columns(name)
+        completeness_columns = self._completeness_columns(name)
         row_dicts = [row for row in rows if isinstance(row, dict)]
         missing_by_column = {
             column: sum(
-                1 for row in row_dicts if cls._is_missing(row.get(column))
+                1 for row in row_dicts if self._is_missing(row.get(column))
             )
             for column in completeness_columns
         }
@@ -1308,7 +1790,7 @@ genuinely separate view that is not covered by a listed target."""
                 1
                 for row in row_dicts
                 if all(
-                    not cls._is_missing(row.get(column))
+                    not self._is_missing(row.get(column))
                     for column in completeness_columns or required
                 )
             )
@@ -1675,7 +2157,13 @@ genuinely separate view that is not covered by a listed target."""
         if not self._paper_budget_available():
             return []
 
-        operator_plan = plan_catalog_operator(self.search_outcomes)
+        operator_plan = plan_catalog_operator(
+            [
+                outcome
+                for outcome in self.search_outcomes
+                if self._outcome_matches_current_table_spec(outcome)
+            ],
+        )
         if operator_plan.get("exhausted"):
             print("  Catalog search operators exhausted for current goal state.")
             return []
@@ -1694,6 +2182,7 @@ genuinely separate view that is not covered by a listed target."""
                 outcome
                 for outcome in self.search_outcomes[-20:]
                 if outcome.get("topic") == "goal_catalog"
+                and self._outcome_matches_current_table_spec(outcome)
             ],
             n=catalog_search_tasks,
         )
@@ -1712,6 +2201,7 @@ genuinely separate view that is not covered by a listed target."""
                     "goal_search_tasks": self.config.task_goal_search_tasks,
                     "catalog_search_tasks": catalog_search_tasks,
                     "queries_per_round": self.config.queries_per_round,
+                    "table_spec_id": self.table_spec_id,
                     **self._catalog_baseline_metadata(),
                     **_operator_metadata(operator_plan),
                 },
@@ -1832,6 +2322,7 @@ genuinely separate view that is not covered by a listed target."""
                 operator_plan=target.get("operator_plan") or {},
                 strategy_origin="llm",
             )
+            task.metadata["table_spec_id"] = self.table_spec_id
             self._record_strategy_baseline(task)
             tasks.append(task)
 
@@ -1856,6 +2347,7 @@ genuinely separate view that is not covered by a listed target."""
                 operator_plan=target.get("operator_plan") or {},
                 strategy_origin="fallback",
             )
+            task.metadata["table_spec_id"] = self.table_spec_id
             self._record_strategy_baseline(task)
             fallback_tasks.append(task)
         if fallback_tasks:
@@ -2142,6 +2634,25 @@ genuinely separate view that is not covered by a listed target."""
             "error": str(outcome.get("error") or ""),
         }
 
+    def _outcome_matches_current_table_spec(self, outcome: Dict[str, Any]) -> bool:
+        if self.table_spec.is_empty:
+            return True
+        metadata = outcome.get("metadata")
+        if not isinstance(metadata, dict):
+            return False
+        return metadata.get("table_spec_id") == self.table_spec_id
+
+    @staticmethod
+    def _table_spec_id(table_spec: TableSpec) -> str:
+        if table_spec.is_empty:
+            return ""
+        payload = json.dumps(
+            table_spec.to_dict(),
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        return hashlib.sha1(payload.encode("utf-8")).hexdigest()[:12]
+
     @staticmethod
     def _target_for_outcome_metadata(
         metadata: Dict[str, Any],
@@ -2196,6 +2707,303 @@ genuinely separate view that is not covered by a listed target."""
             encoding="utf-8",
         )
 
+    def _source_records_by_id(self) -> Dict[str, Dict[str, Any]]:
+        records: Dict[str, Dict[str, Any]] = {}
+        for path in sorted(self.papers_dir.glob("*.json")):
+            try:
+                record = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            if not isinstance(record, dict):
+                continue
+
+            source_id = str(record.get("id") or path.stem).strip()
+            if not source_id:
+                continue
+            records[source_id] = record
+        return records
+
+    def _source_records_with_text_by_id(self) -> Dict[str, Dict[str, Any]]:
+        records = self._source_records_by_id()
+        for source_id, record in records.items():
+            text_path = self.papers_dir / f"{source_id}.txt"
+            try:
+                record["text"] = text_path.read_text(encoding="utf-8")
+            except OSError:
+                record["text"] = ""
+        return records
+
+    def _graph_records_by_source_id(
+        self,
+        source_ids: set[str],
+        *,
+        per_source_limit: int,
+    ) -> Dict[str, List[Dict[str, Any]]]:
+        records: Dict[str, List[Dict[str, Any]]] = {
+            source_id: []
+            for source_id in source_ids
+        }
+        if not source_ids:
+            return records
+
+        for node_id, data in self.graph.nodes(data=True):
+            matches = self._matching_source_ids(data, source_ids)
+            if not matches:
+                continue
+            record = {
+                "kind": "node",
+                "id": str(node_id),
+                "degree": self.graph.degree(node_id),
+                "data": self._compact_graph_mapping(data),
+            }
+            for source_id in matches:
+                if len(records[source_id]) < per_source_limit:
+                    records[source_id].append(record)
+
+        for src, dst, _, data in self._iter_graph_edges():
+            matches = self._matching_source_ids(data, source_ids)
+            if not matches:
+                continue
+            record = {
+                "kind": "edge",
+                "src": str(src),
+                "dst": str(dst),
+                "data": self._compact_graph_mapping(data),
+            }
+            for source_id in matches:
+                if len(records[source_id]) < per_source_limit:
+                    records[source_id].append(record)
+        return records
+
+    @staticmethod
+    def _matching_source_ids(value: Any, source_ids: set[str]) -> List[str]:
+        text = json.dumps(value, default=str) if not isinstance(value, str) else value
+        return [source_id for source_id in source_ids if source_id in text]
+
+    @classmethod
+    def _compact_graph_mapping(cls, value: Mapping[str, Any]) -> Dict[str, Any]:
+        compact: Dict[str, Any] = {}
+        for key, inner in value.items():
+            if inner is None:
+                continue
+            if isinstance(inner, (str, int, float, bool)):
+                text = str(inner)
+                compact[str(key)] = text[:497] + "..." if len(text) > 500 else inner
+            elif isinstance(inner, Mapping):
+                nested = cls._compact_graph_mapping(inner)
+                if nested:
+                    compact[str(key)] = nested
+            elif isinstance(inner, (list, tuple, set)):
+                compact[str(key)] = [
+                    str(item)[:500]
+                    for item in list(inner)[:8]
+                    if item is not None
+                ]
+        return compact
+
+    def _load_seed_universe_estimate(
+        self,
+        seed_tables_dir: Optional[str],
+    ) -> Dict[str, Any]:
+        if not seed_tables_dir:
+            return {"status": "missing"}
+
+        roots: List[Path] = []
+        for raw in str(seed_tables_dir).split(os.pathsep):
+            if not raw.strip():
+                continue
+            path = Path(raw)
+            roots.extend(
+                candidate
+                for candidate in (
+                    path,
+                    path.parent,
+                    path.parent / "goals",
+                    path.parent.parent / "goals",
+                )
+                if candidate.exists()
+            )
+
+        candidates = sorted(
+            {
+                file_path
+                for root in roots
+                if root.is_dir()
+                for file_path in root.glob("*_universe_estimate.json")
+            },
+            key=lambda path: path.stat().st_mtime,
+            reverse=True,
+        )
+        for path in candidates:
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            if isinstance(payload, dict):
+                return normalize_universe_estimate(
+                    payload,
+                    table_rows=self._goal_seed_rows(),
+                )
+        return {"status": "missing"}
+
+    def _goal_seed_rows(self) -> Dict[str, List[Dict[str, Any]]]:
+        if self.table_spec.is_empty:
+            return self.seed_tables.rows_by_name
+        return {
+            name: self.seed_tables.rows_by_name.get(name, [])
+            for name in self.table_spec.deliverable_names()
+        }
+
+    def _derived_context_slots(self) -> List[Dict[str, Any]]:
+        slots = context_slots_from_count_targets(
+            [
+                *(self.goal_universe_estimate.get("count_targets") or []),
+                *(self.goal_universe_estimate.get("unestimated_count_targets") or []),
+            ],
+        )
+        slots.extend(self.table_spec.context_slots())
+
+        merged: Dict[str, Dict[str, Any]] = {}
+        for slot in slots:
+            name = str(slot.get("name") or "").strip()
+            if not name:
+                continue
+            current = merged.setdefault(name, {"name": name, "field_hints": []})
+            current["field_hints"] = list(
+                dict.fromkeys(
+                    [
+                        *current.get("field_hints", []),
+                        *(slot.get("field_hints") or []),
+                    ]
+                )
+            )
+        return list(merged.values())
+
+    def _ensure_declared_seed_tables(self) -> None:
+        if self.table_spec.is_empty:
+            return
+        for name in self.table_spec.deliverable_names():
+            self.seed_tables.rows_by_name.setdefault(name, [])
+
+    def _seed_row_match(self, row: Dict[str, Any], table: Any) -> Dict[str, Any]:
+        required = [
+            column
+            for column in table.required_columns()
+            if column != "row_key"
+        ]
+        matched_columns: List[str] = []
+        for column in table.all_columns():
+            if self._row_matches_column(row, column):
+                matched_columns.append(column.name)
+
+        matched_set = set(matched_columns)
+        matched_required = [
+            column
+            for column in required
+            if column in matched_set
+        ]
+        threshold = min(2, len(required)) if required else 1
+        return {
+            "matches": (
+                len(matched_required) >= threshold
+                if required
+                else bool(matched_columns)
+            ),
+            "matched_columns": matched_columns,
+            "matched_required_columns": matched_required,
+            "unmatched_required_columns": [
+                column
+                for column in required
+                if column not in matched_set
+            ],
+        }
+
+    def _row_matches_column(self, row: Dict[str, Any], column: Any) -> bool:
+        row_keys = {
+            self._seed_match_key(key): key
+            for key in row
+        }
+        for term in [column.name, *column.aliases, *column.field_hints]:
+            normalized = self._seed_match_key(term)
+            if not normalized:
+                continue
+            key = row_keys.get(normalized)
+            if key is not None and not self._is_missing(row.get(key)):
+                return True
+            if self._seed_match_term_too_generic(normalized):
+                continue
+            for row_key, original in row_keys.items():
+                if normalized in row_key and not self._is_missing(row.get(original)):
+                    return True
+        return False
+
+    @staticmethod
+    def _seed_match_key(value: Any) -> str:
+        return re.sub(r"[^a-z0-9]+", "_", str(value or "").lower()).strip("_")
+
+    @staticmethod
+    def _seed_match_term_too_generic(value: str) -> bool:
+        return value in {
+            "field",
+            "item",
+            "measure",
+            "method",
+            "metric",
+            "name",
+            "number",
+            "reported",
+            "source",
+            "text",
+            "type",
+            "unit",
+            "units",
+            "value",
+        } or len(value) < 3
+
+    def _seed_table_migrations_available(self) -> bool:
+        if self._seed_table_inputs_consumed:
+            return False
+        return any(
+            bool(self.seed_tables.rows_by_name.get(migration.from_table))
+            for migration in self.table_spec.migrations
+        )
+
+    def _export_table_names(
+        self,
+        rows_by_name: Dict[str, List[Dict[str, Any]]],
+    ) -> List[str]:
+        if not self.table_spec.is_empty:
+            return self.table_spec.deliverable_names()
+        return self.config.table_variables or sorted(rows_by_name)
+
+    def _required_columns(self, table_name: str) -> List[str]:
+        if self._required_columns_by_table:
+            return self._required_columns_by_table.get(table_name, [])
+        return TABLE_REQUIRED_COLUMNS.get(table_name, [])
+
+    def _completeness_columns(self, table_name: str) -> List[str]:
+        if self._completeness_columns_by_table:
+            return self._completeness_columns_by_table.get(table_name, [])
+        return TABLE_COMPLETENESS_COLUMNS.get(table_name, [])
+
+    def _write_observed_table_spec(
+        self,
+        round_idx: int | str,
+        rows_by_name: Dict[str, List[Dict[str, Any]]],
+        table_names: List[str],
+    ) -> None:
+        spec = observed_table_spec(
+            {
+                table_name: rows_by_name.get(table_name, [])
+                for table_name in table_names
+            },
+            base=self.table_spec,
+            table_names=table_names,
+        )
+        self.table_specs_dir.mkdir(parents=True, exist_ok=True)
+        path = self.table_specs_dir / f"round_{round_idx}_observed_table_spec.yaml"
+        path.write_text(dump_table_spec_yaml(spec), encoding="utf-8")
+
     def _record_task_goal(
         self,
         round_idx: int | str,
@@ -2239,7 +3047,7 @@ genuinely separate view that is not covered by a listed target."""
         if self.goal_tracker is None:
             return []
 
-        seed_exports = self._export_seed_tables()
+        seed_exports = await self._export_seed_tables()
         seed_table_rows = self._table_rows_by_variable(seed_exports)
         bootstrap_round_idx = self._round_label(0)
         bootstrap_idx = 0
@@ -2353,6 +3161,7 @@ genuinely separate view that is not covered by a listed target."""
                 metadata=dict(task.metadata),
             )
             for task in self.seed_frontier_tasks
+            if self._seed_frontier_task_allowed(task)
         ]
         self.seed_frontier_tasks = []
         accepted = self.search_frontier.enqueue(tasks)
@@ -2362,6 +3171,16 @@ genuinely separate view that is not covered by a listed target."""
                 f"for round {round_idx}"
             )
         return [task.to_dict() for task in accepted]
+
+    def _seed_frontier_task_allowed(self, task: SearchTask) -> bool:
+        if self.table_spec.is_empty:
+            return True
+        metadata = task.metadata if isinstance(task.metadata, dict) else {}
+        target_table = str(metadata.get("target_table") or "").strip()
+        return (
+            not target_table
+            or target_table in set(self.table_spec.deliverable_names())
+        )
 
     def _universe_estimate_ready(self) -> bool:
         return (
@@ -2384,7 +3203,7 @@ genuinely separate view that is not covered by a listed target."""
         self,
         exports: List[Dict[str, Any]],
     ) -> Dict[str, List[Dict[str, Any]]]:
-        table_names = self.config.table_variables or [
+        table_names = self._export_table_names({}) or [
             str(export.get("variable"))
             for export in exports
             if export.get("variable")
@@ -2414,14 +3233,14 @@ genuinely separate view that is not covered by a listed target."""
 
         return [row for row in rows if isinstance(row, dict)]
 
-    @staticmethod
     def _write_table_csv(
+        self,
         path: Path,
         rows: List[Dict[str, Any]],
         *,
         table_name: str = "",
     ) -> None:
-        fieldnames: List[str] = list(TABLE_REQUIRED_COLUMNS.get(table_name, []))
+        fieldnames: List[str] = list(self._required_columns(table_name))
         for row in rows:
             for key in row:
                 if key not in fieldnames:
@@ -2637,12 +3456,13 @@ genuinely separate view that is not covered by a listed target."""
                 and seeded_from_graph
                 and not round_papers
                 and self.seed_tables.row_count
+                and not self._seed_table_migrations_available()
             ):
                 print(
                     "  No new papers accepted; recording current tables "
                     "without rerunning GASL."
                 )
-                table_exports = self._write_table_exports(
+                table_exports = await self._write_table_exports(
                     round_idx,
                     self.seed_tables.rows_by_name,
                     seed_row_counts={
@@ -2749,7 +3569,7 @@ genuinely separate view that is not covered by a listed target."""
                 )
             finally:
                 self._gasl_source_seed_nodes = []
-            table_exports = self._export_gasl_tables(round_idx, gasl_result)
+            table_exports = await self._export_gasl_tables(round_idx, gasl_result)
             last_answer = gasl_result.get("final_answer", "") or ""
             if self.goal_tracker is not None:
                 print(
@@ -2892,6 +3712,8 @@ genuinely separate view that is not covered by a listed target."""
             "answer_mode": self.config.answer_mode,
             "table_exports": self.table_exports,
             "derived_table_exports": self.derived_table_exports,
+            "best_guess_exports": self.best_guess_exports,
+            "reward_exports": self.reward_exports,
             "search_frontier": self.search_frontier.to_dict(),
             "search_outcomes": self.search_outcomes,
             "search_memory": self.search_memory.to_dict(),

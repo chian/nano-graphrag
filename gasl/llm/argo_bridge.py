@@ -34,19 +34,18 @@ class ArgoBridgeLLM:
     def __init__(self, model: str = None, temperature: float = 0.0, max_tokens: int = 4000,
                  api_key: Optional[str] = None, base_url: Optional[str] = None,
                  reasoning_effort: Optional[str] = None):
-        self.model = model or os.getenv("LLM_MODEL", "gpt41")
+        requested_model = model
         self.temperature = temperature
         self.max_tokens = max_tokens
-        self._transport = os.getenv("NANOGRAPHRAG_LLM_TRANSPORT", "direct").strip().lower()
         self._shim_user = os.getenv("NANOGRAPHRAG_SHIM_USER", "chia")
 
         runtime_cfg = resolve_runtime_llm_config(
             explicit_api_key=api_key if api_key is not None else os.getenv("LLM_API_KEY"),
             explicit_base_url=base_url or os.getenv("LLM_ENDPOINT"),
-            explicit_model=self.model,
+            explicit_model=requested_model,
         )
-        if runtime_cfg.model:
-            self.model = runtime_cfg.model
+        self.model = runtime_cfg.model
+        self._transport = runtime_cfg.transport
         client_kwargs = {"api_key": runtime_cfg.api_key or ""}
         if runtime_cfg.base_url:
             client_kwargs["base_url"] = runtime_cfg.base_url

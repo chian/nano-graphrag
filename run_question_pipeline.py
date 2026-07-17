@@ -101,11 +101,16 @@ def build_config(args: argparse.Namespace) -> PipelineConfig:
         gasl_new_source_hops=args.gasl_new_source_hops,
         gasl_source_seed_limit=args.gasl_source_seed_limit,
         answer_mode=answer_mode,
+        table_spec_path=args.table_spec_path,
         seed_tables_dir=args.seed_tables_dir,
         seed_sources_dir=args.seed_sources_dir,
         seed_frontier_path=args.seed_frontier_path,
         round_offset=args.round_offset,
         numeric_candidate_mode=args.numeric_candidate_mode,
+        best_guess_mode=args.best_guess_mode,
+        best_guess_max_tasks=args.best_guess_max_tasks,
+        best_guess_evidence_chars=args.best_guess_evidence_chars,
+        best_guess_llm_batch_size=args.best_guess_llm_batch_size,
         target_confidence=args.target_confidence,
         model=args.model,
     )
@@ -188,8 +193,9 @@ def main() -> None:
         default="focused",
         help=(
             "Gate scraped sources with a task-aware LLM relevance check: "
-            "off disables it, focused gates target/table gap searches, "
-            "and all gates every search task."
+            "off disables it, focused gates table-fill source-discovery "
+            "searches and answer-mode target/table gap searches, and all "
+            "gates every search task."
         ),
     )
     parser.add_argument("--min-paper-length", type=int, default=500, help="Minimum characters for a usable paper.")
@@ -257,6 +263,15 @@ def main() -> None:
         help="Directory or JSON file of previously exported answer tables to merge into new table exports.",
     )
     parser.add_argument(
+        "--table-spec-path",
+        default=None,
+        help=(
+            "Editable YAML/JSON table-fill spec that declares the complete "
+            "final table set, required columns, best-guess sidecar slots, and "
+            "optional migrations from prior exported tables."
+        ),
+    )
+    parser.add_argument(
         "--seed-sources-dir",
         default=None,
         help=(
@@ -304,6 +319,34 @@ def main() -> None:
             "all also keeps relative and ordinal textual candidates."
         ),
     )
+    parser.add_argument(
+        "--best-guess-mode",
+        choices=("off", "local", "llm"),
+        default="llm",
+        help=(
+            "Write derived best-guess sidecars for missing table key slots. "
+            "local uses deterministic same-row/sibling evidence; llm also "
+            "extracts from existing source metadata, chunks, and KG records."
+        ),
+    )
+    parser.add_argument(
+        "--best-guess-max-tasks",
+        type=int,
+        default=160,
+        help="Maximum missing derived row-slots to attempt per export.",
+    )
+    parser.add_argument(
+        "--best-guess-evidence-chars",
+        type=int,
+        default=5000,
+        help="Maximum existing source text characters to send per best-guess task.",
+    )
+    parser.add_argument(
+        "--best-guess-llm-batch-size",
+        type=int,
+        default=8,
+        help="Maximum best-guess extraction tasks per local evidence LLM call.",
+    )
     parser.add_argument("--target-confidence", type=float, default=0.75, help="Stop when assessment confidence >= this and answer is sufficient.")
     parser.add_argument(
         "--task-goal-mode",
@@ -323,7 +366,7 @@ def main() -> None:
             "to 4 in table-fill mode and 0 in answer mode."
         ),
     )
-    parser.add_argument("--model", default=None, help="LLM model id (defaults to ArgoBridge default).")
+    parser.add_argument("--model", default=None, help="LLM model id (defaults to gpt-5.5).")
     parser.add_argument("--firecrawl-api-key", default=None, help="Firecrawl API key (or set FIRECRAWL_API_KEY).")
 
     args = parser.parse_args()

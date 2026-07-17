@@ -132,6 +132,10 @@ def _new_record(key: str, metadata: Mapping[str, Any]) -> dict[str, Any]:
         "failed_query_terms": Counter(),
         "matched_needs": Counter(),
         "missing_needs": Counter(),
+        "offtopic_axes": Counter(),
+        "failure_modes": Counter(),
+        "better_search_cues": Counter(),
+        "avoid_cues": Counter(),
         "attempts": [],
     }
 
@@ -202,8 +206,14 @@ def _merge_outcome(record: dict[str, Any], outcome: Mapping[str, Any]) -> None:
         record["failed_query_terms"].update(terms)
 
     for decision in relevance:
-        record["matched_needs"].update(_clean_list(decision.get("matched_needs")))
-        record["missing_needs"].update(_clean_list(decision.get("missing_needs")))
+        record["matched_needs"].update(_decision_values(decision, "matched_needs"))
+        record["missing_needs"].update(_decision_values(decision, "missing_needs"))
+        record["offtopic_axes"].update(_decision_values(decision, "offtopic_axes"))
+        record["failure_modes"].update(_decision_values(decision, "failure_modes"))
+        record["better_search_cues"].update(
+            _decision_values(decision, "better_search_cues")
+        )
+        record["avoid_cues"].update(_decision_values(decision, "avoid_cues"))
 
     record["attempt_count"] += 1
     record["accepted_source_ids"].extend(accepted_source_ids)
@@ -235,6 +245,22 @@ def _merge_outcome(record: dict[str, Any], outcome: Mapping[str, Any]) -> None:
             ),
             "missing_needs": _top_counter(
                 _counter_from_decisions(relevance, "missing_needs"),
+                8,
+            ),
+            "offtopic_axes": _top_counter(
+                _counter_from_decisions(relevance, "offtopic_axes"),
+                8,
+            ),
+            "failure_modes": _top_counter(
+                _counter_from_decisions(relevance, "failure_modes"),
+                8,
+            ),
+            "better_search_cues": _top_counter(
+                _counter_from_decisions(relevance, "better_search_cues"),
+                8,
+            ),
+            "avoid_cues": _top_counter(
+                _counter_from_decisions(relevance, "avoid_cues"),
                 8,
             ),
             "post_round_observed_delta": metadata.get("post_round_observed_delta"),
@@ -273,6 +299,10 @@ def _finalize_record(record: dict[str, Any]) -> dict[str, Any]:
         "failed_query_terms": _top_counter(record["failed_query_terms"], 12),
         "matched_needs": _top_counter(record["matched_needs"], 12),
         "missing_needs": _top_counter(record["missing_needs"], 12),
+        "offtopic_axes": _top_counter(record["offtopic_axes"], 12),
+        "failure_modes": _top_counter(record["failure_modes"], 12),
+        "better_search_cues": _top_counter(record["better_search_cues"], 12),
+        "avoid_cues": _top_counter(record["avoid_cues"], 12),
         "attempts": attempts[-12:],
     }
 
@@ -290,6 +320,10 @@ def _compact_record(record: Mapping[str, Any], *, score: int) -> dict[str, Any]:
         "failed_query_terms": record.get("failed_query_terms", []),
         "matched_needs": record.get("matched_needs", []),
         "missing_needs": record.get("missing_needs", []),
+        "offtopic_axes": record.get("offtopic_axes", []),
+        "failure_modes": record.get("failure_modes", []),
+        "better_search_cues": record.get("better_search_cues", []),
+        "avoid_cues": record.get("avoid_cues", []),
         "attempts": record.get("attempts", [])[-6:],
     }
 
@@ -340,8 +374,19 @@ def _counter_from_decisions(
 ) -> Counter:
     values: Counter = Counter()
     for decision in decisions:
-        values.update(_clean_list(decision.get(field_name)))
+        values.update(_decision_values(decision, field_name))
     return values
+
+
+def _decision_values(decision: Mapping[str, Any], field_name: str) -> list[str]:
+    values = _clean_list(decision.get(field_name))
+    metadata = decision.get("metadata")
+    if isinstance(metadata, Mapping):
+        values.extend(_clean_list(metadata.get(field_name)))
+        progress = metadata.get("progress_judgment")
+        if isinstance(progress, Mapping):
+            values.extend(_clean_list(progress.get(field_name)))
+    return _unique(values)
 
 
 def _top_counter(counter: Counter, limit: int) -> list[str]:

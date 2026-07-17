@@ -1,8 +1,6 @@
 """Stateful generic operators for iterative table-fill search."""
 
 from __future__ import annotations
-
-import re
 from collections import Counter
 from typing import Any, Mapping
 
@@ -109,48 +107,21 @@ QUERY_OPERATORS: dict[str, dict[str, Any]] = {
             "Avoid source neighborhoods that only produced duplicates.",
         ],
     },
-    "target_context_grain": {
+    "target_context_pivot": {
         "phase": "target",
         "source_family": "stratified table",
         "max_attempts": 2,
         "description": (
-            "Search the same row family at a different reported contextual "
-            "grain, such as a narrower or broader place, site, subgroup, or "
-            "scenario."
+            "Search the same row family using alternate source terms for "
+            "the target's row qualifiers and key columns."
         ),
         "query_terms": [
-            "regional",
-            "site",
             "stratified",
+            "table",
         ],
         "constraints": [
-            "Vary the context grain instead of assuming one aggregation level.",
-            (
-                "Prefer sources that report estimates split by place, site, "
-                "subgroup, or scenario."
-            ),
-        ],
-    },
-    "target_temporal_window": {
-        "phase": "target",
-        "source_family": "time stratified study",
-        "max_attempts": 2,
-        "description": (
-            "Search the same row family with an explicit observation window, "
-            "phase, season, or before/after context."
-        ),
-        "query_terms": [
-            "longitudinal",
-            "seasonal",
-            "time",
-            "series",
-        ],
-        "constraints": [
-            "Vary the observation window when rows are distinguished by time.",
-            (
-                "Prefer sources that report estimates by period, phase, "
-                "season, or before/after context."
-            ),
+            "Vary terms for the row qualifiers instead of assuming one wording.",
+            "Prefer sources that split estimates by the target key columns.",
         ],
     },
 }
@@ -186,56 +157,6 @@ _CONTEXT_RECOVERY_FAILURES = {
     "no_accepted_source",
     "no_hits",
     "source_unusable",
-}
-_CONTEXT_GRAIN_MARKERS = {
-    "area",
-    "city",
-    "cohort",
-    "context",
-    "country",
-    "facility",
-    "geographic",
-    "geography",
-    "group",
-    "jurisdiction",
-    "local",
-    "location",
-    "national",
-    "place",
-    "population",
-    "province",
-    "regional",
-    "region",
-    "setting",
-    "site",
-    "spatial",
-    "state",
-    "stratum",
-    "subgroup",
-    "subnational",
-    "territory",
-}
-_TEMPORAL_WINDOW_MARKERS = {
-    "after",
-    "baseline",
-    "before",
-    "date",
-    "duration",
-    "followup",
-    "interval",
-    "month",
-    "observation",
-    "period",
-    "phase",
-    "post",
-    "pre",
-    "season",
-    "temporal",
-    "time",
-    "wave",
-    "week",
-    "window",
-    "year",
 }
 _FAILURE_ROUTES = {
     "useful_table_delta": (
@@ -568,39 +489,19 @@ def _operator_plan(
 
 def _target_context_order(target: Mapping[str, Any]) -> tuple[str, ...]:
     tags = set(_target_context_tags(target))
-    order: list[str] = []
-    if "context_grain" in tags:
-        order.append("target_context_grain")
-    if "temporal_window" in tags:
-        order.append("target_temporal_window")
-    return tuple(order)
+    if "context_pivot" in tags:
+        return ("target_context_pivot",)
+    return ()
 
 
 def _target_context_tags(target: Mapping[str, Any]) -> tuple[str, ...]:
-    text_parts = [
-        target.get("target_table"),
-        target.get("target_name"),
-        target.get("description"),
-        target.get("evidence_gap"),
-        target.get("key_columns"),
-        target.get("missing_fields"),
-        target.get("known_missing_examples"),
-    ]
-    anchors = _mapping(target.get("anchor_values"))
-    text_parts.extend(anchors.keys())
-    text_parts.extend(anchors.values())
-
-    tokens = set(re.findall(r"[a-z]+", _search_text(text_parts).lower()))
-    tags: list[str] = []
-    if _has_any_token(tokens, _CONTEXT_GRAIN_MARKERS):
-        tags.append("context_grain")
-    if _has_any_token(tokens, _TEMPORAL_WINDOW_MARKERS):
-        tags.append("temporal_window")
-    return tuple(tags)
-
-
-def _has_any_token(tokens: set[str], markers: set[str]) -> bool:
-    return any(token in markers for token in tokens)
+    if (
+        target.get("key_columns")
+        or target.get("missing_fields")
+        or _mapping(target.get("anchor_values"))
+    ):
+        return ("context_pivot",)
+    return ()
 
 
 def _dedupe_order(order: tuple[str, ...]) -> tuple[str, ...]:

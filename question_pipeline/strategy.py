@@ -11,6 +11,7 @@ import json
 from typing import Any, Dict, List
 
 from .llm_utils import ask_json
+from .progress_judge import judge_progress
 
 
 _SEARCH_SYSTEM_PROMPT = """You are a scientific search strategist.
@@ -32,12 +33,11 @@ lower-bound counts for those row families. Do not reuse stale estimates when
 the sources imply a larger universe. Return only valid JSON in the shape
 requested by the user."""
 
-_SOURCE_RELEVANCE_SYSTEM_PROMPT = """You are a source relevance gate for an
-iterative evidence-aggregation run. Decide whether retrieved source text is
-likely to add source-level evidence for one concrete search task. Reject sources
-that merely share adjacent background language, population labels, places,
-counts, or methods while lacking evidence for the requested target family.
-Return only valid JSON in the shape requested by the user."""
+_BEST_GUESS_SYSTEM_PROMPT = """You derive missing sidecar values for an
+iterative table-aggregation run. Use only the provided row state and local
+evidence. Return null when the evidence does not support a value. Keep hard
+reported fields separate from inferred sidecar values. Return only valid JSON
+in the shape requested by the user."""
 
 
 def _coerce_query_list(parsed: Any, limit: int) -> List[str]:
@@ -202,11 +202,10 @@ as real subject terms in known examples or accepted source context. Prefer
 source queries that can fill multiple missing rows in the target table, and use
 known missing examples only when they are present in the deficit.
 
-When the selected operator asks for contextual-grain or temporal-window
-expansion, vary the place, site, population, scenario, period, phase, season,
-or before/after wording used to find the same missing piece. Preserve the most
-specific context and observation window reported by source authors instead of
-collapsing every row to one broad bucket.
+When the selected operator asks for a context-pivot expansion, vary the
+external vocabulary for the target's key columns, missing fields, or row
+qualifiers. Preserve the specific qualifiers reported by source authors
+instead of collapsing every row to one broad bucket.
 
 Keep each query concise (3-10 words), no boolean operators.
 
@@ -255,54 +254,89 @@ async def assess_source_relevance(
     llm,
     question: str,
     *,
+    task_state: Dict[str, Any] | None = None,
     task: Dict[str, Any],
     result: Dict[str, Any],
     text: str,
 ) -> Dict[str, Any]:
     """Gate a harvested source against the exact search task it would fill."""
+    judgment = await judge_progress(
+        llm,
+        kind="source_candidate",
+        question=question,
+        task_state=task_state or {},
+        operation={
+            "phase": "source_gate",
+            "search_task": task,
+            "expected_use": "accepting this candidate writes it for extraction",
+        },
+        candidate={"search_result": result},
+        evidence_text=text,
+    )
+    return {
+        **judgment.to_dict(),
+        "accept": judgment.accepted,
+        "confidence": judgment.fruitfulness_score,
+        "progress_judgment": judgment.to_dict(),
+    }
+
+
+async def infer_best_guess_candidates(
+    llm,
+    question: str,
+    *,
+    operator: str,
+    tasks: List[Dict[str, Any]],
+    evidence: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """Extract best-guess sidecar candidates from existing local evidence."""
     prompt = f"""QUESTION:
 {question}
 
-SEARCH TASK JSON:
-{json.dumps(task, indent=2, default=str)[:5000]}
+BEST-GUESS OPERATOR:
+{operator}
 
-SEARCH RESULT JSON:
-{json.dumps(result, indent=2, default=str)[:2500]}
+MISSING ROW-SLOT TASKS JSON:
+{json.dumps(tasks, indent=2, default=str)[:6000]}
 
-RETRIEVED TEXT PREVIEW:
-{text[:7000]}
+LOCAL EVIDENCE JSON:
+{json.dumps(evidence, indent=2, default=str)[:18000]}
 
-Decide whether this retrieved source is likely to add rows or source-level
-evidence for SEARCH TASK JSON. Accept only if the text discusses the target
-family directly enough that a later extractor could plausibly add facts for
-that target. Reject adjacent sources that only share broad domain terms or
-mention one incidental term while focusing on a different outcome.
+For each task, infer the requested sidecar value only if the local evidence
+supports it. These are derived best guesses for grouping or plotting. They do
+not overwrite hard reported table columns.
+
+Rules:
+- Use the task's canonical_column as the requested slot.
+- Use only LOCAL EVIDENCE JSON and the row_values already attached to the task.
+- Return no candidate when the provided evidence is ambiguous or irrelevant.
+- Preserve the qualifier grain implied by the evidence.
+- Explain the exact basis without citing outside knowledge.
+- confidence should be 0.5-1.0 only when a value is supported.
 
 Return JSON:
 {{
-  "accept": true | false,
-  "confidence": 0.0-1.0,
-  "reason": "one concise sentence",
-  "matched_needs": ["specific needs this source appears to satisfy"],
-  "missing_needs": ["specific target needs absent from the source"]
+  "candidates": [
+    {{
+      "task_id": "matching task id",
+      "value": "inferred sidecar value or null",
+      "confidence": 0.0,
+      "basis": "short evidence-grounded reason",
+      "source_ids": ["optional existing source ids"],
+      "source_chunks": ["optional existing source chunks"]
+    }}
+  ]
 }}"""
     parsed = await ask_json(
         llm,
         prompt,
-        system_prompt=_SOURCE_RELEVANCE_SYSTEM_PROMPT,
+        system_prompt=_BEST_GUESS_SYSTEM_PROMPT,
     )
-    if not isinstance(parsed, dict):
-        return {"accept": True, "confidence": 0.0, "reason": "unparseable"}
-    parsed["accept"] = bool(parsed.get("accept"))
-    try:
-        parsed["confidence"] = float(parsed.get("confidence") or 0.0)
-    except (TypeError, ValueError):
-        parsed["confidence"] = 0.0
-    parsed["reason"] = str(parsed.get("reason") or "")
-    for key in ("matched_needs", "missing_needs"):
-        if not isinstance(parsed.get(key), list):
-            parsed[key] = []
-    return parsed
+    if isinstance(parsed, dict):
+        parsed = parsed.get("candidates")
+    if not isinstance(parsed, list):
+        return []
+    return [item for item in parsed if isinstance(item, dict)]
 
 
 async def estimate_coverage_universe(
@@ -342,12 +376,11 @@ count_targets for auxiliary catalogs or search-space summaries that are not
 themselves final answer rows.
 
 Choose key_columns from fields that can count distinct rows for that family.
-When the final rows vary by place, site, subgroup, scenario, observation
-window, method, or before/after context, retain those axes in key_columns
-instead of collapsing them to one broad row. When multiple current final
-tables represent different required row families, keep an executable
-count_target or an unestimated_count_target for each family until retrieved
-discovery evidence supports a lower bound.
+When the final rows vary by a qualifier that changes the meaning of a row,
+retain that axis in key_columns instead of collapsing it to one broad row.
+When multiple current final tables represent different required row families,
+keep an executable count_target or an unestimated_count_target for each family
+until retrieved discovery evidence supports a lower bound.
 
 Use lower bounds that are explicitly defensible from searched source text. If
 the sources do not support any useful lower bound yet, set status to

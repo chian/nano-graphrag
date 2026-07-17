@@ -1,7 +1,7 @@
 """
 Repo-only LLM transport selection.
 
-Default behavior stays unchanged. To route repo calls through a local shim
+The default direct model is gpt-5.5. To route repo calls through a local shim
 without affecting Codex itself, set:
 
     NANOGRAPHRAG_LLM_TRANSPORT=shim
@@ -28,6 +28,7 @@ class RuntimeLLMConfig:
     transport: str
 
 
+DEFAULT_LLM_MODEL = "gpt-5.5"
 _REPO_ENV_LOADED = False
 
 
@@ -120,7 +121,12 @@ def resolve_runtime_llm_config(
                 or os.getenv("VIZ_API_KEY")
             ),
             base_url=explicit_base_url or os.getenv("OPENAI_BASE_URL"),
-            model=explicit_model,
+            model=(
+                explicit_model
+                or os.getenv("OPENAI_MODEL")
+                or os.getenv("LLM_MODEL")
+                or DEFAULT_LLM_MODEL
+            ),
             transport="direct",
         )
 

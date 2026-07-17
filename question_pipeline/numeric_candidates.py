@@ -5,7 +5,16 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from typing import Any, Mapping
+from typing import Any, Iterable, Mapping
+
+from .derived_context import (
+    ContextSlot,
+    DERIVED_CONTEXT_COLUMNS,
+    infer_best_guess_context,
+    normalize_source_records,
+    normalize_context_slots,
+    source_ids_from_row,
+)
 
 
 NUMERIC_CANDIDATE_COLUMNS = [
@@ -25,6 +34,7 @@ NUMERIC_CANDIDATE_COLUMNS = [
     "anchor_text",
     "derivation_rule",
     "confidence",
+    *DERIVED_CONTEXT_COLUMNS,
     "source_refs",
     "source_chunks",
     "row_context",
@@ -167,6 +177,11 @@ def numeric_candidates_from_tables(
     rows_by_name: Mapping[str, list[dict[str, Any]]],
     *,
     mode: str = "parsed",
+    context_slots: Iterable[ContextSlot | Mapping[str, Any] | str] | None = None,
+    source_records: Mapping[str, Mapping[str, Any]]
+    | Iterable[Mapping[str, Any]]
+    | None = None,
+    best_guess_context_by_row: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     """Derive generic numeric candidate rows from exported answer tables."""
     mode = _normalize_mode(mode)
@@ -176,6 +191,9 @@ def numeric_candidates_from_tables(
     candidates: list[dict[str, Any]] = []
     seen: set[str] = set()
     include_textual = mode == "all"
+    normalized_context_slots = normalize_context_slots(context_slots)
+    sources_by_id = normalize_source_records(source_records)
+    best_guess_context_by_row = best_guess_context_by_row or {}
     for table_name, rows in rows_by_name.items():
         for row_index, row in enumerate(rows):
             if not isinstance(row, dict):
@@ -191,6 +209,12 @@ def numeric_candidates_from_tables(
                                 field_name=field,
                                 row=row,
                                 value=value,
+                                context_slots=normalized_context_slots,
+                                source_records=sources_by_id,
+                                best_guess_context=best_guess_context_by_row.get(
+                                    f"{table_name}::{row_index}",
+                                    {},
+                                ),
                             )
                         )
                     continue
@@ -200,6 +224,12 @@ def numeric_candidates_from_tables(
                     field_name=field,
                     row=row,
                     value=value,
+                    context_slots=normalized_context_slots,
+                    source_records=sources_by_id,
+                    best_guess_context=best_guess_context_by_row.get(
+                        f"{table_name}::{row_index}",
+                        {},
+                    ),
                 )
                 if parsed:
                     candidates.extend(parsed)
@@ -211,6 +241,12 @@ def numeric_candidates_from_tables(
                             field_name=field,
                             row=row,
                             value=value,
+                            context_slots=normalized_context_slots,
+                            source_records=sources_by_id,
+                            best_guess_context=best_guess_context_by_row.get(
+                                f"{table_name}::{row_index}",
+                                {},
+                            ),
                         )
                     )
 
@@ -231,6 +267,9 @@ def _parsed_candidates(
     field_name: str,
     row: Mapping[str, Any],
     value: Any,
+    context_slots: Iterable[ContextSlot | Mapping[str, Any] | str],
+    source_records: Mapping[str, Mapping[str, Any]],
+    best_guess_context: Mapping[str, Any],
 ) -> list[dict[str, Any]]:
     if _missing(value):
         return []
@@ -248,6 +287,9 @@ def _parsed_candidates(
             field_name=field_name,
             row=row,
             raw_value=raw,
+            context_slots=context_slots,
+            source_records=source_records,
+            best_guess_context=best_guess_context,
             **parsed,
         )
     ]
@@ -260,6 +302,9 @@ def _textual_candidates(
     field_name: str,
     row: Mapping[str, Any],
     value: Any,
+    context_slots: Iterable[ContextSlot | Mapping[str, Any] | str],
+    source_records: Mapping[str, Mapping[str, Any]],
+    best_guess_context: Mapping[str, Any],
 ) -> list[dict[str, Any]]:
     if _missing(value) or _field_should_skip(field_name):
         return []
@@ -277,6 +322,9 @@ def _textual_candidates(
                 field_name=field_name,
                 row=row,
                 raw_value=raw,
+                context_slots=context_slots,
+                source_records=source_records,
+                best_guess_context=best_guess_context,
                 bound_type="relative",
                 parsed_min=None,
                 parsed_max=None,
@@ -302,6 +350,9 @@ def _textual_candidates(
             field_name=field_name,
             row=row,
             raw_value=raw,
+            context_slots=context_slots,
+            source_records=source_records,
+            best_guess_context=best_guess_context,
             bound_type="ordinal",
             parsed_min=None,
             parsed_max=None,
@@ -415,6 +466,9 @@ def _candidate_row(
     field_name: str,
     row: Mapping[str, Any],
     raw_value: str,
+    context_slots: Iterable[ContextSlot | Mapping[str, Any] | str],
+    source_records: Mapping[str, Mapping[str, Any]],
+    best_guess_context: Mapping[str, Any],
     bound_type: str,
     parsed_min: float | None,
     parsed_max: float | None,
@@ -438,6 +492,20 @@ def _candidate_row(
         "derivation_rule": derivation_rule,
     }
     raw_key = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
+    source_ids = source_ids_from_row(row)
+    context = infer_best_guess_context(
+        row,
+        context_slots=context_slots,
+        source_records={
+            source_id: source_records[source_id]
+            for source_id in source_ids
+            if source_id in source_records
+        },
+    )
+    if best_guess_context:
+        merged_context = dict(context.get("best_guess_context") or {})
+        merged_context.update(dict(best_guess_context))
+        context["best_guess_context"] = merged_context
     return {
         "candidate_id": hashlib.sha1(raw_key.encode("utf-8")).hexdigest()[:16],
         "source_table": table_name,
@@ -455,6 +523,7 @@ def _candidate_row(
         "anchor_text": anchor_text,
         "derivation_rule": derivation_rule,
         "confidence": round(confidence, 3),
+        **context,
         "source_refs": _source_list(row.get("source_refs")),
         "source_chunks": _source_list(row.get("source_chunks") or row.get("source_chunk")),
         "row_context": _row_context(row),

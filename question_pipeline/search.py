@@ -11,7 +11,7 @@ import uuid
 from collections import Counter, OrderedDict
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Iterable, Optional
+from typing import Any, Awaitable, Callable, Iterable, Mapping, Optional
 
 from paper_fetching.firecrawl_client import extract_text_from_result
 
@@ -28,6 +28,16 @@ _BLOCKED_PAGE_MARKERS = (
     "attention required! | cloudflare",
 )
 _FATAL_SEARCH_STATUS_CODES = {401, 402, 403, 429}
+_COMPACT_RESULT_SKIP_KEYS = {
+    "actions",
+    "content",
+    "html",
+    "links",
+    "llm_extraction",
+    "markdown",
+    "rawHtml",
+    "screenshot",
+}
 
 
 @dataclass(frozen=True)
@@ -456,6 +466,7 @@ class SearchHarvester:
             "text": text,
             "url": url,
             "title": result.get("title", ""),
+            "source_metadata": compact_search_result(result),
             "original_text_length": reduction.get("original_length") if reduction else len(text),
             "text_length": len(text),
             "text_reduction": reduction,
@@ -539,6 +550,30 @@ def is_fatal_search_error(exc: Exception) -> bool:
             "forbidden",
         )
     )
+
+
+def compact_search_result(result: dict[str, Any]) -> dict[str, Any]:
+    """Keep searchable source metadata while dropping scraped body payloads."""
+
+    compact: dict[str, Any] = {}
+    for key, value in result.items():
+        if key in _COMPACT_RESULT_SKIP_KEYS:
+            continue
+        if isinstance(value, (str, int, float, bool)) or value is None:
+            if value not in ("", None):
+                compact[str(key)] = value
+        elif isinstance(value, Mapping):
+            nested = {
+                str(nested_key): nested_value
+                for nested_key, nested_value in value.items()
+                if (
+                    isinstance(nested_value, (str, int, float, bool))
+                    and len(str(nested_value)) <= 500
+                )
+            }
+            if nested:
+                compact[str(key)] = nested
+    return compact
 
 
 _REDUCTION_STOPWORDS = {
