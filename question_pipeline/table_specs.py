@@ -277,9 +277,11 @@ def load_table_spec_with_seed_tables(
         if observed_paths
         else observed_table_spec(seed_rows_by_name)
     )
+    explicit = load_table_spec(explicit_paths)
+    base = _make_unrequested_seed_tables_non_deliverable(base, explicit)
     return merge_table_specs(
         base,
-        load_table_spec(explicit_paths),
+        explicit,
     )
 
 
@@ -305,6 +307,40 @@ def merge_table_specs(*specs: TableSpec) -> TableSpec:
     for spec in specs:
         payload = merge_table_spec_payloads(payload, spec.to_dict())
     return _coerce_table_spec(payload)
+
+
+def _make_unrequested_seed_tables_non_deliverable(
+    base: TableSpec,
+    explicit: TableSpec,
+) -> TableSpec:
+    if explicit.is_empty or not explicit.tables:
+        return base
+
+    requested = {
+        *explicit.tables,
+        *(
+            migration.to_table
+            for migration in explicit.migrations
+            if migration.to_table
+        ),
+    }
+    tables = {
+        name: (
+            table
+            if name in requested or not table.deliverable
+            else TableTargetSpec(
+                name=table.name,
+                description=table.description,
+                grain=table.grain,
+                deliverable=False,
+                key_columns=table.key_columns,
+                columns=table.columns,
+                keep_existing_rows=table.keep_existing_rows,
+            )
+        )
+        for name, table in base.tables.items()
+    }
+    return TableSpec(tables=tables, migrations=base.migrations)
 
 
 def merge_table_spec_payloads(
