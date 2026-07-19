@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Any, Iterable, Mapping, Sequence
 
 import yaml
 
@@ -230,11 +231,123 @@ class TableSpec:
         }
 
 
-def load_table_spec(path: str | Path | None) -> TableSpec:
-    """Load an editable table-fill spec from YAML or JSON."""
+TableSpecPath = str | Path
+
+_OBSERVED_TABLE_SPEC_RE = re.compile(
+    r"^round_(?P<label>.+)_observed_table_spec\.(?:ya?ml|json)$",
+)
+
+
+def load_table_spec(
+    path: TableSpecPath | Iterable[TableSpecPath] | None,
+) -> TableSpec:
+    """Load and combine editable table-fill specs from YAML or JSON."""
+
+    payload: dict[str, Any] = {}
+    for spec_path in _iter_spec_paths(path):
+        payload = merge_table_spec_payloads(
+            payload,
+            _load_table_spec_payload(spec_path),
+        )
+    return _coerce_table_spec(payload)
+
+
+def table_spec_paths_with_seed_tables(
+    seed_tables_dir: TableSpecPath | Iterable[TableSpecPath] | None,
+    explicit_paths: TableSpecPath | Iterable[TableSpecPath] | None,
+) -> list[Path]:
+    """Return prior observed specs followed by explicit spec additions."""
+
+    return [
+        *observed_table_spec_paths_for_seed(seed_tables_dir),
+        *_iter_spec_paths(explicit_paths),
+    ]
+
+
+def load_table_spec_with_seed_tables(
+    seed_rows_by_name: Mapping[str, Iterable[Mapping[str, Any]]],
+    seed_tables_dir: TableSpecPath | Iterable[TableSpecPath] | None,
+    explicit_paths: TableSpecPath | Iterable[TableSpecPath] | None,
+) -> TableSpec:
+    """Carry forward seed table contracts before applying explicit specs."""
+
+    observed_paths = observed_table_spec_paths_for_seed(seed_tables_dir)
+    base = (
+        load_table_spec(observed_paths)
+        if observed_paths
+        else observed_table_spec(seed_rows_by_name)
+    )
+    return merge_table_specs(
+        base,
+        load_table_spec(explicit_paths),
+    )
+
+
+def observed_table_spec_paths_for_seed(
+    seed_tables_dir: TableSpecPath | Iterable[TableSpecPath] | None,
+) -> list[Path]:
+    """Find the newest observed table spec adjacent to seed table exports."""
+
+    out: list[Path] = []
+    for root in _iter_spec_paths(seed_tables_dir):
+        path = _newest_observed_table_spec_path(
+            _candidate_table_spec_dirs(root),
+        )
+        if path is not None and path not in out:
+            out.append(path)
+    return out
+
+
+def merge_table_specs(*specs: TableSpec) -> TableSpec:
+    """Combine specs in order, with later same-name entries taking precedence."""
+
+    payload: dict[str, Any] = {}
+    for spec in specs:
+        payload = merge_table_spec_payloads(payload, spec.to_dict())
+    return _coerce_table_spec(payload)
+
+
+def merge_table_spec_payloads(
+    base: Mapping[str, Any] | None,
+    addition: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """Combine raw table-spec payloads before coercion.
+
+    Table specs are complete contracts after this step. A focused spec may add
+    a new named table or update a same-name table without omitting other names
+    already present in the observed seed spec.
+    """
+
+    base = dict(base or {})
+    addition = dict(addition or {})
+    merged = {
+        **{
+            key: value
+            for key, value in base.items()
+            if key not in {"tables", "migrations"}
+        },
+        **{
+            key: value
+            for key, value in addition.items()
+            if key not in {"tables", "migrations"}
+        },
+    }
+    merged["tables"] = _merge_table_payloads(
+        base.get("tables"),
+        addition.get("tables"),
+    )
+    merged["migrations"] = _merge_migration_payloads(
+        base.get("migrations"),
+        addition.get("migrations"),
+    )
+    return merged
+
+
+def _load_table_spec_payload(path: Path) -> dict[str, Any]:
+    """Load one editable table-fill spec from YAML or JSON."""
 
     if not path:
-        return TableSpec()
+        return {}
 
     spec_path = Path(path)
     if not spec_path.exists():
@@ -250,6 +363,10 @@ def load_table_spec(path: str | Path | None) -> TableSpec:
     if not isinstance(payload, Mapping):
         raise ValueError("table spec must be a YAML/JSON mapping")
 
+    return dict(payload)
+
+
+def _coerce_table_spec(payload: Mapping[str, Any]) -> TableSpec:
     return TableSpec(
         tables=_coerce_tables(payload.get("tables")),
         migrations=_coerce_migrations(payload.get("migrations")),
@@ -312,6 +429,195 @@ def seed_input_variable_name(table_name: str, to_table: str | None = None) -> st
         parts.extend(["to", str(to_table)])
     safe = re.sub(r"[^A-Za-z0-9]+", "_", "_".join(parts)).strip("_").lower()
     return f"seed_{safe or 'table'}_rows"
+
+
+def _iter_spec_paths(
+    path: TableSpecPath | Iterable[TableSpecPath] | None,
+) -> list[Path]:
+    if path is None:
+        return []
+    if isinstance(path, Path):
+        return [path]
+    if isinstance(path, str):
+        return [
+            Path(value)
+            for value in path.split(os.pathsep)
+            if value.strip()
+        ]
+
+    out: list[Path] = []
+    for item in path:
+        out.extend(_iter_spec_paths(item))
+    return out
+
+
+def _candidate_table_spec_dirs(root: Path) -> list[Path]:
+    base = root.parent if root.is_file() else root
+    candidates = [
+        base,
+        base / "table_specs",
+        base / "answers" / "table_specs",
+        base.parent / "table_specs",
+        base.parent.parent / "table_specs",
+    ]
+    out: list[Path] = []
+    for candidate in candidates:
+        if candidate.name != "table_specs" or not candidate.is_dir():
+            continue
+        if candidate not in out:
+            out.append(candidate)
+    return out
+
+
+def _newest_observed_table_spec_path(roots: Iterable[Path]) -> Path | None:
+    candidates = sorted(
+        {
+            path
+            for root in roots
+            for path in root.glob("round_*_observed_table_spec.*")
+            if _OBSERVED_TABLE_SPEC_RE.match(path.name)
+        },
+        key=_observed_table_spec_sort_key,
+        reverse=True,
+    )
+    return candidates[0] if candidates else None
+
+
+def _observed_table_spec_sort_key(path: Path) -> tuple[int, int, int, str]:
+    match = _OBSERVED_TABLE_SPEC_RE.match(path.name)
+    label = match.group("label") if match else ""
+    try:
+        round_number = int(label)
+        numeric = 1
+    except ValueError:
+        round_number = -1
+        numeric = 0
+    try:
+        mtime_ns = path.stat().st_mtime_ns
+    except OSError:
+        mtime_ns = 0
+    return numeric, round_number, mtime_ns, path.name
+
+
+def _merge_table_payloads(
+    base: Any,
+    addition: Any,
+) -> dict[str, dict[str, Any]]:
+    merged = _table_payloads_by_name(base)
+    for name, table in _table_payloads_by_name(addition).items():
+        if name not in merged:
+            merged[name] = table
+            continue
+        merged[name] = _merge_table_payload(merged[name], table)
+    return merged
+
+
+def _merge_table_payload(
+    base: Mapping[str, Any],
+    addition: Mapping[str, Any],
+) -> dict[str, Any]:
+    out = {
+        **{
+            key: value
+            for key, value in base.items()
+            if key != "columns"
+        },
+        **{
+            key: value
+            for key, value in addition.items()
+            if key != "columns"
+        },
+    }
+    out["columns"] = _merge_column_payloads(
+        base.get("columns"),
+        addition.get("columns"),
+    )
+    return out
+
+
+def _merge_column_payloads(
+    base: Any,
+    addition: Any,
+) -> dict[str, dict[str, Any]]:
+    merged = _column_payloads_by_name(base)
+    for name, column in _column_payloads_by_name(addition).items():
+        if name not in merged:
+            merged[name] = column
+            continue
+        merged[name] = {**merged[name], **column}
+    return merged
+
+
+def _merge_migration_payloads(base: Any, addition: Any) -> list[dict[str, Any]]:
+    merged: dict[tuple[str, str], dict[str, Any]] = {}
+    for migration in [*_migration_payloads(base), *_migration_payloads(addition)]:
+        key = (
+            str(migration.get("from_table") or migration.get("from") or "").strip(),
+            str(migration.get("to_table") or migration.get("to") or "").strip(),
+        )
+        if not all(key):
+            continue
+        merged[key] = migration
+    return list(merged.values())
+
+
+def _table_payloads_by_name(raw: Any) -> dict[str, dict[str, Any]]:
+    return {
+        name: payload
+        for name, payload in _named_payloads(raw).items()
+        if name
+    }
+
+
+def _column_payloads_by_name(raw: Any) -> dict[str, dict[str, Any]]:
+    return {
+        name: payload
+        for name, payload in _named_payloads(raw).items()
+        if name
+    }
+
+
+def _named_payloads(raw: Any) -> dict[str, dict[str, Any]]:
+    if raw is None:
+        return {}
+    if isinstance(raw, Mapping):
+        items: Iterable[tuple[Any, Any]] = raw.items()
+    elif isinstance(raw, list):
+        items = enumerate(raw)
+    else:
+        raise ValueError("table spec sections must be mappings or lists")
+
+    out: dict[str, dict[str, Any]] = {}
+    for fallback_name, value in items:
+        payload = _named_payload(fallback_name, value)
+        name = str(payload.get("name") or "").strip()
+        if name:
+            out[name] = payload
+    return out
+
+
+def _named_payload(fallback_name: Any, raw: Any) -> dict[str, Any]:
+    if raw is None:
+        raw = {}
+    if isinstance(raw, str):
+        raw = {"name": raw}
+    if isinstance(raw, Sequence) and not isinstance(raw, (str, bytes, Mapping)):
+        raw = {"columns": list(raw)}
+    if not isinstance(raw, Mapping):
+        return {}
+
+    payload = dict(raw)
+    payload.setdefault("name", fallback_name)
+    payload["name"] = str(payload.get("name") or "").strip()
+    return payload
+
+
+def _migration_payloads(raw: Any) -> list[dict[str, Any]]:
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise ValueError("migrations must be a list")
+    return [dict(item) for item in raw if isinstance(item, Mapping)]
 
 
 def _coerce_tables(raw: Any) -> dict[str, TableTargetSpec]:

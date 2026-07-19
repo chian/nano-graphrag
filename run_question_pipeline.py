@@ -90,6 +90,9 @@ def build_config(args: argparse.Namespace) -> PipelineConfig:
         source_relevance_mode=args.source_relevance_mode,
         task_goal_mode=task_goal_mode,
         task_goal_search_tasks=task_goal_search_tasks,
+        completion_probe_tasks=args.completion_probe_tasks,
+        completion_probe_results=args.completion_probe_results,
+        completion_probe_rounds=args.completion_probe_rounds,
         chunk_size=args.chunk_size,
         chunk_overlap=args.chunk_overlap,
         extraction_concurrency=args.extraction_concurrency,
@@ -198,6 +201,31 @@ def main() -> None:
             "gates every search task."
         ),
     )
+    parser.add_argument(
+        "--completion-probe-tasks",
+        type=int,
+        default=4,
+        help=(
+            "Cheap search-space breadth probes to run before table-fill catalog "
+            "searches. These probes use search result metadata to test whether "
+            "the answer-universe estimate is broad enough."
+        ),
+    )
+    parser.add_argument(
+        "--completion-probe-results",
+        type=int,
+        default=5,
+        help="Search results to inspect per completion breadth probe.",
+    )
+    parser.add_argument(
+        "--completion-probe-rounds",
+        type=int,
+        default=2,
+        help=(
+            "Maximum completion breadth-probe waves per pipeline invocation. "
+            "Set 0 to disable additional scoping probes."
+        ),
+    )
     parser.add_argument("--min-paper-length", type=int, default=500, help="Minimum characters for a usable paper.")
     parser.add_argument(
         "--max-paper-length",
@@ -260,15 +288,18 @@ def main() -> None:
     parser.add_argument(
         "--seed-tables-dir",
         default=None,
-        help="Directory or JSON file of previously exported answer tables to merge into new table exports.",
+        help="Directory or JSON file of previously exported answer tables to carry into new table exports.",
     )
     parser.add_argument(
         "--table-spec-path",
+        action="append",
         default=None,
         help=(
-            "Editable YAML/JSON table-fill spec that declares the complete "
-            "final table set, required columns, best-guess sidecar slots, and "
-            "optional migrations from prior exported tables."
+            "Editable YAML/JSON table-fill spec. Pass more than once to carry "
+            "forward multiple named table contracts; later files add new "
+            "tables or update same-name tables, columns, and migrations. "
+            "With --seed-tables-dir, the latest adjacent observed spec is "
+            "loaded first so prior seeded tables keep exporting."
         ),
     )
     parser.add_argument(

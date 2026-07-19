@@ -8,7 +8,7 @@ generator in iterative_search/ with a generic, question-aware approach.
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Mapping
 
 from .llm_utils import ask_json
 from .progress_judge import judge_progress
@@ -32,6 +32,21 @@ families of rows that a complete answer would need. Estimate conservative
 lower-bound counts for those row families. Do not reuse stale estimates when
 the sources imply a larger universe. Return only valid JSON in the shape
 requested by the user."""
+
+_COMPLETION_PROBE_SYSTEM_PROMPT = """You plan search-space breadth probes for an
+iterative table-aggregation run. Use the question, declared deliverables,
+current completion state, and recent search outcomes to choose cheap external
+queries that reveal how large and diverse the answer space is likely to be.
+Prefer probes that test a missing axis, a suspiciously small count estimate, or
+a search branch that has not yet been sampled. Return only valid JSON in the
+shape requested by the user."""
+
+_COMPLETION_CRITIQUE_SYSTEM_PROMPT = """You are a skeptical completion-scope
+critic for an iterative table-aggregation run. Compare the current answer
+universe estimate against the declared deliverables and search-space probes.
+Accept the estimate only when its expected axes and lower-bound counts are
+consistent with the breadth and diversity of retrieved search results. Return
+only valid JSON in the shape requested by the user."""
 
 _BEST_GUESS_SYSTEM_PROMPT = """You derive missing sidecar values for an
 iterative table-aggregation run. Use only the provided row state and local
@@ -58,6 +73,45 @@ def _coerce_query_list(parsed: Any, limit: int) -> List[str]:
         if len(queries) >= limit:
             break
     return queries
+
+
+def _coerce_probe_list(parsed: Any, limit: int) -> List[Dict[str, Any]]:
+    """Pull clean completion-probe records out of assorted JSON shapes."""
+    if limit <= 0:
+        return []
+    if isinstance(parsed, dict):
+        parsed = parsed.get("probes") or parsed.get("queries") or []
+
+    probes: List[Dict[str, Any]] = []
+    seen: set[str] = set()
+    for item in parsed or []:
+        if isinstance(item, str):
+            item = {"query": item}
+        if not isinstance(item, Mapping):
+            continue
+
+        query = str(item.get("query") or "").strip()
+        key = query.lower()
+        if len(query) < 4 or key in seen:
+            continue
+        seen.add(key)
+
+        axis_bindings = item.get("axis_bindings")
+        probes.append(
+            {
+                "query": query,
+                "purpose": str(item.get("purpose") or "").strip(),
+                "axis_bindings": (
+                    dict(axis_bindings)
+                    if isinstance(axis_bindings, Mapping)
+                    else {}
+                ),
+                "rationale": str(item.get("rationale") or "").strip(),
+            }
+        )
+        if len(probes) >= limit:
+            break
+    return probes
 
 
 async def initial_queries(
@@ -120,6 +174,7 @@ async def catalog_queries(
     question: str,
     *,
     goal_context: Dict[str, Any],
+    completion_state: Dict[str, Any] | None = None,
     operator_plan: Dict[str, Any] | None = None,
     universe_estimate: Dict[str, Any] | None = None,
     search_outcomes: List[Dict[str, Any]] | None = None,
@@ -136,6 +191,9 @@ CURRENT COVERAGE STATE JSON:
 
 CURRENT ANSWER-UNIVERSE ESTIMATE JSON:
 {json.dumps(universe_estimate or {}, indent=2, default=str)[:2500]}
+
+COMPLETION SCOPE STATE JSON:
+{json.dumps(completion_state or {}, indent=2, default=str)[:2500]}
 
 SELECTED SEARCH OPERATOR JSON:
 {json.dumps(operator_plan or {}, indent=2, default=str)[:1800]}
@@ -159,6 +217,67 @@ Keep each query concise (3-10 words), no boolean operators.
 Return JSON: {{"queries": ["...", "..."]}}"""
     parsed = await ask_json(llm, prompt, system_prompt=_SEARCH_SYSTEM_PROMPT)
     return _coerce_query_list(parsed, n)
+
+
+async def completion_probe_queries(
+    llm,
+    question: str,
+    *,
+    goal_context: Dict[str, Any],
+    completion_state: Dict[str, Any] | None = None,
+    universe_estimate: Dict[str, Any] | None = None,
+    search_outcomes: List[Dict[str, Any]] | None = None,
+    n: int = 4,
+) -> List[Dict[str, Any]]:
+    """Generate breadth probes for sizing the answer universe."""
+    if n <= 0:
+        return []
+
+    prompt = f"""QUESTION:
+{question}
+
+CURRENT COVERAGE STATE JSON:
+{json.dumps(goal_context, indent=2, default=str)[:4500]}
+
+COMPLETION SCOPE STATE JSON:
+{json.dumps(completion_state or {}, indent=2, default=str)[:4500]}
+
+CURRENT ANSWER-UNIVERSE ESTIMATE JSON:
+{json.dumps(universe_estimate or {}, indent=2, default=str)[:3000]}
+
+RECENT SEARCH OUTCOMES JSON:
+{json.dumps(search_outcomes or [], indent=2, default=str)[:3000]}
+
+Produce up to {n} cheap breadth probes that will help decide whether the
+current answer-universe estimate is complete enough to drive a stop rule.
+
+Each probe should reveal one of:
+- the size or diversity of a row family needed by the declared final tables
+- a missing qualifier axis that would split broad rows into more exact rows
+- external terminology that may expose results missed by prior queries
+- whether a currently underexplored bin is narrow, broad, or out of scope
+
+Avoid repeating prior probe queries and recent searches unless the current
+completion state says the wording was useful. Keep each query concise
+(3-10 words), no boolean operators.
+
+Return JSON:
+{{
+  "probes": [
+    {{
+      "query": "search text",
+      "purpose": "what this search-space probe should clarify",
+      "axis_bindings": {{"axis or table": "optional missing region"}},
+      "rationale": "why this probe should sharpen the completion estimate"
+    }}
+  ]
+}}"""
+    parsed = await ask_json(
+        llm,
+        prompt,
+        system_prompt=_COMPLETION_PROBE_SYSTEM_PROMPT,
+    )
+    return _coerce_probe_list(parsed, n)
 
 
 async def target_deficit_queries(
@@ -345,6 +464,7 @@ async def estimate_coverage_universe(
     *,
     goal_context: Dict[str, Any],
     discovery_sources: List[Dict[str, Any]],
+    completion_state: Dict[str, Any] | None = None,
     previous_estimate: Dict[str, Any] | None = None,
 ) -> Dict[str, Any]:
     """Estimate question-specific lower bounds from discovery source text."""
@@ -356,6 +476,9 @@ CURRENT COVERAGE STATE JSON:
 
 PREVIOUS ANSWER-UNIVERSE ESTIMATE JSON:
 {json.dumps(previous_estimate or {}, indent=2, default=str)[:3000]}
+
+COMPLETION SCOPE STATE JSON:
+{json.dumps(completion_state or {}, indent=2, default=str)[:3500]}
 
 DISCOVERY SOURCES JSON:
 {json.dumps(discovery_sources, indent=2, default=str)[:24000]}
@@ -385,11 +508,21 @@ until retrieved discovery evidence supports a lower bound.
 Use lower bounds that are explicitly defensible from searched source text. If
 the sources do not support any useful lower bound yet, set status to
 "insufficient_evidence" and propose broader queries in suggested_queries.
+Use search-space probes to list expected_axes and underexplored_bins even when
+there is not enough evidence to quantify every target family yet.
 
 Return JSON:
 {{
   "status": "estimated" | "insufficient_evidence",
   "scope_summary": "what a complete answer needs to enumerate",
+  "expected_axes": [
+    {{
+      "name": "axis that changes the meaning or count of final rows",
+      "description": "why this axis matters",
+      "status": "open | resolved",
+      "supporting_queries": ["queries or probes that exposed this axis"]
+    }}
+  ],
   "supporting_source_ids": ["source ids used for the estimate"],
   "supporting_queries": ["queries that found useful discovery sources"],
   "count_targets": [
@@ -405,6 +538,23 @@ Return JSON:
       "known_missing_examples": ["optional examples to search next"]
     }}
   ],
+  "underexplored_bins": [
+    {{
+      "axis": "table, row family, or qualifier axis",
+      "description": "what needs broader probing or counting",
+      "status": "open | resolved | out_of_scope",
+      "severity": "low | medium | high",
+      "suggested_queries": ["specific next query"]
+    }}
+  ],
+  "out_of_scope_count_targets": [
+    {{
+      "name": "target that should not be a final-row count",
+      "description": "why this is auxiliary or outside the declared answer",
+      "target_table": "proposed table name",
+      "reason": "why it should not block the stop rule"
+    }}
+  ],
   "unresolved_questions": ["what still prevents a sharper estimate"],
   "suggested_queries": ["broad discovery query", "..."]
 }}"""
@@ -412,6 +562,68 @@ Return JSON:
         llm,
         prompt,
         system_prompt=_UNIVERSE_ESTIMATE_SYSTEM_PROMPT,
+    )
+    return parsed if isinstance(parsed, dict) else {}
+
+
+async def critique_coverage_universe(
+    llm,
+    question: str,
+    *,
+    goal_context: Dict[str, Any],
+    completion_state: Dict[str, Any],
+    universe_estimate: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Critique whether the universe estimate is complete enough to drive stop."""
+
+    prompt = f"""QUESTION:
+{question}
+
+CURRENT COVERAGE STATE JSON:
+{json.dumps(goal_context, indent=2, default=str)[:5000]}
+
+COMPLETION SCOPE STATE JSON:
+{json.dumps(completion_state, indent=2, default=str)[:6000]}
+
+CURRENT ANSWER-UNIVERSE ESTIMATE JSON:
+{json.dumps(universe_estimate, indent=2, default=str)[:5000]}
+
+Decide whether the answer-universe estimate is consistent with the declared
+tables, observed rows, and search-space probes.
+
+Reject estimates that are too narrow, ignore an expected final-table axis, turn
+an auxiliary catalog into a final-table count, or claim completeness while probe
+titles and result diversity imply more row families than the estimate covers.
+
+Return JSON:
+{{
+  "accepted": true,
+  "issues": [
+    {{
+      "axis": "table, row family, or qualifier axis",
+      "description": "why the estimate is not yet credible",
+      "status": "open | resolved",
+      "severity": "low | medium | high | critical",
+      "suggested_queries": ["specific next query"]
+    }}
+  ],
+  "underexplored_bins": [
+    {{
+      "axis": "table, row family, or qualifier axis",
+      "description": "what must be sampled before completion is credible",
+      "status": "open | resolved | out_of_scope",
+      "severity": "low | medium | high",
+      "suggested_queries": ["specific next query"]
+    }}
+  ],
+  "unresolved_questions": ["what the next scoping or deficit round must answer"],
+  "suggested_queries": ["broad or bin-specific query"],
+  "rationale": "one concise explanation"
+}}"""
+    parsed = await ask_json(
+        llm,
+        prompt,
+        system_prompt=_COMPLETION_CRITIQUE_SYSTEM_PROMPT,
     )
     return parsed if isinstance(parsed, dict) else {}
 

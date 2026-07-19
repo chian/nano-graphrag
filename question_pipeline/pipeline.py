@@ -52,6 +52,16 @@ from .best_guess import (
     run_best_guess_recovery,
     run_best_guess_recovery_local,
 )
+from .completion import (
+    completion_needs_scope_search,
+    completion_probe_summary,
+    completion_scope_actionable,
+    completion_update_from_critique,
+    completion_update_from_estimate,
+    load_seed_completion_state,
+    merge_completion_state,
+    scope_probe_context,
+)
 from .derived_context import context_slots_from_count_targets
 from .extraction import enrich_graph, extract_from_text
 from .goals import (
@@ -71,6 +81,7 @@ from .search import (
     load_seed_source_records,
     load_seen_urls,
     normalize_query,
+    is_fatal_search_error,
     table_gap_search_tasks,
 )
 from .search_memory import SearchMemory
@@ -93,7 +104,7 @@ from .strategy_state import (
 from .table_specs import (
     TableSpec,
     dump_table_spec_yaml,
-    load_table_spec,
+    load_table_spec_with_seed_tables,
     observed_table_spec,
 )
 
@@ -142,7 +153,7 @@ class PipelineConfig:
     gasl_source_seed_limit: int = 100
     answer_mode: str = "natural"
     table_variables: List[str] = field(default_factory=list)
-    table_spec_path: Optional[str] = None
+    table_spec_path: Optional[str | List[str]] = None
     seed_tables_dir: Optional[str] = None
     seed_sources_dir: Optional[str] = None
     seed_frontier_path: Optional[str] = None
@@ -157,6 +168,9 @@ class PipelineConfig:
     target_confidence: float = 0.75
     task_goal_mode: str = "off"
     task_goal_search_tasks: int = 0
+    completion_probe_tasks: int = 4
+    completion_probe_results: int = 5
+    completion_probe_rounds: int = 2
 
     # LLM
     model: Optional[str] = None
@@ -436,7 +450,18 @@ class QuestionPipeline:
             raise ValueError("table-fill goals require answer_mode='table'")
         if config.task_goal_mode != TASK_GOAL_OFF and config.task_goal_search_tasks <= 0:
             raise ValueError("table-fill goals require search tasks")
-        self.table_spec: TableSpec = load_table_spec(config.table_spec_path)
+        if config.completion_probe_tasks < 0:
+            raise ValueError("completion_probe_tasks must be nonnegative")
+        if config.completion_probe_results <= 0:
+            raise ValueError("completion_probe_results must be positive")
+        if config.completion_probe_rounds < 0:
+            raise ValueError("completion_probe_rounds must be nonnegative")
+        self.seed_tables: SeedTables = load_seed_tables(config.seed_tables_dir)
+        self.table_spec: TableSpec = load_table_spec_with_seed_tables(
+            self.seed_tables.rows_by_name,
+            config.seed_tables_dir,
+            config.table_spec_path,
+        )
         self.table_spec_id = self._table_spec_id(self.table_spec)
         self._required_columns_by_table = self.table_spec.required_columns_by_table()
         self._completeness_columns_by_table = (
@@ -456,13 +481,17 @@ class QuestionPipeline:
         self.goal_universe_estimate: Dict[str, Any] = {"status": "missing"}
         self.goal_discovery_sources: List[Dict[str, Any]] = []
         self._seen_goal_discovery_source_ids: set[str] = set()
-        self.seed_tables: SeedTables = load_seed_tables(config.seed_tables_dir)
+        self._validate_seed_tables_declared_by_spec()
         self._ensure_declared_seed_tables()
         self._seed_table_inputs_consumed = False
         self._active_seed_migrations: List[Dict[str, Any]] = []
         self.goal_universe_estimate = self._load_seed_universe_estimate(
             config.seed_tables_dir,
         )
+        self.completion_state: Dict[str, Any] = load_seed_completion_state(
+            config.seed_tables_dir,
+        )
+        self._completion_probe_waves_run = 0
         if config.round_offset is not None and config.round_offset < 0:
             raise ValueError("round_offset must be nonnegative")
         self.round_offset = (
@@ -518,6 +547,23 @@ class QuestionPipeline:
             max_results=max_results,
             raise_on_error=True,
             scrape_results=not self.config.scrape_search_results,
+        )
+
+    def _probe_search(self, query: str, max_results: int) -> List[Dict[str, Any]]:
+        if not self._uses_default_search:
+            return self._search_fn(query, max_results)
+
+        api_key = self.config.firecrawl_api_key or os.getenv("FIRECRAWL_API_KEY")
+        if not api_key:
+            raise RuntimeError(
+                "No Firecrawl API key. Set --firecrawl-api-key or FIRECRAWL_API_KEY."
+            )
+        return search_papers(
+            query=query,
+            api_key=api_key,
+            max_results=max_results,
+            raise_on_error=True,
+            scrape_results=False,
         )
 
     def _default_scrape_fn(self, url: str) -> Optional[Dict[str, Any]]:
@@ -902,6 +948,7 @@ genuinely separate view that is not covered by a listed target."""
                 self.goal_universe_estimate,
                 table_rows=self._empty_deliverable_rows(),
             ),
+            "completion_scope": scope_probe_context(self.completion_state),
             "latest_goal_state": latest_goal,
         }
 
@@ -2098,6 +2145,154 @@ genuinely separate view that is not covered by a listed target."""
         ]
         return [*outcome_records, *synthetic_outcomes]
 
+    async def _run_completion_probes(
+        self,
+        round_idx: int | str,
+        table_rows: Dict[str, List[Dict[str, Any]]],
+        gaps: List[str],
+    ) -> List[Dict[str, Any]]:
+        if self.goal_tracker is None:
+            return []
+        if self.config.completion_probe_tasks <= 0:
+            return []
+        if self.config.completion_probe_rounds <= 0:
+            return []
+        if self._completion_probe_waves_run >= self.config.completion_probe_rounds:
+            return []
+        if self.search_provider_error:
+            print(
+                "  Completion probes paused after provider error: "
+                f"{self.search_provider_error}"
+            )
+            return []
+        if not completion_needs_scope_search(
+            self.completion_state,
+            self.goal_universe_estimate,
+        ):
+            return []
+
+        probe_count = self.config.completion_probe_tasks
+        planned = await strategy.completion_probe_queries(
+            self.llm,
+            self.config.question,
+            goal_context=self.goal_tracker.prompt_context(
+                table_rows,
+                gaps,
+                self.goal_universe_estimate,
+                self.completion_state,
+            ),
+            completion_state=scope_probe_context(self.completion_state),
+            universe_estimate=self.goal_universe_estimate,
+            search_outcomes=[
+                outcome
+                for outcome in self.search_outcomes[-30:]
+                if self._outcome_matches_current_table_spec(outcome)
+            ],
+            n=probe_count,
+        )
+        probes = self._completion_probe_candidates(planned, probe_count)
+        if not probes:
+            return []
+
+        summaries: List[Dict[str, Any]] = []
+        for probe in probes:
+            try:
+                results = self._probe_search(
+                    str(probe.get("query") or ""),
+                    self.config.completion_probe_results,
+                )
+                error = ""
+            except Exception as exc:
+                results = []
+                error = str(exc)
+                if is_fatal_search_error(exc):
+                    self.search_provider_error = error
+
+            summary = completion_probe_summary(
+                query=str(probe.get("query") or ""),
+                results=results,
+                round_idx=round_idx,
+                purpose=str(probe.get("purpose") or probe.get("rationale") or ""),
+                axis_bindings=(
+                    probe.get("axis_bindings")
+                    if isinstance(probe.get("axis_bindings"), Mapping)
+                    else {}
+                ),
+                error=error,
+            )
+            summaries.append(summary)
+            if self.search_provider_error:
+                print(
+                    "  Completion probes stopped after provider error: "
+                    f"{self.search_provider_error}"
+                )
+                break
+
+        self._completion_probe_waves_run += 1
+        self.completion_state = merge_completion_state(
+            self.completion_state,
+            {
+                "scope_status": "probing",
+                "search_space_probes": summaries,
+            },
+        )
+        self._persist_completion_state(round_idx)
+
+        self.goals_dir.mkdir(parents=True, exist_ok=True)
+        with (self.goals_dir / "completion_probes.jsonl").open(
+            "a",
+            encoding="utf-8",
+        ) as handle:
+            for summary in summaries:
+                handle.write(json.dumps(summary, default=str) + "\n")
+        print(f"  Ran {len(summaries)} completion breadth probe(s)")
+        return summaries
+
+    def _completion_probe_candidates(
+        self,
+        planned: List[Dict[str, Any]],
+        limit: int,
+    ) -> List[Dict[str, Any]]:
+        previous_queries = {
+            normalize_query(probe.get("query"))
+            for probe in self.completion_state.get("search_space_probes") or []
+            if isinstance(probe, dict)
+        }
+        candidates: List[Dict[str, Any]] = []
+        candidates.extend(item for item in planned if isinstance(item, dict))
+        candidates.extend(
+            {
+                "query": query,
+                "purpose": "suggested by the completion-scope state",
+            }
+            for query in self.completion_state.get("suggested_queries") or []
+        )
+        candidates.extend(
+            {
+                "query": query,
+                "purpose": "suggested by the answer-universe estimate",
+            }
+            for query in self.goal_universe_estimate.get("suggested_queries") or []
+        )
+
+        out: List[Dict[str, Any]] = []
+        seen: set[str] = set()
+        for candidate in candidates:
+            query = str(candidate.get("query") or "").strip()
+            normalized = normalize_query(query)
+            if (
+                not query
+                or not normalized
+                or normalized in seen
+                or normalized in previous_queries
+            ):
+                continue
+            seen.add(normalized)
+            out.append({**candidate, "query": query})
+            if len(out) >= limit:
+                break
+        return out
+
     async def _estimate_task_goal_universe(
         self,
         round_idx: int | str,
@@ -2106,22 +2301,29 @@ genuinely separate view that is not covered by a listed target."""
     ) -> Dict[str, Any]:
         if self.goal_tracker is None:
             return self.goal_universe_estimate
-        if not self.goal_discovery_sources:
+        if (
+            not self.goal_discovery_sources
+            and not self.completion_state.get("search_space_probes")
+        ):
             self.goal_universe_estimate = normalize_universe_estimate(
                 self.goal_universe_estimate,
                 table_rows=table_rows,
             )
+            self._persist_completion_state(round_idx)
             return self.goal_universe_estimate
 
+        goal_context = self.goal_tracker.prompt_context(
+            table_rows,
+            gaps,
+            self.goal_universe_estimate,
+            self.completion_state,
+        )
         estimate = await strategy.estimate_coverage_universe(
             self.llm,
             self.config.question,
-            goal_context=self.goal_tracker.prompt_context(
-                table_rows,
-                gaps,
-                self.goal_universe_estimate,
-            ),
+            goal_context=goal_context,
             discovery_sources=self.goal_discovery_sources,
+            completion_state=scope_probe_context(self.completion_state),
             previous_estimate=self.goal_universe_estimate,
         )
         self.goal_universe_estimate = merge_universe_estimates(
@@ -2129,13 +2331,40 @@ genuinely separate view that is not covered by a listed target."""
             estimate,
             table_rows=table_rows,
         )
+        self.completion_state = merge_completion_state(
+            self.completion_state,
+            completion_update_from_estimate(self.goal_universe_estimate),
+        )
+        critique_context = self.goal_tracker.prompt_context(
+            table_rows,
+            gaps,
+            self.goal_universe_estimate,
+            self.completion_state,
+        )
+        critique = await strategy.critique_coverage_universe(
+            self.llm,
+            self.config.question,
+            goal_context=critique_context,
+            completion_state=scope_probe_context(self.completion_state),
+            universe_estimate=self.goal_universe_estimate,
+        )
+        self.completion_state = merge_completion_state(
+            self.completion_state,
+            completion_update_from_critique(critique),
+        )
+        self._persist_completion_state(round_idx)
         self.goals_dir.mkdir(parents=True, exist_ok=True)
         path = self.goals_dir / f"round_{round_idx}_universe_estimate.json"
         path.write_text(
-            json.dumps(estimate, indent=2, default=str),
+            json.dumps(self.goal_universe_estimate, indent=2, default=str),
             encoding="utf-8",
         )
-        return estimate
+        critique_path = self.goals_dir / f"round_{round_idx}_completion_critique.json"
+        critique_path.write_text(
+            json.dumps(critique, indent=2, default=str),
+            encoding="utf-8",
+        )
+        return self.goal_universe_estimate
 
     async def _enqueue_catalog_searches(
         self,
@@ -2175,7 +2404,9 @@ genuinely separate view that is not covered by a listed target."""
                 table_rows,
                 gaps,
                 self.goal_universe_estimate,
+                self.completion_state,
             ),
+            completion_state=scope_probe_context(self.completion_state),
             operator_plan=operator_plan,
             universe_estimate=self.goal_universe_estimate,
             search_outcomes=[
@@ -2187,6 +2418,9 @@ genuinely separate view that is not covered by a listed target."""
             n=catalog_search_tasks,
         )
         for query in self.goal_universe_estimate.get("suggested_queries") or []:
+            if isinstance(query, str) and query.strip():
+                queries.append(query)
+        for query in self.completion_state.get("suggested_queries") or []:
             if isinstance(query, str) and query.strip():
                 queries.append(query)
         queries = self._limited_unique_queries(queries, catalog_search_tasks)
@@ -2282,6 +2516,7 @@ genuinely separate view that is not covered by a listed target."""
                 table_rows,
                 [],
                 self.goal_universe_estimate,
+                self.completion_state,
             ),
             deficits=deficits,
             n=max(
@@ -2707,6 +2942,22 @@ genuinely separate view that is not covered by a listed target."""
             encoding="utf-8",
         )
 
+    def _persist_completion_state(self, round_idx: int | str | None = None) -> None:
+        payload = {
+            **self.completion_state,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+        self.completion_state = payload
+        self.goals_dir.mkdir(parents=True, exist_ok=True)
+        (self.goals_dir / "completion_state.json").write_text(
+            json.dumps(payload, indent=2, default=str),
+            encoding="utf-8",
+        )
+        if round_idx is None:
+            return
+        path = self.goals_dir / f"round_{round_idx}_completion_state.json"
+        path.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
+
     def _source_records_by_id(self) -> Dict[str, Dict[str, Any]]:
         records: Dict[str, Dict[str, Any]] = {}
         for path in sorted(self.papers_dir.glob("*.json")):
@@ -2885,6 +3136,28 @@ genuinely separate view that is not covered by a listed target."""
         for name in self.table_spec.deliverable_names():
             self.seed_tables.rows_by_name.setdefault(name, [])
 
+    def _validate_seed_tables_declared_by_spec(self) -> None:
+        if self.table_spec.is_empty or not self.seed_tables.rows_by_name:
+            return
+
+        declared_tables = set(self.table_spec.tables)
+        omitted_tables = sorted(
+            table_name
+            for table_name, rows in self.seed_tables.rows_by_name.items()
+            if rows and table_name not in declared_tables
+        )
+        if not omitted_tables:
+            return
+
+        raise ValueError(
+            "effective table spec omits seeded table(s): "
+            f"{', '.join(omitted_tables)}. "
+            "When --seed-tables-dir is used, seed tables with rows must be "
+            "declared by either an adjacent observed table spec or an "
+            "explicit --table-spec-path file. Declare intentionally retired "
+            "seed tables with deliverable: false."
+        )
+
     def _seed_row_match(self, row: Dict[str, Any], table: Any) -> Dict[str, Any]:
         required = [
             column
@@ -3021,6 +3294,7 @@ genuinely separate view that is not covered by a listed target."""
             round_idx=round_idx,
             table_rows=rows_by_variable,
             universe_estimate=self.goal_universe_estimate,
+            completion_state=self.completion_state,
             search_frontier=self.search_frontier.to_dict(),
             search_outcomes=self.search_outcomes,
             paper_count=self.paper_count,
@@ -3057,6 +3331,19 @@ genuinely separate view that is not covered by a listed target."""
             and not self._universe_estimate_actionable()
         ):
             source_count_before = len(self.goal_discovery_sources)
+            await self._run_completion_probes(
+                bootstrap_round_idx,
+                seed_table_rows,
+                [],
+            )
+            await self._estimate_task_goal_universe(
+                f"bootstrap_{bootstrap_round_idx}_{bootstrap_idx}_scope",
+                seed_table_rows,
+                [],
+            )
+            if self._universe_estimate_actionable():
+                break
+
             catalog_tasks = await self._enqueue_catalog_searches(
                 bootstrap_round_idx,
                 seed_table_rows,
@@ -3132,6 +3419,16 @@ genuinely separate view that is not covered by a listed target."""
         )
         catalog_tasks: List[Dict[str, Any]] = []
         if self._needs_more_catalog_search(goal_state):
+            await self._run_completion_probes(
+                round_idx,
+                table_rows,
+                [],
+            )
+            await self._estimate_task_goal_universe(
+                f"predeficit_{round_idx}",
+                table_rows,
+                [],
+            )
             catalog_tasks = await self._enqueue_catalog_searches(
                 round_idx,
                 table_rows,
@@ -3189,14 +3486,16 @@ genuinely separate view that is not covered by a listed target."""
         )
 
     def _universe_estimate_actionable(self) -> bool:
-        return bool(self.goal_universe_estimate.get("count_targets"))
+        return completion_scope_actionable(
+            self.completion_state,
+            self.goal_universe_estimate,
+        )
 
-    @staticmethod
-    def _needs_more_catalog_search(goal_state: FillGoalState) -> bool:
+    def _needs_more_catalog_search(self, goal_state: FillGoalState) -> bool:
         estimate = goal_state.target_estimate
-        return (
-            estimate.get("status") != "estimated"
-            or bool(estimate.get("unestimated_count_targets"))
+        return completion_needs_scope_search(
+            self.completion_state,
+            estimate,
         )
 
     def _table_rows_by_variable(
@@ -3717,6 +4016,7 @@ genuinely separate view that is not covered by a listed target."""
             "search_frontier": self.search_frontier.to_dict(),
             "search_outcomes": self.search_outcomes,
             "search_memory": self.search_memory.to_dict(),
+            "completion_state": self.completion_state,
             "task_goals": self.goal_states,
             "goal_universe_estimate": self.goal_universe_estimate,
             "goal_discovery_sources": self.goal_discovery_sources,

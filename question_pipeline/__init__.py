@@ -62,6 +62,10 @@ from .derived_context import (
 from .table_specs import (
     TableSpec,
     load_table_spec,
+    load_table_spec_with_seed_tables,
+    merge_table_specs,
+    observed_table_spec_paths_for_seed,
+    table_spec_paths_with_seed_tables,
 )
 from .progress_judge import (
     ProgressJudgment,
@@ -100,6 +104,10 @@ __all__ = [
     "table_gap_search_tasks",
     "TableSpec",
     "load_table_spec",
+    "load_table_spec_with_seed_tables",
+    "merge_table_specs",
+    "observed_table_spec_paths_for_seed",
+    "table_spec_paths_with_seed_tables",
     "ProgressJudgment",
     "judge_progress",
 ]

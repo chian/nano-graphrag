@@ -8,6 +8,13 @@ import re
 from dataclasses import asdict, dataclass, field
 from typing import Any, Iterable, Mapping, Sequence
 
+from .completion import (
+    normalize_completion_state,
+    open_completion_bins,
+    open_completion_issues,
+    scope_probe_context,
+)
+
 
 _MISSING_STRINGS = {
     "",
@@ -120,6 +127,7 @@ class TableFillGoalTracker:
         table_rows: Mapping[str, list[dict[str, Any]]],
         gaps: Iterable[str],
         universe_estimate: Mapping[str, Any] | None = None,
+        completion_state: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         slots = _observed_slots(table_rows, self.table_schemas)
         open_slots = [slot for slot in slots if slot.status != "covered"]
@@ -145,6 +153,7 @@ class TableFillGoalTracker:
                 universe_estimate,
                 table_rows=table_rows,
             ),
+            "completion_scope": scope_probe_context(completion_state or {}),
         }
 
     def evaluate(
@@ -160,6 +169,7 @@ class TableFillGoalTracker:
         paper_budget_available: bool,
         gap_search_tasks: list[dict[str, Any]],
         goal_search_tasks: list[dict[str, Any]],
+        completion_state: Mapping[str, Any] | None = None,
         update_history: bool = True,
     ) -> FillGoalState:
         slots = _observed_slots(table_rows, self.table_schemas)
@@ -169,6 +179,9 @@ class TableFillGoalTracker:
             universe_estimate,
             table_rows=table_rows,
         )
+        completion = normalize_completion_state(completion_state)
+        completion_issues = open_completion_issues(completion)
+        completion_bins = open_completion_bins(completion)
 
         if (
             not update_history
@@ -209,6 +222,27 @@ class TableFillGoalTracker:
         }
 
         criteria = [
+            {
+                "name": "search space probed",
+                "satisfied": bool(completion.get("search_space_probes")),
+                "detail": (
+                    f"{len(completion.get('search_space_probes') or [])} "
+                    "search-space probes recorded"
+                ),
+            },
+            {
+                "name": "completion estimate consistent",
+                "satisfied": (
+                    completion.get("scope_status") == "estimated"
+                    and not completion_issues
+                    and not completion_bins
+                ),
+                "detail": (
+                    f"scope_status={completion.get('scope_status')}; "
+                    f"{len(completion_issues)} blocking estimate issues; "
+                    f"{len(completion_bins)} underexplored bins"
+                ),
+            },
             {
                 "name": "answer universe estimated",
                 "satisfied": estimate.get("status") == "estimated",
@@ -286,6 +320,7 @@ class TableFillGoalTracker:
         analysis = _analysis_rows(
             criteria=criteria,
             estimate=estimate,
+            completion=completion,
             catalog=catalog,
             coverage=coverage,
             search_state=search_state,
@@ -310,10 +345,11 @@ class TableFillGoalTracker:
             mode="table_fill",
             fulfilled=fulfilled,
             stop_rule=(
-                "Stop only after Firecrawl-backed discovery evidence yields a "
-                "question-specific answer-universe estimate, every final row "
-                "family has a source-supported lower-bound count, every estimated "
-                "count target is covered by the exported answer tables, and the "
+                "Stop only after search-space breadth probes and retrieved "
+                "discovery evidence yield a consistent question-specific "
+                "answer-universe estimate, every final row family has a "
+                "source-supported lower-bound count, every estimated count "
+                "target is covered by the exported answer tables, and the "
                 "search frontier has no queued work."
             ),
             unmet_criteria=unmet,
@@ -447,15 +483,23 @@ def normalize_universe_estimate(
 
     status = _clean_display(raw.get("status")).lower() or "missing"
     if status not in {"missing", "insufficient_evidence", "estimated"}:
-        status = "estimated" if targets else "insufficient_evidence"
-    if targets and not unestimated_targets:
-        status = "estimated"
-    elif status == "estimated":
+        status = "missing"
+    if unestimated_targets:
+        status = "insufficient_evidence"
+    elif targets and status != "estimated":
+        status = "insufficient_evidence"
+    elif not targets and status == "estimated":
         status = "insufficient_evidence"
 
     return {
         "status": status,
         "scope_summary": _clean_display(raw.get("scope_summary")),
+        "search_space_summary": _clean_display(raw.get("search_space_summary")),
+        "expected_axes": _record_list(raw.get("expected_axes") or raw.get("axes")),
+        "underexplored_bins": _record_list(raw.get("underexplored_bins")),
+        "estimate_issues": _record_list(
+            raw.get("estimate_issues") or raw.get("issues")
+        ),
         "count_targets": targets,
         "unestimated_count_targets": unestimated_targets,
         "out_of_scope_count_targets": out_of_scope_targets,
@@ -498,6 +542,23 @@ def merge_universe_estimates(
 
     merged = {
         **fresh,
+        "expected_axes": _merge_records(
+            fresh.get("expected_axes") or [],
+            base.get("expected_axes") or [],
+        ),
+        "underexplored_bins": (
+            fresh.get("underexplored_bins") or []
+            if isinstance(current, Mapping) and "underexplored_bins" in current
+            else base.get("underexplored_bins") or []
+        ),
+        "estimate_issues": (
+            fresh.get("estimate_issues") or []
+            if (
+                isinstance(current, Mapping)
+                and ("estimate_issues" in current or "issues" in current)
+            )
+            else base.get("estimate_issues") or []
+        ),
         "count_targets": [
             _attach_observed_count(target, table_rows or {})
             for target in count_targets
@@ -530,7 +591,10 @@ def merge_universe_estimates(
         ),
     }
     if merged["count_targets"] and not merged["unestimated_count_targets"]:
-        merged["status"] = "estimated"
+        if "estimated" in {base.get("status"), fresh.get("status")}:
+            merged["status"] = "estimated"
+        else:
+            merged["status"] = "insufficient_evidence"
     elif not merged["count_targets"] and not merged["unestimated_count_targets"]:
         merged["status"] = "missing"
     else:
@@ -554,6 +618,39 @@ def _merge_targets(
             continue
         merged[key] = dict(target)
     return list(merged.values())
+
+
+def _merge_records(
+    primary: Iterable[Mapping[str, Any]],
+    secondary: Iterable[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    merged: dict[str, dict[str, Any]] = {}
+    for record in [*list(primary), *list(secondary)]:
+        if not isinstance(record, Mapping):
+            continue
+        payload = dict(record)
+        key = (
+            _clean_key(payload.get("id"))
+            or _clean_key(payload.get("name"))
+            or _clean_key(payload.get("axis"))
+            or _clean_key(payload.get("description"))
+        )
+        if not key:
+            raw = json.dumps(payload, sort_keys=True, default=str)
+            key = hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
+        if key not in merged:
+            merged[key] = payload
+    return list(merged.values())
+
+
+def _record_list(value: Any) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    for item in _as_list(value):
+        if isinstance(item, Mapping):
+            records.append(dict(item))
+        elif item:
+            records.append({"description": str(item)})
+    return records
 
 
 def _target_keys(targets: Iterable[Mapping[str, Any]]) -> set[str]:
@@ -768,13 +865,44 @@ def _analysis_rows(
     *,
     criteria: list[dict[str, Any]],
     estimate: dict[str, Any],
+    completion: dict[str, Any],
     catalog: dict[str, Any],
     coverage: dict[str, Any],
     search_state: dict[str, Any],
 ) -> list[dict[str, Any]]:
     count_targets = estimate.get("count_targets") or []
     unestimated_targets = estimate.get("unestimated_count_targets") or []
+    completion_issues = open_completion_issues(completion)
+    completion_bins = open_completion_bins(completion)
     rows = [
+        {
+            "scope": "in_scope",
+            "outcome": (
+                f"{len(completion.get('search_space_probes') or [])} "
+                "search-space probes recorded"
+            ),
+            "what_it_means": (
+                "the completion estimate needs broad external samples before "
+                "it can bound how much the final tables should cover"
+            ),
+            "interpretation": _criterion_detail(criteria, "search space probed"),
+        },
+        {
+            "scope": "in_scope",
+            "outcome": (
+                f"completion scope status is {completion.get('scope_status')} "
+                f"with {len(completion_issues)} blocking issue(s) and "
+                f"{len(completion_bins)} underexplored bin(s)"
+            ),
+            "what_it_means": (
+                "the scoping critic must clear suspicious estimates and "
+                "underexplored regions before the stop rule can pass"
+            ),
+            "interpretation": _criterion_detail(
+                criteria,
+                "completion estimate consistent",
+            ),
+        },
         {
             "scope": "in_scope",
             "outcome": f"answer-universe estimate status is {estimate.get('status')}",
@@ -782,7 +910,7 @@ def _analysis_rows(
                 "the stop rule needs searched discovery evidence before it can "
                 "judge how large the final answer should be"
             ),
-            "interpretation": criteria[0]["detail"],
+            "interpretation": _criterion_detail(criteria, "answer universe estimated"),
         },
         {
             "scope": "in_scope",
@@ -791,7 +919,7 @@ def _analysis_rows(
                 "each count target is a question-specific lower bound that the "
                 "exported answer tables must meet"
             ),
-            "interpretation": criteria[1]["detail"],
+            "interpretation": _criterion_detail(criteria, "count targets estimated"),
         },
         {
             "scope": "in_scope",
@@ -800,7 +928,10 @@ def _analysis_rows(
                 "every final row family needs a searched lower bound before "
                 "the run can know what complete means"
             ),
-            "interpretation": criteria[2]["detail"],
+            "interpretation": _criterion_detail(
+                criteria,
+                "all target families quantified",
+            ),
         },
         {
             "scope": "in_scope",
@@ -812,7 +943,10 @@ def _analysis_rows(
                 "a nonzero value means the run has found fewer distinct table "
                 "slots than the discovery evidence says likely exist"
             ),
-            "interpretation": criteria[3]["detail"],
+            "interpretation": _criterion_detail(
+                criteria,
+                "all estimated count targets covered",
+            ),
         },
         {
             "scope": "in_scope",
@@ -836,7 +970,7 @@ def _analysis_rows(
                 "queued Firecrawl tasks still have to run before search can be "
                 "considered drained"
             ),
-            "interpretation": criteria[4]["detail"],
+            "interpretation": _criterion_detail(criteria, "search frontier drained"),
         },
     ]
     for target in count_targets[:8]:
@@ -859,6 +993,13 @@ def _analysis_rows(
             }
         )
     return rows
+
+
+def _criterion_detail(criteria: Sequence[Mapping[str, Any]], name: str) -> str:
+    for criterion in criteria:
+        if criterion.get("name") == name:
+            return str(criterion.get("detail") or "")
+    return ""
 
 
 def _table_profile(
@@ -928,6 +1069,19 @@ def _compact_estimate(
             }
             for target in normalized.get("unestimated_count_targets", [])[:10]
         ],
+        "expected_axes": [
+            {
+                key: axis.get(key)
+                for key in (
+                    "name",
+                    "description",
+                    "status",
+                )
+            }
+            for axis in normalized.get("expected_axes", [])[:10]
+        ],
+        "underexplored_bins": normalized.get("underexplored_bins", [])[:10],
+        "estimate_issues": normalized.get("estimate_issues", [])[:10],
         "unresolved_questions": normalized.get("unresolved_questions", [])[:10],
         "suggested_queries": normalized.get("suggested_queries", [])[:10],
     }
