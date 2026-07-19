@@ -7,6 +7,7 @@ import json
 import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
+import asyncio
 from typing import Any, Awaitable, Callable, Iterable, Mapping, Sequence
 
 from .derived_context import source_ids_from_row
@@ -16,6 +17,7 @@ ExtractFn = Callable[
     [str, list[dict[str, Any]], list[dict[str, Any]]],
     Awaitable[list[dict[str, Any]]],
 ]
+ProgressFn = Callable[[dict[str, Any]], None]
 
 
 BEST_GUESS_CONTEXT_COLUMNS = [
@@ -263,6 +265,8 @@ async def run_best_guess_recovery(
     evidence_chars: int = 5000,
     extract_fn: ExtractFn | None = None,
     llm_batch_size: int = 8,
+    llm_timeout_sec: float | None = None,
+    progress_fn: ProgressFn | None = None,
 ) -> dict[str, Any]:
     """Run local deterministic and LLM operators over existing evidence only."""
 
@@ -277,6 +281,8 @@ async def run_best_guess_recovery(
         evidence_chars=evidence_chars,
         extract_fn=extract_fn,
         llm_batch_size=llm_batch_size,
+        llm_timeout_sec=llm_timeout_sec,
+        progress_fn=progress_fn,
     ).run()
 
 
@@ -327,6 +333,8 @@ class _BestGuessRunner:
         evidence_chars: int,
         extract_fn: ExtractFn | None,
         llm_batch_size: int,
+        llm_timeout_sec: float | None = None,
+        progress_fn: ProgressFn | None = None,
     ):
         self.rows_by_name = rows_by_name
         self.count_targets = list(count_targets)
@@ -338,6 +346,10 @@ class _BestGuessRunner:
         self.evidence_chars = max(500, evidence_chars)
         self.extract_fn = extract_fn
         self.llm_batch_size = max(1, llm_batch_size)
+        self.llm_timeout_sec = (
+            float(llm_timeout_sec or 0.0) if llm_timeout_sec else None
+        )
+        self.progress_fn = progress_fn
         self.plan = build_best_guess_plan(
             rows_by_name,
             count_targets=self.count_targets,
@@ -350,6 +362,7 @@ class _BestGuessRunner:
         )
         self.candidates: list[BestGuessCandidate] = []
         self.attempts: list[dict[str, Any]] = []
+        self.errors: list[dict[str, Any]] = []
 
     async def run(self) -> dict[str, Any]:
         self.run_local()
@@ -390,20 +403,91 @@ class _BestGuessRunner:
 
         candidates: list[BestGuessCandidate] = []
         evidence_by_task = {str(item["task_id"]): item for item in evidence}
-        for batch in _batches(tasks, self.llm_batch_size):
+        batches = list(_batches(tasks, self.llm_batch_size))
+        self._emit_progress(
+            {
+                "event": "operator_start",
+                "operator": operator,
+                "open_row_slots": len(open_tasks),
+                "evidence_tasks": len(tasks),
+                "batches": len(batches),
+            }
+        )
+        for batch_index, batch in enumerate(batches):
             batch_evidence = [
                 evidence_by_task[task.id]
                 for task in batch
                 if task.id in evidence_by_task
             ]
-            parsed = await self.extract_fn(
-                operator,
-                [task.to_dict() for task in batch],
-                batch_evidence,
+            self._emit_progress(
+                {
+                    "event": "batch_start",
+                    "operator": operator,
+                    "batch_index": batch_index,
+                    "batch_count": len(batches),
+                    "row_slots": len(batch),
+                    "evidence_items": len(batch_evidence),
+                }
             )
-            candidates.extend(self._coerce_llm_candidates(operator, parsed))
+            try:
+                call = self.extract_fn(
+                    operator,
+                    [task.to_dict() for task in batch],
+                    batch_evidence,
+                )
+                if self.llm_timeout_sec and self.llm_timeout_sec > 0:
+                    parsed = await asyncio.wait_for(
+                        call,
+                        timeout=self.llm_timeout_sec,
+                    )
+                else:
+                    parsed = await call
+            except Exception as exc:  # noqa: BLE001 - one slow sidecar batch should not stop table export
+                error = {
+                    "operator": operator,
+                    "batch_index": batch_index,
+                    "row_slots": len(batch),
+                    "error_type": type(exc).__name__,
+                    "error": str(exc),
+                }
+                self.errors.append(error)
+                self._emit_progress({"event": "batch_error", **error})
+                continue
+
+            batch_candidates = self._coerce_llm_candidates(operator, parsed)
+            candidates.extend(batch_candidates)
+            self._emit_progress(
+                {
+                    "event": "batch_done",
+                    "operator": operator,
+                    "batch_index": batch_index,
+                    "batch_count": len(batches),
+                    "row_slots": len(batch),
+                    "candidate_count": len(batch_candidates),
+                    "resolved_row_slots": len(self._resolved()),
+                }
+            )
 
         self._run_operator(operator, candidates, attempted=len(tasks))
+        self._emit_progress(
+            {
+                "event": "operator_done",
+                "operator": operator,
+                "attempted_row_slots": len(tasks),
+                "candidate_count": len(candidates),
+                "error_count": len(
+                    [
+                        error
+                        for error in self.errors
+                        if error.get("operator") == operator
+                    ]
+                ),
+                "open_row_slots_after": max(
+                    0,
+                    len(self.tasks) - len(self._resolved()),
+                ),
+            }
+        )
 
     def _run_operator(
         self,
@@ -457,7 +541,16 @@ class _BestGuessRunner:
             "candidates": [candidate.to_dict() for candidate in self.candidates],
             "resolutions": resolved,
             "coverage": coverage,
+            "errors": list(self.errors),
         }
+
+    def _emit_progress(self, record: dict[str, Any]) -> None:
+        if self.progress_fn is None:
+            return
+        try:
+            self.progress_fn(dict(record))
+        except Exception:
+            return
 
     def _same_row_candidates(
         self,

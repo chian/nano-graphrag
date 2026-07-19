@@ -114,6 +114,7 @@ def build_config(args: argparse.Namespace) -> PipelineConfig:
         best_guess_max_tasks=args.best_guess_max_tasks,
         best_guess_evidence_chars=args.best_guess_evidence_chars,
         best_guess_llm_batch_size=args.best_guess_llm_batch_size,
+        best_guess_llm_timeout_sec=args.best_guess_llm_timeout_sec,
         target_confidence=args.target_confidence,
         model=args.model,
     )
@@ -377,6 +378,15 @@ def main() -> None:
         type=int,
         default=8,
         help="Maximum best-guess extraction tasks per local evidence LLM call.",
+    )
+    parser.add_argument(
+        "--best-guess-llm-timeout-sec",
+        type=float,
+        default=None,
+        help=(
+            "Optional per-batch timeout for LLM best-guess sidecar extraction; "
+            "timed-out batches are recorded and skipped."
+        ),
     )
     parser.add_argument("--target-confidence", type=float, default=0.75, help="Stop when assessment confidence >= this and answer is sufficient.")
     parser.add_argument(

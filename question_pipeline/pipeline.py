@@ -163,6 +163,7 @@ class PipelineConfig:
     best_guess_max_tasks: int = 160
     best_guess_evidence_chars: int = 5000
     best_guess_llm_batch_size: int = 8
+    best_guess_llm_timeout_sec: Optional[float] = None
 
     # Stopping
     target_confidence: float = 0.75
@@ -435,6 +436,11 @@ class QuestionPipeline:
             raise ValueError("best_guess_evidence_chars must be positive")
         if config.best_guess_llm_batch_size <= 0:
             raise ValueError("best_guess_llm_batch_size must be positive")
+        if (
+            config.best_guess_llm_timeout_sec is not None
+            and config.best_guess_llm_timeout_sec <= 0
+        ):
+            raise ValueError("best_guess_llm_timeout_sec must be positive")
         if config.pipeline_mode == PIPELINE_MODE_TABLE_FILL:
             if config.answer_mode != "table":
                 raise ValueError("table_fill pipeline_mode requires answer_mode='table'")
@@ -1496,6 +1502,8 @@ genuinely separate view that is not covered by a listed target."""
                 source_texts=source_texts,
                 evidence_chars=self.config.best_guess_evidence_chars,
                 llm_batch_size=self.config.best_guess_llm_batch_size,
+                llm_timeout_sec=self.config.best_guess_llm_timeout_sec,
+                progress_fn=self._best_guess_progress_writer(round_idx),
                 extract_fn=self._infer_best_guess_candidates,
             )
         else:
@@ -1506,6 +1514,28 @@ genuinely separate view that is not covered by a listed target."""
             state,
         )
         return state
+
+    def _best_guess_progress_writer(self, round_idx: int | str):
+        self.derived_dir.mkdir(parents=True, exist_ok=True)
+        path = self.derived_dir / f"round_{round_idx}_best_guess_progress.jsonl"
+
+        def write_progress(record: Dict[str, Any]) -> None:
+            payload = {
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "round": round_idx,
+                **record,
+            }
+            with path.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps(payload, default=str) + "\n")
+            print(
+                "  Best-guess "
+                f"{payload.get('operator')} {payload.get('event')} "
+                f"batch={payload.get('batch_index', '-')}/"
+                f"{payload.get('batch_count', '-')}",
+                flush=True,
+            )
+
+        return write_progress
 
     async def _infer_best_guess_candidates(
         self,
@@ -1560,6 +1590,7 @@ genuinely separate view that is not covered by a listed target."""
                         "coverage": state.get("coverage") or {},
                         "operator_summary": state.get("operator_summary") or [],
                         "overlap": state.get("overlap") or [],
+                        "errors": state.get("errors") or [],
                     }
                 ],
                 None,
