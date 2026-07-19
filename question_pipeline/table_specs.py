@@ -155,6 +155,13 @@ class TableSpec:
             if table.deliverable
         }
 
+    def all_columns_by_table(self) -> dict[str, list[str]]:
+        return {
+            name: [column.name for column in table.all_columns()]
+            for name, table in self.tables.items()
+            if table.deliverable
+        }
+
     def completeness_columns_by_table(self) -> dict[str, list[str]]:
         return {
             name: list(table.completeness_columns())

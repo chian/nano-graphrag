@@ -470,6 +470,7 @@ class QuestionPipeline:
         )
         self.table_spec_id = self._table_spec_id(self.table_spec)
         self._required_columns_by_table = self.table_spec.required_columns_by_table()
+        self._all_columns_by_table = self.table_spec.all_columns_by_table()
         self._completeness_columns_by_table = (
             self.table_spec.completeness_columns_by_table()
         )
@@ -477,6 +478,11 @@ class QuestionPipeline:
             TableFillGoalTracker(
                 table_schemas=(
                     self._required_columns_by_table
+                    if not self.table_spec.is_empty
+                    else TABLE_REQUIRED_COLUMNS
+                ),
+                table_columns=(
+                    self._all_columns_by_table
                     if not self.table_spec.is_empty
                     else TABLE_REQUIRED_COLUMNS
                 ),
@@ -3397,6 +3403,11 @@ genuinely separate view that is not covered by a listed target."""
             return self.table_spec.deliverable_names()
         return self.config.table_variables or sorted(rows_by_name)
 
+    def _all_columns(self, table_name: str) -> List[str]:
+        if self._all_columns_by_table:
+            return self._all_columns_by_table.get(table_name, [])
+        return TABLE_REQUIRED_COLUMNS.get(table_name, [])
+
     def _required_columns(self, table_name: str) -> List[str]:
         if self._required_columns_by_table:
             return self._required_columns_by_table.get(table_name, [])
@@ -3687,7 +3698,10 @@ genuinely separate view that is not covered by a listed target."""
         *,
         table_name: str = "",
     ) -> None:
-        fieldnames: List[str] = list(self._required_columns(table_name))
+        fieldnames: List[str] = (
+            list(self._all_columns(table_name))
+            or list(self._required_columns(table_name))
+        )
         for row in rows:
             for key in row:
                 if key not in fieldnames:

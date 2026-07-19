@@ -119,6 +119,7 @@ class TableFillGoalTracker:
     """Track whether exported answer tables fill a searched universe estimate."""
 
     table_schemas: Mapping[str, Sequence[str]] = field(default_factory=dict)
+    table_columns: Mapping[str, Sequence[str]] = field(default_factory=dict)
     all_seen_slot_keys: set[str] = field(default_factory=set)
     new_slot_history: list[dict[str, Any]] = field(default_factory=list)
 
@@ -138,7 +139,14 @@ class TableFillGoalTracker:
                 if str(name).strip()
             ),
             "tables": [
-                _table_profile(name, rows, self.table_schemas.get(name, ()))
+                _table_profile(
+                    name,
+                    rows,
+                    self.table_columns.get(
+                        name,
+                        self.table_schemas.get(name, ()),
+                    ),
+                )
                 for name, rows in table_rows.items()
             ],
             "observed_slot_count": len(slots),
@@ -363,6 +371,10 @@ class TableFillGoalTracker:
                 "table_schemas": {
                     name: list(columns)
                     for name, columns in self.table_schemas.items()
+                },
+                "table_columns": {
+                    name: list(columns)
+                    for name, columns in self.table_columns.items()
                 },
             },
         )
