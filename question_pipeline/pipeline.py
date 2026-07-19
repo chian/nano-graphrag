@@ -651,7 +651,11 @@ class QuestionPipeline:
             for index, row in enumerate(source_rows):
                 if not isinstance(row, dict):
                     continue
-                match = self._seed_row_match(row, target_table)
+                match = self._seed_row_match(
+                    row,
+                    target_table,
+                    migration=migration,
+                )
                 if not match.get("matches"):
                     continue
                 rows.append(
@@ -3189,7 +3193,13 @@ genuinely separate view that is not covered by a listed target."""
             "seed tables with deliverable: false."
         )
 
-    def _seed_row_match(self, row: Dict[str, Any], table: Any) -> Dict[str, Any]:
+    def _seed_row_match(
+        self,
+        row: Dict[str, Any],
+        table: Any,
+        *,
+        migration: Any | None = None,
+    ) -> Dict[str, Any]:
         required = [
             column
             for column in table.required_columns()
@@ -3200,6 +3210,13 @@ genuinely separate view that is not covered by a listed target."""
             if self._row_matches_column(row, column):
                 matched_columns.append(column.name)
 
+        context_terms = self._seed_migration_context_terms(table, migration)
+        row_value_key = self._seed_match_key(self._row_value_text(row))
+        matched_context_terms = [
+            term
+            for term in context_terms
+            if term in row_value_key
+        ]
         matched_set = set(matched_columns)
         matched_required = [
             column
@@ -3207,13 +3224,20 @@ genuinely separate view that is not covered by a listed target."""
             if column in matched_set
         ]
         threshold = min(2, len(required)) if required else 1
+        matched_required_threshold = (
+            len(matched_required) >= threshold
+            if required
+            else bool(matched_columns)
+        )
+        matches = (
+            bool(matched_context_terms)
+            if migration is not None
+            else matched_required_threshold
+        )
         return {
-            "matches": (
-                len(matched_required) >= threshold
-                if required
-                else bool(matched_columns)
-            ),
+            "matches": matches,
             "matched_columns": matched_columns,
+            "matched_context_terms": matched_context_terms,
             "matched_required_columns": matched_required,
             "unmatched_required_columns": [
                 column
@@ -3246,22 +3270,115 @@ genuinely separate view that is not covered by a listed target."""
         return re.sub(r"[^a-z0-9]+", "_", str(value or "").lower()).strip("_")
 
     @staticmethod
+    def _row_value_text(value: Any) -> str:
+        if isinstance(value, Mapping):
+            return " ".join(
+                QuestionPipeline._row_value_text(inner)
+                for inner in value.values()
+            )
+        if isinstance(value, (list, tuple, set)):
+            return " ".join(
+                QuestionPipeline._row_value_text(inner)
+                for inner in value
+            )
+        return str(value or "")
+
+    @classmethod
+    def _seed_migration_context_terms(
+        cls,
+        table: Any,
+        migration: Any | None,
+    ) -> List[str]:
+        terms: List[str] = []
+        for value in [
+            getattr(table, "name", ""),
+            getattr(table, "description", ""),
+            getattr(table, "grain", ""),
+            getattr(migration, "to_table", "") if migration is not None else "",
+            getattr(migration, "instructions", "") if migration is not None else "",
+        ]:
+            terms.extend(
+                term
+                for term in re.split(r"[^A-Za-z0-9]+", str(value or "").lower())
+                if not cls._seed_match_term_too_generic(term)
+            )
+
+        return sorted(set(terms))
+
+    @staticmethod
     def _seed_match_term_too_generic(value: str) -> bool:
         return value in {
+            "about",
+            "and",
+            "answer",
+            "assumptions",
+            "atomic",
+            "best",
+            "broad",
+            "can",
+            "carry",
+            "column",
+            "context",
+            "contexts",
+            "country",
+            "cov",
+            "distinct",
+            "drop",
+            "exact",
+            "estimate",
+            "estimates",
             "field",
+            "final",
+            "for",
+            "from",
+            "geographic",
+            "guess",
             "item",
+            "into",
+            "keep",
+            "like",
+            "level",
+            "location",
+            "locations",
             "measure",
             "method",
+            "methods",
             "metric",
+            "model",
             "name",
+            "not",
             "number",
+            "one",
+            "other",
+            "per",
+            "plot",
+            "plotted",
+            "preserve",
+            "provenance",
+            "qualifier",
+            "qualifiers",
+            "reproduction",
             "reported",
+            "row",
+            "rows",
             "source",
+            "strain",
+            "strains",
+            "table",
+            "temporal",
             "text",
+            "that",
+            "time",
+            "to",
             "type",
             "unit",
             "units",
             "value",
+            "values",
+            "variant",
+            "variants",
+            "with",
+            "windows",
         } or len(value) < 3
 
     def _seed_table_migrations_available(self) -> bool:
