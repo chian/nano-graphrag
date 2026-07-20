@@ -3484,10 +3484,12 @@ genuinely separate view that is not covered by a listed target."""
         seed_table_rows = self._table_rows_by_variable(seed_exports)
         bootstrap_round_idx = self._round_label(0)
         bootstrap_idx = 0
+        max_bootstrap_waves = max(0, self.config.completion_probe_rounds)
 
         while (
             self._paper_budget_available()
             and not self._universe_estimate_actionable()
+            and bootstrap_idx < max_bootstrap_waves
         ):
             source_count_before = len(self.goal_discovery_sources)
             await self._run_completion_probes(
@@ -3547,6 +3549,15 @@ genuinely separate view that is not covered by a listed target."""
             ):
                 break
 
+        if (
+            not self._universe_estimate_actionable()
+            and bootstrap_idx >= max_bootstrap_waves
+        ):
+            print(
+                "  Stopping task-goal bootstrap after "
+                f"{bootstrap_idx} catalog wave(s)."
+            )
+
         if bootstrap_idx == 0:
             self._record_task_goal(
                 f"bootstrap_{bootstrap_round_idx}",
@@ -3599,6 +3610,68 @@ genuinely separate view that is not covered by a listed target."""
             goal_state,
         )
         return table_gap_tasks, [*catalog_tasks, *target_deficit_tasks]
+
+    async def _expand_unfulfilled_table_goal(
+        self,
+        current_round_idx: int | str,
+        next_round_idx: int,
+        table_exports: List[Dict[str, Any]],
+        goal_state: Optional[FillGoalState],
+    ) -> tuple[
+        List[Dict[str, Any]],
+        List[Dict[str, Any]],
+        Optional[FillGoalState],
+        Dict[str, Any],
+    ]:
+        gap_search_tasks: List[Dict[str, Any]] = []
+        goal_search_tasks: List[Dict[str, Any]] = []
+        expansion = {
+            "attempted": False,
+            "reason": "",
+            "current_round": current_round_idx,
+            "next_round": next_round_idx,
+            "pending_before": self.search_frontier.pending_count,
+            "pending_after": self.search_frontier.pending_count,
+            "gap_search_tasks": 0,
+            "goal_search_tasks": 0,
+        }
+        if goal_state is None or goal_state.fulfilled:
+            expansion["reason"] = (
+                "task_goal_fulfilled"
+                if goal_state is not None
+                else "task_goal_unavailable"
+            )
+            return gap_search_tasks, goal_search_tasks, goal_state, expansion
+        if not self._paper_budget_available():
+            expansion["reason"] = "paper_budget_exhausted"
+            return gap_search_tasks, goal_search_tasks, goal_state, expansion
+
+        expansion["attempted"] = True
+        table_gap_tasks, target_deficit_tasks = await self._enqueue_deficit_searches(
+            next_round_idx,
+            table_exports,
+            goal_state,
+        )
+        gap_search_tasks.extend(table_gap_tasks)
+        goal_search_tasks.extend(target_deficit_tasks)
+        goal_state = self._record_task_goal(
+            current_round_idx,
+            table_exports,
+            gap_search_tasks=gap_search_tasks,
+            goal_search_tasks=goal_search_tasks,
+            update_history=False,
+        )
+        expansion["pending_after"] = self.search_frontier.pending_count
+        expansion["gap_search_tasks"] = len(gap_search_tasks)
+        expansion["goal_search_tasks"] = len(goal_search_tasks)
+        if gap_search_tasks or goal_search_tasks:
+            expansion["reason"] = "queued_deficit_searches"
+        elif self.search_provider_error:
+            expansion["reason"] = "search_provider_error"
+            expansion["error"] = self.search_provider_error
+        else:
+            expansion["reason"] = "no_deficit_searches_queued"
+        return gap_search_tasks, goal_search_tasks, goal_state, expansion
 
     def _enqueue_seed_frontier_searches(self, round_idx: int) -> List[Dict[str, Any]]:
         if not self.seed_frontier_tasks:
@@ -3955,6 +4028,14 @@ genuinely separate view that is not covered by a listed target."""
                     goal_search_tasks=[],
                 )
                 self._annotate_recent_target_outcomes(goal_state)
+                gap_search_tasks, goal_search_tasks, goal_state, deficit_expansion = (
+                    await self._expand_unfulfilled_table_goal(
+                        round_idx,
+                        self._round_label(local_round_idx + 1),
+                        table_exports,
+                        goal_state,
+                    )
+                )
                 round_record = {
                     "round": round_idx,
                     "queries": queries,
@@ -3967,8 +4048,9 @@ genuinely separate view that is not covered by a listed target."""
                     "search_outcomes": self.last_search_batch.outcome_dicts(),
                     "table_exports": table_exports,
                     "derived_table_exports": self.last_derived_table_exports,
-                    "gap_search_tasks": [],
-                    "goal_search_tasks": [],
+                    "gap_search_tasks": gap_search_tasks,
+                    "goal_search_tasks": goal_search_tasks,
+                    "deficit_expansion": deficit_expansion,
                     "task_goal": goal_state.to_dict() if goal_state else None,
                     "skipped_gasl": True,
                     "skip_reason": "no_new_papers",
@@ -3990,7 +4072,9 @@ genuinely separate view that is not covered by a listed target."""
                     print("\n  Task-level stop criteria fulfilled; stopping.")
                     break
                 if self.search_frontier.pending_count <= 0:
-                    print("\n  Search frontier exhausted; stopping.")
+                    print(
+                        "\n  Search frontier exhausted after deficit expansion; stopping."
+                    )
                     break
                 continue
 
@@ -4090,9 +4174,7 @@ genuinely separate view that is not covered by a listed target."""
             should_expand_for_answer = (
                 goal_state is None and not (sufficient and confident)
             )
-            if self._paper_budget_available() and (
-                should_expand_for_goal or should_expand_for_answer
-            ):
+            if self._paper_budget_available() and should_expand_for_answer:
                 table_gap_tasks, target_deficit_tasks = (
                     await self._enqueue_deficit_searches(
                         self._round_label(local_round_idx + 1),
@@ -4102,14 +4184,25 @@ genuinely separate view that is not covered by a listed target."""
                 )
                 gap_search_tasks.extend(table_gap_tasks)
                 goal_search_tasks.extend(target_deficit_tasks)
-                if should_expand_for_goal:
-                    goal_state = self._record_task_goal(
+            deficit_expansion: Dict[str, Any] = {
+                "attempted": False,
+                "reason": "not_needed",
+                "current_round": round_idx,
+                "next_round": self._round_label(local_round_idx + 1),
+                "pending_before": self.search_frontier.pending_count,
+                "pending_after": self.search_frontier.pending_count,
+                "gap_search_tasks": 0,
+                "goal_search_tasks": 0,
+            }
+            if should_expand_for_goal:
+                gap_search_tasks, goal_search_tasks, goal_state, deficit_expansion = (
+                    await self._expand_unfulfilled_table_goal(
                         round_idx,
+                        self._round_label(local_round_idx + 1),
                         table_exports,
-                        gap_search_tasks=gap_search_tasks,
-                        goal_search_tasks=goal_search_tasks,
-                        update_history=False,
+                        goal_state,
                     )
+                )
 
             round_record = {
                 "round": round_idx,
@@ -4125,6 +4218,7 @@ genuinely separate view that is not covered by a listed target."""
                 "derived_table_exports": self.last_derived_table_exports,
                 "gap_search_tasks": gap_search_tasks,
                 "goal_search_tasks": goal_search_tasks,
+                "deficit_expansion": deficit_expansion,
                 "task_goal": goal_state.to_dict() if goal_state else None,
             }
             self.rounds.append(round_record)
