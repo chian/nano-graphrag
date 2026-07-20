@@ -48,7 +48,7 @@ from .reward import (
     REWARD_COMPONENT_COLUMNS,
     load_seed_best_guess_rows,
     merge_best_guess_rows,
-    score_table_fill_round,
+    score_table_fill_snapshot,
 )
 from .best_guess import (
     BEST_GUESS_CANDIDATE_COLUMNS,
@@ -98,7 +98,7 @@ __all__ = [
     "numeric_candidates_from_tables",
     "load_seed_best_guess_rows",
     "merge_best_guess_rows",
-    "score_table_fill_round",
+    "score_table_fill_snapshot",
     "infer_best_guess_context",
     "run_best_guess_recovery",
     "table_gap_search_tasks",

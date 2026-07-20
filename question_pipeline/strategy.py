@@ -616,7 +616,7 @@ Return JSON:
       "suggested_queries": ["specific next query"]
     }}
   ],
-  "unresolved_questions": ["what the next scoping or deficit round must answer"],
+  "unresolved_questions": ["what the next scoping or deficit search wave must answer"],
   "suggested_queries": ["broad or bin-specific query"],
   "rationale": "one concise explanation"
 }}"""

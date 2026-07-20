@@ -177,7 +177,7 @@ def completion_probe_summary(
     *,
     query: str,
     results: Iterable[Mapping[str, Any]],
-    round_idx: int | str,
+    artifact_label: int | str,
     purpose: str = "",
     axis_bindings: Mapping[str, Any] | None = None,
     error: str = "",
@@ -199,11 +199,12 @@ def completion_probe_summary(
         "id": _stable_id(
             {
                 "query": _normalize_text(query),
-                "round": str(round_idx),
+                "artifact_label": str(artifact_label),
                 "purpose": purpose,
             }
         ),
-        "round": round_idx,
+        "artifact_label": artifact_label,
+        "pipeline_round": artifact_label if isinstance(artifact_label, int) else None,
         "query": str(query or "").strip(),
         "purpose": str(purpose or "").strip(),
         "axis_bindings": dict(axis_bindings or {}),
@@ -428,11 +429,18 @@ def _coerce_probe(raw: Any) -> dict[str, Any]:
     result_count = _as_int(raw.get("result_count"))
     if result_count <= 0 and results:
         result_count = len(results)
+    artifact_label = raw.get("artifact_label", raw.get("round"))
+    raw_pipeline_round = raw.get("pipeline_round")
+    if not isinstance(raw_pipeline_round, int):
+        raw_pipeline_round = (
+            raw.get("round") if isinstance(raw.get("round"), int) else None
+        )
     payload = {
         "id": str(raw.get("id") or _stable_id({"query": _normalize_text(query)}))[
             :24
         ],
-        "round": raw.get("round"),
+        "artifact_label": artifact_label,
+        "pipeline_round": raw_pipeline_round,
         "query": query,
         "purpose": _clean_display(raw.get("purpose")),
         "axis_bindings": (

@@ -801,7 +801,7 @@ def load_seed_search_outcomes(path: str | Path | None) -> list[dict[str, Any]]:
 
 
 def load_seed_frontier_tasks(path: str | Path | None) -> list[SearchTask]:
-    """Load still-pending search tasks from previous round artifacts."""
+    """Load still-pending search tasks from previous frontier artifacts."""
     tasks: "OrderedDict[str, SearchTask]" = OrderedDict()
     for root in _seed_source_roots(path):
         for file_path in _seed_frontier_files(root):

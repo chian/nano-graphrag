@@ -97,7 +97,8 @@ class FillDeficit:
 
 @dataclass
 class FillGoalState:
-    round: int | str
+    label: int | str
+    round: int | None
     mode: str
     fulfilled: bool
     stop_rule: str
@@ -167,7 +168,7 @@ class TableFillGoalTracker:
     def evaluate(
         self,
         *,
-        round_idx: int | str,
+        artifact_label: int | str,
         table_rows: Mapping[str, list[dict[str, Any]]],
         universe_estimate: Mapping[str, Any] | None,
         search_frontier: Mapping[str, Any],
@@ -194,7 +195,7 @@ class TableFillGoalTracker:
         if (
             not update_history
             and self.new_slot_history
-            and self.new_slot_history[-1].get("round") == round_idx
+            and self.new_slot_history[-1].get("label") == artifact_label
         ):
             new_slots = set(self.new_slot_history[-1].get("new_slots") or [])
         else:
@@ -203,7 +204,12 @@ class TableFillGoalTracker:
             self.all_seen_slot_keys.update(slot_keys)
             self.new_slot_history.append(
                 {
-                    "round": round_idx,
+                    "label": artifact_label,
+                    "round": (
+                        artifact_label
+                        if isinstance(artifact_label, int)
+                        else None
+                    ),
                     "new_count": len(new_slots),
                     "new_slots": sorted(new_slots),
                 }
@@ -349,7 +355,8 @@ class TableFillGoalTracker:
             )
 
         return FillGoalState(
-            round=round_idx,
+            label=artifact_label,
+            round=artifact_label if isinstance(artifact_label, int) else None,
             mode="table_fill",
             fulfilled=fulfilled,
             stop_rule=(

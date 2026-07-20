@@ -319,7 +319,7 @@ async def test_synthesize_schema_with_test(monkeypatch):
         llm,
         "How effective is UV-C against TB?",
         sample_texts=[{"id": "s1", "text": "UV-C kills TB"}],
-        max_review_rounds=1,
+        max_review_passes=1,
     )
     assert "ENGINEERING_CONTROL" in result.schema.entity_types
     assert any(h["stage"] == "test" for h in result.history)

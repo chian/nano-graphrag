@@ -72,7 +72,7 @@ def build_config(args: argparse.Namespace) -> PipelineConfig:
         output_dir=args.output_dir,
         schema_name=args.schema,
         graph_path=args.graph_path,
-        schema_review_rounds=args.schema_review_rounds,
+        schema_review_passes=args.schema_review_passes,
         schema_expectations=args.expectations or "",
         firecrawl_api_key=args.firecrawl_api_key,
         max_rounds=args.max_rounds,
@@ -92,7 +92,7 @@ def build_config(args: argparse.Namespace) -> PipelineConfig:
         task_goal_search_tasks=task_goal_search_tasks,
         completion_probe_tasks=args.completion_probe_tasks,
         completion_probe_results=args.completion_probe_results,
-        completion_probe_rounds=args.completion_probe_rounds,
+        completion_probe_waves=args.completion_probe_waves,
         chunk_size=args.chunk_size,
         chunk_overlap=args.chunk_overlap,
         extraction_concurrency=args.extraction_concurrency,
@@ -149,7 +149,7 @@ def main() -> None:
         help="Existing GraphML file to seed the graph before running GASL.",
     )
     parser.add_argument("--expectations", default=None, help="Optional scope/expectation notes for schema synthesis.")
-    parser.add_argument("--schema-review-rounds", type=int, default=2, help="Generate<->judge rounds for schema synthesis.")
+    parser.add_argument("--schema-review-passes", type=int, default=2, help="Generate<->judge passes for schema synthesis.")
 
     parser.add_argument("--max-rounds", type=int, default=4, help="Max search/build/answer rounds.")
     parser.add_argument("--max-papers", type=int, default=40, help="Total paper budget.")
@@ -219,7 +219,7 @@ def main() -> None:
         help="Search results to inspect per completion breadth probe.",
     )
     parser.add_argument(
-        "--completion-probe-rounds",
+        "--completion-probe-waves",
         type=int,
         default=2,
         help=(
@@ -316,7 +316,7 @@ def main() -> None:
         "--seed-frontier-path",
         default=None,
         help=(
-            "Previous round JSON, stop-criteria JSON, or run directory whose "
+            "Previous frontier JSON, stop-criteria JSON, or run directory whose "
             "queued search tasks should be requeued before generating new "
             "table-fill deficit searches."
         ),

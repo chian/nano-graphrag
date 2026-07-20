@@ -94,7 +94,7 @@ from .reward import (
     REWARD_COMPONENT_COLUMNS,
     load_seed_best_guess_rows,
     merge_best_guess_rows,
-    score_table_fill_round,
+    score_table_fill_snapshot,
 )
 from .strategy_state import (
     fallback_query_for_operator,
@@ -118,7 +118,7 @@ class PipelineConfig:
     # Schema: if schema_name is set, load it; otherwise synthesize one.
     schema_name: Optional[str] = None
     graph_path: Optional[str] = None
-    schema_review_rounds: int = 2
+    schema_review_passes: int = 2
     schema_expectations: str = ""
 
     # Search / corpus limits
@@ -171,7 +171,7 @@ class PipelineConfig:
     task_goal_search_tasks: int = 0
     completion_probe_tasks: int = 4
     completion_probe_results: int = 5
-    completion_probe_rounds: int = 2
+    completion_probe_waves: int = 2
 
     # LLM
     model: Optional[str] = None
@@ -460,8 +460,8 @@ class QuestionPipeline:
             raise ValueError("completion_probe_tasks must be nonnegative")
         if config.completion_probe_results <= 0:
             raise ValueError("completion_probe_results must be positive")
-        if config.completion_probe_rounds < 0:
-            raise ValueError("completion_probe_rounds must be nonnegative")
+        if config.completion_probe_waves < 0:
+            raise ValueError("completion_probe_waves must be nonnegative")
         self.seed_tables: SeedTables = load_seed_tables(config.seed_tables_dir)
         self.table_spec: TableSpec = load_table_spec_with_seed_tables(
             self.seed_tables.rows_by_name,
@@ -813,6 +813,16 @@ genuinely separate view that is not covered by a listed target."""
     def _round_label(self, local_round_idx: int) -> int:
         return self.round_offset + local_round_idx
 
+    @staticmethod
+    def _artifact_stem(artifact_label: int | str) -> str:
+        if isinstance(artifact_label, int):
+            return f"round_{artifact_label}"
+        return str(artifact_label).strip() or "artifact"
+
+    @staticmethod
+    def _pipeline_round(artifact_label: int | str) -> int | None:
+        return artifact_label if isinstance(artifact_label, int) else None
+
     # ------------------------------------------------------------------ #
     # Fetching
     # ------------------------------------------------------------------ #
@@ -939,6 +949,8 @@ genuinely separate view that is not covered by a listed target."""
         latest_goal = self.goal_states[-1] if self.goal_states else {}
         if isinstance(latest_goal, dict):
             latest_goal = {
+                "artifact_label": latest_goal.get("label")
+                or latest_goal.get("artifact_label"),
                 "round": latest_goal.get("round"),
                 "fulfilled": latest_goal.get("fulfilled"),
                 "unmet_criteria": latest_goal.get("unmet_criteria", [])[:8],
@@ -1007,7 +1019,7 @@ genuinely separate view that is not covered by a listed target."""
                 self.config.question,
                 sample_texts=[{"id": p["id"], "text": p["text"]} for p in probe_papers],
                 expectations=self.config.schema_expectations,
-                max_review_rounds=self.config.schema_review_rounds,
+                max_review_passes=self.config.schema_review_passes,
                 run_extraction_test=bool(probe_papers),
             )
             self.schema = result.schema
@@ -1357,7 +1369,7 @@ genuinely separate view that is not covered by a listed target."""
         return exports
 
     async def _export_seed_tables(
-        self, round_idx: int | str = "seed",
+        self, artifact_label: int | str = "seed",
     ) -> List[Dict[str, Any]]:
         if self.config.answer_mode != "table":
             return []
@@ -1365,7 +1377,7 @@ genuinely separate view that is not covered by a listed target."""
             return []
 
         return await self._write_table_exports(
-            round_idx,
+            artifact_label,
             self.seed_tables.rows_by_name,
             seed_row_counts={
                 name: len(rows)
@@ -1376,12 +1388,13 @@ genuinely separate view that is not covered by a listed target."""
 
     async def _write_table_exports(
         self,
-        round_idx: int | str,
+        artifact_label: int | str,
         rows_by_name: Dict[str, List[Dict[str, Any]]],
         *,
         seed_row_counts: Dict[str, int],
         new_row_counts: Dict[str, int],
     ) -> List[Dict[str, Any]]:
+        artifact_stem = self._artifact_stem(artifact_label)
         exports: List[Dict[str, Any]] = []
         rows_by_name = {
             **self.table_spec.empty_rows_by_table(),
@@ -1394,8 +1407,8 @@ genuinely separate view that is not covered by a listed target."""
                 continue
 
             self.tables_dir.mkdir(parents=True, exist_ok=True)
-            json_path = self.tables_dir / f"round_{round_idx}_{name}.json"
-            csv_path = self.tables_dir / f"round_{round_idx}_{name}.csv"
+            json_path = self.tables_dir / f"{artifact_stem}_{name}.json"
+            csv_path = self.tables_dir / f"{artifact_stem}_{name}.csv"
             json_path.write_text(
                 json.dumps(items, indent=2, default=str), encoding="utf-8"
             )
@@ -1406,7 +1419,8 @@ genuinely separate view that is not covered by a listed target."""
                 csv_written = True
 
             record = {
-                "round": round_idx,
+                "artifact_label": artifact_label,
+                "pipeline_round": self._pipeline_round(artifact_label),
                 "variable": name,
                 "rows": len(items),
                 "seed_rows": seed_row_counts.get(name, 0),
@@ -1420,14 +1434,14 @@ genuinely separate view that is not covered by a listed target."""
             self.table_exports.append(record)
 
         if exports:
-            manifest_path = self.tables_dir / f"round_{round_idx}_manifest.json"
+            manifest_path = self.tables_dir / f"{artifact_stem}_manifest.json"
             manifest_path.write_text(
                 json.dumps(exports, indent=2, default=str), encoding="utf-8"
             )
-            self._write_observed_table_spec(round_idx, rows_by_name, table_names)
+            self._write_observed_table_spec(artifact_label, rows_by_name, table_names)
 
         self.last_derived_table_exports = await self._write_derived_exports(
-            round_idx,
+            artifact_label,
             {
                 table_name: rows_by_name.get(table_name, [])
                 for table_name in table_names
@@ -1437,21 +1451,21 @@ genuinely separate view that is not covered by a listed target."""
 
     async def _write_derived_exports(
         self,
-        round_idx: int | str,
+        artifact_label: int | str,
         rows_by_name: Dict[str, List[Dict[str, Any]]],
     ) -> List[Dict[str, Any]]:
         best_guess_state = await self._run_best_guess_recovery(
-            round_idx,
+            artifact_label,
             rows_by_name,
         )
         best_guess_context = best_guess_context_by_row_key(best_guess_state)
         numeric_exports = self._write_numeric_candidate_exports(
-            round_idx,
+            artifact_label,
             rows_by_name,
             best_guess_context_by_row=best_guess_context,
         )
         self.last_reward_exports = self._write_reward_exports(
-            round_idx,
+            artifact_label,
             previous_rows_by_name=self.seed_tables.rows_by_name,
             current_rows_by_name=rows_by_name,
             best_guess_state=best_guess_state,
@@ -1465,12 +1479,12 @@ genuinely separate view that is not covered by a listed target."""
             *numeric_exports,
             *self.last_reward_exports,
         ]
-        self._write_derived_manifest(round_idx, exports)
+        self._write_derived_manifest(artifact_label, exports)
         return exports
 
     async def _run_best_guess_recovery(
         self,
-        round_idx: int | str,
+        artifact_label: int | str,
         rows_by_name: Dict[str, List[Dict[str, Any]]],
     ) -> Dict[str, Any]:
         if self.config.best_guess_mode == "off":
@@ -1513,26 +1527,28 @@ genuinely separate view that is not covered by a listed target."""
                 evidence_chars=self.config.best_guess_evidence_chars,
                 llm_batch_size=self.config.best_guess_llm_batch_size,
                 llm_timeout_sec=self.config.best_guess_llm_timeout_sec,
-                progress_fn=self._best_guess_progress_writer(round_idx),
+                progress_fn=self._best_guess_progress_writer(artifact_label),
                 extract_fn=self._infer_best_guess_candidates,
             )
         else:
             state = run_best_guess_recovery_local(rows_by_name, **kwargs)
 
         self.last_best_guess_exports = self._write_best_guess_exports(
-            round_idx,
+            artifact_label,
             state,
         )
         return state
 
-    def _best_guess_progress_writer(self, round_idx: int | str):
+    def _best_guess_progress_writer(self, artifact_label: int | str):
+        artifact_stem = self._artifact_stem(artifact_label)
         self.derived_dir.mkdir(parents=True, exist_ok=True)
-        path = self.derived_dir / f"round_{round_idx}_best_guess_progress.jsonl"
+        path = self.derived_dir / f"{artifact_stem}_best_guess_progress.jsonl"
 
         def write_progress(record: Dict[str, Any]) -> None:
             payload = {
                 "created_at": datetime.now(timezone.utc).isoformat(),
-                "round": round_idx,
+                "artifact_label": artifact_label,
+                "pipeline_round": self._pipeline_round(artifact_label),
                 **record,
             }
             with path.open("a", encoding="utf-8") as handle:
@@ -1563,9 +1579,10 @@ genuinely separate view that is not covered by a listed target."""
 
     def _write_best_guess_exports(
         self,
-        round_idx: int | str,
+        artifact_label: int | str,
         state: Dict[str, Any],
     ) -> List[Dict[str, Any]]:
+        artifact_stem = self._artifact_stem(artifact_label)
         self.derived_dir.mkdir(parents=True, exist_ok=True)
         records = [
             (
@@ -1608,8 +1625,8 @@ genuinely separate view that is not covered by a listed target."""
         ]
         exports: List[Dict[str, Any]] = []
         for variable, rows, columns in records:
-            json_path = self.derived_dir / f"round_{round_idx}_{variable}.json"
-            csv_path = self.derived_dir / f"round_{round_idx}_{variable}.csv"
+            json_path = self.derived_dir / f"{artifact_stem}_{variable}.json"
+            csv_path = self.derived_dir / f"{artifact_stem}_{variable}.csv"
             json_path.write_text(
                 json.dumps(rows, indent=2, default=str),
                 encoding="utf-8",
@@ -1624,7 +1641,8 @@ genuinely separate view that is not covered by a listed target."""
             self._write_rows_csv(csv_path, rows, fieldnames=columns)
             exports.append(
                 {
-                    "round": round_idx,
+                    "artifact_label": artifact_label,
+                    "pipeline_round": self._pipeline_round(artifact_label),
                     "variable": variable,
                     "rows": len(rows),
                     "json_path": str(json_path),
@@ -1637,7 +1655,7 @@ genuinely separate view that is not covered by a listed target."""
 
     def _write_numeric_candidate_exports(
         self,
-        round_idx: int | str,
+        artifact_label: int | str,
         rows_by_name: Dict[str, List[Dict[str, Any]]],
         *,
         best_guess_context_by_row: Dict[str, Dict[str, Any]],
@@ -1654,9 +1672,10 @@ genuinely separate view that is not covered by a listed target."""
             source_records=self._source_records_by_id(),
             best_guess_context_by_row=best_guess_context_by_row,
         )
+        artifact_stem = self._artifact_stem(artifact_label)
         self.derived_dir.mkdir(parents=True, exist_ok=True)
-        json_path = self.derived_dir / f"round_{round_idx}_numeric_candidates.json"
-        csv_path = self.derived_dir / f"round_{round_idx}_numeric_candidates.csv"
+        json_path = self.derived_dir / f"{artifact_stem}_numeric_candidates.json"
+        csv_path = self.derived_dir / f"{artifact_stem}_numeric_candidates.csv"
         json_path.write_text(
             json.dumps(rows, indent=2, default=str),
             encoding="utf-8",
@@ -1667,7 +1686,8 @@ genuinely separate view that is not covered by a listed target."""
             fieldnames=list(NUMERIC_CANDIDATE_COLUMNS),
         )
         record = {
-            "round": round_idx,
+            "artifact_label": artifact_label,
+            "pipeline_round": self._pipeline_round(artifact_label),
             "variable": "numeric_candidates",
             "mode": self.config.numeric_candidate_mode,
             "rows": len(rows),
@@ -1679,7 +1699,7 @@ genuinely separate view that is not covered by a listed target."""
 
     def _write_reward_exports(
         self,
-        round_idx: int | str,
+        artifact_label: int | str,
         *,
         previous_rows_by_name: Dict[str, List[Dict[str, Any]]],
         current_rows_by_name: Dict[str, List[Dict[str, Any]]],
@@ -1688,16 +1708,17 @@ genuinely separate view that is not covered by a listed target."""
         if self.config.answer_mode != "table":
             return []
 
-        report = score_table_fill_round(
+        report = score_table_fill_snapshot(
             previous_rows_by_name,
             current_rows_by_name,
             best_guess_state=best_guess_state,
             previous_best_guess_rows=self.seed_best_guess_rows,
         )
         self.last_reward_report = report
+        artifact_stem = self._artifact_stem(artifact_label)
         self.derived_dir.mkdir(parents=True, exist_ok=True)
-        json_path = self.derived_dir / f"round_{round_idx}_reward.json"
-        csv_path = self.derived_dir / f"round_{round_idx}_reward.csv"
+        json_path = self.derived_dir / f"{artifact_stem}_reward.json"
+        csv_path = self.derived_dir / f"{artifact_stem}_reward.csv"
         components = [
             row
             for row in report.get("components") or []
@@ -1713,7 +1734,8 @@ genuinely separate view that is not covered by a listed target."""
             fieldnames=list(REWARD_COMPONENT_COLUMNS),
         )
         record = {
-            "round": round_idx,
+            "artifact_label": artifact_label,
+            "pipeline_round": self._pipeline_round(artifact_label),
             "variable": "table_fill_reward",
             "score": report.get("score"),
             "normalized_score": report.get("normalized_score"),
@@ -1727,13 +1749,14 @@ genuinely separate view that is not covered by a listed target."""
 
     def _write_derived_manifest(
         self,
-        round_idx: int | str,
+        artifact_label: int | str,
         exports: List[Dict[str, Any]],
     ) -> None:
         if not exports:
             return
+        artifact_stem = self._artifact_stem(artifact_label)
         self.derived_dir.mkdir(parents=True, exist_ok=True)
-        manifest_path = self.derived_dir / f"round_{round_idx}_manifest.json"
+        manifest_path = self.derived_dir / f"{artifact_stem}_manifest.json"
         manifest_path.write_text(
             json.dumps(exports, indent=2, default=str),
             encoding="utf-8",
@@ -2188,7 +2211,7 @@ genuinely separate view that is not covered by a listed target."""
 
     async def _run_completion_probes(
         self,
-        round_idx: int | str,
+        artifact_label: int | str,
         table_rows: Dict[str, List[Dict[str, Any]]],
         gaps: List[str],
     ) -> List[Dict[str, Any]]:
@@ -2196,9 +2219,9 @@ genuinely separate view that is not covered by a listed target."""
             return []
         if self.config.completion_probe_tasks <= 0:
             return []
-        if self.config.completion_probe_rounds <= 0:
+        if self.config.completion_probe_waves <= 0:
             return []
-        if self._completion_probe_waves_run >= self.config.completion_probe_rounds:
+        if self._completion_probe_waves_run >= self.config.completion_probe_waves:
             return []
         if self.search_provider_error:
             print(
@@ -2252,7 +2275,7 @@ genuinely separate view that is not covered by a listed target."""
             summary = completion_probe_summary(
                 query=str(probe.get("query") or ""),
                 results=results,
-                round_idx=round_idx,
+                artifact_label=artifact_label,
                 purpose=str(probe.get("purpose") or probe.get("rationale") or ""),
                 axis_bindings=(
                     probe.get("axis_bindings")
@@ -2277,7 +2300,7 @@ genuinely separate view that is not covered by a listed target."""
                 "search_space_probes": summaries,
             },
         )
-        self._persist_completion_state(round_idx)
+        self._persist_completion_state(artifact_label)
 
         self.goals_dir.mkdir(parents=True, exist_ok=True)
         with (self.goals_dir / "completion_probes.jsonl").open(
@@ -2336,7 +2359,7 @@ genuinely separate view that is not covered by a listed target."""
 
     async def _estimate_task_goal_universe(
         self,
-        round_idx: int | str,
+        artifact_label: int | str,
         table_rows: Dict[str, List[Dict[str, Any]]],
         gaps: List[str],
     ) -> Dict[str, Any]:
@@ -2350,7 +2373,7 @@ genuinely separate view that is not covered by a listed target."""
                 self.goal_universe_estimate,
                 table_rows=table_rows,
             )
-            self._persist_completion_state(round_idx)
+            self._persist_completion_state(artifact_label)
             return self.goal_universe_estimate
 
         goal_context = self.goal_tracker.prompt_context(
@@ -2393,14 +2416,15 @@ genuinely separate view that is not covered by a listed target."""
             self.completion_state,
             completion_update_from_critique(critique),
         )
-        self._persist_completion_state(round_idx)
+        self._persist_completion_state(artifact_label)
         self.goals_dir.mkdir(parents=True, exist_ok=True)
-        path = self.goals_dir / f"round_{round_idx}_universe_estimate.json"
+        artifact_stem = self._artifact_stem(artifact_label)
+        path = self.goals_dir / f"{artifact_stem}_universe_estimate.json"
         path.write_text(
             json.dumps(self.goal_universe_estimate, indent=2, default=str),
             encoding="utf-8",
         )
-        critique_path = self.goals_dir / f"round_{round_idx}_completion_critique.json"
+        critique_path = self.goals_dir / f"{artifact_stem}_completion_critique.json"
         critique_path.write_text(
             json.dumps(critique, indent=2, default=str),
             encoding="utf-8",
@@ -2983,7 +3007,10 @@ genuinely separate view that is not covered by a listed target."""
             encoding="utf-8",
         )
 
-    def _persist_completion_state(self, round_idx: int | str | None = None) -> None:
+    def _persist_completion_state(
+        self,
+        artifact_label: int | str | None = None,
+    ) -> None:
         payload = {
             **self.completion_state,
             "updated_at": datetime.now(timezone.utc).isoformat(),
@@ -2994,9 +3021,11 @@ genuinely separate view that is not covered by a listed target."""
             json.dumps(payload, indent=2, default=str),
             encoding="utf-8",
         )
-        if round_idx is None:
+        if artifact_label is None:
             return
-        path = self.goals_dir / f"round_{round_idx}_completion_state.json"
+        path = self.goals_dir / (
+            f"{self._artifact_stem(artifact_label)}_completion_state.json"
+        )
         path.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
 
     def _source_records_by_id(self) -> Dict[str, Dict[str, Any]]:
@@ -3326,8 +3355,6 @@ genuinely separate view that is not covered by a listed target."""
             "column",
             "context",
             "contexts",
-            "country",
-            "cov",
             "distinct",
             "drop",
             "exact",
@@ -3337,15 +3364,12 @@ genuinely separate view that is not covered by a listed target."""
             "final",
             "for",
             "from",
-            "geographic",
             "guess",
             "item",
             "into",
             "keep",
             "like",
             "level",
-            "location",
-            "locations",
             "measure",
             "method",
             "methods",
@@ -3357,34 +3381,24 @@ genuinely separate view that is not covered by a listed target."""
             "one",
             "other",
             "per",
-            "plot",
-            "plotted",
             "preserve",
             "provenance",
             "qualifier",
             "qualifiers",
-            "reproduction",
             "reported",
             "row",
             "rows",
             "source",
-            "strain",
-            "strains",
             "table",
-            "temporal",
             "text",
             "that",
-            "time",
             "to",
             "type",
             "unit",
             "units",
             "value",
             "values",
-            "variant",
-            "variants",
             "with",
-            "windows",
         } or len(value) < 3
 
     def _seed_table_migrations_available(self) -> bool:
@@ -3420,7 +3434,7 @@ genuinely separate view that is not covered by a listed target."""
 
     def _write_observed_table_spec(
         self,
-        round_idx: int | str,
+        artifact_label: int | str,
         rows_by_name: Dict[str, List[Dict[str, Any]]],
         table_names: List[str],
     ) -> None:
@@ -3433,12 +3447,15 @@ genuinely separate view that is not covered by a listed target."""
             table_names=table_names,
         )
         self.table_specs_dir.mkdir(parents=True, exist_ok=True)
-        path = self.table_specs_dir / f"round_{round_idx}_observed_table_spec.yaml"
+        path = (
+            self.table_specs_dir
+            / f"{self._artifact_stem(artifact_label)}_observed_table_spec.yaml"
+        )
         path.write_text(dump_table_spec_yaml(spec), encoding="utf-8")
 
     def _record_task_goal(
         self,
-        round_idx: int | str,
+        artifact_label: int | str,
         table_exports: List[Dict[str, Any]],
         *,
         gap_search_tasks: List[Dict[str, Any]],
@@ -3450,7 +3467,7 @@ genuinely separate view that is not covered by a listed target."""
 
         rows_by_variable = self._table_rows_by_variable(table_exports)
         state = self.goal_tracker.evaluate(
-            round_idx=round_idx,
+            artifact_label=artifact_label,
             table_rows=rows_by_variable,
             universe_estimate=self.goal_universe_estimate,
             completion_state=self.completion_state,
@@ -3464,14 +3481,16 @@ genuinely separate view that is not covered by a listed target."""
             update_history=update_history,
         )
         self.goals_dir.mkdir(parents=True, exist_ok=True)
-        path = self.goals_dir / f"round_{round_idx}_stop_criteria.json"
+        path = self.goals_dir / (
+            f"{self._artifact_stem(artifact_label)}_stop_criteria.json"
+        )
         payload = state.to_dict()
         path.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
         entry = {**payload, "json_path": str(path)}
         self.goal_states = [
             previous
             for previous in self.goal_states
-            if previous.get("round") != round_idx
+            if previous.get("label", previous.get("round")) != artifact_label
         ]
         self.goal_states.append(entry)
         return state
@@ -3482,23 +3501,23 @@ genuinely separate view that is not covered by a listed target."""
 
         seed_exports = await self._export_seed_tables()
         seed_table_rows = self._table_rows_by_variable(seed_exports)
-        bootstrap_round_idx = self._round_label(0)
-        bootstrap_idx = 0
-        max_bootstrap_waves = max(0, self.config.completion_probe_rounds)
+        first_round_idx = self._round_label(0)
+        bootstrap_wave_idx = 0
+        max_bootstrap_waves = max(0, self.config.completion_probe_waves)
 
         while (
             self._paper_budget_available()
             and not self._universe_estimate_actionable()
-            and bootstrap_idx < max_bootstrap_waves
+            and bootstrap_wave_idx < max_bootstrap_waves
         ):
             source_count_before = len(self.goal_discovery_sources)
             await self._run_completion_probes(
-                bootstrap_round_idx,
+                f"bootstrap_{first_round_idx}_{bootstrap_wave_idx}_probe",
                 seed_table_rows,
                 [],
             )
             await self._estimate_task_goal_universe(
-                f"bootstrap_{bootstrap_round_idx}_{bootstrap_idx}_scope",
+                f"bootstrap_{first_round_idx}_{bootstrap_wave_idx}_scope",
                 seed_table_rows,
                 [],
             )
@@ -3506,7 +3525,7 @@ genuinely separate view that is not covered by a listed target."""
                 break
 
             catalog_tasks = await self._enqueue_catalog_searches(
-                bootstrap_round_idx,
+                first_round_idx,
                 seed_table_rows,
                 [],
             )
@@ -3516,30 +3535,30 @@ genuinely separate view that is not covered by a listed target."""
             wave_papers = await self._fetch_papers(
                 [],
                 cap=self.config.papers_per_round,
-                round_idx=bootstrap_round_idx,
+                round_idx=first_round_idx,
                 topic="goal_catalog",
                 expansion_op="llm_goal_bootstrap",
             )
             print(
                 "  Fetched "
                 f"{len(wave_papers)} catalog papers "
-                f"in bootstrap wave {bootstrap_idx}"
+                f"in bootstrap wave {bootstrap_wave_idx}"
             )
             self._bootstrap_papers.extend(wave_papers)
 
             await self._estimate_task_goal_universe(
-                f"bootstrap_{bootstrap_round_idx}_{bootstrap_idx}",
+                f"bootstrap_{first_round_idx}_{bootstrap_wave_idx}",
                 seed_table_rows,
                 [],
             )
             self._record_task_goal(
-                f"bootstrap_{bootstrap_round_idx}_{bootstrap_idx}",
+                f"bootstrap_{first_round_idx}_{bootstrap_wave_idx}",
                 seed_exports,
                 gap_search_tasks=[],
                 goal_search_tasks=catalog_tasks,
             )
             self._annotate_recent_catalog_outcomes()
-            bootstrap_idx += 1
+            bootstrap_wave_idx += 1
 
             if not wave_papers and not catalog_tasks:
                 break
@@ -3551,16 +3570,16 @@ genuinely separate view that is not covered by a listed target."""
 
         if (
             not self._universe_estimate_actionable()
-            and bootstrap_idx >= max_bootstrap_waves
+            and bootstrap_wave_idx >= max_bootstrap_waves
         ):
             print(
                 "  Stopping task-goal bootstrap after "
-                f"{bootstrap_idx} catalog wave(s)."
+                f"{bootstrap_wave_idx} catalog wave(s)."
             )
 
-        if bootstrap_idx == 0:
+        if bootstrap_wave_idx == 0:
             self._record_task_goal(
-                f"bootstrap_{bootstrap_round_idx}",
+                f"bootstrap_{first_round_idx}",
                 seed_exports,
                 gap_search_tasks=[],
                 goal_search_tasks=[],
@@ -3831,7 +3850,7 @@ genuinely separate view that is not covered by a listed target."""
         else:
             self._ensure_search_ready()
 
-            # Round 0 search seeds both the schema and the graph.
+            # The first seed search initializes both the schema and the graph.
             print(
                 f"Round {self._round_label(0)}: "
                 "seeding search from the question..."

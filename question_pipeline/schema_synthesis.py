@@ -315,7 +315,7 @@ async def synthesize_schema(
     *,
     sample_texts: Optional[List[Dict[str, str]]] = None,
     expectations: str = "",
-    max_review_rounds: int = 2,
+    max_review_passes: int = 2,
     run_extraction_test: bool = True,
 ) -> SchemaSynthesisResult:
     """Generate, judge, test, and finalize a schema for the question.
@@ -330,13 +330,13 @@ async def synthesize_schema(
     schema = schema_dict_to_domain_schema(candidate)
     history.append({"stage": "generate", "entity_types": list(schema.entity_types)})
 
-    # Generate <-> judge refinement
-    for round_idx in range(max_review_rounds):
+    # Generate <-> judge refinement passes.
+    for pass_idx in range(max_review_passes):
         critique = await critique_schema(llm, question, schema)
-        history.append({"stage": "critique", "round": round_idx, "critique": critique})
+        history.append({"stage": "critique", "pass": pass_idx, "critique": critique})
         verdict = str(critique.get("verdict", "revise")).lower()
         print(
-            f"  [schema] review {round_idx + 1}: verdict={verdict} "
+            f"  [schema] review {pass_idx + 1}: verdict={verdict} "
             f"score={critique.get('score')} "
             f"({len(schema.entity_types)} entity types)"
         )
@@ -344,7 +344,7 @@ async def synthesize_schema(
             break
         revised = await revise_schema(llm, question, schema, critique)
         schema = schema_dict_to_domain_schema(revised)
-        history.append({"stage": "revise", "round": round_idx, "entity_types": list(schema.entity_types)})
+        history.append({"stage": "revise", "pass": pass_idx, "entity_types": list(schema.entity_types)})
 
     # Stress test on real documents, then one extraction-informed revision
     if run_extraction_test and sample_texts:

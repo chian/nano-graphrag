@@ -1,4 +1,4 @@
-"""Round-level reward scoring for generic table-fill runs."""
+"""Reward scoring for generic table-fill artifact snapshots."""
 
 from __future__ import annotations
 
@@ -160,14 +160,14 @@ class _Coverage:
         }
 
 
-def score_table_fill_round(
+def score_table_fill_snapshot(
     previous_rows_by_name: Mapping[str, list[dict[str, Any]]] | None,
     current_rows_by_name: Mapping[str, list[dict[str, Any]]] | None,
     *,
     best_guess_state: Mapping[str, Any] | None = None,
     previous_best_guess_rows: Iterable[Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """Score one table-fill round by marginal, source-backed table progress."""
+    """Score one table-fill artifact by marginal, source-backed table progress."""
 
     previous = _coverage(previous_rows_by_name or {})
     current = _coverage(current_rows_by_name or {})
