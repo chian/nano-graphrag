@@ -407,16 +407,26 @@ def normalize_universe_estimate(
         for name in (table_rows or {})
         if str(name).strip()
     }
+    fallback_target_table = _sole_deliverable_table(deliverable_tables)
+    raw_count_targets = raw.get("count_targets") or raw.get("targets")
+    if (
+        not raw_count_targets
+        and isinstance(raw.get("raw"), Mapping)
+    ):
+        raw_payload = raw.get("raw")
+        raw_count_targets = raw_payload.get("count_targets") or raw_payload.get("targets")
+
     targets: list[dict[str, Any]] = []
     unestimated_targets: list[dict[str, Any]] = []
     out_of_scope_targets: list[dict[str, Any]] = []
-    for raw_index, item in enumerate(_as_list(raw.get("count_targets") or raw.get("targets"))):
+    for raw_index, item in enumerate(_as_list(raw_count_targets)):
         if not isinstance(item, Mapping):
             continue
         target, expected_count = _coerce_count_target(
             item,
             raw,
             fallback_index=raw_index + 1,
+            fallback_target_table=fallback_target_table,
         )
         if not _target_table_is_deliverable(
             str(target.get("target_table") or ""),
@@ -450,6 +460,7 @@ def normalize_universe_estimate(
             item,
             raw,
             fallback_index=len(targets) + len(unestimated_targets) + raw_index + 1,
+            fallback_target_table=fallback_target_table,
         )
         if not _target_table_is_deliverable(
             str(target.get("target_table") or ""),
@@ -706,6 +717,7 @@ def _coerce_count_target(
     raw: Mapping[str, Any],
     *,
     fallback_index: int,
+    fallback_target_table: str = "",
 ) -> tuple[dict[str, Any], int]:
     expected_minimum = _as_int(
         item.get("expected_minimum_count")
@@ -732,10 +744,17 @@ def _coerce_count_target(
     expected_count = max(expected_count, expected_minimum)
     if expected_maximum and expected_maximum < expected_count:
         expected_maximum = expected_count
+    target_table = (
+        item.get("target_table")
+        or item.get("table_name")
+        or item.get("table")
+        or item.get("output_table")
+        or fallback_target_table
+    )
     target = {
         "name": _clean_display(item.get("name")) or f"target_{fallback_index}",
         "description": _clean_display(item.get("description")),
-        "target_table": str(item.get("target_table") or "").strip(),
+        "target_table": str(target_table or "").strip(),
         "key_columns": [
             str(column).strip()
             for column in _as_list(item.get("key_columns"))
@@ -762,6 +781,12 @@ def _coerce_count_target(
     }
     target["id"] = _target_id(target)
     return target, expected_count
+
+
+def _sole_deliverable_table(deliverable_tables: set[str]) -> str:
+    if len(deliverable_tables) != 1:
+        return ""
+    return sorted(deliverable_tables)[0]
 
 
 def _target_table_is_deliverable(

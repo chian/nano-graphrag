@@ -629,6 +629,11 @@ catalog counts only to size final-table expectations; do not create
 count_targets for auxiliary catalogs or search-space summaries that are not
 themselves final answer records.
 
+Every executable count_target and unestimated_count_target must name its
+target_table. If a countable subfamily is exposed by an auxiliary catalog,
+axis, source genre, or qualifier, express the target as records in the final
+table whose row grain matches the question rather than as a standalone catalog.
+
 Choose key_columns from fields that can count distinct records for that family.
 When the final records vary by a qualifier that changes the meaning of a record,
 retain that axis in key_columns instead of collapsing it to one broad record.
