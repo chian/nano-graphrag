@@ -633,6 +633,10 @@ Every executable count_target and unestimated_count_target must name its
 target_table. If a countable subfamily is exposed by an auxiliary catalog,
 axis, source genre, or qualifier, express the target as records in the final
 table whose row grain matches the question rather than as a standalone catalog.
+Any required final-record family mentioned in underexplored_bins must also
+appear in count_targets when it has a source-backed expected count or in
+unestimated_count_targets when the family exists but the available discovery
+evidence does not yet support a count.
 
 Choose key_columns from fields that can count distinct records for that family.
 When the final records vary by a qualifier that changes the meaning of a record,
@@ -688,6 +692,17 @@ Return JSON:
       "status": "open | resolved | out_of_scope",
       "severity": "low | medium | high",
       "suggested_queries": ["specific next query"]
+    }}
+  ],
+  "unestimated_count_targets": [
+    {{
+      "name": "required final-row family with no count yet",
+      "description": "what final-table records are known to be missing",
+      "target_table": "best matching current table or proposed *_table name",
+      "key_columns": ["columns that uniquely identify this row family"],
+      "reason": "why existing discovery evidence cannot yet estimate this count",
+      "supporting_source_ids": ["source ids that show the family exists"],
+      "known_missing_examples": ["optional examples to search next"]
     }}
   ],
   "out_of_scope_count_targets": [
