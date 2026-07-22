@@ -322,6 +322,11 @@ def classify_attempt_failure(attempt: Mapping[str, Any]) -> str:
     """Classify one attempt using search yield and post-round table delta."""
     if not attempt:
         return "new_target"
+    if (
+        _as_int(attempt.get("post_round_table_row_hits")) > 0
+        or _as_int(attempt.get("post_round_best_guess_hits")) > 0
+    ):
+        return "useful_table_delta"
     table_delta = _as_int(attempt.get("post_round_observed_delta"))
     if table_delta > 0:
         return "useful_table_delta"
@@ -630,7 +635,10 @@ def _target_attempts(target: Mapping[str, Any]) -> list[dict[str, Any]]:
         attempts,
         key=lambda attempt: (
             _as_int(attempt.get("round")),
-            str(attempt.get("query") or ""),
+            _as_int(attempt.get("evolution_index")),
+            _as_int(attempt.get("prompt_arm_index")),
+            _as_int(attempt.get("operator_attempt")),
+            str(attempt.get("strategy_attempt_id") or attempt.get("query") or ""),
         ),
     )
 
@@ -651,6 +659,8 @@ def _attempt_from_outcome(outcome: Mapping[str, Any]) -> dict[str, Any]:
         "post_round_observed_delta": metadata.get("post_round_observed_delta"),
         "post_round_graph_node_delta": metadata.get("post_round_graph_node_delta"),
         "post_round_graph_edge_delta": metadata.get("post_round_graph_edge_delta"),
+        "post_round_table_row_hits": metadata.get("post_round_table_row_hits"),
+        "post_round_best_guess_hits": metadata.get("post_round_best_guess_hits"),
         "baseline_catalog_status": metadata.get("baseline_catalog_status"),
         "baseline_catalog_count_target_count": metadata.get(
             "baseline_catalog_count_target_count",

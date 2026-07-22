@@ -8,7 +8,7 @@ generator in iterative_search/ with a generic, question-aware approach.
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, List, Mapping
+from typing import Any, Dict, Iterable, List, Mapping
 
 from .llm_utils import ask_json
 from .progress_judge import judge_progress
@@ -287,11 +287,15 @@ async def target_deficit_queries(
     goal_context: Dict[str, Any],
     deficits: List[Dict[str, Any]],
     n: int = 4,
+    arms_per_target: int = 1,
+    queries_per_arm: int = 1,
 ) -> List[Dict[str, Any]]:
-    """Generate focused searches for concrete table-fill deficits."""
+    """Generate focused prompt-arm experiments for table-fill deficits."""
     if n <= 0 or not deficits:
         return []
 
+    arms_per_target = max(1, arms_per_target)
+    queries_per_arm = max(1, queries_per_arm)
     prompt = f"""QUESTION:
 {question}
 
@@ -301,10 +305,22 @@ CURRENT COVERAGE STATE JSON:
 UNMET FILL DEFICITS JSON:
 {json.dumps(deficits, indent=2, default=str)[:6000]}
 
-Produce up to {n} focused searches that are likely to fill the highest-priority
-missing pieces. Prefer high-priority deficits, but diversify across target
-tables and deficit types when several deficits have similar priority. Each
-query must map to one fill-deficit id.
+Produce up to {n} concrete focused searches organized as prompt-mutation
+experiments. Each experiment attacks exactly one fill-deficit id. Each
+experiment may contain up to {arms_per_target} prompt arms, and each arm may
+contain up to {queries_per_arm} concrete external-search queries.
+
+Prefer high-priority deficits, but diversify across target tables and deficit
+types when several deficits have similar priority. Each query must map to one
+fill-deficit id through its parent experiment.
+
+A prompt arm is one explicit delta in how to phrase searches for the same
+deficit. Mutate one thing per arm: the expected source shape, the external
+terminology, the anchoring breadth, or the context qualifier emphasis. Use
+previous arm contrast, accepted-source terms, matched needs, missing needs,
+search-result samples, rejection reasons, failed query terms, and exhausted
+operators to choose arms whose results will be informative relative to prior
+arms.
 
 Each deficit has an operator_plan selected by deterministic code. Instantiate
 that operator only; do not invent a different strategy_family. Use each
@@ -330,43 +346,150 @@ Keep each query concise (3-10 words), no boolean operators.
 
 Return JSON:
 {{
-  "queries": [
+  "experiments": [
     {{
-      "query": "search text",
       "target_id": "matching fill-deficit id",
       "target_name": "matching target or table name",
       "strategy_family": "exact_anchor | review_or_table | dataset_or_appendix | terminology_mutation | context_expansion",
-      "rationale": "why this can add missing rows"
+      "arms": [
+        {{
+          "name": "short generic label",
+          "prompt_delta": "what search-phrasing change this arm tests",
+          "hypothesis": "why this arm should find non-overlapping useful evidence",
+          "expected_source_shape": "kind of external source this arm should retrieve",
+          "queries": [
+            {{
+              "query": "search text",
+              "rationale": "why this can add missing rows"
+            }}
+          ]
+        }}
+      ]
     }}
   ]
 }}"""
     parsed = await ask_json(llm, prompt, system_prompt=_SEARCH_SYSTEM_PROMPT)
-    items = parsed.get("queries") if isinstance(parsed, dict) else parsed
-    if not isinstance(items, list):
-        return []
-
     queries: List[Dict[str, Any]] = []
     seen = set()
-    for item in items:
-        if not isinstance(item, dict):
-            item = {"query": str(item or "")}
+    for item in _iter_target_query_items(
+        parsed,
+        arms_per_target=arms_per_target,
+        queries_per_arm=queries_per_arm,
+    ):
         query = str(item.get("query") or "").strip()
         key = query.lower()
         if len(query) < 4 or key in seen:
             continue
         seen.add(key)
-        queries.append(
-            {
-                "query": query,
-                "target_id": str(item.get("target_id") or "").strip(),
-                "target_name": str(item.get("target_name") or "").strip(),
-                "strategy_family": str(item.get("strategy_family") or "").strip(),
-                "rationale": str(item.get("rationale") or "").strip(),
-            }
-        )
+        queries.append(item | {"query": query})
         if len(queries) >= n:
             break
     return queries
+
+
+def _iter_target_query_items(
+    parsed: Any,
+    *,
+    arms_per_target: int = 1,
+    queries_per_arm: int = 1,
+) -> Iterable[Dict[str, Any]]:
+    arms_per_target = max(1, arms_per_target)
+    queries_per_arm = max(1, queries_per_arm)
+    if isinstance(parsed, dict) and isinstance(parsed.get("experiments"), list):
+        experiments = parsed.get("experiments") or []
+        arm_counts_by_target: dict[str, int] = {}
+        for experiment in experiments:
+            if not isinstance(experiment, Mapping):
+                continue
+            target_key = str(
+                experiment.get("target_id")
+                or experiment.get("target_name")
+                or ""
+            ).strip()
+            if not target_key:
+                target_key = "__unknown__"
+            base = {
+                "target_id": str(experiment.get("target_id") or "").strip(),
+                "target_name": str(experiment.get("target_name") or "").strip(),
+                "strategy_family": str(
+                    experiment.get("strategy_family") or ""
+                ).strip(),
+            }
+            for arm in experiment.get("arms") or []:
+                arm_index = arm_counts_by_target.get(target_key, 0)
+                if arm_index >= arms_per_target:
+                    break
+                if isinstance(arm, str):
+                    arm = {"queries": [arm]}
+                if not isinstance(arm, Mapping):
+                    continue
+                arm_counts_by_target[target_key] = arm_index + 1
+                arm_base = {
+                    **base,
+                    "prompt_arm_name": str(arm.get("name") or "").strip(),
+                    "prompt_arm_index": arm_index,
+                    "prompt_delta": str(arm.get("prompt_delta") or "").strip(),
+                    "prompt_hypothesis": str(arm.get("hypothesis") or "").strip(),
+                    "expected_source_shape": str(
+                        arm.get("expected_source_shape") or ""
+                    ).strip(),
+                }
+                arm_queries = list(
+                    arm.get("queries") or arm.get("search_queries") or []
+                )[:queries_per_arm]
+                for query_index, query_item in enumerate(arm_queries):
+                    if isinstance(query_item, Mapping):
+                        yield {
+                            **arm_base,
+                            "query": str(query_item.get("query") or ""),
+                            "rationale": str(
+                                query_item.get("rationale")
+                                or arm.get("hypothesis")
+                                or ""
+                            ).strip(),
+                            "query_index": query_index,
+                        }
+                    else:
+                        yield {
+                            **arm_base,
+                            "query": str(query_item or ""),
+                            "rationale": str(
+                                arm.get("hypothesis") or ""
+                            ).strip(),
+                            "query_index": query_index,
+                        }
+        return
+
+    items = parsed.get("queries") if isinstance(parsed, dict) else parsed
+    if not isinstance(items, list):
+        return
+
+    for query_index, item in enumerate(items):
+        if not isinstance(item, Mapping):
+            item = {"query": str(item or "")}
+        yield {
+            "query": str(item.get("query") or ""),
+            "target_id": str(item.get("target_id") or "").strip(),
+            "target_name": str(item.get("target_name") or "").strip(),
+            "strategy_family": str(item.get("strategy_family") or "").strip(),
+            "rationale": str(item.get("rationale") or "").strip(),
+            "prompt_arm_name": str(
+                item.get("prompt_arm_name")
+                or item.get("strategy_family")
+                or "default"
+            ).strip(),
+            "prompt_arm_index": _coerce_int(item.get("prompt_arm_index"), 0),
+            "prompt_delta": str(item.get("prompt_delta") or "").strip(),
+            "prompt_hypothesis": str(
+                item.get("prompt_hypothesis")
+                or item.get("rationale")
+                or ""
+            ).strip(),
+            "expected_source_shape": str(
+                item.get("expected_source_shape") or ""
+            ).strip(),
+            "query_index": _coerce_int(item.get("query_index"), query_index),
+        }
 
 
 async def assess_source_relevance(
@@ -398,6 +521,13 @@ async def assess_source_relevance(
         "confidence": judgment.fruitfulness_score,
         "progress_judgment": judgment.to_dict(),
     }
+
+
+def _coerce_int(value: Any, default: int) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
 
 
 async def infer_best_guess_candidates(

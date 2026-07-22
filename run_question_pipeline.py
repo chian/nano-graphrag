@@ -93,6 +93,11 @@ def build_config(args: argparse.Namespace) -> PipelineConfig:
         completion_probe_tasks=args.completion_probe_tasks,
         completion_probe_results=args.completion_probe_results,
         completion_probe_waves=args.completion_probe_waves,
+        target_deficit_evolutions_per_round=(
+            args.target_deficit_evolutions_per_round
+        ),
+        target_prompt_arms_per_evolution=args.target_prompt_arms_per_evolution,
+        target_queries_per_prompt_arm=args.target_queries_per_prompt_arm,
         chunk_size=args.chunk_size,
         chunk_overlap=args.chunk_overlap,
         extraction_concurrency=args.extraction_concurrency,
@@ -406,6 +411,32 @@ def main() -> None:
             "Fill/search tasks to enqueue for each table-fill step. Defaults "
             "to 4 in table-fill mode and 0 in answer mode."
         ),
+    )
+    parser.add_argument(
+        "--target-deficit-evolutions-per-round",
+        type=int,
+        default=1,
+        help=(
+            "Maximum prompt-mutation evolutions to try for target-deficit "
+            "search inside one outer table-fill round. Values above 1 let a "
+            "zero-accepted-source prompt-arm experiment mutate and search "
+            "again before graph ingestion."
+        ),
+    )
+    parser.add_argument(
+        "--target-prompt-arms-per-evolution",
+        type=int,
+        default=1,
+        help=(
+            "Prompt arms the target-deficit planner may compare inside one "
+            "evolution."
+        ),
+    )
+    parser.add_argument(
+        "--target-queries-per-prompt-arm",
+        type=int,
+        default=1,
+        help="Concrete search queries the planner may emit per prompt arm.",
     )
     parser.add_argument("--model", default=None, help="LLM model id (defaults to gpt-5.5).")
     parser.add_argument("--firecrawl-api-key", default=None, help="Firecrawl API key (or set FIRECRAWL_API_KEY).")

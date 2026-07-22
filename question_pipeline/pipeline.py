@@ -18,6 +18,7 @@ import json
 import os
 import re
 import sys
+from collections import Counter
 from dataclasses import dataclass, field, asdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -63,6 +64,7 @@ from .completion import (
     scope_probe_context,
 )
 from .derived_context import context_slots_from_count_targets
+from .derived_context import source_ids_from_row
 from .extraction import enrich_graph, extract_from_text
 from .goals import (
     FillGoalState,
@@ -80,8 +82,10 @@ from .search import (
     load_seed_search_outcomes,
     load_seed_source_records,
     load_seen_urls,
+    merge_search_batches,
     normalize_query,
     is_fatal_search_error,
+    summarize_prompt_arms,
     table_gap_search_tasks,
 )
 from .search_memory import SearchMemory
@@ -172,6 +176,9 @@ class PipelineConfig:
     completion_probe_tasks: int = 4
     completion_probe_results: int = 5
     completion_probe_waves: int = 2
+    target_deficit_evolutions_per_round: int = 1
+    target_prompt_arms_per_evolution: int = 1
+    target_queries_per_prompt_arm: int = 1
 
     # LLM
     model: Optional[str] = None
@@ -350,6 +357,13 @@ def _normalize_best_guess_mode(value: str) -> str:
     return mode
 
 
+def _safe_int(value: Any, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
 class QuestionPipeline:
     """Iterative search + KG build + GASL answer loop for one question."""
 
@@ -462,6 +476,14 @@ class QuestionPipeline:
             raise ValueError("completion_probe_results must be positive")
         if config.completion_probe_waves < 0:
             raise ValueError("completion_probe_waves must be nonnegative")
+        if config.target_deficit_evolutions_per_round <= 0:
+            raise ValueError(
+                "target_deficit_evolutions_per_round must be positive"
+            )
+        if config.target_prompt_arms_per_evolution <= 0:
+            raise ValueError("target_prompt_arms_per_evolution must be positive")
+        if config.target_queries_per_prompt_arm <= 0:
+            raise ValueError("target_queries_per_prompt_arm must be positive")
         self.seed_tables: SeedTables = load_seed_tables(config.seed_tables_dir)
         self.table_spec: TableSpec = load_table_spec_with_seed_tables(
             self.seed_tables.rows_by_name,
@@ -535,6 +557,7 @@ class QuestionPipeline:
         self.last_derived_table_exports: List[Dict[str, Any]] = []
         self.best_guess_exports: List[Dict[str, Any]] = []
         self.last_best_guess_exports: List[Dict[str, Any]] = []
+        self.last_best_guess_state: Dict[str, Any] = {}
         self.reward_exports: List[Dict[str, Any]] = []
         self.last_reward_exports: List[Dict[str, Any]] = []
         self.last_reward_report: Dict[str, Any] = {}
@@ -843,7 +866,6 @@ genuinely separate view that is not covered by a listed target."""
             topic=topic,
             expansion_op=expansion_op,
         )
-        wave = self.search_frontier.next_wave(queued_before + len(tasks))
         harvester = SearchHarvester(
             search_fn=self._search_fn,
             scrape_fn=self._scrape_fn if self.config.scrape_search_results else None,
@@ -854,26 +876,68 @@ genuinely separate view that is not covered by a listed target."""
             max_paper_length=self.config.max_paper_length,
             max_extraction_chars_per_paper=self.config.max_extraction_chars_per_paper,
         )
-        batch = await harvester.harvest_async(
-            wave,
-            max_results_per_task=self.config.papers_per_query,
-            per_wave_cap=cap,
-            remaining_paper_budget=self.config.max_papers - self.paper_count,
-        )
-        if (
-            batch.unattempted_tasks
-            and self.search_frontier.persistent
-            and not batch.fatal_error
-        ):
-            self.search_frontier.requeue_front(batch.unattempted_tasks)
-        if batch.fatal_error:
-            self.search_provider_error = batch.fatal_error
-            print(f"  Search provider stopped the wave: {batch.fatal_error}")
 
-        self.search_frontier.record(batch.outcomes)
+        aggregate = SearchBatch()
+        next_wave_limit = queued_before + len(tasks)
+        seen_target_attempts: set[tuple[str, str]] = set()
+        target_evolution_counts: Counter[str] = Counter()
+        while next_wave_limit > 0:
+            wave = self.search_frontier.next_wave(next_wave_limit)
+            if not wave:
+                break
+
+            accepted_so_far = len(aggregate.papers)
+            remaining_cap = max(0, cap - accepted_so_far)
+            remaining_budget = max(
+                0,
+                self.config.max_papers - self.paper_count - accepted_so_far,
+            )
+            if remaining_cap <= 0 or remaining_budget <= 0:
+                self.search_frontier.requeue_front(wave)
+                break
+
+            batch = await harvester.harvest_async(
+                wave,
+                max_results_per_task=self.config.papers_per_query,
+                per_wave_cap=remaining_cap,
+                remaining_paper_budget=remaining_budget,
+            )
+            aggregate = merge_search_batches(aggregate, batch)
+
+            if (
+                batch.unattempted_tasks
+                and self.search_frontier.persistent
+                and not batch.fatal_error
+            ):
+                self.search_frontier.requeue_front(batch.unattempted_tasks)
+            self.search_frontier.record(batch.outcomes)
+            self.search_outcomes.extend(batch.outcome_dicts())
+            self.queries_used.extend(outcome.query for outcome in batch.outcomes)
+            self._refresh_search_memory()
+            self._record_prompt_attempt_counts(
+                batch,
+                seen_target_attempts,
+                target_evolution_counts,
+            )
+
+            if batch.fatal_error:
+                self.search_provider_error = batch.fatal_error
+                print(f"  Search provider stopped the wave: {batch.fatal_error}")
+                break
+            if batch.papers:
+                break
+
+            followups = await self._enqueue_followup_target_evolutions(
+                batch,
+                round_idx,
+                target_evolution_counts,
+            )
+            if not followups:
+                break
+            next_wave_limit = len(followups)
+
+        batch = aggregate
         self.last_search_batch = batch
-        self.search_outcomes.extend(batch.outcome_dicts())
-        self.queries_used.extend(outcome.query for outcome in batch.outcomes)
         self.paper_count += len(batch.papers)
         self._record_goal_discovery_sources(batch.papers)
         self._refresh_search_memory()
@@ -1489,6 +1553,7 @@ genuinely separate view that is not covered by a listed target."""
     ) -> Dict[str, Any]:
         if self.config.best_guess_mode == "off":
             self.last_best_guess_exports = []
+            self.last_best_guess_state = {}
             return {}
 
         source_records = self._source_records_with_text_by_id()
@@ -1537,6 +1602,7 @@ genuinely separate view that is not covered by a listed target."""
             artifact_label,
             state,
         )
+        self.last_best_guess_state = state
         return state
 
     def _best_guess_progress_writer(self, artifact_label: int | str):
@@ -1713,6 +1779,10 @@ genuinely separate view that is not covered by a listed target."""
             current_rows_by_name,
             best_guess_state=best_guess_state,
             previous_best_guess_rows=self.seed_best_guess_rows,
+            scored_fields_by_table={
+                table_name: self._all_columns(table_name)
+                for table_name in current_rows_by_name
+            },
         )
         self.last_reward_report = report
         artifact_stem = self._artifact_stem(artifact_label)
@@ -2574,6 +2644,22 @@ genuinely separate view that is not covered by a listed target."""
         if not deficits:
             return []
 
+        return await self._enqueue_target_deficit_tasks(
+            round_idx,
+            table_rows,
+            deficits,
+        )
+
+    async def _enqueue_target_deficit_tasks(
+        self,
+        round_idx: int,
+        table_rows: Dict[str, List[Dict[str, Any]]],
+        deficits: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        if not deficits:
+            return []
+
+        attempt_contexts = self._target_attempt_contexts(round_idx, deficits)
         planned = await strategy.target_deficit_queries(
             self.llm,
             self.config.question,
@@ -2584,10 +2670,9 @@ genuinely separate view that is not covered by a listed target."""
                 self.completion_state,
             ),
             deficits=deficits,
-            n=max(
-                self.config.task_goal_search_tasks,
-                min(len(deficits), self.config.task_goal_search_tasks * 2),
-            ),
+            n=self.config.task_goal_search_tasks,
+            arms_per_target=self.config.target_prompt_arms_per_evolution,
+            queries_per_arm=self.config.target_queries_per_prompt_arm,
         )
         targets_by_name = {}
         for target in deficits:
@@ -2614,6 +2699,9 @@ genuinely separate view that is not covered by a listed target."""
                 target = deficits[0]
             if not isinstance(target, dict):
                 continue
+            context = attempt_contexts.get(str(target.get("id") or ""))
+            if context is None:
+                continue
             task = self._target_deficit_search_task(
                 query=item["query"],
                 target=target,
@@ -2621,6 +2709,9 @@ genuinely separate view that is not covered by a listed target."""
                 rationale=item.get("rationale", ""),
                 operator_plan=target.get("operator_plan") or {},
                 strategy_origin="llm",
+                attempt_context=context,
+                prompt_arm=self._prompt_arm_metadata(item, context),
+                query_index=_safe_int(item.get("query_index"), 0),
             )
             task.metadata["table_spec_id"] = self.table_spec_id
             self._record_strategy_baseline(task)
@@ -2639,6 +2730,9 @@ genuinely separate view that is not covered by a listed target."""
             fallback_query = self._fallback_target_deficit_query(target)
             if not fallback_query:
                 continue
+            context = attempt_contexts.get(deficit_id)
+            if context is None:
+                continue
             task = self._target_deficit_search_task(
                 query=fallback_query,
                 target=target,
@@ -2646,6 +2740,9 @@ genuinely separate view that is not covered by a listed target."""
                 rationale="Fallback strategy for a target omitted by the planner.",
                 operator_plan=target.get("operator_plan") or {},
                 strategy_origin="fallback",
+                attempt_context=context,
+                prompt_arm=self._fallback_prompt_arm_metadata(context),
+                query_index=0,
             )
             task.metadata["table_spec_id"] = self.table_spec_id
             self._record_strategy_baseline(task)
@@ -2659,6 +2756,101 @@ genuinely separate view that is not covered by a listed target."""
             )
         return [task.to_dict() for task in accepted]
 
+    def _target_attempt_contexts(
+        self,
+        round_idx: int,
+        deficits: List[Dict[str, Any]],
+    ) -> Dict[str, Dict[str, Any]]:
+        contexts: Dict[str, Dict[str, Any]] = {}
+        for target in deficits:
+            deficit_id = str(target.get("id") or "")
+            if not deficit_id:
+                continue
+            evolution_index = self._next_target_evolution_index(target)
+            strategy_attempt_id = self._strategy_attempt_id(
+                round_idx,
+                target,
+                evolution_index,
+            )
+            contexts[deficit_id] = {
+                "strategy_attempt_id": strategy_attempt_id,
+                "evolution_index": evolution_index,
+            }
+        return contexts
+
+    @staticmethod
+    def _strategy_attempt_id(
+        round_idx: int,
+        target: Mapping[str, Any],
+        evolution_index: int,
+    ) -> str:
+        payload = {
+            "round": round_idx,
+            "target": target.get("id") or target.get("target_id") or target.get("name"),
+            "target_table": target.get("target_table"),
+            "evolution_index": evolution_index,
+        }
+        raw = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
+        return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
+
+    @staticmethod
+    def _prompt_arm_metadata(
+        item: Mapping[str, Any],
+        attempt_context: Mapping[str, Any],
+    ) -> Dict[str, Any]:
+        arm_index = _safe_int(item.get("prompt_arm_index"), 0)
+        name = str(item.get("prompt_arm_name") or f"arm_{arm_index}").strip()
+        payload = {
+            "strategy_attempt_id": attempt_context.get("strategy_attempt_id"),
+            "prompt_arm_index": arm_index,
+            "prompt_arm_name": name,
+            "prompt_delta": item.get("prompt_delta") or "",
+        }
+        raw = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
+        return {
+            "prompt_arm_id": hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16],
+            "prompt_arm_name": name,
+            "prompt_arm_index": arm_index,
+            "prompt_delta": str(item.get("prompt_delta") or "").strip(),
+            "prompt_hypothesis": str(
+                item.get("prompt_hypothesis") or item.get("rationale") or ""
+            ).strip(),
+            "expected_source_shape": str(
+                item.get("expected_source_shape") or ""
+            ).strip(),
+        }
+
+    @staticmethod
+    def _fallback_prompt_arm_metadata(
+        attempt_context: Mapping[str, Any],
+    ) -> Dict[str, Any]:
+        payload = {
+            "strategy_attempt_id": attempt_context.get("strategy_attempt_id"),
+            "prompt_arm_index": 0,
+            "prompt_arm_name": "fallback",
+        }
+        raw = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
+        return {
+            "prompt_arm_id": hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16],
+            "prompt_arm_name": "fallback",
+            "prompt_arm_index": 0,
+            "prompt_delta": "deterministic fallback",
+            "prompt_hypothesis": "Planner omitted this target; use the selected operator fallback.",
+            "expected_source_shape": "selected operator default",
+        }
+
+    @staticmethod
+    def _next_target_evolution_index(target: Mapping[str, Any]) -> int:
+        evolution_indices = []
+        for attempt in target.get("strategy_history") or []:
+            if not isinstance(attempt, Mapping):
+                continue
+            try:
+                evolution_indices.append(int(attempt.get("evolution_index") or 0))
+            except (TypeError, ValueError):
+                continue
+        return max(evolution_indices, default=-1) + 1
+
     @staticmethod
     def _target_deficit_search_task(
         *,
@@ -2668,6 +2860,9 @@ genuinely separate view that is not covered by a listed target."""
         rationale: str,
         operator_plan: Dict[str, Any],
         strategy_origin: str,
+        attempt_context: Mapping[str, Any],
+        prompt_arm: Mapping[str, Any],
+        query_index: int,
     ) -> SearchTask:
         deficit_id = str(target.get("id") or "")
         target_id = str(target.get("target_id") or deficit_id)
@@ -2698,6 +2893,21 @@ genuinely separate view that is not covered by a listed target."""
                 "rationale": rationale,
                 **operator_metadata,
                 "strategy_origin": strategy_origin,
+                "strategy_attempt_id": attempt_context.get(
+                    "strategy_attempt_id",
+                    "",
+                ),
+                "evolution_index": attempt_context.get("evolution_index"),
+                "prompt_arm_id": prompt_arm.get("prompt_arm_id", ""),
+                "prompt_arm_name": prompt_arm.get("prompt_arm_name", ""),
+                "prompt_arm_index": prompt_arm.get("prompt_arm_index", 0),
+                "prompt_delta": prompt_arm.get("prompt_delta", ""),
+                "prompt_hypothesis": prompt_arm.get("prompt_hypothesis", ""),
+                "expected_source_shape": prompt_arm.get(
+                    "expected_source_shape",
+                    "",
+                ),
+                "query_index": query_index,
             },
         )
 
@@ -2714,6 +2924,112 @@ genuinely separate view that is not covered by a listed target."""
     @staticmethod
     def _fallback_target_deficit_query(target: Dict[str, Any]) -> str:
         return fallback_query_for_operator(target)
+
+    async def _enqueue_followup_target_evolutions(
+        self,
+        batch: SearchBatch,
+        round_idx: int,
+        target_evolution_counts: Mapping[str, int],
+    ) -> List[Dict[str, Any]]:
+        if self.goal_tracker is None:
+            return []
+        if self.config.task_goal_search_tasks <= 0:
+            return []
+        if self.search_provider_error or not self._paper_budget_available():
+            return []
+
+        failed_attempts: Dict[str, List[Any]] = {}
+        for outcome in batch.outcomes:
+            if outcome.topic != "target_deficit":
+                continue
+            metadata = outcome.metadata if isinstance(outcome.metadata, dict) else {}
+            strategy_attempt_id = str(
+                metadata.get("strategy_attempt_id") or outcome.task_id
+            )
+            failed_attempts.setdefault(strategy_attempt_id, []).append(outcome)
+
+        targets: Dict[str, Dict[str, Any]] = {}
+        for outcomes in failed_attempts.values():
+            if any(outcome.accepted_source_ids for outcome in outcomes):
+                continue
+            metadata = (
+                outcomes[0].metadata
+                if isinstance(outcomes[0].metadata, dict)
+                else {}
+            )
+            target = self._target_deficit_from_metadata(metadata)
+            deficit_id = str(target.get("id") or "")
+            if (
+                deficit_id
+                and int(target_evolution_counts.get(deficit_id) or 0)
+                < self.config.target_deficit_evolutions_per_round
+            ):
+                targets.setdefault(deficit_id, target)
+
+        deficits = [
+            target
+            for target in self._deficits_with_strategy_history(list(targets.values()))
+            if not (
+                isinstance(target.get("operator_plan"), dict)
+                and target["operator_plan"].get("exhausted")
+            )
+        ]
+        accepted = await self._enqueue_target_deficit_tasks(round_idx, {}, deficits)
+        if accepted:
+            print(
+                f"  Queued {len(accepted)} follow-up target-deficit "
+                "searches from prompt-arm outcomes"
+            )
+        return accepted
+
+    @staticmethod
+    def _record_prompt_attempt_counts(
+        batch: SearchBatch,
+        seen_attempts: set[tuple[str, str]],
+        target_counts: Counter[str],
+    ) -> None:
+        for outcome in batch.outcomes:
+            metadata = outcome.metadata if isinstance(outcome.metadata, dict) else {}
+            attempt_id = str(metadata.get("strategy_attempt_id") or "")
+            if not attempt_id:
+                continue
+
+            target_id = str(
+                metadata.get("fill_deficit_id")
+                or metadata.get("target_id")
+                or ""
+            )
+            if not target_id:
+                continue
+
+            key = (target_id, attempt_id)
+            if key in seen_attempts:
+                continue
+            seen_attempts.add(key)
+            target_counts[target_id] += 1
+
+    @staticmethod
+    def _target_deficit_from_metadata(metadata: Mapping[str, Any]) -> Dict[str, Any]:
+        return {
+            "id": str(
+                metadata.get("fill_deficit_id")
+                or metadata.get("target_id")
+                or ""
+            ),
+            "deficit_type": metadata.get("fill_deficit_type", ""),
+            "target_id": metadata.get("target_id", ""),
+            "target_name": metadata.get("target_name", ""),
+            "name": metadata.get("target_name", ""),
+            "target_table": metadata.get("target_table", ""),
+            "key_columns": metadata.get("key_columns", []),
+            "missing_fields": metadata.get("missing_fields", []),
+            "anchor_values": metadata.get("anchor_values", {}),
+            "evidence_gap": metadata.get("evidence_gap", ""),
+            "expected_minimum_count": metadata.get("expected_minimum_count"),
+            "observed_count": metadata.get("observed_count"),
+            "deficit_count": metadata.get("deficit_count"),
+            "known_missing_examples": metadata.get("known_missing_examples", []),
+        }
 
     def _deficits_with_strategy_history(
         self,
@@ -2739,7 +3055,13 @@ genuinely separate view that is not covered by a listed target."""
                     int(attempt.get("round") or -1)
                     if str(attempt.get("round") or "").isdigit()
                     else -1,
-                    str(attempt.get("query") or ""),
+                    int(attempt.get("evolution_index") or -1)
+                    if str(attempt.get("evolution_index") or "").isdigit()
+                    else -1,
+                    int(attempt.get("prompt_arm_index") or -1)
+                    if str(attempt.get("prompt_arm_index") or "").isdigit()
+                    else -1,
+                    str(attempt.get("strategy_attempt_id") or ""),
                 ),
             )
             enriched_target = {
@@ -2794,7 +3116,11 @@ genuinely separate view that is not covered by a listed target."""
 
     def _annotate_recent_target_outcomes(
         self,
+        artifact_label: int | str,
         goal_state: Optional[FillGoalState],
+        *,
+        table_rows: Optional[Dict[str, List[Dict[str, Any]]]] = None,
+        best_guess_state: Optional[Dict[str, Any]] = None,
     ) -> None:
         if goal_state is None:
             return
@@ -2807,6 +3133,10 @@ genuinely separate view that is not covered by a listed target."""
         if not self.last_search_batch.outcomes:
             return
 
+        table_source_hits = self._source_row_hit_counts(table_rows or {})
+        best_guess_source_hits = self._best_guess_source_hit_counts(
+            best_guess_state or {},
+        )
         metadata_updates: Dict[str, Dict[str, Any]] = {}
         for outcome in self.last_search_batch.outcomes:
             metadata = outcome.metadata
@@ -2816,6 +3146,14 @@ genuinely separate view that is not covered by a listed target."""
                 continue
             update = {
                 "search_yield": self._search_yield_summary(outcome.to_dict()),
+                "post_round_table_row_hits": sum(
+                    table_source_hits[source_id]
+                    for source_id in outcome.accepted_source_ids
+                ),
+                "post_round_best_guess_hits": sum(
+                    best_guess_source_hits[source_id]
+                    for source_id in outcome.accepted_source_ids
+                ),
             }
             target = self._target_for_outcome_metadata(metadata, targets)
             if target is not None:
@@ -2861,6 +3199,44 @@ genuinely separate view that is not covered by a listed target."""
             metadata.update(update)
         self._rewrite_search_outcomes()
         self._refresh_search_memory()
+        self.last_search_batch.prompt_arm_summaries = summarize_prompt_arms(
+            self.last_search_batch,
+        )
+        self._write_prompt_arm_yield(artifact_label)
+
+    @staticmethod
+    def _source_row_hit_counts(
+        table_rows: Mapping[str, List[Dict[str, Any]]],
+    ) -> Counter:
+        counts: Counter = Counter()
+        for rows in table_rows.values():
+            for row in rows:
+                if isinstance(row, Mapping):
+                    counts.update(source_ids_from_row(row))
+        return counts
+
+    @staticmethod
+    def _best_guess_source_hit_counts(best_guess_state: Mapping[str, Any]) -> Counter:
+        counts: Counter = Counter()
+        for row in best_guess_state.get("resolutions") or []:
+            if isinstance(row, Mapping):
+                counts.update(str(value) for value in row.get("source_ids") or [])
+        return counts
+
+    def _write_prompt_arm_yield(self, artifact_label: int | str) -> None:
+        summaries = [
+            summary
+            for summary in self.last_search_batch.prompt_arm_summaries
+            if summary.get("strategy_attempt_id")
+        ]
+        if not summaries:
+            return
+        self.goals_dir.mkdir(parents=True, exist_ok=True)
+        path = (
+            self.goals_dir
+            / f"{self._artifact_stem(artifact_label)}_prompt_arm_yield.json"
+        )
+        path.write_text(json.dumps(summaries, indent=2, default=str), encoding="utf-8")
 
     def _annotate_recent_catalog_outcomes(self) -> None:
         if not self.last_search_batch.outcomes:
@@ -4046,7 +4422,12 @@ genuinely separate view that is not covered by a listed target."""
                     gap_search_tasks=[],
                     goal_search_tasks=[],
                 )
-                self._annotate_recent_target_outcomes(goal_state)
+                self._annotate_recent_target_outcomes(
+                    round_idx,
+                    goal_state,
+                    table_rows=self._table_rows_by_variable(table_exports),
+                    best_guess_state=self.last_best_guess_state,
+                )
                 gap_search_tasks, goal_search_tasks, goal_state, deficit_expansion = (
                     await self._expand_unfulfilled_table_goal(
                         round_idx,
@@ -4185,7 +4566,12 @@ genuinely separate view that is not covered by a listed target."""
                 gap_search_tasks=gap_search_tasks,
                 goal_search_tasks=goal_search_tasks,
             )
-            self._annotate_recent_target_outcomes(goal_state)
+            self._annotate_recent_target_outcomes(
+                round_idx,
+                goal_state,
+                table_rows=self._table_rows_by_variable(table_exports),
+                best_guess_state=self.last_best_guess_state,
+            )
 
             should_expand_for_goal = (
                 goal_state is not None and not goal_state.fulfilled

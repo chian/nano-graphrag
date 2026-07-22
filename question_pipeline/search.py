@@ -35,6 +35,7 @@ _COMPACT_RESULT_SKIP_KEYS = {
     "links",
     "llm_extraction",
     "markdown",
+    "metadata",
     "rawHtml",
     "screenshot",
 }
@@ -93,6 +94,8 @@ class SearchOutcome:
     duplicate_urls: list[str] = field(default_factory=list)
     skipped_by_reason: dict[str, int] = field(default_factory=dict)
     scrape_failed_urls: list[str] = field(default_factory=list)
+    search_result_observations: list[dict[str, Any]] = field(default_factory=list)
+    candidate_source_outcomes: list[dict[str, Any]] = field(default_factory=list)
     text_reductions: list[dict[str, Any]] = field(default_factory=list)
     relevance_decisions: list[dict[str, Any]] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -125,6 +128,7 @@ class SearchBatch:
     unattempted_tasks: list[SearchTask] = field(default_factory=list)
     papers: list[dict[str, Any]] = field(default_factory=list)
     outcomes: list[SearchOutcome] = field(default_factory=list)
+    prompt_arm_summaries: list[dict[str, Any]] = field(default_factory=list)
     fatal_error: str = ""
 
     def outcome_dicts(self) -> list[dict[str, Any]]:
@@ -298,15 +302,20 @@ class SearchHarvester:
                 continue
 
             outcome.firecrawl_hits = len(results)
-            for result in results:
+            for rank, result in enumerate(results, start=1):
+                outcome.search_result_observations.append(
+                    search_result_observation(result, rank=rank)
+                )
                 if len(batch.papers) >= paper_budget:
                     break
-                paper = self._accept_result(task, result, outcome)
+                paper = self._accept_result(task, result, outcome, rank=rank)
                 if paper is not None:
                     batch.papers.append(paper)
             batch.outcomes.append(outcome)
             self._record_outcome(outcome)
 
+        batch.prompt_arm_summaries = summarize_prompt_arms(batch)
+        self._record_prompt_arm_summaries(batch)
         return batch
 
     async def harvest_async(
@@ -340,15 +349,25 @@ class SearchHarvester:
                 continue
 
             outcome.firecrawl_hits = len(results)
-            for result in results:
+            for rank, result in enumerate(results, start=1):
+                outcome.search_result_observations.append(
+                    search_result_observation(result, rank=rank)
+                )
                 if len(batch.papers) >= paper_budget:
                     break
-                paper = await self._accept_result_async(task, result, outcome)
+                paper = await self._accept_result_async(
+                    task,
+                    result,
+                    outcome,
+                    rank=rank,
+                )
                 if paper is not None:
                     batch.papers.append(paper)
             batch.outcomes.append(outcome)
             self._record_outcome(outcome)
 
+        batch.prompt_arm_summaries = summarize_prompt_arms(batch)
+        self._record_prompt_arm_summaries(batch)
         return batch
 
     def _accept_result(
@@ -356,19 +375,23 @@ class SearchHarvester:
         task: SearchTask,
         result: dict[str, Any],
         outcome: SearchOutcome,
+        *,
+        rank: int,
     ) -> Optional[dict[str, Any]]:
-        candidate = self._prepare_candidate(task, result, outcome)
+        candidate = self._prepare_candidate(task, result, outcome, rank=rank)
         if candidate is None:
             return None
-        return self._write_paper(task, candidate, outcome)
+        return self._write_paper(task, candidate, outcome, rank=rank)
 
     async def _accept_result_async(
         self,
         task: SearchTask,
         result: dict[str, Any],
         outcome: SearchOutcome,
+        *,
+        rank: int,
     ) -> Optional[dict[str, Any]]:
-        candidate = self._prepare_candidate(task, result, outcome)
+        candidate = self._prepare_candidate(task, result, outcome, rank=rank)
         if candidate is None:
             return None
 
@@ -387,31 +410,68 @@ class SearchHarvester:
             )
             if not decision.accept:
                 outcome.skip("not_relevant")
+                self._record_candidate_outcome(
+                    outcome,
+                    result,
+                    rank=rank,
+                    fate="not_relevant",
+                    reason=decision.reason,
+                    text_length=len(candidate.text),
+                )
                 return None
 
-        return self._write_paper(task, candidate, outcome)
+        return self._write_paper(task, candidate, outcome, rank=rank)
 
     def _prepare_candidate(
         self,
         task: SearchTask,
         result: dict[str, Any],
         outcome: SearchOutcome,
+        *,
+        rank: int,
     ) -> Optional[HarvestCandidate]:
         url = str(result.get("url") or "")
         if url and url in self.seen_urls:
             outcome.duplicate_urls.append(url)
             outcome.skip("duplicate_url")
+            self._record_candidate_outcome(
+                outcome,
+                result,
+                rank=rank,
+                fate="duplicate_url",
+            )
             return None
 
         text = self._extract_best_text(result, url, outcome)
         if is_blocked_page_text(text):
             outcome.skip("blocked_page")
+            self._record_candidate_outcome(
+                outcome,
+                result,
+                rank=rank,
+                fate="blocked_page",
+                text_length=len(text),
+            )
             return None
         if len(text) < self.min_paper_length:
             outcome.skip("too_short")
+            self._record_candidate_outcome(
+                outcome,
+                result,
+                rank=rank,
+                fate="too_short",
+                text_length=len(text),
+            )
             return None
         if self.max_paper_length is not None and len(text) > self.max_paper_length:
             outcome.skip("too_large")
+            self._record_candidate_outcome(
+                outcome,
+                result,
+                rank=rank,
+                fate="too_large",
+                text_length=len(text),
+            )
             return None
         text, reduction = reduce_text_to_relevant_windows(
             text,
@@ -444,6 +504,8 @@ class SearchHarvester:
         task: SearchTask,
         candidate: HarvestCandidate,
         outcome: SearchOutcome,
+        *,
+        rank: int | None = None,
     ) -> dict[str, Any]:
         result = candidate.result
         url = candidate.url
@@ -490,6 +552,14 @@ class SearchHarvester:
         )
         with (self.papers_dir / "sources.jsonl").open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(source_record, default=str) + "\n")
+        self._record_candidate_outcome(
+            outcome,
+            result,
+            rank=rank,
+            fate="accepted",
+            source_id=paper_id,
+            text_length=len(text),
+        )
         return paper
 
     def _record_outcome(self, outcome: SearchOutcome) -> None:
@@ -498,6 +568,37 @@ class SearchHarvester:
             encoding="utf-8",
         ) as handle:
             handle.write(json.dumps(outcome.to_dict(), default=str) + "\n")
+
+    def _record_prompt_arm_summaries(self, batch: SearchBatch) -> None:
+        if not batch.prompt_arm_summaries:
+            return
+        with (self.papers_dir / "prompt_arm_summaries.jsonl").open(
+            "a",
+            encoding="utf-8",
+        ) as handle:
+            for summary in batch.prompt_arm_summaries:
+                handle.write(json.dumps(summary, default=str) + "\n")
+
+    @staticmethod
+    def _record_candidate_outcome(
+        outcome: SearchOutcome,
+        result: dict[str, Any],
+        *,
+        rank: int | None,
+        fate: str,
+        reason: str = "",
+        source_id: str = "",
+        text_length: int | None = None,
+    ) -> None:
+        record = {
+            **search_result_observation(result, rank=rank),
+            "fate": fate,
+            "reason": reason,
+            "source_id": source_id,
+        }
+        if text_length is not None:
+            record["text_length"] = text_length
+        outcome.candidate_source_outcomes.append(record)
 
     def _extract_best_text(
         self,
@@ -574,6 +675,166 @@ def compact_search_result(result: dict[str, Any]) -> dict[str, Any]:
             if nested:
                 compact[str(key)] = nested
     return compact
+
+
+def search_result_observation(
+    result: dict[str, Any],
+    *,
+    rank: int | None,
+) -> dict[str, Any]:
+    """Return compact, backend-neutral metadata for one search result."""
+
+    compact = compact_search_result(result)
+    observation = {
+        "rank": rank,
+        "url": str(result.get("url") or compact.get("url") or ""),
+        "title": str(result.get("title") or compact.get("title") or ""),
+        "metadata": compact,
+    }
+    return {
+        key: value
+        for key, value in observation.items()
+        if value not in ("", None, {})
+    }
+
+
+def merge_search_batches(*batches: SearchBatch) -> SearchBatch:
+    """Merge harvested batches from one outer loop without losing provenance."""
+
+    merged = SearchBatch()
+    for batch in batches:
+        merged.tasks.extend(batch.tasks)
+        merged.unattempted_tasks.extend(batch.unattempted_tasks)
+        merged.papers.extend(batch.papers)
+        merged.outcomes.extend(batch.outcomes)
+        if batch.fatal_error and not merged.fatal_error:
+            merged.fatal_error = batch.fatal_error
+    merged.prompt_arm_summaries = summarize_prompt_arms(merged)
+    return merged
+
+
+def summarize_prompt_arms(batch: SearchBatch) -> list[dict[str, Any]]:
+    """Aggregate concrete searches by their originating prompt arm."""
+
+    groups: "OrderedDict[str, dict[str, Any]]" = OrderedDict()
+    for outcome in batch.outcomes:
+        metadata = outcome.metadata if isinstance(outcome.metadata, Mapping) else {}
+        key = _prompt_arm_group_key(outcome, metadata)
+        group = groups.setdefault(
+            key,
+            _new_prompt_arm_summary(outcome, metadata),
+        )
+        group["query_count"] += 1
+        group["queries"].append(outcome.query)
+        group["search_result_count"] += len(outcome.search_result_observations)
+        group["accepted_source_count"] += len(outcome.accepted_source_ids)
+        group["accepted_source_ids"].extend(outcome.accepted_source_ids)
+        group["accepted_urls"].extend(outcome.accepted_urls)
+        group["duplicate_urls"].extend(outcome.duplicate_urls)
+        group["skipped_by_reason"].update(outcome.skipped_by_reason)
+        if outcome.error:
+            group["errors"].append(outcome.error)
+        for observation in outcome.search_result_observations:
+            url = str(observation.get("url") or "")
+            if url:
+                group["unique_urls"].add(url)
+            if len(group["sample_search_results"]) < 12:
+                group["sample_search_results"].append(observation)
+        for candidate in outcome.candidate_source_outcomes:
+            fate = str(candidate.get("fate") or "")
+            if fate:
+                group["candidate_fates"][fate] += 1
+
+    return [_finalize_prompt_arm_summary(group) for group in groups.values()]
+
+
+def _prompt_arm_group_key(
+    outcome: SearchOutcome,
+    metadata: Mapping[str, Any],
+) -> str:
+    return str(
+        metadata.get("prompt_arm_id")
+        or metadata.get("strategy_attempt_id")
+        or metadata.get("strategy_wave_id")
+        or outcome.task_id
+    )
+
+
+def _new_prompt_arm_summary(
+    outcome: SearchOutcome,
+    metadata: Mapping[str, Any],
+) -> dict[str, Any]:
+    return {
+        "round_index": outcome.round_index,
+        "target_id": metadata.get("target_id", ""),
+        "target_table": metadata.get("target_table", ""),
+        "strategy_attempt_id": (
+            metadata.get("strategy_attempt_id")
+            or metadata.get("strategy_wave_id")
+            or ""
+        ),
+        "evolution_index": (
+            metadata.get("evolution_index")
+            if metadata.get("evolution_index") is not None
+            else metadata.get("strategy_evolution_index")
+        ),
+        "prompt_arm_id": metadata.get("prompt_arm_id", ""),
+        "prompt_arm_name": metadata.get("prompt_arm_name", ""),
+        "prompt_arm_index": metadata.get("prompt_arm_index"),
+        "prompt_delta": metadata.get("prompt_delta", ""),
+        "prompt_hypothesis": metadata.get("prompt_hypothesis", ""),
+        "expected_source_shape": metadata.get("expected_source_shape", ""),
+        "strategy_operator": metadata.get("strategy_operator", ""),
+        "strategy_family": metadata.get("strategy_family", ""),
+        "source_family": metadata.get("source_family", ""),
+        "query_count": 0,
+        "queries": [],
+        "search_result_count": 0,
+        "unique_urls": set(),
+        "accepted_source_count": 0,
+        "accepted_source_ids": [],
+        "accepted_urls": [],
+        "duplicate_urls": [],
+        "skipped_by_reason": Counter(),
+        "candidate_fates": Counter(),
+        "sample_search_results": [],
+        "errors": [],
+    }
+
+
+def _finalize_prompt_arm_summary(group: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "round_index": group.get("round_index"),
+        "target_id": group.get("target_id", ""),
+        "target_table": group.get("target_table", ""),
+        "strategy_attempt_id": group.get("strategy_attempt_id", ""),
+        "evolution_index": group.get("evolution_index"),
+        "prompt_arm_id": group.get("prompt_arm_id", ""),
+        "prompt_arm_name": group.get("prompt_arm_name", ""),
+        "prompt_arm_index": group.get("prompt_arm_index"),
+        "prompt_delta": group.get("prompt_delta", ""),
+        "prompt_hypothesis": group.get("prompt_hypothesis", ""),
+        "expected_source_shape": group.get("expected_source_shape", ""),
+        "strategy_operator": group.get("strategy_operator", ""),
+        "strategy_family": group.get("strategy_family", ""),
+        "source_family": group.get("source_family", ""),
+        "query_count": int(group.get("query_count") or 0),
+        "queries": _unique_strings(group.get("queries") or []),
+        "search_result_count": int(group.get("search_result_count") or 0),
+        "unique_url_count": len(group.get("unique_urls") or []),
+        "accepted_source_count": int(group.get("accepted_source_count") or 0),
+        "accepted_source_ids": _unique_strings(
+            group.get("accepted_source_ids") or []
+        ),
+        "accepted_urls": _unique_strings(group.get("accepted_urls") or [])[:20],
+        "duplicate_url_count": len(
+            _unique_strings(group.get("duplicate_urls") or [])
+        ),
+        "skipped_by_reason": dict(group.get("skipped_by_reason") or {}),
+        "candidate_fates": dict(group.get("candidate_fates") or {}),
+        "sample_search_results": list(group.get("sample_search_results") or [])[:12],
+        "error": "; ".join(_unique_strings(group.get("errors") or []))[:500],
+    }
 
 
 _REDUCTION_STOPWORDS = {
@@ -1024,3 +1285,15 @@ def _window_score(window: str, terms: set[str]) -> int:
         return 0
     normalized = normalize_query(window)
     return sum(normalized.count(term) * (len(term) + 1) for term in terms)
+
+
+def _unique_strings(values: Iterable[Any]) -> list[str]:
+    out: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        text = str(value or "").strip()
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        out.append(text)
+    return out

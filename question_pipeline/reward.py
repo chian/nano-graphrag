@@ -23,7 +23,7 @@ REWARD_COMPONENT_COLUMNS = [
     "interpretation",
 ]
 
-REWARD_VERSION = "table_fill_v1"
+REWARD_VERSION = "table_fill_v2"
 
 _SOURCE_DEPTH_TARGET = 3
 
@@ -82,6 +82,23 @@ _PROVENANCE_FIELDS = {
     "url",
 }
 
+_STRUCTURAL_FIELDS = {
+    "aliases",
+    "deduplication_key",
+    "description",
+    "entity_name",
+    "entity_type",
+    "evidence_gap",
+    "group_key",
+    "group_name",
+    "id",
+    "path_depth",
+    "relation_type",
+    "src_id",
+    "table_name",
+    "tgt_id",
+}
+
 _PROVENANCE_PREFIXES = (
     "source_ref_",
     "source_refs_",
@@ -120,7 +137,11 @@ class _Coverage:
     cell_values: set[tuple[str, str, str]] = field(default_factory=set)
     source_ids: set[str] = field(default_factory=set)
     source_backed_row_identities: set[tuple[str, str]] = field(default_factory=set)
+    source_backed_cell_values: set[tuple[str, str, str]] = field(default_factory=set)
     row_sources: dict[tuple[str, str], set[str]] = field(
+        default_factory=lambda: defaultdict(set)
+    )
+    cell_value_sources: dict[tuple[str, str, str], set[str]] = field(
         default_factory=lambda: defaultdict(set)
     )
     row_identity_counts: Counter[tuple[str, str]] = field(default_factory=Counter)
@@ -143,6 +164,20 @@ class _Coverage:
             for source_ids in self.row_sources.values()
         )
 
+    @property
+    def source_backed_value_units(self) -> int:
+        return sum(
+            min(len(source_ids), _SOURCE_DEPTH_TARGET)
+            for source_ids in self.cell_value_sources.values()
+        )
+
+    @property
+    def excess_value_source_repeats(self) -> int:
+        return sum(
+            max(0, len(source_ids) - _SOURCE_DEPTH_TARGET)
+            for source_ids in self.cell_value_sources.values()
+        )
+
     def to_counts(self) -> dict[str, int]:
         return {
             "rows": self.rows,
@@ -151,11 +186,14 @@ class _Coverage:
             "row_slots": len(self.row_slots),
             "cell_values": len(self.cell_values),
             "source_ids": len(self.source_ids),
+            "source_backed_cell_values": len(self.source_backed_cell_values),
             "source_backed_row_identities": len(
                 self.source_backed_row_identities
             ),
+            "source_backed_value_units": self.source_backed_value_units,
             "source_depth_units": self.source_depth_units,
             "duplicate_row_identities": self.duplicate_row_identities,
+            "excess_value_source_repeats": self.excess_value_source_repeats,
             "excess_source_repeats": self.excess_source_repeats,
         }
 
@@ -166,11 +204,18 @@ def score_table_fill_snapshot(
     *,
     best_guess_state: Mapping[str, Any] | None = None,
     previous_best_guess_rows: Iterable[Mapping[str, Any]] | None = None,
+    scored_fields_by_table: Mapping[str, Iterable[str]] | None = None,
 ) -> dict[str, Any]:
     """Score one table-fill artifact by marginal, source-backed table progress."""
 
-    previous = _coverage(previous_rows_by_name or {})
-    current = _coverage(current_rows_by_name or {})
+    previous = _coverage(
+        previous_rows_by_name or {},
+        scored_fields_by_table=scored_fields_by_table,
+    )
+    current = _coverage(
+        current_rows_by_name or {},
+        scored_fields_by_table=scored_fields_by_table,
+    )
     previous_best_guess_keys = _best_guess_keys(previous_best_guess_rows or [])
     current_best_guess_keys = _best_guess_keys(
         (best_guess_state or {}).get("resolutions") or []
@@ -184,9 +229,18 @@ def score_table_fill_snapshot(
         "new_row_slots": len(current.row_slots - previous.row_slots),
         "new_cell_values": len(current.cell_values - previous.cell_values),
         "new_source_ids": len(current.source_ids - previous.source_ids),
+        "new_source_backed_cell_values": len(
+            current.source_backed_cell_values
+            - previous.source_backed_cell_values
+        ),
         "new_source_backed_row_identities": len(
             current.source_backed_row_identities
             - previous.source_backed_row_identities
+        ),
+        "new_source_backed_value_units": max(
+            0,
+            current.source_backed_value_units
+            - previous.source_backed_value_units,
         ),
         "new_source_depth_units": max(
             0,
@@ -204,44 +258,31 @@ def score_table_fill_snapshot(
             0,
             current.excess_source_repeats - previous.excess_source_repeats,
         ),
+        "new_excess_value_source_repeats": max(
+            0,
+            current.excess_value_source_repeats
+            - previous.excess_value_source_repeats,
+        ),
     }
 
     components = [
         _component(
-            "new_row_identities",
-            raw_values["new_row_identities"],
+            "new_source_backed_cell_values",
+            raw_values["new_source_backed_cell_values"],
             3.0,
-            "New semantically distinct rows.",
+            "New distinct declared table field/value facts with source provenance.",
         ),
         _component(
-            "new_source_backed_row_identities",
-            raw_values["new_source_backed_row_identities"],
-            2.0,
-            "New row identities that carry source provenance.",
-        ),
-        _component(
-            "new_row_slots",
-            raw_values["new_row_slots"],
-            1.2,
-            "New filled table fields attached to row identities.",
+            "new_source_backed_value_units",
+            raw_values["new_source_backed_value_units"],
+            1.0,
+            "New capped independent source support for declared field/value facts.",
         ),
         _component(
             "new_cell_values",
             raw_values["new_cell_values"],
             0.8,
-            "New unique field/value observations across tables.",
-        ),
-        _component(
-            "new_source_ids",
-            raw_values["new_source_ids"],
-            1.0,
-            "New distinct cited sources represented in tables.",
-        ),
-        _component(
-            "new_source_depth_units",
-            raw_values["new_source_depth_units"],
-            0.7,
-            "Additional source support per row identity, capped per identity.",
+            "New distinct declared field/value observations across tables.",
         ),
         _component(
             "new_best_guess_slots",
@@ -250,22 +291,52 @@ def score_table_fill_snapshot(
             "New recovered best-guess slots with accepted candidates.",
         ),
         _component(
-            "new_exact_rows",
-            raw_values["new_exact_rows"],
+            "new_source_ids",
+            raw_values["new_source_ids"],
+            1.0,
+            "New distinct cited sources represented in tables.",
+        ),
+        _component(
+            "new_source_backed_row_identities",
+            raw_values["new_source_backed_row_identities"],
+            0.3,
+            "Diagnostic: new row identities that carry source provenance.",
+        ),
+        _component(
+            "new_row_slots",
+            raw_values["new_row_slots"],
+            0.1,
+            "Diagnostic: new filled declared fields attached to row identities.",
+        ),
+        _component(
+            "new_row_identities",
+            raw_values["new_row_identities"],
             0.2,
-            "New exact rows, weighted lightly to avoid row-count chasing.",
+            "Diagnostic: new semantically distinct rows, weighted lightly.",
+        ),
+        _component(
+            "new_source_depth_units",
+            raw_values["new_source_depth_units"],
+            0.2,
+            "Diagnostic: additional source support per row identity, capped per identity.",
+        ),
+        _component(
+            "new_excess_value_source_repeats",
+            raw_values["new_excess_value_source_repeats"],
+            -1.2,
+            "New repeated source support beyond the per-field/value depth target.",
         ),
         _component(
             "new_duplicate_row_identities",
             raw_values["new_duplicate_row_identities"],
-            -2.0,
+            -3.0,
             "New rows whose semantic identity was already present.",
         ),
         _component(
             "new_excess_source_repeats",
             raw_values["new_excess_source_repeats"],
-            -0.7,
-            "New repeated source support beyond the per-identity depth target.",
+            -0.4,
+            "Diagnostic: new repeated source support beyond the per-row depth target.",
         ),
     ]
 
@@ -356,29 +427,37 @@ def merge_best_guess_rows(
 
 def _coverage(
     rows_by_name: Mapping[str, list[dict[str, Any]]],
+    *,
+    scored_fields_by_table: Mapping[str, Iterable[str]] | None = None,
 ) -> _Coverage:
     coverage = _Coverage()
     for table_name, rows in rows_by_name.items():
         table = str(table_name or "").strip()
         if not table:
             continue
+        scored_fields = _scored_fields(scored_fields_by_table, table)
         for row in rows or []:
             if not isinstance(row, Mapping):
                 continue
-            identity = _row_identity(row)
+            semantic_cells = _semantic_cells(row, scored_fields=scored_fields)
+            identity = _row_identity(row, semantic_cells=semantic_cells)
             row_key = (table, identity)
             coverage.rows += 1
             coverage.exact_rows.add((table, _stable_json(row)))
             coverage.row_identities.add(row_key)
             coverage.row_identity_counts[row_key] += 1
 
-            for field, value in _semantic_cells(row):
+            row_source_ids = set(source_ids_from_row(row))
+            for field, value in semantic_cells:
                 coverage.row_slots.add((table, identity, field))
                 coverage.cell_values.add((table, field, value))
+                if row_source_ids:
+                    cell_key = (table, field, value)
+                    coverage.source_backed_cell_values.add(cell_key)
+                    coverage.cell_value_sources[cell_key].update(row_source_ids)
 
-            row_source_ids = set(source_ids_from_row(row))
             coverage.source_ids.update(row_source_ids)
-            if row_source_ids:
+            if semantic_cells and row_source_ids:
                 coverage.source_backed_row_identities.add(row_key)
                 coverage.row_sources[row_key].update(row_source_ids)
     return coverage
@@ -405,23 +484,23 @@ def _component(
 
 def _analysis(raw_values: Mapping[str, int], score: float) -> list[dict[str, Any]]:
     novel = (
-        raw_values.get("new_row_identities", 0)
-        + raw_values.get("new_row_slots", 0)
+        raw_values.get("new_source_backed_cell_values", 0)
+        + raw_values.get("new_source_backed_value_units", 0)
         + raw_values.get("new_best_guess_slots", 0)
     )
     duplicates = raw_values.get("new_duplicate_row_identities", 0)
-    repeated_sources = raw_values.get("new_excess_source_repeats", 0)
+    repeated_sources = raw_values.get("new_excess_value_source_repeats", 0)
     return [
         {
             "scope": "in_scope",
-            "outcome": "novel_semantic_progress",
+            "outcome": "novel_source_backed_value_progress",
             "what_it_means": novel,
             "interpretation": (
-                "The round added distinct rows, filled slots, or accepted "
-                "best-guess slots."
+                "The round added distinct source-backed field values, "
+                "field-value support, or accepted best-guess slots."
                 if novel
-                else "The round did not add distinct rows, filled slots, or "
-                "accepted best-guess slots."
+                else "The round did not add distinct source-backed field "
+                "values, field-value support, or accepted best-guess slots."
             ),
         },
         {
@@ -437,13 +516,13 @@ def _analysis(raw_values: Mapping[str, int], score: float) -> list[dict[str, Any
         },
         {
             "scope": "in_scope",
-            "outcome": "new_source_saturation",
+            "outcome": "new_value_source_saturation",
             "what_it_means": repeated_sources,
             "interpretation": (
-                "Some new source support landed on row identities that were "
-                "already above the per-row depth target."
+                "Some new source support landed on field values that were "
+                "already above the per-value depth target."
                 if repeated_sources
-                else "New source support stayed within the per-row depth "
+                else "New source support stayed within the per-value depth "
                 "target."
             ),
         },
@@ -468,18 +547,30 @@ def _normalized_score(score: float, positive_score: float) -> float:
     return round(max(-1.0, min(1.0, score / positive_score)), 6)
 
 
-def _row_identity(row: Mapping[str, Any]) -> str:
+def _row_identity(
+    row: Mapping[str, Any],
+    *,
+    semantic_cells: list[tuple[str, str]] | None = None,
+) -> str:
+    if semantic_cells is not None:
+        return _stable_json(semantic_cells)
     cells = _semantic_cells(row)
     if cells:
         return _stable_json(cells)
     return _stable_json(row)
 
 
-def _semantic_cells(row: Mapping[str, Any]) -> list[tuple[str, str]]:
+def _semantic_cells(
+    row: Mapping[str, Any],
+    *,
+    scored_fields: set[str] | None = None,
+) -> list[tuple[str, str]]:
     cells: list[tuple[str, str]] = []
     for raw_field, raw_value in row.items():
         field = str(raw_field or "").strip()
         if not field or _is_provenance_field(field):
+            continue
+        if scored_fields is not None and field not in scored_fields:
             continue
         for value in _value_atoms(raw_value):
             if _is_missing(value):
@@ -520,6 +611,20 @@ def _normalize_scalar(value: Any) -> str:
     return re.sub(r"\s+", " ", str(value).strip()).lower()
 
 
+def _scored_fields(
+    scored_fields_by_table: Mapping[str, Iterable[str]] | None,
+    table: str,
+) -> set[str] | None:
+    if not scored_fields_by_table or table not in scored_fields_by_table:
+        return None
+    fields = {
+        str(field or "").strip()
+        for field in scored_fields_by_table.get(table) or []
+        if str(field or "").strip()
+    }
+    return fields or None
+
+
 def _is_missing(value: Any) -> bool:
     if value is None:
         return True
@@ -538,6 +643,7 @@ def _is_provenance_field(field: str) -> bool:
         return True
     return (
         normalized.startswith("_")
+        or normalized in _STRUCTURAL_FIELDS
         or normalized in _PROVENANCE_FIELDS
         or normalized.startswith(_PROVENANCE_PREFIXES)
         or normalized.endswith(_PROVENANCE_SUFFIXES)

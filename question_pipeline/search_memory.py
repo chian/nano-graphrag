@@ -224,6 +224,27 @@ def _merge_outcome(record: dict[str, Any], outcome: Mapping[str, Any]) -> None:
         {
             "round": outcome.get("round_index"),
             "query": query,
+            "strategy_attempt_id": (
+                metadata.get("strategy_attempt_id")
+                or metadata.get("strategy_wave_id")
+                or ""
+            ),
+            "evolution_index": _first_present(
+                metadata,
+                "evolution_index",
+                "strategy_evolution_index",
+            ),
+            "prompt_arm_id": metadata.get("prompt_arm_id", ""),
+            "prompt_arm_name": metadata.get("prompt_arm_name", ""),
+            "prompt_arm_index": metadata.get("prompt_arm_index"),
+            "prompt_delta": metadata.get("prompt_delta", ""),
+            "prompt_hypothesis": metadata.get("prompt_hypothesis", ""),
+            "expected_source_shape": metadata.get("expected_source_shape", ""),
+            "query_index": _first_present(
+                metadata,
+                "query_index",
+                "strategy_query_index",
+            ),
             "strategy_family": strategy_family,
             "strategy_operator": strategy_operator,
             "source_family": metadata.get("source_family", ""),
@@ -235,10 +256,28 @@ def _merge_outcome(record: dict[str, Any], outcome: Mapping[str, Any]) -> None:
             ),
             "rationale": metadata.get("rationale", ""),
             "firecrawl_hits": int(outcome.get("firecrawl_hits") or 0),
+            "search_result_count": len(
+                outcome.get("search_result_observations") or []
+            ),
             "accepted_source_count": len(accepted_source_ids),
             "accepted_urls": accepted_urls[:5],
             "duplicate_url_count": len(duplicate_urls),
             "skipped_by_reason": dict(skipped),
+            "candidate_fates": dict(
+                Counter(
+                    str(candidate.get("fate") or "")
+                    for candidate in outcome.get("candidate_source_outcomes") or []
+                    if isinstance(candidate, Mapping)
+                    and str(candidate.get("fate") or "")
+                )
+            ),
+            "search_results": [
+                dict(observation)
+                for observation in (
+                    outcome.get("search_result_observations") or []
+                )[:5]
+                if isinstance(observation, Mapping)
+            ],
             "matched_needs": _top_counter(
                 _counter_from_decisions(relevance, "matched_needs"),
                 8,
@@ -271,6 +310,8 @@ def _merge_outcome(record: dict[str, Any], outcome: Mapping[str, Any]) -> None:
                 "post_round_graph_edge_delta",
             ),
             "post_round_deficit_count": metadata.get("post_round_deficit_count"),
+            "post_round_table_row_hits": metadata.get("post_round_table_row_hits"),
+            "post_round_best_guess_hits": metadata.get("post_round_best_guess_hits"),
             "error": str(outcome.get("error") or "")[:500],
         }
     )
@@ -281,9 +322,13 @@ def _finalize_record(record: dict[str, Any]) -> dict[str, Any]:
         record["attempts"],
         key=lambda attempt: (
             _round_sort_value(attempt.get("round")),
+            _as_int(attempt.get("evolution_index")),
+            _as_int(attempt.get("prompt_arm_index")),
+            _as_int(attempt.get("query_index")),
             str(attempt.get("query") or ""),
         ),
     )
+    strategy_attempts = _summarize_strategy_attempts(attempts)
     return {
         "key": record["key"],
         "target": record["target"],
@@ -303,6 +348,7 @@ def _finalize_record(record: dict[str, Any]) -> dict[str, Any]:
         "failure_modes": _top_counter(record["failure_modes"], 12),
         "better_search_cues": _top_counter(record["better_search_cues"], 12),
         "avoid_cues": _top_counter(record["avoid_cues"], 12),
+        "strategy_attempts": strategy_attempts[-12:],
         "attempts": attempts[-12:],
     }
 
@@ -324,8 +370,326 @@ def _compact_record(record: Mapping[str, Any], *, score: int) -> dict[str, Any]:
         "failure_modes": record.get("failure_modes", []),
         "better_search_cues": record.get("better_search_cues", []),
         "avoid_cues": record.get("avoid_cues", []),
-        "attempts": record.get("attempts", [])[-6:],
+        "attempts": (
+            record.get("strategy_attempts")
+            or record.get("search_waves")
+            or record.get("attempts", [])
+        )[-6:],
+        "query_attempts": record.get("attempts", [])[-6:],
     }
+
+
+def _summarize_strategy_attempts(
+    attempts: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    groups: "OrderedDict[str, dict[str, Any]]" = OrderedDict()
+    for attempt in attempts:
+        key = _strategy_attempt_key(attempt)
+        strategy_attempt = groups.setdefault(
+            key,
+            {
+                "strategy_attempt_id": str(
+                    attempt.get("strategy_attempt_id") or key
+                ),
+                "round": attempt.get("round"),
+                "evolution_index": attempt.get("evolution_index"),
+                "strategy_family": attempt.get("strategy_family", ""),
+                "strategy_operator": attempt.get("strategy_operator", ""),
+                "source_family": attempt.get("source_family", ""),
+                "operator_attempt": attempt.get("operator_attempt"),
+                "operator_last_failure_class": attempt.get(
+                    "operator_last_failure_class",
+                    "",
+                ),
+                "queries": [],
+                "firecrawl_hits": 0,
+                "search_result_count": 0,
+                "accepted_source_count": 0,
+                "duplicate_url_count": 0,
+                "skipped_by_reason": Counter(),
+                "candidate_fates": Counter(),
+                "matched_needs": Counter(),
+                "missing_needs": Counter(),
+                "offtopic_axes": Counter(),
+                "failure_modes": Counter(),
+                "better_search_cues": Counter(),
+                "avoid_cues": Counter(),
+                "search_results": [],
+                "accepted_urls": [],
+                "prompt_arms": OrderedDict(),
+                "outcome_count": 0,
+                "error_count": 0,
+                "errors": [],
+            },
+        )
+        query = str(attempt.get("query") or "")
+        if query:
+            strategy_attempt["queries"].append(query)
+            strategy_attempt["query"] = query
+        strategy_attempt["round"] = attempt.get("round")
+        strategy_attempt["firecrawl_hits"] += _as_int(attempt.get("firecrawl_hits"))
+        strategy_attempt["search_result_count"] += _as_int(
+            attempt.get("search_result_count")
+        )
+        strategy_attempt["accepted_source_count"] += _as_int(
+            attempt.get("accepted_source_count")
+        )
+        strategy_attempt["duplicate_url_count"] += _as_int(
+            attempt.get("duplicate_url_count")
+        )
+        strategy_attempt["skipped_by_reason"].update(
+            _mapping(attempt.get("skipped_by_reason"))
+        )
+        strategy_attempt["candidate_fates"].update(
+            _mapping(attempt.get("candidate_fates"))
+        )
+        strategy_attempt["matched_needs"].update(attempt.get("matched_needs") or [])
+        strategy_attempt["missing_needs"].update(attempt.get("missing_needs") or [])
+        strategy_attempt["offtopic_axes"].update(attempt.get("offtopic_axes") or [])
+        strategy_attempt["failure_modes"].update(attempt.get("failure_modes") or [])
+        strategy_attempt["better_search_cues"].update(
+            attempt.get("better_search_cues") or []
+        )
+        strategy_attempt["avoid_cues"].update(attempt.get("avoid_cues") or [])
+        strategy_attempt["accepted_urls"].extend(attempt.get("accepted_urls") or [])
+        if len(strategy_attempt["search_results"]) < 12:
+            strategy_attempt["search_results"].extend(
+                (attempt.get("search_results") or [])[
+                    : max(0, 12 - len(strategy_attempt["search_results"]))
+                ]
+            )
+        _merge_prompt_arm(strategy_attempt, attempt)
+        strategy_attempt["outcome_count"] += 1
+        for field_name in (
+            "post_round_observed_delta",
+            "post_round_graph_node_delta",
+            "post_round_graph_edge_delta",
+            "post_round_deficit_count",
+            "post_round_table_row_hits",
+            "post_round_best_guess_hits",
+        ):
+            value = attempt.get(field_name)
+            if value is not None:
+                strategy_attempt[field_name] = value
+        error = str(attempt.get("error") or "")
+        if error:
+            strategy_attempt["error_count"] += 1
+            strategy_attempt["errors"].append(error)
+
+    return [
+        _finalize_strategy_attempt(strategy_attempt)
+        for strategy_attempt in groups.values()
+    ]
+
+
+def _merge_prompt_arm(
+    strategy_attempt: dict[str, Any],
+    attempt: Mapping[str, Any],
+) -> None:
+    arm_key = _prompt_arm_key(attempt)
+    arms: OrderedDict[str, dict[str, Any]] = strategy_attempt["prompt_arms"]
+    arm = arms.setdefault(
+        arm_key,
+        {
+            "prompt_arm_id": str(attempt.get("prompt_arm_id") or arm_key),
+            "prompt_arm_name": str(attempt.get("prompt_arm_name") or ""),
+            "prompt_arm_index": attempt.get("prompt_arm_index"),
+            "prompt_delta": str(attempt.get("prompt_delta") or ""),
+            "prompt_hypothesis": str(attempt.get("prompt_hypothesis") or ""),
+            "expected_source_shape": str(
+                attempt.get("expected_source_shape") or ""
+            ),
+            "queries": [],
+            "firecrawl_hits": 0,
+            "search_result_count": 0,
+            "accepted_source_count": 0,
+            "duplicate_url_count": 0,
+            "table_row_hits": 0,
+            "best_guess_hits": 0,
+            "skipped_by_reason": Counter(),
+            "candidate_fates": Counter(),
+            "search_results": [],
+            "accepted_urls": [],
+            "error_count": 0,
+            "errors": [],
+        },
+    )
+
+    query = str(attempt.get("query") or "")
+    if query:
+        arm["queries"].append(query)
+    arm["firecrawl_hits"] += _as_int(attempt.get("firecrawl_hits"))
+    arm["search_result_count"] += _as_int(attempt.get("search_result_count"))
+    arm["accepted_source_count"] += _as_int(attempt.get("accepted_source_count"))
+    arm["duplicate_url_count"] += _as_int(attempt.get("duplicate_url_count"))
+    arm["table_row_hits"] += _as_int(attempt.get("post_round_table_row_hits"))
+    arm["best_guess_hits"] += _as_int(attempt.get("post_round_best_guess_hits"))
+    arm["skipped_by_reason"].update(_mapping(attempt.get("skipped_by_reason")))
+    arm["candidate_fates"].update(_mapping(attempt.get("candidate_fates")))
+    arm["accepted_urls"].extend(attempt.get("accepted_urls") or [])
+    if len(arm["search_results"]) < 12:
+        arm["search_results"].extend(
+            (attempt.get("search_results") or [])[
+                : max(0, 12 - len(arm["search_results"]))
+            ]
+        )
+    error = str(attempt.get("error") or "")
+    if error:
+        arm["error_count"] += 1
+        arm["errors"].append(error)
+
+
+def _finalize_strategy_attempt(wave: Mapping[str, Any]) -> dict[str, Any]:
+    query_count = len(wave.get("queries") or [])
+    outcome_count = _as_int(wave.get("outcome_count"))
+    error_count = _as_int(wave.get("error_count"))
+    error = ""
+    if outcome_count > 0 and error_count >= outcome_count:
+        error = "; ".join(wave.get("errors") or [])[:500]
+    prompt_arms = [
+        _finalize_prompt_arm(arm)
+        for arm in (wave.get("prompt_arms") or {}).values()
+    ]
+    return {
+        "strategy_attempt_id": wave.get("strategy_attempt_id", ""),
+        "round": wave.get("round"),
+        "evolution_index": wave.get("evolution_index"),
+        "strategy_family": wave.get("strategy_family", ""),
+        "strategy_operator": wave.get("strategy_operator", ""),
+        "source_family": wave.get("source_family", ""),
+        "operator_attempt": wave.get("operator_attempt"),
+        "operator_last_failure_class": wave.get("operator_last_failure_class", ""),
+        "query_count": query_count,
+        "queries": _unique(wave.get("queries") or []),
+        "query": str(wave.get("query") or ""),
+        "firecrawl_hits": _as_int(wave.get("firecrawl_hits")),
+        "search_result_count": _as_int(wave.get("search_result_count")),
+        "accepted_source_count": _as_int(wave.get("accepted_source_count")),
+        "accepted_urls": _unique(wave.get("accepted_urls") or [])[:10],
+        "duplicate_url_count": _as_int(wave.get("duplicate_url_count")),
+        "skipped_by_reason": dict(wave.get("skipped_by_reason") or {}),
+        "candidate_fates": dict(wave.get("candidate_fates") or {}),
+        "matched_needs": _top_counter(wave.get("matched_needs") or Counter(), 8),
+        "missing_needs": _top_counter(wave.get("missing_needs") or Counter(), 8),
+        "offtopic_axes": _top_counter(wave.get("offtopic_axes") or Counter(), 8),
+        "failure_modes": _top_counter(wave.get("failure_modes") or Counter(), 8),
+        "better_search_cues": _top_counter(
+            wave.get("better_search_cues") or Counter(),
+            8,
+        ),
+        "avoid_cues": _top_counter(wave.get("avoid_cues") or Counter(), 8),
+        "search_results": list(wave.get("search_results") or [])[:12],
+        "post_round_observed_delta": wave.get("post_round_observed_delta"),
+        "post_round_graph_node_delta": wave.get("post_round_graph_node_delta"),
+        "post_round_graph_edge_delta": wave.get("post_round_graph_edge_delta"),
+        "post_round_deficit_count": wave.get("post_round_deficit_count"),
+        "post_round_table_row_hits": wave.get("post_round_table_row_hits"),
+        "post_round_best_guess_hits": wave.get("post_round_best_guess_hits"),
+        "prompt_arms": prompt_arms,
+        "arm_contrast": _arm_contrast(prompt_arms),
+        "error": error,
+    }
+
+
+def _finalize_prompt_arm(arm: Mapping[str, Any]) -> dict[str, Any]:
+    query_count = len(arm.get("queries") or [])
+    outcome = _prompt_arm_outcome(arm)
+    return {
+        "prompt_arm_id": arm.get("prompt_arm_id", ""),
+        "prompt_arm_name": arm.get("prompt_arm_name", ""),
+        "prompt_arm_index": arm.get("prompt_arm_index"),
+        "prompt_delta": arm.get("prompt_delta", ""),
+        "prompt_hypothesis": arm.get("prompt_hypothesis", ""),
+        "expected_source_shape": arm.get("expected_source_shape", ""),
+        "query_count": query_count,
+        "queries": _unique(arm.get("queries") or []),
+        "firecrawl_hits": _as_int(arm.get("firecrawl_hits")),
+        "search_result_count": _as_int(arm.get("search_result_count")),
+        "accepted_source_count": _as_int(arm.get("accepted_source_count")),
+        "duplicate_url_count": _as_int(arm.get("duplicate_url_count")),
+        "table_row_hits": _as_int(arm.get("table_row_hits")),
+        "best_guess_hits": _as_int(arm.get("best_guess_hits")),
+        "skipped_by_reason": dict(arm.get("skipped_by_reason") or {}),
+        "candidate_fates": dict(arm.get("candidate_fates") or {}),
+        "accepted_urls": _unique(arm.get("accepted_urls") or [])[:10],
+        "search_results": list(arm.get("search_results") or [])[:12],
+        "score": _prompt_arm_score(arm),
+        "outcome": outcome,
+        "error": "; ".join(arm.get("errors") or [])[:500],
+    }
+
+
+def _strategy_attempt_key(attempt: Mapping[str, Any]) -> str:
+    attempt_id = str(attempt.get("strategy_attempt_id") or "")
+    if attempt_id:
+        return attempt_id
+    payload = {
+        "round": attempt.get("round"),
+        "evolution_index": attempt.get("evolution_index"),
+        "operator": _operator_name(attempt),
+        "operator_attempt": attempt.get("operator_attempt"),
+    }
+    raw = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
+
+
+def _prompt_arm_key(attempt: Mapping[str, Any]) -> str:
+    return str(
+        attempt.get("prompt_arm_id")
+        or attempt.get("strategy_attempt_id")
+        or _strategy_attempt_key(attempt)
+    )
+
+
+def _arm_contrast(prompt_arms: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    rows = [
+        {
+            "prompt_arm_id": arm.get("prompt_arm_id", ""),
+            "prompt_arm_name": arm.get("prompt_arm_name", ""),
+            "score": arm.get("score", 0),
+            "accepted_source_count": arm.get("accepted_source_count", 0),
+            "table_row_hits": arm.get("table_row_hits", 0),
+            "best_guess_hits": arm.get("best_guess_hits", 0),
+            "outcome": arm.get("outcome", ""),
+        }
+        for arm in prompt_arms
+    ]
+    return sorted(
+        rows,
+        key=lambda row: float(row.get("score") or 0.0),
+        reverse=True,
+    )
+
+
+def _prompt_arm_score(arm: Mapping[str, Any]) -> float:
+    skipped = _mapping(arm.get("skipped_by_reason"))
+    return round(
+        5.0 * _as_int(arm.get("table_row_hits"))
+        + 3.0 * _as_int(arm.get("best_guess_hits"))
+        + 1.0 * _as_int(arm.get("accepted_source_count"))
+        - 0.5 * _as_int(arm.get("duplicate_url_count"))
+        - 1.0 * _as_int(skipped.get("not_relevant")),
+        6,
+    )
+
+
+def _prompt_arm_outcome(arm: Mapping[str, Any]) -> str:
+    if _as_int(arm.get("table_row_hits")) > 0:
+        return "materialized_rows"
+    if _as_int(arm.get("best_guess_hits")) > 0:
+        return "best_guess_rows"
+    if _as_int(arm.get("accepted_source_count")) > 0:
+        return "accepted_sources"
+    if _as_int(arm.get("search_result_count")) <= 0:
+        return "no_hits"
+    skipped = _mapping(arm.get("skipped_by_reason"))
+    if _as_int(skipped.get("duplicate_url")) >= _as_int(
+        arm.get("search_result_count")
+    ):
+        return "all_duplicates"
+    if _as_int(skipped.get("not_relevant")) > 0:
+        return "off_axis"
+    return "no_accepted_sources"
 
 
 def _match_score(target: Mapping[str, Any], record: Mapping[str, Any]) -> int:
@@ -408,6 +772,34 @@ def _round_sort_value(value: Any) -> int:
         return int(value)
     except (TypeError, ValueError):
         return -1
+
+
+def _as_int(value: Any) -> int:
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _mapping(value: Any) -> Mapping[str, Any]:
+    return value if isinstance(value, Mapping) else {}
+
+
+def _first_present(mapping: Mapping[str, Any], *keys: str) -> Any:
+    for key in keys:
+        value = mapping.get(key)
+        if value is not None:
+            return value
+    return None
+
+
+def _operator_name(attempt: Mapping[str, Any]) -> str:
+    return str(
+        attempt.get("strategy_operator")
+        or attempt.get("operator")
+        or attempt.get("strategy_family")
+        or ""
+    )
 
 
 def _anchor_signature(value: Any) -> str:
