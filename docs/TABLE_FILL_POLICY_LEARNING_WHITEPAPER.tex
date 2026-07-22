@@ -522,8 +522,11 @@ expected number of newly accepted slots per token and per second.
 
 \subsection{Reward lacks explicit cost and scope terms}
 
-The current reward intentionally makes row-count chasing less attractive by
-weighting exact row growth lightly and penalizing repeated source support.
+The current reward intentionally avoids treating table-record growth as a
+success metric.  It rewards distinct declared field/value facts, source-backed
+field/value support, accepted best-guess slots, and new cited sources, then
+penalizes repeated source support for field/value facts that have already
+reached the support-depth target.
 Future learning also needs negative terms for:
 
 \begin{itemize}
