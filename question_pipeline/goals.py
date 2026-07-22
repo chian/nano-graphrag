@@ -408,13 +408,9 @@ def normalize_universe_estimate(
         if str(name).strip()
     }
     fallback_target_table = _sole_deliverable_table(deliverable_tables)
-    raw_count_targets = raw.get("count_targets") or raw.get("targets")
-    if (
-        not raw_count_targets
-        and isinstance(raw.get("raw"), Mapping)
-    ):
-        raw_payload = raw.get("raw")
-        raw_count_targets = raw_payload.get("count_targets") or raw_payload.get("targets")
+    raw_count_targets = _first_raw_section(raw, "count_targets", "targets")
+    raw_unestimated_targets = _first_raw_section(raw, "unestimated_count_targets")
+    raw_out_of_scope_targets = _first_raw_section(raw, "out_of_scope_count_targets")
 
     targets: list[dict[str, Any]] = []
     unestimated_targets: list[dict[str, Any]] = []
@@ -453,7 +449,7 @@ def normalize_universe_estimate(
             continue
         targets.append(_attach_observed_count(target, table_rows or {}))
 
-    for raw_index, item in enumerate(_as_list(raw.get("unestimated_count_targets"))):
+    for raw_index, item in enumerate(_as_list(raw_unestimated_targets)):
         if not isinstance(item, Mapping):
             continue
         target, _ = _coerce_count_target(
@@ -486,7 +482,7 @@ def normalize_universe_estimate(
             }
         )
 
-    for raw_index, item in enumerate(_as_list(raw.get("out_of_scope_count_targets"))):
+    for raw_index, item in enumerate(_as_list(raw_out_of_scope_targets)):
         if not isinstance(item, Mapping):
             continue
         target, _ = _coerce_count_target(
@@ -697,19 +693,42 @@ def _target_keys(targets: Iterable[Mapping[str, Any]]) -> set[str]:
 
 def _target_family_key(target: Mapping[str, Any]) -> str:
     table = _clean_key(target.get("target_table"))
-    if table:
-        return table
+    name = _clean_key(target.get("name"))
+    if table or name:
+        payload = {
+            "target_table": table,
+            "name": name,
+        }
+        raw = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+        return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
 
     columns = tuple(
         sorted(_clean_key(column) for column in _as_list(target.get("key_columns")))
     )
     columns = tuple(column for column in columns if column)
     payload = {
-        "name": _clean_key(target.get("name")),
         "key_columns": columns,
     }
     raw = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
+
+
+def _first_raw_section(raw: Mapping[str, Any], *keys: str) -> Any:
+    """Return a normalized section, falling back to a preserved model payload."""
+    for key in keys:
+        value = raw.get(key)
+        if value:
+            return value
+
+    raw_payload = raw.get("raw")
+    if not isinstance(raw_payload, Mapping):
+        return None
+
+    for key in keys:
+        value = raw_payload.get(key)
+        if value:
+            return value
+    return None
 
 
 def _coerce_count_target(
