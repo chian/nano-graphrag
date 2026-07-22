@@ -2379,7 +2379,7 @@ genuinely separate view that is not covered by a listed target."""
         ) as handle:
             for summary in summaries:
                 handle.write(json.dumps(summary, default=str) + "\n")
-        print(f"  Ran {len(summaries)} completion breadth probe(s)")
+        self._print_completion_probes(summaries)
         return summaries
 
     def _completion_probe_candidates(
@@ -2498,6 +2498,11 @@ genuinely separate view that is not covered by a listed target."""
         critique_path.write_text(
             json.dumps(critique, indent=2, default=str),
             encoding="utf-8",
+        )
+        self._print_universe_expectation(
+            artifact_label,
+            self.goal_universe_estimate,
+            critique,
         )
         return self.goal_universe_estimate
 
@@ -2883,6 +2888,7 @@ genuinely separate view that is not covered by a listed target."""
                 "missing_fields": target.get("missing_fields", []),
                 "anchor_values": target.get("anchor_values", {}),
                 "evidence_gap": target.get("evidence_gap", ""),
+                "expected_count": target.get("expected_count"),
                 "expected_minimum_count": target.get("expected_minimum_count"),
                 "observed_count": target.get("observed_count"),
                 "deficit_count": target.get("deficit_count"),
@@ -3025,6 +3031,7 @@ genuinely separate view that is not covered by a listed target."""
             "missing_fields": metadata.get("missing_fields", []),
             "anchor_values": metadata.get("anchor_values", {}),
             "evidence_gap": metadata.get("evidence_gap", ""),
+            "expected_count": metadata.get("expected_count"),
             "expected_minimum_count": metadata.get("expected_minimum_count"),
             "observed_count": metadata.get("observed_count"),
             "deficit_count": metadata.get("deficit_count"),
@@ -3869,7 +3876,195 @@ genuinely separate view that is not covered by a listed target."""
             if previous.get("label", previous.get("round")) != artifact_label
         ]
         self.goal_states.append(entry)
+        self._print_task_goal_state(state)
         return state
+
+    def _print_task_goal_state(self, state: FillGoalState) -> None:
+        targets = state.target_estimate.get("count_targets") or []
+        expected = sum(int(target.get("expected_count") or 0) for target in targets)
+        observed = sum(int(target.get("observed_count") or 0) for target in targets)
+        deficit = sum(int(target.get("deficit_count") or 0) for target in targets)
+        print(
+            "  Task goal: "
+            f"fulfilled={state.fulfilled} "
+            f"count_targets={len(targets)} "
+            f"observed={observed} "
+            f"expected={expected} "
+            f"deficit={deficit} "
+            f"pending={state.search_frontier['pending_tasks']}"
+        )
+
+    def _print_completion_probes(self, summaries: List[Dict[str, Any]]) -> None:
+        print(f"  Completion probes: {len(summaries)} breadth sample(s)")
+        for summary in summaries[:6]:
+            print(
+                "    - "
+                f"{self._clip(summary.get('query'), 120)} -> "
+                f"{summary.get('result_count_bucket') or 'unknown'} "
+                f"({summary.get('unique_url_count', 0)} urls, "
+                f"{summary.get('unique_domain_count', 0)} domains)"
+            )
+            purpose = self._clip(summary.get("purpose"), 140)
+            if purpose:
+                print(f"      purpose: {purpose}")
+            if summary.get("domains"):
+                print(
+                    "      domains: "
+                    + ", ".join(str(item) for item in summary["domains"][:5])
+                )
+            if summary.get("titles"):
+                print(
+                    "      titles: "
+                    + " | ".join(
+                        self._clip(item, 90)
+                        for item in summary["titles"][:3]
+                    )
+                )
+            if summary.get("error"):
+                print(f"      error: {self._clip(summary.get('error'), 160)}")
+
+    def _print_universe_expectation(
+        self,
+        artifact_label: int | str,
+        estimate: Mapping[str, Any],
+        critique: Mapping[str, Any],
+    ) -> None:
+        targets = [
+            target
+            for target in estimate.get("count_targets") or []
+            if isinstance(target, Mapping)
+        ]
+        expected = sum(int(target.get("expected_count") or 0) for target in targets)
+        floor = sum(
+            int(target.get("expected_minimum_count") or 0)
+            for target in targets
+        )
+        observed = sum(int(target.get("observed_count") or 0) for target in targets)
+        deficit = sum(int(target.get("deficit_count") or 0) for target in targets)
+        print(
+            "  Completion estimate "
+            f"{self._artifact_stem(artifact_label)}: "
+            f"status={estimate.get('status') or 'missing'} "
+            f"scope_status={self.completion_state.get('scope_status') or 'missing'} "
+            f"count_targets={len(targets)} "
+            f"observed={observed} "
+            f"expected={expected} "
+            f"floor={floor} "
+            f"deficit={deficit} "
+            f"unestimated={len(estimate.get('unestimated_count_targets') or [])} "
+            f"out_of_scope={len(estimate.get('out_of_scope_count_targets') or [])}"
+        )
+        scope = self._clip(estimate.get("scope_summary"), 180)
+        if scope:
+            print(f"    scope: {scope}")
+        self._print_completion_targets(targets)
+        issues = estimate.get("estimate_issues") or []
+        if issues:
+            self._print_completion_items("estimate issues", issues)
+        bins = estimate.get("underexplored_bins") or []
+        if bins:
+            self._print_completion_items("underexplored bins", bins)
+        if estimate.get("unresolved_questions"):
+            self._print_completion_list(
+                "unresolved",
+                estimate.get("unresolved_questions") or [],
+            )
+        if estimate.get("suggested_queries"):
+            self._print_completion_list(
+                "suggested",
+                estimate.get("suggested_queries") or [],
+            )
+        if critique:
+            print(
+                "    critique: "
+                f"accepted={bool(critique.get('accepted') or critique.get('accept'))} "
+                f"{self._clip(critique.get('rationale'), 160)}"
+            )
+
+    def _print_completion_targets(self, targets: List[Mapping[str, Any]]) -> None:
+        sources_by_id = {
+            str(source.get("id") or ""): source
+            for source in self.goal_discovery_sources
+            if isinstance(source, Mapping)
+        }
+        for target in targets[:6]:
+            source_ids = [
+                str(source_id)
+                for source_id in target.get("supporting_source_ids") or []
+            ]
+            print(
+                "    - "
+                f"{self._clip(target.get('name'), 80)}: "
+                f"observed={target.get('observed_count') or 0} "
+                f"expected={target.get('expected_count') or 0} "
+                f"floor={target.get('expected_minimum_count') or 0} "
+                f"deficit={target.get('deficit_count') or 0} "
+                f"table={target.get('target_table') or ''}"
+            )
+            basis = self._clip(
+                target.get("expected_count_basis") or target.get("basis"),
+                180,
+            )
+            if basis:
+                print(f"      basis: {basis}")
+            labels = [
+                self._source_label(source_id, sources_by_id.get(source_id))
+                for source_id in source_ids[:3]
+            ]
+            labels = [label for label in labels if label]
+            if labels:
+                print("      sources: " + " | ".join(labels))
+
+    def _print_completion_items(
+        self,
+        label: str,
+        items: List[Mapping[str, Any]],
+    ) -> None:
+        print(f"    {label}:")
+        for item in items[:4]:
+            axis = self._clip(item.get("axis") or item.get("name"), 60)
+            description = self._clip(
+                item.get("description") or item.get("reason"),
+                160,
+            )
+            if axis and description:
+                print(f"      - {axis}: {description}")
+            elif axis or description:
+                print(f"      - {axis or description}")
+            queries = item.get("suggested_queries") or []
+            if queries:
+                print("        query: " + self._clip(queries[0], 160))
+
+    def _print_completion_list(self, label: str, items: List[Any]) -> None:
+        cleaned = [
+            self._clip(item, 140)
+            for item in items
+            if str(item or "").strip()
+        ]
+        if cleaned:
+            print(f"    {label}: " + " | ".join(cleaned[:4]))
+
+    @staticmethod
+    def _source_label(source_id: str, source: Mapping[str, Any] | None) -> str:
+        if not source:
+            return source_id
+        title = (
+            source.get("title")
+            or source.get("name")
+            or source.get("source_title")
+            or source.get("url")
+            or ""
+        )
+        if isinstance(source.get("metadata"), Mapping):
+            title = title or source["metadata"].get("title") or ""
+        return f"{source_id}:{QuestionPipeline._clip(title, 70)}"
+
+    @staticmethod
+    def _clip(value: Any, limit: int = 120) -> str:
+        text = " ".join(str(value or "").split())
+        if len(text) <= limit:
+            return text
+        return text[: max(0, limit - 3)] + "..."
 
     async def _bootstrap_task_goal(self) -> List[Dict[str, Any]]:
         if self.goal_tracker is None:
@@ -4460,14 +4655,6 @@ genuinely separate view that is not covered by a listed target."""
                     json.dumps(round_record, indent=2, default=str),
                     encoding="utf-8",
                 )
-                if goal_state is not None:
-                    print(
-                        "  Task goal: "
-                        f"fulfilled={goal_state.fulfilled} "
-                        f"targets={len(goal_state.target_estimate.get('count_targets') or [])} "
-                        f"unmet={len(goal_state.target_catalog.get('unmet_count_targets') or [])} "
-                        f"pending={goal_state.search_frontier['pending_tasks']}"
-                    )
                 if goal_state is not None and goal_state.fulfilled:
                     print("\n  Task-level stop criteria fulfilled; stopping.")
                     break
@@ -4631,14 +4818,6 @@ genuinely separate view that is not covered by a listed target."""
                 json.dumps(round_record, indent=2, default=str), encoding="utf-8"
             )
 
-            if goal_state is not None:
-                print(
-                    "  Task goal: "
-                    f"fulfilled={goal_state.fulfilled} "
-                    f"targets={len(goal_state.target_estimate.get('count_targets') or [])} "
-                    f"unmet={len(goal_state.target_catalog.get('unmet_count_targets') or [])} "
-                    f"pending={goal_state.search_frontier['pending_tasks']}"
-                )
             if goal_state is not None and goal_state.fulfilled:
                 print("\n  Task-level stop criteria fulfilled; stopping.")
                 break

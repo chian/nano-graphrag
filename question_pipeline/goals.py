@@ -67,6 +67,7 @@ class FillDeficit:
     anchor_values: dict[str, Any] = field(default_factory=dict)
     evidence_gap: str = ""
     expected_minimum_count: int = 0
+    expected_count: int = 0
     observed_count: int = 0
     deficit_count: int = 0
     gap_row_count: int = 0
@@ -87,6 +88,7 @@ class FillDeficit:
             "anchor_values": dict(self.anchor_values),
             "evidence_gap": self.evidence_gap,
             "expected_minimum_count": self.expected_minimum_count,
+            "expected_count": self.expected_count,
             "observed_count": self.observed_count,
             "deficit_count": self.deficit_count,
             "gap_row_count": self.gap_row_count,
@@ -276,7 +278,7 @@ class TableFillGoalTracker:
                 "satisfied": not unestimated_targets,
                 "detail": (
                     f"{len(unestimated_targets)} row families still lack "
-                    "source-supported lower bounds"
+                    "source-supported expected counts"
                 ),
             },
             {
@@ -362,10 +364,10 @@ class TableFillGoalTracker:
             stop_rule=(
                 "Stop only after search-space breadth probes and retrieved "
                 "discovery evidence yield a consistent question-specific "
-                "answer-universe estimate, every final row family has a "
-                "source-supported lower-bound count, every estimated count "
-                "target is covered by the exported answer tables, and the "
-                "search frontier has no queued work."
+                "answer-universe estimate, every final record family has a "
+                "source-supported realistic expected count, every estimated "
+                "count target is covered by the exported answer tables, and "
+                "the search frontier has no queued work."
             ),
             unmet_criteria=unmet,
             criteria=criteria,
@@ -411,7 +413,7 @@ def normalize_universe_estimate(
     for raw_index, item in enumerate(_as_list(raw.get("count_targets") or raw.get("targets"))):
         if not isinstance(item, Mapping):
             continue
-        target, expected_minimum = _coerce_count_target(
+        target, expected_count = _coerce_count_target(
             item,
             raw,
             fallback_index=raw_index + 1,
@@ -431,10 +433,10 @@ def normalize_universe_estimate(
             )
             continue
         target_errors = _target_validation_errors(target)
-        if expected_minimum <= 0 or target_errors:
+        if expected_count <= 0 or target_errors:
             reason = (
-                "expected_minimum_count is missing"
-                if expected_minimum <= 0
+                "expected_count is missing"
+                if expected_count <= 0
                 else "; ".join(target_errors)
             )
             unestimated_targets.append({**target, "reason": reason})
@@ -711,6 +713,25 @@ def _coerce_count_target(
         or item.get("min_count")
         or item.get("lower_bound")
     )
+    expected_count = _as_int(
+        item.get("expected_count")
+        or item.get("realistic_expected_count")
+        or item.get("likely_count")
+        or item.get("central_count")
+    )
+    expected_maximum = _optional_int(
+        item.get("expected_maximum_count")
+        or item.get("maximum_expected_count")
+        or item.get("max_count")
+        or item.get("upper_bound")
+    )
+    if expected_count <= 0:
+        expected_count = expected_maximum or expected_minimum
+    if expected_minimum <= 0 and expected_count > 0:
+        expected_minimum = expected_count
+    expected_count = max(expected_count, expected_minimum)
+    if expected_maximum and expected_maximum < expected_count:
+        expected_maximum = expected_count
     target = {
         "name": _clean_display(item.get("name")) or f"target_{fallback_index}",
         "description": _clean_display(item.get("description")),
@@ -720,12 +741,14 @@ def _coerce_count_target(
             for column in _as_list(item.get("key_columns"))
             if str(column).strip()
         ],
+        "expected_count": expected_count if expected_count > 0 else None,
         "expected_minimum_count": expected_minimum if expected_minimum > 0 else None,
-        "expected_maximum_count": _optional_int(
-            item.get("expected_maximum_count")
-            or item.get("maximum_expected_count")
-            or item.get("max_count")
-            or item.get("upper_bound")
+        "expected_maximum_count": expected_maximum,
+        "expected_count_basis": _clean_display(
+            item.get("expected_count_basis")
+            or item.get("count_basis")
+            or item.get("basis")
+            or item.get("rationale")
         ),
         "basis": _clean_display(item.get("basis") or item.get("rationale")),
         "supporting_source_ids": _unique(
@@ -738,7 +761,7 @@ def _coerce_count_target(
         ),
     }
     target["id"] = _target_id(target)
-    return target, expected_minimum
+    return target, expected_count
 
 
 def _target_table_is_deliverable(
@@ -767,7 +790,14 @@ def _target_validation_errors(target: Mapping[str, Any]) -> list[str]:
     if not target.get("supporting_source_ids"):
         errors.append("no supporting discovery source ids")
 
-    basis = _clean_key(target.get("basis"))
+    basis = _clean_key(
+        " ".join(
+            [
+                str(target.get("basis") or ""),
+                str(target.get("expected_count_basis") or ""),
+            ]
+        )
+    )
     circular_patterns = (
         r"\bcurrent(?:-[a-z0-9]+){0,4}-table\b",
         r"\bcurrent-table\b",
@@ -795,11 +825,18 @@ def _attach_observed_count(
         target.get("key_columns") or [],
     )
     target = dict(target)
+    expected_minimum = _as_int(target.get("expected_minimum_count"))
+    expected_count = max(
+        _as_int(target.get("expected_count")),
+        expected_minimum,
+    )
+    target["expected_count"] = expected_count if expected_count > 0 else None
     target["observed_count"] = covered
     target["observed_total_count"] = observed
+    target["minimum_deficit_count"] = max(0, expected_minimum - covered)
     target["deficit_count"] = max(
         0,
-        _as_int(target.get("expected_minimum_count")) - covered,
+        expected_count - covered,
     )
     target["status"] = "covered" if target["deficit_count"] == 0 else "open"
     return target
@@ -1055,9 +1092,12 @@ def _compact_estimate(
                     "name",
                     "target_table",
                     "key_columns",
+                    "expected_count",
                     "expected_minimum_count",
+                    "expected_maximum_count",
                     "observed_count",
                     "observed_total_count",
+                    "minimum_deficit_count",
                     "deficit_count",
                     "status",
                 )
@@ -1070,6 +1110,7 @@ def _compact_estimate(
                 for key in (
                     "name",
                     "target_table",
+                    "expected_count",
                     "expected_minimum_count",
                     "reason",
                 )
@@ -1082,6 +1123,7 @@ def _compact_estimate(
                 for key in (
                     "name",
                     "target_table",
+                    "expected_count",
                     "expected_minimum_count",
                     "reason",
                 )
@@ -1127,7 +1169,8 @@ def _count_fill_deficit(
 ) -> FillDeficit:
     table_name = _clean_display(target.get("target_table"))
     rows = table_rows.get(table_name, [])
-    expected = _as_int(target.get("expected_minimum_count"))
+    expected_minimum = _as_int(target.get("expected_minimum_count"))
+    expected = max(_as_int(target.get("expected_count")), expected_minimum)
     observed = _as_int(target.get("observed_count"))
     deficit_count = _as_int(target.get("deficit_count"))
     shortfall_ratio = deficit_count / max(expected, 1)
@@ -1155,7 +1198,8 @@ def _count_fill_deficit(
         description=description,
         key_columns=key_columns,
         missing_fields=missing_fields,
-        expected_minimum_count=expected,
+        expected_minimum_count=expected_minimum,
+        expected_count=expected,
         observed_count=observed,
         deficit_count=deficit_count,
         row_count=len(rows),

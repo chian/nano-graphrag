@@ -28,10 +28,11 @@ requested by the user."""
 _UNIVERSE_ESTIMATE_SYSTEM_PROMPT = """You estimate the answer universe for an
 iterative table-aggregation run. Use retrieved discovery sources, current table
 schemas, current row samples, and current gaps to infer the question-specific
-families of rows that a complete answer would need. Estimate conservative
-lower-bound counts for those row families. Do not reuse stale estimates when
-the sources imply a larger universe. Return only valid JSON in the shape
-requested by the user."""
+families of final-table records that a complete answer would need. Estimate a
+realistic source-backed count for each family, plus a smaller executable floor
+only when the discovery evidence supports a conservative floor but not the
+realistic count. Do not reuse stale estimates when the sources imply a larger
+universe. Return only valid JSON in the shape requested by the user."""
 
 _COMPLETION_PROBE_SYSTEM_PROMPT = """You plan search-space breadth probes for an
 iterative table-aggregation run. Use the question, declared deliverables,
@@ -44,7 +45,7 @@ shape requested by the user."""
 _COMPLETION_CRITIQUE_SYSTEM_PROMPT = """You are a skeptical completion-scope
 critic for an iterative table-aggregation run. Compare the current answer
 universe estimate against the declared deliverables and search-space probes.
-Accept the estimate only when its expected axes and lower-bound counts are
+Accept the estimate only when its expected axes and realistic expected counts are
 consistent with the breadth and diversity of retrieved search results. Return
 only valid JSON in the shape requested by the user."""
 
@@ -597,7 +598,7 @@ async def estimate_coverage_universe(
     completion_state: Dict[str, Any] | None = None,
     previous_estimate: Dict[str, Any] | None = None,
 ) -> Dict[str, Any]:
-    """Estimate question-specific lower bounds from discovery source text."""
+    """Estimate question-specific completion counts from discovery source text."""
     prompt = f"""QUESTION:
 {question}
 
@@ -613,33 +614,38 @@ COMPLETION SCOPE STATE JSON:
 DISCOVERY SOURCES JSON:
 {json.dumps(discovery_sources, indent=2, default=str)[:24000]}
 
-Infer the row families that define a complete tabular answer for this question.
-For each row family, estimate a conservative lower bound from the discovery
-sources, then map the target to the table whose name, columns, and row samples
-directly represent that row family. Do not choose an adjacent table merely
-because it shares some key columns.
+Infer the final-record families that define a complete tabular answer for this
+question. For each family, estimate the realistic number of distinct final-table
+records that the literature likely contains, then map the target to the table
+whose name, columns, and samples directly represent that family. Do not choose an
+adjacent table merely because it shares some key columns.
 
 count_targets are executable stop-rule targets. Include only row families that
 the final answer tables should materialize. Prefer exact names from
 CURRENT COVERAGE STATE JSON.target_table_names for target_table. Propose a new
 snake_case table name ending in _table only when the question directly requires
 a separate final table that is absent from the current target list. Use broad
-catalog counts only to set lower bounds for final table rows; do not create
+catalog counts only to size final-table expectations; do not create
 count_targets for auxiliary catalogs or search-space summaries that are not
-themselves final answer rows.
+themselves final answer records.
 
-Choose key_columns from fields that can count distinct rows for that family.
-When the final rows vary by a qualifier that changes the meaning of a row,
-retain that axis in key_columns instead of collapsing it to one broad row.
+Choose key_columns from fields that can count distinct records for that family.
+When the final records vary by a qualifier that changes the meaning of a record,
+retain that axis in key_columns instead of collapsing it to one broad record.
 When multiple current final tables represent different required row families,
 keep an executable count_target or an unestimated_count_target for each family
 until retrieved discovery evidence supports a lower bound.
 
-Use lower bounds that are explicitly defensible from searched source text. If
-the sources do not support any useful lower bound yet, set status to
-"insufficient_evidence" and propose broader queries in suggested_queries.
-Use search-space probes to list expected_axes and underexplored_bins even when
-there is not enough evidence to quantify every target family yet.
+The expected_count is the realistic source-backed number the run should aim to
+materialize for that family. The expected_minimum_count is only an executable
+floor for cases where sources reveal the universe is larger than the current
+evidence can tightly count. Set expected_count equal to expected_minimum_count
+only when the discovery sources make that exact count plausible; otherwise keep
+expected_count higher and explain the gap in expected_count_basis. If the sources
+do not support any useful count yet, set status to "insufficient_evidence" and
+propose broader queries in suggested_queries. Use search-space probes to list
+expected_axes and underexplored_bins even when there is not enough evidence to
+quantify every target family yet.
 
 Return JSON:
 {{
@@ -661,8 +667,10 @@ Return JSON:
       "description": "what should be counted",
       "target_table": "best matching current table or proposed *_table name",
       "key_columns": ["columns that uniquely identify this row family"],
+      "expected_count": 20,
       "expected_minimum_count": 12,
       "expected_maximum_count": 30,
+      "expected_count_basis": "why searched sources imply the realistic count",
       "basis": "why the searched sources support that count",
       "supporting_source_ids": ["source ids for this count"],
       "known_missing_examples": ["optional examples to search next"]
