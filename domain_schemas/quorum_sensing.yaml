@@ -1,0 +1,111 @@
+# Quorum Sensing Domain Schema
+# Focus: autoinducer synthesis and detection, QS regulators and sRNAs,
+# biofilm and virulence outputs in Pseudomonas, Acinetobacter, Vibrio,
+# Streptococcus, Salmonella, and Staphylococcus, and anti-virulence strategies.
+
+domain_name: "Quorum Sensing"
+domain_description: "Causal bacterial quorum-sensing mechanisms that couple population-density signals to autoinducer receptors, QS transcription factors, small RNAs, biofilm programs, extracellular vesicles, antibiotic tolerance or susceptibility, virulence-factor expression, and quorum-sensing interference."
+
+entity_types:
+  BACTERIAL_PATHOGEN:
+    description: "A bacterial species, strain, mutant, or infection isolate using quorum sensing."
+    examples: ["Pseudomonas aeruginosa", "Acinetobacter baumannii", "Vibrio cholerae", "Streptococcus mutans"]
+
+  AUTOINDUCER:
+    description: "A diffusible quorum signal or density-dependent molecule."
+    examples: ["AHL", "AI-2", "AbaI-derived signal", "quorum signal"]
+
+  AUTOINDUCER_SYNTHASE:
+    description: "An enzyme that produces a quorum-sensing autoinducer."
+    examples: ["AbaI", "LuxI-family synthase"]
+
+  QUORUM_RECEPTOR:
+    description: "A membrane, cytosolic, or transcriptional receptor for a quorum signal."
+    examples: ["LuxR-family receptor", "LasR", "Agr receptor"]
+
+  QS_REGULATOR:
+    description: "A transcription factor, response regulator, or accessory regulator controlling the QS regulon."
+    examples: ["AbaM", "LasR", "RhlR", "QS regulator"]
+
+  SMALL_RNA:
+    description: "An sRNA or 5-prime UTR-derived regulator that modulates quorum, biofilm, or virulence genes."
+    examples: ["LapS", "5-prime UTR-derived sRNA"]
+
+  VIRULENCE_FACTOR:
+    description: "A toxin, extracellular vesicle, enzyme, LPS, or pathogenicity determinant under QS control."
+    examples: ["bacterial extracellular vesicle", "toxin", "LPS", "virulence factor"]
+
+  BIOFILM_PROGRAM:
+    description: "A biofilm-development, adhesion, matrix, or periprosthetic infection program controlled by QS."
+    examples: ["biofilm formation", "periprosthetic biofilm", "biofilm development"]
+
+  ANTIBIOTIC_RESPONSE:
+    description: "A resistance, susceptibility, multidrug-resistant, or therapeutic response state linked to QS."
+    examples: ["antibiotic resistance", "multidrug resistance", "antibiotic susceptibility"]
+
+  QUORUM_INTERVENTION:
+    description: "A quorum-sensing inhibitor, interference strategy, biocontrol method, or anti-pathogenic drug."
+    examples: ["QS inhibitor", "quorum-sensing interference", "anti-pathogenic drug"]
+
+relationship_types:
+  SYNTHESIZES_AUTOINDUCER:
+    description: "A synthase produces a quorum-sensing signal."
+    inverse: "AUTOINDUCER_SYNTHESIZED_BY"
+    examples: ["AbaI SYNTHESIZES_AUTOINDUCER AHL signal"]
+
+  ACCUMULATES_WITH_DENSITY:
+    description: "An autoinducer increases as population density or growth state changes."
+    inverse: "DENSITY_ACCUMULATES"
+    examples: ["AHL ACCUMULATES_WITH_DENSITY quorum threshold"]
+
+  BINDS_RECEPTOR:
+    description: "An autoinducer binds a QS receptor."
+    inverse: "RECEPTOR_BOUND_BY"
+    examples: ["AHL BINDS_RECEPTOR LuxR-family receptor"]
+
+  ACTIVATES_REGULATOR:
+    description: "A signal or receptor turns on a QS transcriptional regulator."
+    inverse: "REGULATOR_ACTIVATED_BY"
+    examples: ["autoinducer-receptor complex ACTIVATES_REGULATOR QS regulon"]
+
+  REPRESSES_REGULATOR:
+    description: "An sRNA or accessory regulator suppresses a QS regulator or transcript."
+    inverse: "REGULATOR_REPRESSED_BY"
+    examples: ["LapS REPRESSES_REGULATOR biofilm transcript"]
+
+  REGULATES_BIOFILM:
+    description: "A QS component increases or decreases a biofilm-development program."
+    inverse: "BIOFILM_REGULATED_BY"
+    examples: ["AbaM REGULATES_BIOFILM Acinetobacter biofilm formation"]
+
+  REGULATES_VIRULENCE:
+    description: "A QS regulator or signal controls virulence-gene expression or pathogenic traits."
+    inverse: "VIRULENCE_REGULATED_BY"
+    examples: ["LasR REGULATES_VIRULENCE toxin expression"]
+
+  MODULATES_ANTIBIOTIC_RESPONSE:
+    description: "A QS component changes resistance, susceptibility, or treatment response."
+    inverse: "ANTIBIOTIC_RESPONSE_MODULATED_BY"
+    examples: ["AbaI mutation MODULATES_ANTIBIOTIC_RESPONSE antibiotic susceptibility"]
+
+  CONTROLS_SRNA:
+    description: "A QS or transcriptional regulator changes small-RNA production or action."
+    inverse: "SRNA_CONTROLLED_BY"
+    examples: ["QS regulator CONTROLS_SRNA LapS"]
+
+  RELEASES_VESICLE:
+    description: "A bacterial population or QS state promotes extracellular vesicle release."
+    inverse: "VESICLE_RELEASED_BY"
+    examples: ["Pseudomonas aeruginosa RELEASES_VESICLE BEVs"]
+
+  INTERFERES_WITH_QS:
+    description: "An inhibitor or biocontrol strategy blocks autoinducer synthesis, detection, or QS output."
+    inverse: "QS_INTERFERED_BY"
+    examples: ["QS inhibitor INTERFERES_WITH_QS autoinducer receptor"]
+
+  CROSSTALKS_WITH:
+    description: "Two QS, resistance, Candida, or biofilm pathways influence each other."
+    inverse: "CROSSTALKS_WITH"
+    symmetric: true
+    examples: ["QS system CROSSTALKS_WITH biofilm regulator"]
+

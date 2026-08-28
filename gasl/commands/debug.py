@@ -97,7 +97,6 @@ class DebugHandler(CommandHandler):
                 data=data,
                 scope="current_rows_only",
                 usable_by=[],
-                confidence=1.0,
             ),
         )
     
@@ -155,7 +154,6 @@ class DebugHandler(CommandHandler):
                 data=analysis,
                 scope="current_rows_only",
                 usable_by=[],
-                confidence=1.0,
             ),
         )
     

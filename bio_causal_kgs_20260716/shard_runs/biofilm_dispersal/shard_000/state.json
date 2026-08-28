@@ -1,0 +1,36 @@
+{
+  "completed_chunk_ids": [
+    "pmid_16805442:0:0:1811:4b218f9feda8",
+    "pmid_19327118:0:0:1515:52d664e93f3c",
+    "pmid_24657330:0:0:1026:9734580b2179",
+    "pmid_25444134:0:0:1279:95e22e86c221",
+    "pmid_26104692:0:0:1423:d107d9d777c3",
+    "pmid_26832663:0:0:1714:96b4f184ce4b",
+    "pmid_31746489:0:0:1997:d16a017da9f8",
+    "pmid_32533131:0:0:902:acff299970e0",
+    "pmid_34311995:0:0:1495:7d12a36b43d4",
+    "pmid_34332222:0:0:1670:99f10e77cf8b",
+    "pmid_34774023:0:0:1172:6d7a847a7682",
+    "pmid_35234364:0:0:1588:53f012007245",
+    "pmid_36154360:0:0:2544:652b82455fd9",
+    "pmid_37634478:0:0:1569:95972be70203",
+    "pmid_37695853:0:0:2583:30231a1e8f71",
+    "pmid_38295992:0:0:1619:b6a4866717cc",
+    "pmid_40643714:0:0:2074:e791901261c0",
+    "pmid_42062835:0:0:2003:67440833486b"
+  ],
+  "processed": 18,
+  "total": 18,
+  "summary": {
+    "shard_path": "bio_causal_kgs_20260716/shards/biofilm_dispersal/shard_000.jsonl",
+    "graph_path": "bio_causal_kgs_20260716/shard_runs/biofilm_dispersal/shard_000/local_graph.graphml",
+    "entities_path": "bio_causal_kgs_20260716/shard_runs/biofilm_dispersal/shard_000/entities.jsonl",
+    "relationships_path": "bio_causal_kgs_20260716/shard_runs/biofilm_dispersal/shard_000/relationships.jsonl",
+    "chunk_results_path": "bio_causal_kgs_20260716/shard_runs/biofilm_dispersal/shard_000/chunk_results.jsonl",
+    "chunks_total": 18,
+    "chunks_completed": 18,
+    "nodes": 241,
+    "edges": 287,
+    "elapsed_sec": 361.12
+  }
+}

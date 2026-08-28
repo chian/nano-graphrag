@@ -1,0 +1,12 @@
+{
+  "shard_path": "bio_causal_kgs_20260716/shards/plant_circadian_clock/shard_000.jsonl",
+  "graph_path": "bio_causal_kgs_20260716/shard_runs/plant_circadian_clock/shard_000/local_graph.graphml",
+  "entities_path": "bio_causal_kgs_20260716/shard_runs/plant_circadian_clock/shard_000/entities.jsonl",
+  "relationships_path": "bio_causal_kgs_20260716/shard_runs/plant_circadian_clock/shard_000/relationships.jsonl",
+  "chunk_results_path": "bio_causal_kgs_20260716/shard_runs/plant_circadian_clock/shard_000/chunk_results.jsonl",
+  "chunks_total": 18,
+  "chunks_completed": 18,
+  "nodes": 203,
+  "edges": 306,
+  "elapsed_sec": 331.59
+}

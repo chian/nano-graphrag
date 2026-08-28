@@ -109,7 +109,8 @@ def find_entity_matches(
     new_entity: Dict,
     existing_entities: Dict[str, Dict],
     entity_type_match: bool = True,
-    similarity_threshold: float = 0.85
+    similarity_threshold: float = 0.85,
+    match_policy: Optional[str] = None,
 ) -> List[Tuple[str, float]]:
     """
     Find potential matches for a new entity in existing entities.
@@ -125,6 +126,12 @@ def find_entity_matches(
     """
     new_name = new_entity['entity_name']
     new_type = new_entity.get('entity_type', '')
+    policy = str(
+        match_policy or new_entity.get('merge_policy') or 'canonical'
+    ).strip().lower()
+
+    if policy in {'source_local', 'immutable', 'none'}:
+        return []
 
     matches = []
 
@@ -135,8 +142,16 @@ def find_entity_matches(
             if existing_type != new_type:
                 continue
 
-        # Calculate similarity
-        similarity = calculate_similarity(new_name, existing_name)
+        existing_display_name = existing_entity.get('entity_name') or existing_name
+        if policy == 'exact':
+            similarity = (
+                1.0
+                if normalize_entity_name(new_name)
+                == normalize_entity_name(str(existing_display_name))
+                else 0.0
+            )
+        else:
+            similarity = calculate_similarity(new_name, str(existing_display_name))
 
         if similarity >= similarity_threshold:
             matches.append((existing_name, similarity))
@@ -180,12 +195,18 @@ def merge_entities(
         else:
             merged['description'] = new_desc
 
-    # Add source chunk
-    if 'source_chunks' not in merged:
-        merged['source_chunks'] = []
-
-    if 'source_chunk' in new_entity:
-        merged['source_chunks'].append(new_entity['source_chunk'])
+    # Preserve every source-local chunk reference across an allowed concept merge.
+    source_chunks = merged.get('source_chunks')
+    if not isinstance(source_chunks, list):
+        source_chunks = [source_chunks] if source_chunks else []
+    new_chunks = new_entity.get('source_chunks')
+    if not isinstance(new_chunks, list):
+        new_chunks = [new_chunks] if new_chunks else []
+    if new_entity.get('source_chunk'):
+        new_chunks.append(new_entity['source_chunk'])
+    merged['source_chunks'] = list(
+        dict.fromkeys(str(chunk) for chunk in source_chunks + new_chunks if chunk)
+    )
 
     # Track source references via canonical slot. Preserve batch-local refs
     # when merging a batch graph into the central graph.

@@ -72,7 +72,6 @@ class SelectHandler(CommandHandler):
                 order_direction=source_contract.get("order_direction", "unknown"),
                 scope="current_rows_only",
                 usable_by=["PROCESS", "AGGREGATE", "SHOW", "SELECT", "JOIN"],
-                confidence=0.96,
                 grain_type=identity_meta["grain_type"],
                 grain_keys=identity_meta["grain_keys"],
                 multiplicity_preserved=identity_meta["multiplicity_preserved"],

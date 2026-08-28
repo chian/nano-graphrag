@@ -1,0 +1,110 @@
+# Insect Ecdysone Signaling Domain Schema
+# Focus: ecdysteroid biosynthesis and transport, EcR/USP receptor signaling,
+# Broad-complex and E74/E75 gene cascades, juvenile-hormone antagonism,
+# programmed cell death, molting, and metamorphic tissue remodeling.
+
+domain_name: "Insect Ecdysone Signaling"
+domain_description: "Causal endocrine regulation of insect molting and metamorphosis by ecdysteroid pulses, ecdysone transporters, EcR/USP nuclear receptors, Broad-complex and E74/E75 transcriptional cascades, juvenile hormone, developmental checkpoints, and steroid-triggered tissue deletion or remodeling."
+
+entity_types:
+  INSECT_STAGE_OR_TISSUE:
+    description: "An insect species, larval or pupal stage, endocrine organ, hemolymph, imaginal disc, or remodeling tissue."
+    examples: ["Drosophila", "larval tissue", "wing imaginal disc", "central nervous system", "prothoracic gland"]
+
+  ECDYSTEROID:
+    description: "An ecdysone, 20-hydroxyecdysone, agonist, or ecdysteroid pulse controlling development."
+    examples: ["ecdysone", "20E", "nonsteroidal ecdysone agonist", "ecdysteroid"]
+
+  JUVENILE_HORMONE_SIGNAL:
+    description: "A juvenile hormone, JH receptor, or anti-metamorphic endocrine state."
+    examples: ["juvenile hormone", "JH", "JH receptor"]
+
+  HORMONE_TRANSPORTER:
+    description: "A membrane or lipid transport factor that moves ecdysteroid or lipid hormone precursors."
+    examples: ["ecdysone transporter", "lipid transporter"]
+
+  NUCLEAR_RECEPTOR:
+    description: "An ecdysone receptor, USP partner, or nuclear hormone receptor in the ecdysone cassette."
+    examples: ["EcR", "USP", "ecdysone receptor"]
+
+  EARLY_RESPONSE_GENE:
+    description: "An ecdysone-inducible primary response gene or broad transcriptional regulator."
+    examples: ["Broad-complex", "BR-C", "E74", "E75"]
+
+  LATE_TARGET_GENE:
+    description: "A downstream cuticle, effector, or tissue-remodeling gene induced after early ecdysone response."
+    examples: ["cuticular gene", "late ecdysone target", "metamorphic target gene"]
+
+  DEVELOPMENTAL_CHECKPOINT:
+    description: "A checkpoint, feedback circuit, critical-weight signal, or timer that gates maturation."
+    examples: ["developmental checkpoint", "feedback circuit", "critical weight"]
+
+  TISSUE_REMODELING_EVENT:
+    description: "A programmed cell death, histolysis, growth, pruning, or adult tissue formation event."
+    examples: ["programmed cell death", "cell deletion", "metamorphic remodeling", "wing growth"]
+
+  METAMORPHIC_OUTCOME:
+    description: "A molting, metamorphosis, body-size, scaling, or adult maturation endpoint."
+    examples: ["molt", "metamorphosis", "adult body size", "wing-body scaling"]
+
+relationship_types:
+  PRODUCES_HORMONE:
+    description: "An endocrine tissue or biosynthetic process produces an ecdysteroid or juvenile hormone."
+    inverse: "HORMONE_PRODUCED_BY"
+    examples: ["prothoracic gland PRODUCES_HORMONE ecdysone"]
+
+  TRANSPORTS_HORMONE:
+    description: "A transporter moves ecdysone, ecdysteroid, or lipid hormone precursor across tissues."
+    inverse: "HORMONE_TRANSPORTED_BY"
+    examples: ["ecdysone transporter TRANSPORTS_HORMONE ecdysone"]
+
+  BINDS_RECEPTOR:
+    description: "A hormone or agonist binds a nuclear receptor."
+    inverse: "RECEPTOR_BOUND_BY"
+    examples: ["ecdysone BINDS_RECEPTOR EcR"]
+
+  ACTIVATES_EARLY_GENE:
+    description: "An ecdysone-bound receptor complex activates primary response transcription."
+    inverse: "EARLY_GENE_ACTIVATED_BY"
+    examples: ["EcR/USP ACTIVATES_EARLY_GENE E74"]
+
+  INDUCES_LATE_GENE:
+    description: "An early response factor induces downstream late or cuticular genes."
+    inverse: "LATE_GENE_INDUCED_BY"
+    examples: ["Broad-complex INDUCES_LATE_GENE cuticular gene"]
+
+  REPRESSES_PRECOCIOUS_METAMORPHOSIS:
+    description: "Juvenile hormone or its receptor prevents premature ecdysone-driven adult development."
+    inverse: "PRECOCIOUS_METAMORPHOSIS_REPRESSED_BY"
+    examples: ["JH REPRESSES_PRECOCIOUS_METAMORPHOSIS metamorphosis"]
+
+  TIMES_TRANSITION:
+    description: "A hormone pulse or checkpoint sets the timing of a larval, pupal, or adult transition."
+    inverse: "TRANSITION_TIMED_BY"
+    examples: ["ecdysone pulse TIMES_TRANSITION pupariation"]
+
+  TRIGGERS_MOLTING:
+    description: "An ecdysone signal causes a molt or cuticle replacement event."
+    inverse: "MOLTING_TRIGGERED_BY"
+    examples: ["ecdysteroid TRIGGERS_MOLTING larval molt"]
+
+  TRIGGERS_PCD:
+    description: "An ecdysone signal induces programmed death or deletion of obsolete larval tissue."
+    inverse: "PCD_TRIGGERED_BY"
+    examples: ["ecdysone TRIGGERS_PCD larval tissue deletion"]
+
+  REMODELS_TISSUE:
+    description: "A gene cascade or hormone state reshapes the nervous system, epithelium, wing, or other tissue."
+    inverse: "TISSUE_REMODELED_BY"
+    examples: ["ecdysone cascade REMODELS_TISSUE CNS remodeling"]
+
+  FEEDS_BACK_TO:
+    description: "A developmental output or checkpoint regulates an upstream endocrine tissue or hormone pulse."
+    inverse: "RECEIVES_FEEDBACK_FROM"
+    examples: ["developmental checkpoint FEEDS_BACK_TO ecdysone production"]
+
+  MIMICS_ECDYSONE:
+    description: "A nonsteroidal agonist phenocopies ecdysteroid receptor activation."
+    inverse: "ECDYSONE_MIMICKED_BY"
+    examples: ["diacylhydrazine agonist MIMICS_ECDYSONE EcR activation"]
+

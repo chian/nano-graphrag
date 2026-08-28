@@ -18,6 +18,7 @@ import multiprocessing as mp
 import os
 import re
 import sys
+import tempfile
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -235,7 +236,13 @@ def _run_gasl_worker(graph_path: str, question: str, api_key: str, model: str) -
     adapter = NetworkXAdapter(loader.graph)
     runtime_cfg = resolve_runtime_llm_config(explicit_api_key=api_key, explicit_model=model)
     llm = ArgoBridgeLLM(model=runtime_cfg.model or model, api_key=runtime_cfg.api_key, base_url=runtime_cfg.base_url)
-    executor = GASLExecutor(adapter, llm, job_id=f"bench-{int(time.time()*1000)}")
+    run_root = Path(tempfile.mkdtemp(prefix="nano-graphrag-gasl-benchmark-"))
+    executor = GASLExecutor(
+        adapter,
+        llm,
+        state_file=str(run_root / "gasl_state.json"),
+        job_id=f"bench-{int(time.time()*1000)}",
+    )
     start = time.perf_counter()
     with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
         result = executor.run_hypothesis_driven_traversal(question, max_iterations=8)

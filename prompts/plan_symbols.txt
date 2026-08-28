@@ -24,7 +24,7 @@ Return strict JSON only with this exact shape:
       "name": "symbol_name",
       "role": "what this symbol represents",
       "shape": "rows|dict|counter|nodes|edges|paths",
-      "producer": "input|DECLARE|FIND|GRAPHWALK|PROJECT|PROCESS|AGGREGATE|COLLAPSE|JOIN|MERGE|COMPARE|SELECT|RANK|UPDATE",
+      "producer": "input|DECLARE|FIND|GRAPHWALK|PROJECT|PROCESS|COLLAPSE|JOIN|MERGE|SELECT",
       "rationale": "short reason"
     }}
   ]
@@ -34,5 +34,12 @@ Rules:
 - Prefer the smallest sufficient symbol table, but use additional symbols when query complexity or multi-stage plans require them.
 - Only include symbols you genuinely plan to use.
 - Prefer reusable intermediate symbols over many short-lived symbols.
-- If a symbol already exists in state/context and will be consumed directly, set producer to "input".
+- If a symbol already exists in durable StateStore and will be consumed directly, set producer to "input". Action-local ContextStore values are not planner-consumable.
+- A durable input is eligible only when its persisted `usable_by` list names the exact consuming command; do not route FIND edge/path outputs into GRAPHWALK.
+- GRAPHWALK relation strings require JSON quoting when they look Boolean/numeric, contain `,` or `|`, case-insensitively equal the reserved wildcard `a`, `an`, `any`, `all`, or `*`, or begin with the reserved `relation_type=` or `relationship_name=` assignment prefix. Unquoted wildcard spellings mean all relations.
+- Include every name the plan will consume or produce. An undeclared name is rejected even when the symbol list is empty.
+- For each new output, producer must exactly name the command that creates it. A durable input must use producer "input" and cannot also be overwritten in place.
+- Use `nodes`, `edges`, or `paths` for FIND outputs matching the FIND target; use `rows` for PROCESS, PROJECT, COLLAPSE, GRAPHWALK, JOIN, MERGE, and SELECT outputs; use `dict`, `counter`, or `rows` for DECLARE according to its exact type.
+- Every symbol object must contain exactly name, role, shape, producer, and rationale with nonempty string values. Duplicate names and unsupported producers or shapes are rejected.
+- Do not declare PROCESS `__unresolved` or `__unsupported` sidecars or use either suffix for an explicit output. Runtime admits valid sidecars deterministically. An actionable `<target>__unresolved` may be consumed only by the direct same-target `PROCESS <target>__unresolved ... AS <target>` continuation. An `__unsupported` sidecar is audit-only and may be read only by SHOW.
 - Use stable, descriptive GASL variable names.

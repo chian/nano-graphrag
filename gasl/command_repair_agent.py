@@ -14,7 +14,7 @@ import json
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, Iterable, Optional
 
-from .search_refinement_agent import LLMSearchRefinementAgent
+from .sampling import deterministic_sample
 from nano_graphrag.prompt_system import get_prompt_system
 
 
@@ -74,7 +74,6 @@ class ProcessAlignmentRequest:
 class LLMCommandRepairAgent:
     def __init__(self, llm_func):
         self.llm_func = llm_func
-        self._sampler = LLMSearchRefinementAgent(llm_func)
 
     def run_command_repair(self, request: CommandRepairRequest) -> Dict[str, Any]:
         rows = []
@@ -82,7 +81,7 @@ class LLMCommandRepairAgent:
             rows.append(row)
             if len(rows) >= request.sample_limit:
                 break
-        rows = self._sampler.sample_rows(rows, seed_text=request.seed_text, k=request.sample_limit)
+        rows = deterministic_sample(rows, seed_text=request.seed_text, k=request.sample_limit)
         prompt_text = request.prompt_builder(rows, len(rows))
         observation_id = None
         try:
@@ -121,7 +120,7 @@ class LLMCommandRepairAgent:
             sampled_inputs.append(row)
             if len(sampled_inputs) >= request.sample_limit:
                 break
-        sampled_inputs = self._sampler.sample_rows(
+        sampled_inputs = deterministic_sample(
             sampled_inputs,
             seed_text=f"{request.query}:{request.command_text}",
             k=request.sample_limit,
@@ -191,7 +190,7 @@ class LLMCommandRepairAgent:
             rows.append(row)
             if len(rows) >= request.sample_limit:
                 break
-        sampled_rows = self._sampler.sample_rows(rows, seed_text=f"{request.query}:{request.instruction}", k=request.sample_limit)
+        sampled_rows = deterministic_sample(rows, seed_text=f"{request.query}:{request.instruction}", k=request.sample_limit)
         prompt = f"""You are judging whether the current PROCESS probe is aligned with the intended instruction.
 
 Query:

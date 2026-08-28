@@ -1,5 +1,12 @@
 ## Graph Analysis & State Language (GASL) - Design Document
 
+> **STATUS (2026-08-23): still the language design, with one flow change
+> chartered.** Walk/iteration control by budget caps alone is superseded:
+> under `docs/ACQUISITION_LOOP.md` (phase 4B), walks report per-iteration
+> yield numerically and quit on a measured rarefaction verdict; budget caps
+> remain only as disclosed safety bounds. References to
+> `analytical_retriever.py` are historical.
+
 ### Goals
 
 - Provide a compact, declarative language for LLM-driven graph analysis and stateful accumulation.

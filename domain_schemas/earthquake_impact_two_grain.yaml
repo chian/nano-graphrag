@@ -1,0 +1,284 @@
+domain_name: Earthquake Impact Country Context
+domain_description: This graph captures one canonical row per significant earthquake
+  event, with all event fields represented as sourced or derived field observations,
+  and one independent row per country-calendar-year context. It supports joining earthquake
+  impacts to country-year wealth, population, urbanization, and infrastructure measures
+  while preserving field-level provenance and documenting canonicalization, year derivation,
+  country assignment, and value normalization.
+entity_types:
+  EARTHQUAKE_EVENT:
+    description: A canonical earthquake event created after reconciling duplicate
+      or overlapping source records. The node represents event identity only; date,
+      magnitude, depth, epicenter coordinates, epicenter country, context country,
+      deaths, injuries, displacement, and damage are attached as sourced FIELD_OBSERVATION
+      nodes.
+    examples:
+    - 2010 Haiti earthquake canonical event
+    - 2011 Tohoku earthquake and tsunami canonical event
+  CANONICALIZATION_OR_RECONCILIATION_DECISION:
+    description: A documented decision explaining why one or more source records are
+      treated as the same canonical earthquake event, which records were included
+      or excluded, and which field observations were selected as canonical event-row
+      values.
+    examples:
+    - USGS event id usc0001xgp reconciled with EM-DAT disaster record 2010-0013-HTI
+    - Decision selecting USGS origin time and EM-DAT mortality count for a canonical
+      event
+  FIELD_OBSERVATION:
+    description: A single source-reported, selected canonical, or derived value for
+      exactly one controlled FIELD_DEFINITION and one subject. Event examples include
+      event_date, magnitude, focal_depth_km, epicenter_latitude, epicenter_longitude,
+      epicenter_place_name, epicenter_country, context_country, deaths, injuries,
+      displaced_people, estimated_damage_current_usd, and estimated_damage_constant_usd;
+      country-year examples include GDP per capita, income classification, urban population
+      percentage, road density, rail density, port access, electricity access, and
+      population.
+    examples:
+    - Canonical magnitude value 7.0 Mw for the 2010 Haiti earthquake
+    - World Bank GDP per capita current USD for Haiti in 2010
+  FIELD_DEFINITION:
+    description: A controlled definition of a measured or coded variable, including
+      allowed subject scope, data type, unit convention, value basis, numerator and
+      denominator where applicable, and analytical role such as hazard, exposure,
+      vulnerability, infrastructure, socioeconomic context, or outcome. This registry
+      prevents FIELD_OBSERVATION from becoming an unconstrained catch-all.
+    examples:
+    - 'estimated_damage_current_usd: reported or converted current USD at the event-year
+      price basis'
+    - road_network_density_km_per_100_sq_km_land_area
+  MAGNITUDE_SCALE:
+    description: A defined earthquake magnitude scale used to interpret magnitude
+      observations and prevent inappropriate comparison of values from different scales
+      without explicit handling.
+    examples:
+    - Mw moment magnitude
+    - Ms surface-wave magnitude
+  COUNTRY:
+    description: A sovereign state, territory, or analytically recognized country-like
+      unit used as the geographic key for event context and country-year indicators.
+      Stable and source-specific identifiers are represented separately as COUNTRY_IDENTIFIER_OR_CODE
+      nodes.
+    examples:
+    - Haiti
+    - Japan
+  COUNTRY_IDENTIFIER_OR_CODE:
+    description: An ISO, World Bank, source-specific, historical, or name-based country
+      identifier used to reconcile countries across earthquake and country-context
+      sources. The identifier may itself be sourced when it comes from a specific
+      source record.
+    examples:
+    - ISO 3166-1 alpha-3 code HTI
+    - World Bank country code JPN
+  CALENDAR_YEAR:
+    description: A Gregorian calendar year used as the explicit year key for COUNTRY_YEAR_CONTEXT
+      and as the event-derived context_year join key for EARTHQUAKE_EVENT.
+    examples:
+    - '2010'
+    - '2011'
+  COUNTRY_YEAR_CONTEXT:
+    description: A country-calendar-year analytical unit identified by exactly one
+      COUNTRY and one CALENDAR_YEAR. It may exist whether or not an earthquake occurred
+      and carries country-level context only through sourced FIELD_OBSERVATION nodes,
+      never through earthquake-event nodes.
+    examples:
+    - Haiti 2010 country-year context
+    - Japan 2011 country-year context
+  SPATIAL_ASSIGNMENT_RULE:
+    description: A documented rule used to assign epicenter country, impact country,
+      or analysis context country, especially for offshore epicenters, disputed territories,
+      border events, or events affecting multiple countries.
+    examples:
+    - Assign context country to country containing epicenter point; offshore events
+      assigned to nearest sovereign coastline
+    - For multi-country disasters, assign context country to primary affected country
+      by reported deaths, with ties broken by damage
+  VALUE_NORMALIZATION:
+    description: A documented transformation producing an analytically comparable
+      FIELD_OBSERVATION from one or more input observations, including unit conversion,
+      currency conversion, exchange rate, price basis, deflator, base year, formula,
+      and input sources. It distinguishes reported nominal local-currency damage,
+      current USD at event-year basis, and optional constant-dollar analytical damage.
+    examples:
+    - Convert reported 2010 local-currency damage to current USD using event-year
+      exchange rate
+    - Deflate current USD damage to constant 2020 USD using World Bank GDP deflator
+  DATA_SOURCE:
+    description: A dataset, catalog, publication, API, database, or institutional
+      source from which event records, country-year indicators, identifiers, or normalization
+      inputs are obtained.
+    examples:
+    - USGS ComCat earthquake catalog
+    - World Bank World Development Indicators
+  SOURCE_RECORD:
+    description: A specific source row, API response, table cell, document page, catalog
+      entry, or extract that supports one or more field observations, identifiers,
+      canonicalization decisions, or normalization steps.
+    examples:
+    - USGS ComCat event JSON for event usc0001xgp
+    - WDI API record NY.GDP.PCAP.CD for HTI in 2010
+relationship_types:
+  HAS_CANONICALIZATION_DECISION:
+    description: Connects a canonical earthquake event to the documented reconciliation
+      decision that established the event identity and selected its canonical row
+      values.
+    inverse: CANONICALIZATION_DECISION_FOR_EVENT
+    symmetric: false
+    examples:
+    - 2010 Haiti earthquake canonical event -> decision reconciling USGS and EM-DAT
+      records
+  CANONICAL_EVENT_DERIVED_FROM_RECORD:
+    description: Connects an EARTHQUAKE_EVENT or its CANONICALIZATION_OR_RECONCILIATION_DECISION
+      to the source records used to establish that the canonical event exists and
+      to identify duplicate or matching reports.
+    inverse: SOURCE_RECORD_SUPPORTS_CANONICAL_EVENT
+    symmetric: false
+    examples:
+    - 2010 Haiti event reconciliation decision -> USGS ComCat event record
+    - 2010 Haiti event reconciliation decision -> EM-DAT disaster record
+  HAS_EVENT_FIELD_OBSERVATION:
+    description: Connects an earthquake event to a sourced, selected canonical, or
+      derived observation of one event-level field. Event indicator values live on
+      FIELD_OBSERVATION nodes rather than as direct event properties.
+    inverse: EVENT_FIELD_OBSERVATION_OF
+    symmetric: false
+    examples:
+    - 2010 Haiti earthquake canonical event -> canonical event_date observation
+    - 2010 Haiti earthquake canonical event -> estimated_damage_current_usd observation
+  HAS_COUNTRY_YEAR_FIELD_OBSERVATION:
+    description: Connects a country-year context node to a sourced or derived observation
+      of one country-year contextual field. Earthquake events do not carry these indicator
+      values directly.
+    inverse: COUNTRY_YEAR_FIELD_OBSERVATION_OF
+    symmetric: false
+    examples:
+    - Haiti 2010 country-year context -> GDP per capita current USD observation
+    - Japan 2011 country-year context -> urban population percentage observation
+  OBSERVES_FIELD:
+    description: Connects a FIELD_OBSERVATION to the controlled FIELD_DEFINITION it
+      measures or codes, including unit, scope, and value-basis constraints.
+    inverse: FIELD_HAS_OBSERVATION
+    symmetric: false
+    examples:
+    - Canonical focal depth observation -> focal_depth_km field definition
+    - Road density observation -> road_network_density_km_per_100_sq_km_land_area
+      field definition
+  SELECTS_CANONICAL_OBSERVATION:
+    description: Connects a canonicalization decision to the FIELD_OBSERVATION selected
+      as the canonical value for a required earthquake_event_impact output field.
+    inverse: SELECTED_BY_CANONICALIZATION_DECISION
+    symmetric: false
+    examples:
+    - 2010 Haiti event reconciliation decision -> selected canonical magnitude observation
+    - 2010 Haiti event reconciliation decision -> selected canonical deaths observation
+  USES_MAGNITUDE_SCALE:
+    description: Connects a magnitude FIELD_OBSERVATION to the magnitude scale used
+      for the reported or canonical value.
+    inverse: MAGNITUDE_SCALE_USED_BY
+    symmetric: false
+    examples:
+    - Magnitude value 9.1 observation -> Mw moment magnitude
+    - Magnitude value 7.8 observation -> Ms surface-wave magnitude
+  OBSERVATION_ASSERTS_COUNTRY:
+    description: Connects a country-valued FIELD_OBSERVATION to the COUNTRY it asserts,
+      such as epicenter_country, impact_country, or context_country. This makes country
+      assignments sourceable and allows the context country to differ from the epicenter
+      country when documented.
+    inverse: COUNTRY_ASSERTED_BY_OBSERVATION
+    symmetric: false
+    examples:
+    - Context_country observation for an offshore event -> Japan
+    - Epicenter_country observation for an inland event -> Haiti
+  USES_SPATIAL_ASSIGNMENT_RULE:
+    description: Connects a country-valued FIELD_OBSERVATION to the rule used to assign
+      the country, especially for offshore, disputed, border, or multi-country events.
+    inverse: SPATIAL_ASSIGNMENT_RULE_USED_BY
+    symmetric: false
+    examples:
+    - Context_country observation for offshore Tohoku event -> nearest sovereign coastline
+      assignment rule
+    - Primary impact country observation for a multi-country event -> highest reported
+      deaths assignment rule
+  EVENT_DATE_DERIVES_CONTEXT_YEAR:
+    description: Connects the selected canonical event_date FIELD_OBSERVATION to the
+      CALENDAR_YEAR used as the event context_year join key.
+    inverse: CONTEXT_YEAR_DERIVED_FROM_EVENT_DATE
+    symmetric: false
+    examples:
+    - Canonical date 2010-01-12 observation -> Calendar year 2010
+    - Canonical date 2011-03-11 observation -> Calendar year 2011
+  HAS_CONTEXT_COUNTRY_YEAR:
+    description: Connects an earthquake event to the COUNTRY_YEAR_CONTEXT row identified
+      by the selected context_country and context_year. This is the analytical join
+      edge and does not copy GDP, income, population, urbanization, or infrastructure
+      values onto the event.
+    inverse: COUNTRY_YEAR_CONTEXT_FOR_EVENT
+    symmetric: false
+    examples:
+    - 2010 Haiti earthquake canonical event -> Haiti 2010 country-year context
+    - 2011 Tohoku earthquake canonical event -> Japan 2011 country-year context
+  CONTEXT_FOR_COUNTRY:
+    description: Connects a COUNTRY_YEAR_CONTEXT node to the COUNTRY component of
+      its key.
+    inverse: COUNTRY_HAS_YEAR_CONTEXT
+    symmetric: false
+    examples:
+    - Haiti 2010 country-year context -> Haiti
+    - Japan 2011 country-year context -> Japan
+  HAS_CONTEXT_YEAR:
+    description: Connects a COUNTRY_YEAR_CONTEXT node to the CALENDAR_YEAR component
+      of its key.
+    inverse: YEAR_HAS_COUNTRY_CONTEXT
+    symmetric: false
+    examples:
+    - Haiti 2010 country-year context -> Calendar year 2010
+    - Japan 2011 country-year context -> Calendar year 2011
+  HAS_COUNTRY_IDENTIFIER:
+    description: Connects a COUNTRY to an ISO, World Bank, historical, name-based,
+      or source-specific COUNTRY_IDENTIFIER_OR_CODE used for stable joining and reconciliation.
+    inverse: IDENTIFIER_FOR_COUNTRY
+    symmetric: false
+    examples:
+    - Haiti -> ISO 3166-1 alpha-3 code HTI
+    - Japan -> World Bank country code JPN
+  COUNTRY_MATCHES_SOURCE_CODE:
+    description: Connects a COUNTRY to a source-specific COUNTRY_IDENTIFIER_OR_CODE
+      when reconciling country names or codes reported in earthquake or context sources.
+    inverse: SOURCE_CODE_MATCHES_COUNTRY
+    symmetric: false
+    examples:
+    - Haiti -> EM-DAT country name Haiti
+    - Japan -> WDI country code JPN
+  NORMALIZED_BY:
+    description: Connects a derived FIELD_OBSERVATION to the VALUE_NORMALIZATION procedure
+      that produced it. For damage, this distinguishes current USD at event-year basis
+      from constant-dollar analytical values.
+    inverse: NORMALIZATION_PRODUCED_OBSERVATION
+    symmetric: false
+    examples:
+    - Estimated damage current USD observation -> local-currency-to-current-USD conversion
+    - Estimated damage constant 2020 USD observation -> current-USD-to-2020-USD deflation
+  DERIVED_FROM_OBSERVATION:
+    description: Connects a derived or normalized FIELD_OBSERVATION to the input FIELD_OBSERVATION
+      or observations from which it was calculated.
+    inverse: OBSERVATION_USED_TO_DERIVE
+    symmetric: false
+    examples:
+    - Road density observation -> total road length observation
+    - Constant 2020 USD damage observation -> current USD damage observation
+  REPORTED_IN_RECORD:
+    description: Connects a FIELD_OBSERVATION, COUNTRY_IDENTIFIER_OR_CODE, CANONICALIZATION_OR_RECONCILIATION_DECISION,
+      SPATIAL_ASSIGNMENT_RULE, or VALUE_NORMALIZATION to the exact SOURCE_RECORD that
+      reports, supports, or justifies it.
+    inverse: SOURCE_RECORD_REPORTS
+    symmetric: false
+    examples:
+    - USGS focal depth observation -> USGS ComCat event JSON record
+    - World Bank income classification observation -> WDI country-year API record
+  RECORD_PART_OF_SOURCE:
+    description: Connects a SOURCE_RECORD to the broader DATA_SOURCE, catalog, publication,
+      API, or institutional dataset it belongs to.
+    inverse: SOURCE_HAS_RECORD
+    symmetric: false
+    examples:
+    - USGS ComCat event JSON for usc0001xgp -> USGS ComCat earthquake catalog
+    - WDI GDP per capita record for HTI 2010 -> World Bank World Development Indicators

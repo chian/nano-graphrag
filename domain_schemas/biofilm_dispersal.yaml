@@ -1,0 +1,110 @@
+# Biofilm Formation and Dispersal Domain Schema
+# Focus: cyclic-di-GMP metabolism, quorum-sensing crosstalk, extracellular
+# matrix control, motility appendages, planktonic-to-biofilm transitions, and
+# dispersal or inhibition strategies across bacterial biofilms.
+
+domain_name: "Biofilm Formation and Dispersal"
+domain_description: "Molecular and community-level regulation of bacterial biofilm formation, maturation, maintenance, and dispersal by cyclic-di-GMP signaling, quorum sensing, extracellular matrix production or degradation, motility systems, and anti-biofilm interventions."
+
+entity_types:
+  MICROBIAL_TAXON:
+    description: "A bacterial species, pathogen group, or biofilm-forming community."
+    examples: ["Pseudomonas aeruginosa", "Vibrio cholerae", "ESKAPE pathogens", "Myxococcus xanthus"]
+
+  BIOFILM_STATE:
+    description: "A surface-associated, matrix-embedded, planktonic, dispersed, or morphogenetic state."
+    examples: ["biofilm formation", "biofilm morphogenesis", "biofilm dispersion", "planktonic cells"]
+
+  MATRIX_COMPONENT:
+    description: "An extracellular polymer, exopolysaccharide, DNA, protein, or structural matrix feature."
+    examples: ["extracellular matrix", "exopolysaccharide", "extracellular DNA"]
+
+  SECOND_MESSENGER:
+    description: "A nucleotide second messenger controlling biofilm and motility decisions."
+    examples: ["c-di-GMP", "cyclic-di-GMP"]
+
+  QUORUM_SIGNAL:
+    description: "An autoinducer, quorum-sensing output, nitric-oxide cue, or density-dependent signal."
+    examples: ["AI-2", "AHL", "quorum-sensing signal", "nitric oxide"]
+
+  DIGUANYLATE_CYCLASE:
+    description: "An enzyme that synthesizes c-di-GMP and promotes high-c-di-GMP phenotypes."
+    examples: ["GGDEF diguanylate cyclase", "DGC"]
+
+  PHOSPHODIESTERASE:
+    description: "An enzyme that degrades c-di-GMP and can trigger motility or dispersal."
+    examples: ["EAL phosphodiesterase", "HD-GYP phosphodiesterase", "PDE"]
+
+  C_DI_GMP_EFFECTOR:
+    description: "A c-di-GMP binding protein, riboswitch, or motility regulator that reads second-messenger levels."
+    examples: ["PilB", "PilZ-domain effector", "c-di-GMP receptor"]
+
+  MOTILITY_APPENDAGE:
+    description: "A flagellar, type IV pilus, twitching, or gliding motility system opposed to sessile matrix production."
+    examples: ["T4P", "PilB motor ATPase", "flagellum"]
+
+  ANTI_BIOFILM_AGENT:
+    description: "A dispersal cue, DNase, aptamer, enzyme, inhibitor, or control strategy that disrupts or disperses biofilm."
+    examples: ["DNase", "biofilm inhibitor", "aptamer therapy", "dispersal cue"]
+
+relationship_types:
+  SYNTHESIZES_C_DI_GMP:
+    description: "An enzyme produces c-di-GMP from GTP."
+    inverse: "C_DI_GMP_SYNTHESIZED_BY"
+    examples: ["diguanylate cyclase SYNTHESIZES_C_DI_GMP c-di-GMP"]
+
+  DEGRADES_C_DI_GMP:
+    description: "A phosphodiesterase lowers c-di-GMP concentration."
+    inverse: "C_DI_GMP_DEGRADED_BY"
+    examples: ["phosphodiesterase DEGRADES_C_DI_GMP c-di-GMP"]
+
+  BINDS_C_DI_GMP:
+    description: "An effector or motor protein physically binds c-di-GMP."
+    inverse: "BOUND_BY_C_DI_GMP"
+    examples: ["PilB BINDS_C_DI_GMP c-di-GMP"]
+
+  COORDINATES_QS:
+    description: "A quorum-sensing signal or regulator coordinates density-dependent biofilm gene expression."
+    inverse: "QS_COORDINATED_BY"
+    examples: ["AI-2 COORDINATES_QS biofilm maturation"]
+
+  PRODUCES_MATRIX:
+    description: "A cell state or regulator increases extracellular matrix production."
+    inverse: "MATRIX_PRODUCED_BY"
+    examples: ["high c-di-GMP PRODUCES_MATRIX exopolysaccharide"]
+
+  DEGRADES_MATRIX:
+    description: "An enzyme or dispersal process breaks down extracellular matrix material."
+    inverse: "MATRIX_DEGRADED_BY"
+    examples: ["DNase DEGRADES_MATRIX extracellular DNA"]
+
+  ACTIVATES_BIOFILM:
+    description: "A signal, regulator, or messenger promotes biofilm formation or maturation."
+    inverse: "BIOFILM_ACTIVATED_BY"
+    examples: ["c-di-GMP ACTIVATES_BIOFILM biofilm formation"]
+
+  REPRESSES_MOTILITY:
+    description: "A biofilm-promoting signal or effector inhibits a motility apparatus or planktonic behavior."
+    inverse: "MOTILITY_REPRESSED_BY"
+    examples: ["high c-di-GMP REPRESSES_MOTILITY type IV pili"]
+
+  TRIGGERS_DISPERSAL:
+    description: "A cue, enzyme, or lowered c-di-GMP state initiates release from a biofilm."
+    inverse: "DISPERSAL_TRIGGERED_BY"
+    examples: ["nitric oxide TRIGGERS_DISPERSAL biofilm dispersion"]
+
+  FORMS_BIOFILM:
+    description: "A microbial taxon or cell population forms a structured biofilm state."
+    inverse: "BIOFILM_FORMED_BY"
+    examples: ["Pseudomonas aeruginosa FORMS_BIOFILM mature biofilm"]
+
+  RELEASES_PLANKTONIC_CELLS:
+    description: "A dispersal event produces planktonic cells from a matrix community."
+    inverse: "PLANKTONIC_CELLS_RELEASED_BY"
+    examples: ["biofilm dispersion RELEASES_PLANKTONIC_CELLS dispersed cells"]
+
+  INHIBITS_BIOFILM:
+    description: "An anti-biofilm agent prevents formation, matrix maintenance, or attachment."
+    inverse: "BIOFILM_INHIBITED_BY"
+    examples: ["aptamer therapy INHIBITS_BIOFILM biofilm-associated infection"]
+

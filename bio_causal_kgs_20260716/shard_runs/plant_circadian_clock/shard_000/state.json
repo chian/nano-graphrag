@@ -1,0 +1,36 @@
+{
+  "completed_chunk_ids": [
+    "pmid_11486091:0:0:797:9693da626e0f",
+    "pmid_12007421:0:0:1371:43e291a63044",
+    "pmid_12015970:0:0:1041:cb7f255e8328",
+    "pmid_17483414:0:0:1437:e0db2079ee7c",
+    "pmid_17540692:0:0:1793:0301e2b4caa3",
+    "pmid_19011118:0:0:1516:0fa2dc452203",
+    "pmid_21822060:0:0:2006:0a8dadcbc62b",
+    "pmid_21884973:0:0:1270:56327dac3558",
+    "pmid_23128602:0:0:1356:0dd1d51c2793",
+    "pmid_29989313:0:0:1328:ab6f863eb8fb",
+    "pmid_30124938:0:0:1500:fc363597760a",
+    "pmid_31097584:0:0:1696:debbc6c38876",
+    "pmid_33692546:0:0:1794:9f83bbe4fb61",
+    "pmid_34931682:0:0:1700:d69471778ee5",
+    "pmid_35529947:0:0:1541:420366b4875d",
+    "pmid_35567528:0:0:2105:928ada0dfcfc",
+    "pmid_38319968:0:0:1709:cbccca6fd339",
+    "pmid_38941453:0:0:1230:1b6a4be9f997"
+  ],
+  "processed": 18,
+  "total": 18,
+  "summary": {
+    "shard_path": "bio_causal_kgs_20260716/shards/plant_circadian_clock/shard_000.jsonl",
+    "graph_path": "bio_causal_kgs_20260716/shard_runs/plant_circadian_clock/shard_000/local_graph.graphml",
+    "entities_path": "bio_causal_kgs_20260716/shard_runs/plant_circadian_clock/shard_000/entities.jsonl",
+    "relationships_path": "bio_causal_kgs_20260716/shard_runs/plant_circadian_clock/shard_000/relationships.jsonl",
+    "chunk_results_path": "bio_causal_kgs_20260716/shard_runs/plant_circadian_clock/shard_000/chunk_results.jsonl",
+    "chunks_total": 18,
+    "chunks_completed": 18,
+    "nodes": 203,
+    "edges": 306,
+    "elapsed_sec": 331.59
+  }
+}

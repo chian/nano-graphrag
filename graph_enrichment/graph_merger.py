@@ -37,12 +37,16 @@ def add_entities_to_graph(
     }
 
     for new_name, new_entity in new_entities.items():
+        merge_policy = str(
+            new_entity.get('merge_policy') or 'canonical'
+        ).strip().lower()
         # Find potential matches
         matches = find_entity_matches(
             new_entity,
             existing_entities,
             entity_type_match=True,
-            similarity_threshold=similarity_threshold
+            similarity_threshold=similarity_threshold,
+            match_policy=merge_policy,
         )
 
         if matches and auto_merge:
@@ -105,6 +109,10 @@ def add_relationships_to_graph(
         # Map to canonical names
         src_canonical = name_mapping.get(src, src)
         tgt_canonical = name_mapping.get(tgt, tgt)
+
+        # Canonicalization must not turn a source relationship into a self-loop.
+        if src_canonical == tgt_canonical and src != tgt:
+            continue
 
         # Only add if both nodes exist
         if src_canonical not in graph.nodes or tgt_canonical not in graph.nodes:

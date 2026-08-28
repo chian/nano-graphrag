@@ -7,11 +7,19 @@ from __future__ import annotations
 from typing import Any, Dict, Iterable, List, Optional
 
 
-def infer_row_schema(data: Any, *, sample_limit: int = 8, max_depth: int = 2) -> List[str]:
+def infer_row_schema(data: Any, *, max_depth: int = 2) -> List[str]:
+    """Every field path present on any row.
+
+    This used to sample the first 8 rows. A row schema built from a sample is a
+    claim about the payload that the payload does not support: a field carried
+    only by later rows is absent from the declared schema, and every consumer
+    that resolves a field name against `row_schema` then reports it as missing.
+    Callers that genuinely want a preview must slice their own input and say so.
+    """
     fields: List[str] = []
     seen = set()
     rows = data if isinstance(data, list) else [data]
-    for row in rows[:sample_limit]:
+    for row in rows:
         for field_name in iter_row_fields(row, max_depth=max_depth):
             if field_name not in seen:
                 seen.add(field_name)
@@ -44,6 +52,18 @@ def iter_scalar_fields(item: Any, prefix: str = "", *, depth: int = 0, max_depth
         yield prefix or "value", item
 
 
+#: `confidence` is deliberately absent from this contract.
+#:
+#: It was written by nine call sites and read by exactly one -- a `min()` in
+#: GRAPHWALK that folded an LLM's self-reported confidence into it. Every value
+#: ever written was an authored constant (0.9, 0.95, 0.96, 0.97, 0.98, 1.0)
+#: invented at the site, except the one taken from a model's own JSON. So it was
+#: a write-only field of invented numbers, with a single reader that compared
+#: one of them against a model's opinion.
+#:
+#: It is not given a basis vocabulary either. A basis makes a number auditable
+#: by saying what produced it; attaching one to invented constants would make an
+#: invented number look audited, which is worse than leaving it out.
 def make_contract(
     *,
     payload_kind: str,
@@ -57,12 +77,12 @@ def make_contract(
     order_direction: str = "unknown",
     scope: str = "current_rows_only",
     usable_by: Optional[Iterable[str]] = None,
-    confidence: float = 1.0,
     strategy: str = "",
     grain_type: str = "",
     grain_keys: Optional[Iterable[str]] = None,
     multiplicity_preserved: Optional[bool] = None,
     row_weight_field: str = "",
+    row_weight_basis: str = "",
     notes: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     return {
@@ -76,12 +96,17 @@ def make_contract(
         "order_direction": order_direction,
         "scope": scope,
         "usable_by": list(usable_by or []),
-        "confidence": float(confidence),
         "strategy": strategy,
         "grain_type": grain_type,
         "grain_keys": list(grain_keys or []),
         "multiplicity_preserved": multiplicity_preserved,
         "row_weight_field": row_weight_field,
+        # A contract that nominates a weight column must also say what that
+        # column's numbers were derived from. Without it a consumer reading the
+        # weight learns only that some upstream called it a weight, which erases
+        # whether it counts evidence or is a placeholder — and a placeholder
+        # read as evidence is indistinguishable from real support.
+        "row_weight_basis": row_weight_basis,
         "notes": list(notes or []),
     }
 

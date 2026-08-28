@@ -230,3 +230,28 @@ vdb_*.json
 
 # Tutorial-making workspace remains local
 /visualization/tutorial_mode/
+
+# Experiment captures: keep the evidence (events.jsonl, manifests), drop the
+# pipeline working dirs, which duplicate text already in events.jsonl.
+experiments/runs/*/*/pipeline_out/
+
+# Experiment run captures: evidence is retained on disk and referenced from
+# the logs, but the bulk artifacts are not tracked -- .git is already 1.4G.
+experiments/runs/*/fetched_papers/
+experiments/runs/*/graphs/
+experiments/runs/*/*/fetched_papers/
+experiments/runs/*/*/graphs/
+
+# Runtime runs and logs stay local.  Publish source, registrations, and design
+# documents from source-owned directories instead of committing executions.
+/question_runs/
+/experiments/runs/
+/experiments/log/
+/experiments/partial-run/
+
+# run_store derived index -- a build artifact, never tracked.
+# question_runs/ is already 13,160 tracked files across 36 GB; a committed
+# derived index over it would be pure churn. A full corpus rebuild is 0.24s.
+run_store_index/
+*.sqlite
+*.sqlite3

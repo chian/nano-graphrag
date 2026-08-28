@@ -6,14 +6,38 @@ Loads and manages domain-specific entity and relationship schemas
 import yaml
 import os
 from pathlib import Path
-from typing import Dict, List, Optional
-from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
+from dataclasses import dataclass, field
+
+
+ASSOCIATION_FIELD_KINDS = frozenset({
+    "comparison_relation",
+    "context_factor",
+    "context_relation",
+    "country_scope",
+    "dose_measure",
+    "dose_reproduction_relation",
+    "narrow_scope",
+    "numeric_value",
+    "relation_term",
+    "reported_scalar",
+    "reproduction_measure",
+    "temporal_relation",
+    "temporal_scope",
+})
 
 @dataclass
 class EntityType:
     name: str
     description: str
     examples: List[str]
+    extraction_enabled: bool = True
+    role: str = "concept"
+    merge_policy: str = "canonical"
+    properties: Dict[str, Any] = field(default_factory=dict)
+    association_fields: List[str] = field(default_factory=list)
+    association_field_kinds: Dict[str, str] = field(default_factory=dict)
+    association_connector_policy: str = "none"
 
 @dataclass
 class RelationshipType:
@@ -22,6 +46,11 @@ class RelationshipType:
     inverse: Optional[str]
     symmetric: bool
     examples: List[str]
+    extraction_enabled: bool = True
+    role: str = "source_reported_relationship"
+    merge_policy: str = "source_local"
+    properties: Dict[str, Any] = field(default_factory=dict)
+    endpoints: Dict[str, List[str]] = field(default_factory=dict)
 
 @dataclass
 class DomainSchema:
@@ -67,10 +96,65 @@ class SchemaLoader:
         # Parse entity types
         entity_types = {}
         for entity_name, entity_data in data.get('entity_types', {}).items():
+            properties = dict(entity_data.get('properties') or {})
+            association_fields = [
+                str(value)
+                for value in (entity_data.get('association_fields') or [])
+            ]
+            association_field_kinds = {
+                str(key): str(value)
+                for key, value in dict(
+                    entity_data.get('association_field_kinds') or {}
+                ).items()
+            }
+            if len(association_fields) != len(set(association_fields)):
+                raise ValueError(
+                    f"{entity_name}: association fields must be unique"
+                )
+            unknown_association_fields = sorted(
+                set(association_fields) - set(properties)
+            )
+            if unknown_association_fields:
+                raise ValueError(
+                    f"{entity_name}: association fields are not declared "
+                    f"properties: {unknown_association_fields}"
+                )
+            if set(association_field_kinds) != set(association_fields):
+                raise ValueError(
+                    f"{entity_name}: association_field_kinds must declare "
+                    "exactly every association field"
+                )
+            unknown_association_kinds = sorted(
+                set(association_field_kinds.values()) - ASSOCIATION_FIELD_KINDS
+            )
+            if unknown_association_kinds:
+                raise ValueError(
+                    f"{entity_name}: unsupported association field kinds: "
+                    f"{unknown_association_kinds}"
+                )
+            association_connector_policy = str(
+                entity_data.get('association_connector_policy') or 'none'
+            )
+            if association_connector_policy not in {
+                'none',
+                'binary_between',
+                'binary_pair',
+            }:
+                raise ValueError(
+                    f"{entity_name}: unsupported association connector policy: "
+                    f"{association_connector_policy}"
+                )
             entity_types[entity_name] = EntityType(
                 name=entity_name,
                 description=entity_data.get('description', ''),
-                examples=entity_data.get('examples', [])
+                examples=entity_data.get('examples', []),
+                extraction_enabled=bool(entity_data.get('extraction_enabled', True)),
+                role=str(entity_data.get('role', 'concept')),
+                merge_policy=str(entity_data.get('merge_policy', 'canonical')),
+                properties=properties,
+                association_fields=association_fields,
+                association_field_kinds=association_field_kinds,
+                association_connector_policy=association_connector_policy,
             )
 
         # Parse relationship types
@@ -81,7 +165,15 @@ class SchemaLoader:
                 description=rel_data.get('description', ''),
                 inverse=rel_data.get('inverse'),
                 symmetric=rel_data.get('symmetric', False),
-                examples=rel_data.get('examples', [])
+                examples=rel_data.get('examples', []),
+                extraction_enabled=bool(rel_data.get('extraction_enabled', True)),
+                role=str(rel_data.get('role', 'source_reported_relationship')),
+                merge_policy=str(rel_data.get('merge_policy', 'source_local')),
+                properties=dict(rel_data.get('properties') or {}),
+                endpoints={
+                    str(endpoint): [str(value) for value in (values or [])]
+                    for endpoint, values in dict(rel_data.get('endpoints') or {}).items()
+                },
             )
 
         return DomainSchema(
@@ -103,33 +195,96 @@ class SchemaLoader:
         """Get all loaded schemas"""
         return self.schemas
 
-    def format_entity_types_for_prompt(self, schema: DomainSchema) -> str:
+    def format_entity_types_for_prompt(
+        self,
+        schema: DomainSchema,
+        *,
+        extraction_only: bool = True,
+    ) -> str:
         """Format entity types as text for LLM prompts"""
         lines = []
         for entity_name, entity_type in schema.entity_types.items():
+            if extraction_only and not entity_type.extraction_enabled:
+                continue
             lines.append(f"- {entity_name}: {entity_type.description}")
+            if entity_type.properties:
+                lines.append(
+                    "  Structured attributes: "
+                    + ", ".join(entity_type.properties)
+                )
+            if entity_type.association_fields:
+                lines.append(
+                    "  Required association tuple: "
+                    + " + ".join(entity_type.association_fields)
+                )
+                lines.append(
+                    "  Association constraints: "
+                    + ", ".join(
+                        f"{field_name}={entity_type.association_field_kinds[field_name]}"
+                        for field_name in entity_type.association_fields
+                    )
+                    + (
+                        f"; connector_policy={entity_type.association_connector_policy}"
+                        if entity_type.association_connector_policy != "none"
+                        else ""
+                    )
+                )
             if entity_type.examples:
                 examples_str = ", ".join(entity_type.examples[:3])
                 lines.append(f"  Examples: {examples_str}")
         return "\n".join(lines)
 
-    def format_relationship_types_for_prompt(self, schema: DomainSchema) -> str:
+    def format_relationship_types_for_prompt(
+        self,
+        schema: DomainSchema,
+        *,
+        extraction_only: bool = True,
+    ) -> str:
         """Format relationship types as text for LLM prompts"""
         lines = []
         for rel_name, rel_type in schema.relationship_types.items():
+            if extraction_only and not rel_type.extraction_enabled:
+                continue
             lines.append(f"- {rel_name}: {rel_type.description}")
+            if rel_type.endpoints:
+                source_types = ", ".join(rel_type.endpoints.get("source", []))
+                target_types = ", ".join(rel_type.endpoints.get("target", []))
+                lines.append(f"  Endpoints: [{source_types}] -> [{target_types}]")
+            if rel_type.properties:
+                lines.append(
+                    "  Structured attributes: "
+                    + ", ".join(rel_type.properties)
+                )
             if rel_type.examples:
                 examples_str = ", ".join(rel_type.examples[:2])
                 lines.append(f"  Examples: {examples_str}")
         return "\n".join(lines)
 
-    def get_entity_type_names(self, schema: DomainSchema) -> List[str]:
+    def get_entity_type_names(
+        self,
+        schema: DomainSchema,
+        *,
+        extraction_only: bool = True,
+    ) -> List[str]:
         """Get list of entity type names"""
-        return list(schema.entity_types.keys())
+        return [
+            name
+            for name, entity_type in schema.entity_types.items()
+            if not extraction_only or entity_type.extraction_enabled
+        ]
 
-    def get_relationship_type_names(self, schema: DomainSchema) -> List[str]:
+    def get_relationship_type_names(
+        self,
+        schema: DomainSchema,
+        *,
+        extraction_only: bool = True,
+    ) -> List[str]:
         """Get list of relationship type names"""
-        return list(schema.relationship_types.keys())
+        return [
+            name
+            for name, relationship_type in schema.relationship_types.items()
+            if not extraction_only or relationship_type.extraction_enabled
+        ]
 
 # Global loader instance
 _loader = None

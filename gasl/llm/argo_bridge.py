@@ -5,6 +5,7 @@ Argo Bridge LLM wrapper for GASL system.
 import os
 import json
 import asyncio
+import contextvars
 from typing import Any, Dict, List, Optional
 import httpx
 from openai import AsyncOpenAI
@@ -22,6 +23,7 @@ from openai import (
 )
 from ..errors import LLMError
 from ..contracts import infer_row_schema
+from ..provenance import WEIGHT_BASIS_UNKNOWN, basis_components, is_no_evidence
 from .runtime_config import resolve_runtime_llm_config
 # `nano_graphrag.prompt_system` is imported lazily (see prompt_system property
 # below) — pulling it eagerly here drags in the entire nano_graphrag dep tree
@@ -30,27 +32,70 @@ from .runtime_config import resolve_runtime_llm_config
 
 class ArgoBridgeLLM:
     """Wrapper around existing argo_bridge_llm function."""
-    
+
+    # Characters a recency-ordered prompt section may occupy. Execution history
+    # and produced artifacts both grow without limit across a run, so something
+    # has to bound them, and recency is a defensible ordering for both: the
+    # planner is deciding what to do next.
+    #
+    # The bound is on MEASURED SIZE rather than on a count of entries, because a
+    # count is not a budget — five verbose entries and five terse ones cost
+    # wildly different amounts of the thing actually being conserved. And
+    # whatever it omits is stated in the prompt, so a run failing the same way
+    # for forty turns cannot look identical to a five-turn-old run.
+    #
+    # NO MEASUREMENT JUSTIFIES 4000. Nothing in this tree records how much
+    # history a planner actually uses, and this value was chosen to be
+    # comfortably larger than the sections the deleted `[-5:]` / `[-8:]` cuts
+    # were producing, so that it widens rather than narrows what the planner
+    # sees. It is a candidate for the first experiment that measures it.
+    PROMPT_SECTION_CHAR_BUDGET = 4000
+
+    @classmethod
+    def _window_by_size(cls, lines: List[str]) -> tuple[List[str], int]:
+        """Take the most recent lines that fit the character budget.
+
+        Returns those lines in their original (chronological) order plus the
+        number omitted. Selection runs newest-first so the budget is spent on
+        the entries most likely to matter; the result is re-ordered for display
+        because a reader cannot interpret a sequence presented backwards.
+        """
+        kept: List[str] = []
+        used = 0
+        for index, line in enumerate(reversed(lines)):
+            cost = len(line) + 1
+            # The newest entry is always kept, however long it is: dropping it
+            # to respect the budget would leave the section describing a moment
+            # that is not the current one.
+            if kept and used + cost > cls.PROMPT_SECTION_CHAR_BUDGET:
+                # Stop rather than skip. Continuing past an oversized entry to
+                # collect older shorter ones would present the planner with a
+                # section that is neither the whole history nor a contiguous
+                # recent slice of it, with a hole in the middle it cannot see.
+                return list(reversed(kept)), len(lines) - index
+            used += cost
+            kept.append(line)
+        kept.reverse()
+        return kept, 0
+
     def __init__(self, model: str = None, temperature: float = 0.0, max_tokens: int = 4000,
                  api_key: Optional[str] = None, base_url: Optional[str] = None,
                  reasoning_effort: Optional[str] = None):
-        self.model = model or os.getenv("LLM_MODEL", "gpt41")
+        requested_model = model
         self.temperature = temperature
         self.max_tokens = max_tokens
-        self._transport = os.getenv("NANOGRAPHRAG_LLM_TRANSPORT", "direct").strip().lower()
         self._shim_user = os.getenv("NANOGRAPHRAG_SHIM_USER", "chia")
 
         runtime_cfg = resolve_runtime_llm_config(
-            explicit_api_key=api_key if api_key is not None else os.getenv("LLM_API_KEY"),
+            explicit_api_key=api_key,
             explicit_base_url=base_url or os.getenv("LLM_ENDPOINT"),
-            explicit_model=self.model,
+            explicit_model=requested_model,
         )
-        if runtime_cfg.model:
-            self.model = runtime_cfg.model
-        client_kwargs = {
-            "api_key": runtime_cfg.api_key or "",
-            "base_url": runtime_cfg.base_url or "https://apps-dev.inside.anl.gov/argoapi/v1",
-        }
+        self.model = runtime_cfg.model
+        self._transport = runtime_cfg.transport
+        client_kwargs = {"api_key": runtime_cfg.api_key or ""}
+        if runtime_cfg.base_url:
+            client_kwargs["base_url"] = runtime_cfg.base_url
         if self._transport == "shim":
             client_kwargs["default_headers"] = {
                 **client_kwargs.get("default_headers", {}),
@@ -66,9 +111,20 @@ class ArgoBridgeLLM:
         self._read_timeout_sec = float(os.getenv("LLM_READ_TIMEOUT_SEC", "300.0"))
         self._write_timeout_sec = float(os.getenv("LLM_WRITE_TIMEOUT_SEC", "300.0"))
         self._pool_timeout_sec = float(os.getenv("LLM_POOL_TIMEOUT_SEC", "30.0"))
+        self._call_timeout_sec = float(
+            os.getenv(
+                "LLM_CALL_TIMEOUT_SEC",
+                str(self._connect_timeout_sec + self._read_timeout_sec + 30.0),
+            )
+        )
         self._max_connections = int(os.getenv("LLM_MAX_CONNECTIONS", "128"))
         self._max_keepalive_connections = int(os.getenv("LLM_MAX_KEEPALIVE_CONNECTIONS", "64"))
         self._connection_retries = int(os.getenv("LLM_CONNECTION_RETRIES", "3"))
+        self._reasoning_token_floor = int(os.getenv("LLM_REASONING_TOKEN_FLOOR", "16000"))
+        self._shim_connection_retries = int(
+            os.getenv("LLM_SHIM_CONNECTION_RETRIES", str(max(self._connection_retries, 60)))
+        )
+        self._shim_retry_max_sleep_sec = float(os.getenv("LLM_SHIM_RETRY_MAX_SLEEP_SEC", "8.0"))
         self._loop_id: Optional[int] = None
         self._loop_http_client: Optional[httpx.AsyncClient] = None
         self._loop_openai_client: Optional[AsyncOpenAI] = None
@@ -136,10 +192,20 @@ class ArgoBridgeLLM:
         m = (self.model or "").lower()
         return self._is_reasoning_model() or m.startswith("gpt-5") or m.startswith("gpt5")
 
-    def _build_create_kwargs(self, prompt: str, *, stream: bool) -> dict:
+    def _build_create_kwargs(
+        self,
+        prompt: str,
+        *,
+        stream: bool,
+        system_prompt: Optional[str] = None,
+    ) -> dict:
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
         kwargs = {
             "model": self.model,
-            "messages": [{"role": "user", "content": prompt}],
+            "messages": messages,
         }
         if self._transport == "shim":
             kwargs["user"] = self._shim_user
@@ -150,8 +216,8 @@ class ArgoBridgeLLM:
         # token cap: reasoning models include reasoning tokens in this budget,
         # so give them more headroom.
         token_cap = self.max_tokens
-        if self._is_reasoning_model() and token_cap < 8000:
-            token_cap = 8000
+        if self._is_reasoning_model() and token_cap < self._reasoning_token_floor:
+            token_cap = self._reasoning_token_floor
         if self._uses_max_completion_tokens():
             kwargs["max_completion_tokens"] = token_cap
         else:
@@ -231,10 +297,28 @@ class ArgoBridgeLLM:
             self._loop_id = loop_id
         return self._loop_openai_client
 
-    async def _call_direct_once(self, prompt: str) -> str:
+    @staticmethod
+    def _shim_response_retryable(response: httpx.Response) -> bool:
+        if response.status_code in {500, 502, 503, 504}:
+            return True
+        return (
+            response.status_code == 404
+            and "DeploymentNotFound" in response.text
+        )
+
+    async def _call_direct_once(
+        self,
+        prompt: str,
+        *,
+        system_prompt: Optional[str] = None,
+    ) -> str:
         client = self._get_loop_openai_client()
         if self.stream_callback is not None:
-            kwargs = self._build_create_kwargs(prompt, stream=True)
+            kwargs = self._build_create_kwargs(
+                prompt,
+                stream=True,
+                system_prompt=system_prompt,
+            )
             stream = await client.chat.completions.create(**kwargs)
             full_text = ""
             async for chunk in stream:
@@ -250,7 +334,11 @@ class ArgoBridgeLLM:
                 print("="*80)
             return full_text
 
-        kwargs = self._build_create_kwargs(prompt, stream=False)
+        kwargs = self._build_create_kwargs(
+            prompt,
+            stream=False,
+            system_prompt=system_prompt,
+        )
         response = await client.chat.completions.create(**kwargs)
         result = response.choices[0].message.content
         u = getattr(response, "usage", None)
@@ -264,22 +352,42 @@ class ArgoBridgeLLM:
             print("="*80)
         return result
 
-    async def call_async(self, prompt: str) -> str:
+    async def call_async(self, prompt: str, system_prompt: Optional[str] = None) -> str:
         """Make async LLM call, streaming tokens if stream_callback is set."""
         if self.debug:
             print(f"DEBUG: LLM PROMPT SENT:\n{prompt}\n")
             print("="*80)
         try:
             if self._transport == "shim":
-                payload = self._build_create_kwargs(prompt, stream=False)
+                payload = self._build_create_kwargs(
+                    prompt,
+                    stream=False,
+                    system_prompt=system_prompt,
+                )
+                last_response: httpx.Response | None = None
                 async with httpx.AsyncClient(
                     headers={"x-api-key": self._client_kwargs.get("api_key", "")},
-                    timeout=300.0,
+                    timeout=httpx.Timeout(
+                        connect=self._connect_timeout_sec,
+                        read=self._read_timeout_sec,
+                        write=self._write_timeout_sec,
+                        pool=self._pool_timeout_sec,
+                    ),
                 ) as client:
-                    response = await client.post(
-                        self._client_kwargs["base_url"].rstrip("/") + "/chat/completions",
-                        json=payload,
-                    )
+                    for attempt in range(self._shim_connection_retries + 1):
+                        response = await client.post(
+                            self._client_kwargs["base_url"].rstrip("/") + "/chat/completions",
+                            json=payload,
+                        )
+                        last_response = response
+                        if not self._shim_response_retryable(response):
+                            break
+                        if attempt >= self._shim_connection_retries:
+                            break
+                        await asyncio.sleep(min(2 ** attempt, self._shim_retry_max_sleep_sec))
+                response = last_response
+                if response is None:
+                    raise RuntimeError("LLM shim call exhausted retries without a terminal response")
                 if response.status_code == 401:
                     raise LLMError(
                         f"LLM call failed: Unauthorized: {response.text}",
@@ -312,18 +420,39 @@ class ArgoBridgeLLM:
             last_exc: Optional[Exception] = None
             for attempt in range(self._connection_retries + 1):
                 try:
-                    return await self._call_direct_once(prompt)
-                except (APIConnectionError, APITimeoutError, RateLimitError, InternalServerError) as exc:
+                    direct_call = self._call_direct_once(
+                        prompt,
+                        system_prompt=system_prompt,
+                    )
+                    if self._call_timeout_sec > 0:
+                        return await asyncio.wait_for(
+                            direct_call,
+                            timeout=self._call_timeout_sec,
+                        )
+                    return await direct_call
+                except (
+                    APIConnectionError,
+                    APITimeoutError,
+                    RateLimitError,
+                    InternalServerError,
+                    TimeoutError,
+                ) as exc:
+                    if isinstance(exc, TimeoutError) and not isinstance(exc, asyncio.TimeoutError):
+                        raise
                     last_exc = exc
+                    await self._reset_loop_client()
+                except asyncio.CancelledError:
+                    await self._reset_loop_client()
+                    raise
                 except APIStatusError as exc:
                     if getattr(exc, "status_code", None) not in retryable_codes:
                         raise
                     last_exc = exc
+                    await self._reset_loop_client()
                 if attempt >= self._connection_retries:
                     if last_exc is not None:
                         raise last_exc
                     break
-                await self._reset_loop_client()
                 await asyncio.sleep(min(2 ** attempt, 8))
             if last_exc is not None:
                 raise last_exc
@@ -348,7 +477,7 @@ class ArgoBridgeLLM:
                 original_type=type(e).__name__,
                 fatal=True,
             )
-        except (APIConnectionError, APITimeoutError) as e:
+        except (APIConnectionError, APITimeoutError, asyncio.TimeoutError) as e:
             raise LLMError(
                 f"LLM call failed: {e}",
                 "argo_bridge",
@@ -408,7 +537,19 @@ class ArgoBridgeLLM:
             loop = asyncio.get_running_loop()
             import concurrent.futures
             with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(asyncio.run, self.call_async(prompt))
+                # Carry the caller's context across the thread hop. A bare pool
+                # does not propagate contextvars, so everything the caller had
+                # established -- the active cost meter, and equally the tracing
+                # and logging context -- was replaced by defaults inside the
+                # worker. Spend then landed on an orphan meter and surfaced only
+                # as a run residual at round 0: present in the total, stripped
+                # of the action and round that would let anyone attribute it.
+                #
+                # This is a general context-loss defect that happens to have
+                # been found through cost. `contextvars` is stdlib, so gasl/
+                # gains no dependency in any direction.
+                ctx = contextvars.copy_context()
+                future = executor.submit(ctx.run, asyncio.run, self.call_async(prompt))
                 result = future.result()
                 return result
         except RuntimeError:
@@ -450,12 +591,7 @@ class ArgoBridgeLLM:
         # Format the prompt with the current context
         formatted_prompt = base_prompt.format(
             query=query,
-            hint_text=(
-                "\n\nPrevious planner constraints:\n"
-                + "\n".join(f"- {constraint}" for constraint in planner_constraints)
-                if planner_constraints
-                else ""
-            ),
+            hint_text=self._format_planner_constraints(planner_constraints),
             node_labels=schema.get('node_labels', []),
             edge_types=schema.get('edge_types', []),
             node_properties=schema.get('node_properties', []),
@@ -501,7 +637,14 @@ class ArgoBridgeLLM:
             execution_history=self._format_history(state.get("history", [])),
             produced_artifacts=self._format_produced_artifacts(state.get("produced_artifacts", [])),
             symbol_table=json.dumps(state.get("plan_symbol_table", []) or [], indent=2),
-            planner_constraints=json.dumps(state.get("planner_constraints", []) or [], indent=2),
+            # Rendered, not `json.dumps`-ed. Now that constraints are typed
+            # records this site would have printed raw dicts complete with
+            # `authored_iteration` and `status` keys into a prompt, and it is a
+            # DIFFERENT prompt from the one above -- fixing one consumer and not
+            # the other leaves half the planner calls misinformed.
+            planner_constraints=self._format_planner_constraints(
+                state.get("planner_constraints", []) or []
+            ),
             failure_summary=json.dumps(state.get("last_failure_summary", {}), indent=2),
         )
 
@@ -581,8 +724,25 @@ class ArgoBridgeLLM:
                     if contract.get("grain_keys"):
                         formatted.append(f"  🔹 GRAIN KEYS: {', '.join(contract.get('grain_keys', []))}")
 
+                    completeness_line = self._format_completeness(contract.get("completeness"))
+                    if completeness_line:
+                        formatted.append(f"  🔹 COMPLETENESS: {completeness_line}")
+                    grouping_line = self._format_grouping(contract)
+                    if grouping_line:
+                        formatted.append(f"  🔹 GROUPING: {grouping_line}")
+
+                    # Every row, not the first three. This list is not a display
+                    # preview — it is the set of fields the planner is permitted
+                    # to name in the next command. Sampling it made "this field
+                    # does not exist" and "this field was not on rows 0-2" the
+                    # same observable, and a field first carried on row 4 was
+                    # then unreachable for the rest of the run. The rows are all
+                    # in memory here already, and the per-field type loop stops
+                    # at the first non-null value, so this terminates on the
+                    # first row carrying each field rather than scanning all of
+                    # them.
                     items = value.get("items", [])
-                    sample_fields = self._analyze_item_fields(items[:3], row_schema=row_schema)
+                    sample_fields = self._analyze_item_fields(items, row_schema=row_schema)
                     if sample_fields:
                         formatted.append("  🔍 AVAILABLE FIELDS (use these exact names in commands):")
                         for field_name, field_type in sample_fields.items():
@@ -592,12 +752,21 @@ class ArgoBridgeLLM:
                         for field_name in row_schema:
                             formatted.append(f"    - {field_name}: unknown")
                     else:
-                        formatted.append("  🔍 AVAILABLE FIELDS (use these exact names in commands):")
-                        formatted.append("    - entity_type: string")
-                        formatted.append("    - description: string")
-                        formatted.append("    - source_id: string")
-                        formatted.append("    - clusters: string")
-                                
+                        # No rows and no row schema means the fields are not
+                        # known. The list that used to sit here named four
+                        # fields as available; three of them
+                        # (`description`, `source_id`, `clusters`) are not part
+                        # of the canonical graph abstraction in
+                        # docs/RUNTIME_INVARIANTS.md, so this was a
+                        # source-graph-specific schema assumption presented to
+                        # the planner as fact. Guessing wrong here is worse than
+                        # saying nothing: the planner writes commands against
+                        # fields that do not exist and the failure surfaces far
+                        # from its cause.
+                        formatted.append(
+                            "  🔍 AVAILABLE FIELDS: unknown — no rows and no declared row schema"
+                        )
+
                 elif var_type == "DICT":
                     keys = [k for k in value.keys() if k != "_meta"]
                     formatted.append(f"- {key} ({var_type}): {len(keys)} keys - {description}")
@@ -615,6 +784,209 @@ class ArgoBridgeLLM:
         
         return "\n".join(formatted)
     
+    @staticmethod
+    def _format_planner_constraints(records: Any) -> str:
+        """Render planner constraints in three DISTINCT states.
+
+        The states are "none were authored", "these are current", and "these are
+        standing but were authored earlier and nothing has refreshed them". The
+        old bullet formatter collapsed the first into the empty string -- the
+        prompt simply had no constraints section, which reads as "no constraints
+        section exists in this prompt", not as "no constraints were authored" --
+        and had no notion of the third at all.
+
+        The third state is the point. Keeping old constraints standing rather
+        than expiring them is the right call, because nothing here can compute
+        whether a constraint is still relevant. It is only HONEST if the planner
+        is told they are stale, otherwise the engine has silently upgraded an
+        old instruction into a current one.
+        """
+        records = records or []
+        if not records:
+            return (
+                "\n\nPrevious planner constraints: NONE were authored. "
+                "This is an absence of constraints, not an omission from this prompt."
+            )
+        active, unrefreshed = [], []
+        for record in records:
+            if isinstance(record, dict):
+                text = str(record.get("text", "")).strip()
+                if not text:
+                    continue
+                if record.get("status") == "unrefreshed":
+                    authored = record.get("authored_iteration")
+                    where = f"iteration {authored}" if authored is not None else "an unknown iteration"
+                    unrefreshed.append(f"- {text}  [authored {where}; NOT refreshed since]")
+                else:
+                    active.append(f"- {text}")
+            else:
+                unrefreshed.append(f"- {record}  [authorship unknown]")
+
+        sections = []
+        if active:
+            sections.append("\n\nPrevious planner constraints (current):\n" + "\n".join(active))
+        if unrefreshed:
+            sections.append(
+                "\n\nStanding planner constraints, NOT REFRESHED for this attempt:\n"
+                + "\n".join(unrefreshed)
+                + "\nThese were written for an earlier attempt and no newer repair has "
+                "replaced them. They have not been re-judged as relevant; weigh them "
+                "accordingly."
+            )
+        return "".join(sections)
+
+    @staticmethod
+    def _format_refinement(art: Any) -> List[str]:
+        """Render the retrieval-refinement decision as typed facts only.
+
+        `refinement_note=` is gone. It carried a fresh model-authored paraphrase
+        into every planner prompt -- 222 recorded prompt-observation files -- and
+        the prose made engine claims the engine had not established, most sharply
+        an empty result under a 60-row cap rendered as "no matching edges exist".
+        The typed field carried the decision; the prose carried variance.
+
+        The hint never travels alone. `keep` formed on 60 rows, `keep` formed on
+        3, and `keep` written because the refinement call failed are three
+        different claims, and a bare hint makes them one observable again.
+        """
+        if not isinstance(art, dict) or art.get("refinement_hint") is None:
+            return []
+        if art.get("refinement_available") is False:
+            trigger = art.get("refinement_trigger") or "unavailable"
+            return [f"refinement=NOT JUDGED ({trigger}); retrieval breadth unchanged"]
+        facts = [f"refinement_hint={art.get('refinement_hint')}"]
+        sample_size = art.get("refinement_sample_size")
+        if sample_size is not None:
+            facts.append(f"judged_on={sample_size} rows")
+        caps = art.get("refinement_caps") or {}
+        if caps:
+            facts.append(
+                "sample_caps=" + ",".join(f"{k}={v}" for k, v in sorted(caps.items()))
+            )
+        requested = art.get("requested_depth")
+        if requested is not None:
+            effective = art.get("effective_depth")
+            facts.append(
+                f"depth={effective} (requested {requested}"
+                + ("" if effective == requested else ", NARROWED")
+                + ")"
+            )
+        return facts
+
+    @staticmethod
+    def _format_grouping(contract: Any) -> str:
+        """Render how a grouping resolved and what it could not group.
+
+        The planner named a column; something else may have been grouped by, or
+        rows may have been left out of every group. Both are differences between
+        the question asked and the one answered, so both are stated rather than
+        left to be inferred from a row count.
+        """
+        if not isinstance(contract, dict):
+            return ""
+        parts = []
+
+        diagnostics = contract.get("aggregate_diagnostics")
+        if isinstance(diagnostics, dict):
+            by_field = diagnostics.get("by_field") or {}
+            if by_field.get("resolved") and by_field.get("how") != "exact":
+                parts.append(
+                    f"grouped by {by_field.get('resolved')!r} for requested "
+                    f"{by_field.get('requested')!r} ({by_field.get('how')})"
+                )
+            presence = diagnostics.get("key_presence") or {}
+            ungroupable = presence.get("key_absent", 0) + presence.get("key_present_null", 0)
+            if ungroupable:
+                parts.append(
+                    f"{ungroupable}/{presence.get('rows', 0)} rows carry no usable "
+                    f"grouping value and are in no group"
+                )
+
+        # A weight column whose derivation is unstated, unknown, or partly a
+        # no-provenance default must not read as evidence. This reaches the
+        # artifact record already; without rendering it here it would be another
+        # disclosure written and read by nothing.
+        basis = contract.get("row_weight_basis") or ""
+        weight_field = contract.get("row_weight_field") or ""
+        if weight_field and basis:
+            if is_no_evidence(basis):
+                parts.append(
+                    f"{weight_field!r} is NOT evidence: at least some rows were "
+                    f"weighted by the no-provenance default ({basis})"
+                )
+            elif WEIGHT_BASIS_UNKNOWN in basis_components(basis):
+                parts.append(
+                    f"{weight_field!r} has an undeclared derivation ({basis}); "
+                    f"do not read it as evidence"
+                )
+            else:
+                parts.append(f"{weight_field!r} derived by {basis}")
+
+        collapse = contract.get("collapse_diagnostics")
+        if isinstance(collapse, dict):
+            without = collapse.get("groups_without_evidence", 0)
+            if without:
+                parts.append(
+                    f"{without}/{collapse.get('groups', 0)} collapsed groups have no "
+                    f"source refs, so no evidence metric is nominated; "
+                    f"{collapse.get('contributing_rows_field')!r} counts merged rows, "
+                    f"not evidence"
+                )
+            elif collapse.get("evidence_metric_field"):
+                parts.append(
+                    f"evidence metric is {collapse.get('evidence_metric_field')!r} "
+                    f"(source refs deduplicated across rows)"
+                )
+        return "; ".join(parts)
+
+    @staticmethod
+    def _format_completeness(disclosure: Any) -> str:
+        """Render a retrieval's completeness disclosure for the planner.
+
+        Both cases are rendered. Printing only the bounded case would make a
+        complete result and a result whose producer never disclosed anything
+        look identical in the prompt, and the planner would have no way to tell
+        an exhaustive answer from an unaudited one.
+        """
+        if not isinstance(disclosure, dict) or "complete" not in disclosure:
+            return ""
+
+        returned = disclosure.get("returned", 0)
+        if disclosure.get("complete"):
+            return f"COMPLETE — all {returned} matching rows returned"
+
+        parts = [f"BOUNDED — {returned} rows returned, NOT all matches"]
+        bound_kind = disclosure.get("bound_kind") or "unspecified bound"
+        bound = disclosure.get("bound")
+        parts.append(f"stopped by {bound_kind}" + (f"={bound}" if bound is not None else ""))
+        if disclosure.get("residual_known"):
+            parts.append(f"{disclosure.get('residual')} matches not returned")
+        else:
+            parts.append("how many matches remain is unknown")
+        # Both units, together. A reader shown only "N nodes truncated" will
+        # under-read a heavy-tailed fan-out cut: on the measured graphs that
+        # number is under 2% while the edges it stands for are 15-19% of all
+        # traversal. The gap has to be visible in one place, not inferable from
+        # two.
+        truncated_nodes = disclosure.get("nodes_with_truncated_fanout")
+        discarded_edges = disclosure.get("edges_discarded_by_fanout_cap")
+        if truncated_nodes:
+            parts.append(
+                f"fan-out cap clipped {truncated_nodes} high-degree nodes, "
+                f"discarding {discarded_edges} edges"
+            )
+        seeds_expanded = disclosure.get("seeds_expanded")
+        seeds_total = disclosure.get("seeds_total")
+        if isinstance(seeds_expanded, int) and isinstance(seeds_total, int) and seeds_total:
+            if seeds_expanded < seeds_total:
+                parts.append(f"expanded {seeds_expanded}/{seeds_total} seeds")
+
+        scanned = disclosure.get("pairs_scanned")
+        total = disclosure.get("pairs_total")
+        if isinstance(scanned, int) and isinstance(total, int) and total > 0:
+            parts.append(f"covered {scanned}/{total} candidate pairs")
+        return "; ".join(parts)
+
     def _analyze_item_fields(self, items: List[Dict], row_schema: Optional[List[str]] = None) -> Dict[str, str]:
         """Analyze sample items to determine available fields and their types."""
         if not items and not row_schema:
@@ -623,7 +995,11 @@ class ArgoBridgeLLM:
         field_types = {}
         schema = list(row_schema or [])
         if not schema and items:
-            schema = infer_row_schema(items[:3], max_depth=2)
+            # Every row. A schema inferred from a sample is a claim about the
+            # payload the payload does not support — see the same reasoning in
+            # `gasl.contracts.infer_row_schema`, which stopped sampling for
+            # exactly this reason.
+            schema = infer_row_schema(items, max_depth=2)
 
         for field_name in schema:
             if field_name == "_meta":
@@ -668,20 +1044,27 @@ class ArgoBridgeLLM:
             return "No execution history yet."
         
         formatted = []
-        for entry in history[-5:]:  # Last 5 entries
+        for entry in history:
             status = entry.get("status", "unknown")
             command = entry.get("command", "")
             count = entry.get("result_count", 0)
             formatted.append(f"- {status}: {command} (result count: {count})")
-        
-        return "\n".join(formatted)
+
+        # Windowed by measured size, not by a count of entries, and the residual
+        # is stated. Under the old `[-5:]` a run that had been failing the same
+        # way for forty turns rendered identically to a five-turn-old run, so
+        # "no signal" and "no problem" were the same observable.
+        kept, omitted = self._window_by_size(formatted)
+        if omitted:
+            kept.insert(0, f"({omitted} earlier entries omitted; {len(formatted)} total)")
+        return "\n".join(kept)
 
     def _format_produced_artifacts(self, artifacts: list) -> str:
         """Format recently produced artifacts for prompt context."""
         if not artifacts:
             return "No produced artifacts yet."
         formatted = []
-        for art in artifacts[-8:]:
+        for art in artifacts:
             parts = [
                 f"- {art.get('variable','')}: {art.get('command_type','')} -> {art.get('payload_kind','')}"
                 f" ({art.get('item_count',0)} items)"
@@ -698,12 +1081,20 @@ class ArgoBridgeLLM:
                 parts.append(f"fields={art.get('row_schema', [])}")
             if art.get("safe_for"):
                 parts.append(f"safe_for={art.get('safe_for')}")
-            if art.get("refinement_hint"):
-                parts.append(f"refinement_hint={art.get('refinement_hint')}")
-            if art.get("refinement_reason"):
-                parts.append(f"refinement_note={art.get('refinement_reason')}")
+            parts.extend(self._format_refinement(art))
+            completeness_line = self._format_completeness(art.get("completeness"))
+            if completeness_line:
+                parts.append(completeness_line)
+            grouping_line = self._format_grouping(art)
+            if grouping_line:
+                parts.append(grouping_line)
             formatted.append(", ".join(parts))
-        return "\n".join(formatted)
+
+        # Same measured window and same disclosure as `_format_history`.
+        kept, omitted = self._window_by_size(formatted)
+        if omitted:
+            kept.insert(0, f"({omitted} earlier artifacts omitted; {len(formatted)} total)")
+        return "\n".join(kept)
     
     def _format_results(self, results: Dict[str, Any]) -> str:
         """Format results for prompt."""

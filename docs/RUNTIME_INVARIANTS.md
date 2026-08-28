@@ -50,16 +50,65 @@ For every string-key access in runtime code:
 2. Demo, benchmark, and visualization code may be graph-specific.
    Core runtime code may not.
 
+## Layering
+
+`gasl/` is the generic query engine. It must not import `nano_graphrag/`
+(ingestion), `query_generation/`, or `question_pipeline/`. The dependency runs
+the other way.
+
+This is enforced structurally by `tools/check_runtime_invariants.py`, and it is
+enforced because the literal scan could not see the defect that motivated it:
+`gasl/commands/data_transform.py` and `gasl/commands/contrastive.py` imported
+`get_source_refs` from `nano_graphrag.graph_slots`, whose fallback reads
+`source_papers` — named as forbidden in the list above. Every `COLLAPSE`,
+`PROJECT` and `AGGREGATE` reached it transitively while the checker reported a
+clean tree, because the literal lives outside the scanned paths.
+
+Provenance accessors now live in `gasl/provenance.py`, **without the legacy
+aliases**. A graph that stores provenance under another key declares where via
+the contract's `source_ref_field`; it does not get a hardcoded guess. If a
+source graph genuinely uses a different key, that mapping belongs in the
+adapter.
+
+The checker carries a frozen inventory, `KNOWN_OUTBOUND_IMPORTS`, of the
+outbound imports that predate this rule (all `nano_graphrag.prompt_system`, plus
+one `query_generation.graph_validator`). They are **not blessed** — the
+inventory exists so that a *new* outbound import fails the check rather than
+hiding among them. It may shrink. It must not grow.
+
+The operator's stated goal (2026-08-24) is strict dependency linearity —
+`rarefaction/` below `gasl/` below `question_pipeline/`, with ingestion
+beside the pipeline and nothing importing upward. So the inventory is debt:
+a phase that edits a file carrying one of these imports removes the import
+as part of the phase, and the steward reviewing that phase asks why if it
+did not.
+
+**Permitted lower layer (phase 4A, landed 2026-08-24):** `gasl/` may import
+the `rarefaction/` package. This is not growth of the outbound inventory and
+not a weakening of this rule: the rule keeps the engine from importing the
+ingestion and control layers *above* it, and `rarefaction/` is a *lower*
+layer — pure stdlib arithmetic over opaque identity tokens, importing
+nothing, schema-agnostic by construction. The checker carries an explicit
+permitted-lower-layer entry for it, with this paragraph as the documented
+reason. Charter: `docs/ACQUISITION_LOOP.md`. The binding that uses it is
+`gasl/commands/graph_nav.py` (phase 4B): the walk reports yield in numbers
+and quits on the kernel's verdict; it passes the kernel opaque identities
+only, so the engine stays schema-agnostic.
+
 ## Enforcement
 
 Before merging generic-runtime changes:
 
-1. run the invariant checker: `python3 tools/check_runtime_invariants.py`
+1. run the invariant checker: `.venv/bin/python tools/check_runtime_invariants.py`
    - this checker intentionally targets generic runtime paths (`gasl/` and
      selected runtime entry points), not ingestion/storage/benchmark modules
-2. run the focused invariant tests: `pytest -q tests/test_runtime_invariants.py`
-3. if the checker needs a new allowed exception, document the reason in both the
+2. if the checker needs a new allowed exception, document the reason in both the
    checker and this file
+
+(An earlier revision listed a `pytest` invariant-test step here. `tests/` has
+been deleted and no suite may be created; the static checker is the only
+mechanical check. Behavioral verification is a live run — see `CLAUDE.md`
+§Checks.)
 
 ## Variable-access rule
 

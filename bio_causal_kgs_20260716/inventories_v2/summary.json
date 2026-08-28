@@ -1,0 +1,124 @@
+{
+  "domains": [
+    {
+      "slug": "bone_mechanotransduction",
+      "title": "Bone mechanotransduction",
+      "queries": [
+        "\"osteocyte mechanotransduction\" OR \"bone mechanotransduction\" OR \"mechanical loading bone Wnt\"",
+        "\"osteocyte\" AND (\"sclerostin\" OR \"Piezo1\" OR \"YAP\" OR \"TAZ\" OR \"fluid shear\")"
+      ],
+      "records": 18,
+      "output": "bio_causal_kgs_20260716/inventories_v2/bone_mechanotransduction.jsonl"
+    },
+    {
+      "slug": "bacterial_sporulation",
+      "title": "Bacterial sporulation",
+      "queries": [
+        "\"Bacillus subtilis sporulation\" OR \"Spo0A phosphorelay\"",
+        "\"sporulation\" AND (\"asymmetric division\" OR \"forespore\" OR \"mother cell\") AND Bacillus"
+      ],
+      "records": 18,
+      "output": "bio_causal_kgs_20260716/inventories_v2/bacterial_sporulation.jsonl"
+    },
+    {
+      "slug": "quorum_sensing",
+      "title": "Quorum sensing",
+      "queries": [
+        "\"quorum sensing\" AND (LuxR OR LasR OR RhlR OR autoinducer OR virulence OR biofilm)",
+        "\"quorum sensing\" AND (phosphorelay OR \"small RNA\" OR \"gene regulation\" OR Vibrio)"
+      ],
+      "records": 18,
+      "output": "bio_causal_kgs_20260716/inventories_v2/quorum_sensing.jsonl"
+    },
+    {
+      "slug": "plant_circadian_clock",
+      "title": "Plant circadian clock",
+      "queries": [
+        "Arabidopsis AND (\"circadian clock\" OR CCA1 OR LHY OR TOC1 OR PRR OR ELF)",
+        "plant AND (\"circadian oscillator\" OR \"circadian clock\") AND (entrainment OR light OR temperature)"
+      ],
+      "records": 18,
+      "output": "bio_causal_kgs_20260716/inventories_v2/plant_circadian_clock.jsonl"
+    },
+    {
+      "slug": "synaptic_ltp_ltd",
+      "title": "Synaptic LTP/LTD",
+      "queries": [
+        "(\"long-term potentiation\" OR \"long-term depression\" OR LTP OR LTD) AND (NMDA OR AMPA OR CaMKII OR calcineurin)",
+        "hippocampal AND (\"synaptic plasticity\" OR \"AMPA receptor trafficking\" OR \"spine plasticity\")"
+      ],
+      "records": 18,
+      "output": "bio_causal_kgs_20260716/inventories_v2/synaptic_ltp_ltd.jsonl"
+    },
+    {
+      "slug": "limb_regeneration",
+      "title": "Limb regeneration",
+      "queries": [
+        "(axolotl OR salamander) AND \"limb regeneration\"",
+        "blastema AND (\"positional memory\" OR FGF OR Wnt OR BMP OR \"retinoic acid\" OR nerve)"
+      ],
+      "records": 18,
+      "output": "bio_causal_kgs_20260716/inventories_v2/limb_regeneration.jsonl"
+    },
+    {
+      "slug": "biofilm_dispersal",
+      "title": "Biofilm formation and dispersal",
+      "queries": [
+        "biofilm AND (dispersal OR \"c-di-GMP\" OR \"quorum sensing\" OR matrix OR motility)",
+        "\"biofilm dispersal\" OR \"cyclic di-GMP\" OR \"extracellular matrix\" OR exopolysaccharide"
+      ],
+      "records": 18,
+      "output": "bio_causal_kgs_20260716/inventories_v2/biofilm_dispersal.jsonl"
+    },
+    {
+      "slug": "fungal_metabolic_switching",
+      "title": "Fungal metabolic switching",
+      "queries": [
+        "(Candida OR yeast OR fungal) AND (\"metabolic switching\" OR \"metabolic reprogramming\" OR morphogenesis)",
+        "Candida AND (glycolysis OR gluconeogenesis OR TOR OR PKA OR hyphae) AND virulence"
+      ],
+      "records": 18,
+      "output": "bio_causal_kgs_20260716/inventories_v2/fungal_metabolic_switching.jsonl"
+    },
+    {
+      "slug": "insect_ecdysone_signaling",
+      "title": "Insect ecdysone signaling",
+      "queries": [
+        "(ecdysone OR EcR OR USP OR Broad OR E74 OR E75) AND (insect OR metamorphosis)",
+        "ecdysone AND (\"juvenile hormone\" OR metamorphosis OR molting OR \"gene cascade\")"
+      ],
+      "records": 18,
+      "output": "bio_causal_kgs_20260716/inventories_v2/insect_ecdysone_signaling.jsonl"
+    },
+    {
+      "slug": "plant_stomatal_aba_signaling",
+      "title": "Plant stomatal ABA signaling",
+      "queries": [
+        "(\"guard cell\" OR \"stomatal closure\") AND (ABA OR \"abscisic acid\" OR OST1 OR SLAC1 OR SnRK2)",
+        "\"abscisic acid\" AND (\"ion channel\" OR PYR OR PYL OR RCAR OR calcium) AND plant"
+      ],
+      "records": 18,
+      "output": "bio_causal_kgs_20260716/inventories_v2/plant_stomatal_aba_signaling.jsonl"
+    },
+    {
+      "slug": "bacterial_chemotaxis",
+      "title": "Bacterial chemotaxis",
+      "queries": [
+        "\"bacterial chemotaxis\" OR \"Escherichia coli chemotaxis\"",
+        "chemotaxis AND (CheA OR CheY OR CheR OR CheB OR \"flagellar motor\")"
+      ],
+      "records": 18,
+      "output": "bio_causal_kgs_20260716/inventories_v2/bacterial_chemotaxis.jsonl"
+    },
+    {
+      "slug": "c_elegans_dauer_formation",
+      "title": "C. elegans dauer formation",
+      "queries": [
+        "(Caenorhabditis OR \"C. elegans\") AND dauer AND (insulin OR \"TGF beta\" OR DAF-16)",
+        "dauer AND (pheromone OR dafachronic OR \"nuclear hormone receptor\" OR developmental) AND elegans"
+      ],
+      "records": 18,
+      "output": "bio_causal_kgs_20260716/inventories_v2/c_elegans_dauer_formation.jsonl"
+    }
+  ]
+}

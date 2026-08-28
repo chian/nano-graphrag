@@ -7,6 +7,11 @@ from statistics import mean, median
 from typing import Any
 
 from ..contracts import iter_scalar_fields
+from ..provenance import row_source_refs
+
+#: Appended to a snippet that was cut. There is no ellipsis anywhere else in
+#: this package, which is why a cut string and a short one were indistinguishable.
+TRUNCATION_MARKER = "..."
 
 _IDENTITY_FIELDS = {"row_id", "left_row_id", "right_row_id", "parent_row_id"}
 
@@ -192,17 +197,37 @@ def top_evidence_refs(rows: list[dict[str, Any]], group_field: str, max_groups: 
                 if field_name.endswith(".id") or field_name == "id":
                     item_id = str(value)
                     break
+            snippet, full_length = short_snippet(row)
             refs.append(
                 {
                     "item_id": item_id,
-                    "snippet": short_snippet(row),
-                    "source_ids": [],
+                    "snippet": snippet,
+                    # The row's real provenance. This was a literal `[]` at
+                    # every call site: an evidence ref whose source list was
+                    # empty by construction, so the object was shaped like a
+                    # citation while citing nothing, and no consumer could tell
+                    # "this row has no sources" from "this function never
+                    # looked". Both halves of every citation were absent and
+                    # neither absence was observable.
+                    "source_ids": row_source_refs(row),
+                    "snippet_truncated": full_length > len(snippet),
+                    "snippet_full_length": full_length,
                 }
             )
     return refs
 
 
-def short_snippet(row: dict[str, Any], limit: int = 180) -> str:
+def short_snippet(row: dict[str, Any], limit: int = 180) -> tuple[str, int]:
+    """Return the snippet AND the full length of what it came from.
+
+    Returns a pair because the cut has to be observable. There is no ellipsis
+    anywhere in `answer_layer/`, so a 180-character cut and a complete
+    179-character string were the same observable: a reader could not tell a
+    truncated quote from a short one, and a truncated quote presented as
+    complete is a misquotation of the source.
+
+    NO MEASUREMENT JUSTIFIES 180, and none is cited in the tree.
+    """
     candidates: list[tuple[int, str]] = []
     if isinstance(row.get("data"), dict):
         for _, value in row["data"].items():
@@ -212,9 +237,14 @@ def short_snippet(row: dict[str, Any], limit: int = 180) -> str:
         if isinstance(value, str):
             candidates.append((len(value), value))
     if not candidates:
-        return ""
+        return "", 0
     candidates.sort(reverse=True)
-    return candidates[0][1][:limit]
+    full = candidates[0][1]
+    if len(full) <= limit:
+        return full, len(full)
+    # Marked in the text as well as in the typed field, because the snippet is
+    # frequently read on its own, detached from the fields beside it.
+    return full[:limit] + TRUNCATION_MARKER, len(full)
 
 
 def histogram(values: list[float], bins: int = 5) -> list[dict[str, Any]]:

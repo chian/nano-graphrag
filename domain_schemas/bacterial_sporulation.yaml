@@ -1,0 +1,110 @@
+# Bacterial Sporulation Domain Schema
+# Focus: Bacillus subtilis phosphorelay initiation, compartment-specific sigma
+# factors, asymmetric septation, mother-cell and forespore communication,
+# peptidoglycan remodeling, and spore-quality checkpoints.
+
+domain_name: "Bacterial Sporulation"
+domain_description: "Causal regulation of Bacillus sporulation from starvation and Spo0A phosphorelay commitment through asymmetric division, forespore engulfment, mother-cell and forespore gene-expression programs, metabolic differentiation, and mature endospore formation."
+
+entity_types:
+  BACTERIAL_CELL:
+    description: "A Bacillus cell, compartment, mutant, or sporulating population."
+    examples: ["Bacillus subtilis", "mother cell", "forespore", "stationary-phase cell"]
+
+  DEVELOPMENTAL_STAGE:
+    description: "A morphological or regulatory stage in the sporulation program."
+    examples: ["sporulation initiation", "asymmetric division", "engulfment", "pro-sigmaK activation"]
+
+  PHOSPHORELAY_COMPONENT:
+    description: "A histidine kinase, phosphotransfer protein, or response regulator that commits cells to sporulation."
+    examples: ["KinA", "Spo0F", "Spo0B", "Spo0A"]
+
+  SIGMA_FACTOR:
+    description: "A compartment-specific sigma factor or sigma-factor precursor controlling sporulation transcription."
+    examples: ["sigmaF", "sigmaE", "sigmaG", "sigmaK", "pro-sigmaK"]
+
+  TRANSCRIPTIONAL_REGULATOR:
+    description: "A DNA-binding regulator, chromosomal organizer, or gene-expression factor active in stationary phase or sporulation."
+    examples: ["Spo0A", "RefZ", "Noc", "sporulation-specific regulator"]
+
+  MORPHOGENETIC_PROTEIN:
+    description: "A protein that targets the septum, coat, membrane, or engulfment machinery during spore morphogenesis."
+    examples: ["septal protein", "engulfment protein", "intercellular channel component"]
+
+  CELL_WALL_COMPONENT:
+    description: "A peptidoglycan, spore coat, cortex, or envelope material remodeled during sporulation."
+    examples: ["peptidoglycan", "spore cortex", "endospore coat"]
+
+  METABOLIC_INPUT:
+    description: "A nutrient, siderophore, ATP-dependent activity, or catabolic route that changes sporulation efficiency or spore quality."
+    examples: ["pirated siderophore", "ATP", "alanine catabolism", "glutamate catabolism"]
+
+  CHECKPOINT:
+    description: "A monitored decision point that gates morphogenesis, gene expression, pro-protein activation, or spore development."
+    examples: ["developmental checkpoint", "pro-sigmaK checkpoint", "asymmetric division checkpoint"]
+
+  SPORE_OUTCOME:
+    description: "A mature structure or phenotype produced by sporulation."
+    examples: ["endospore", "spore dormancy", "spore quality", "sporulation efficiency"]
+
+relationship_types:
+  PHOSPHORYLATES:
+    description: "A phosphorelay component transfers phosphate to a downstream phosphorelay regulator."
+    inverse: "PHOSPHORYLATED_BY"
+    examples: ["KinA PHOSPHORYLATES Spo0F"]
+
+  ACTIVATES_TRANSCRIPTION:
+    description: "A sigma factor or transcriptional regulator increases expression of target genes."
+    inverse: "TRANSCRIPTION_ACTIVATED_BY"
+    examples: ["Spo0A ACTIVATES_TRANSCRIPTION sporulation genes"]
+
+  REPRESSES_TRANSCRIPTION:
+    description: "A regulator represses gene expression or blocks inappropriate developmental transcription."
+    inverse: "TRANSCRIPTION_REPRESSED_BY"
+    examples: ["Noc REPRESSES_TRANSCRIPTION division near chromosomes"]
+
+  TARGETS_COMPARTMENT:
+    description: "A protein is localized to, secreted into, or functions within a mother-cell, forespore, or septal compartment."
+    inverse: "COMPARTMENT_TARGETED_BY"
+    examples: ["forespore protein TARGETS_COMPARTMENT forespore membrane"]
+
+  CONTROLS_ASYMMETRIC_DIVISION:
+    description: "A regulator or chromosome organizer positions, permits, or prevents asymmetric septation."
+    inverse: "ASYMMETRIC_DIVISION_CONTROLLED_BY"
+    examples: ["RefZ CONTROLS_ASYMMETRIC_DIVISION polar septation"]
+
+  REMODELS_CELL_WALL:
+    description: "A sporulation process or protein modifies peptidoglycan, cortex, or envelope architecture."
+    inverse: "CELL_WALL_REMODELED_BY"
+    examples: ["engulfment REMODELS_CELL_WALL septal peptidoglycan"]
+
+  PROCESSES_PRECURSOR:
+    description: "A protease or checkpoint converts an inactive precursor into an active regulator."
+    inverse: "PRECURSOR_PROCESSED_BY"
+    examples: ["pro-sigmaK checkpoint PROCESSES_PRECURSOR pro-sigmaK"]
+
+  CHECKPOINTS:
+    description: "A checkpoint gates progression into a later sporulation stage."
+    inverse: "CHECKPOINTED_BY"
+    examples: ["engulfment checkpoint CHECKPOINTS sigmaK activation"]
+
+  DRIVES_STAGE:
+    description: "A regulator, sigma factor, or morphogenetic protein drives a defined sporulation stage."
+    inverse: "STAGE_DRIVEN_BY"
+    examples: ["sigmaF DRIVES_STAGE forespore gene expression"]
+
+  SUPPORTS_METABOLISM:
+    description: "A catabolic pathway or metabolic input supplies energy or precursors for sporulation."
+    inverse: "METABOLISM_SUPPORTED_BY"
+    examples: ["glutamate catabolism SUPPORTS_METABOLISM spore formation"]
+
+  PREVENTS_ABERRANT_DIVISION:
+    description: "A regulator prevents misplaced septation or chromosome-damaging division events."
+    inverse: "ABERRANT_DIVISION_PREVENTED_BY"
+    examples: ["RefZ PREVENTS_ABERRANT_DIVISION aberrant septa"]
+
+  PRODUCES_SPORE_OUTCOME:
+    description: "A developmental stage or program yields a mature spore structure or phenotype."
+    inverse: "SPORE_OUTCOME_PRODUCED_BY"
+    examples: ["sporulation PRODUCES_SPORE_OUTCOME endospore"]
+

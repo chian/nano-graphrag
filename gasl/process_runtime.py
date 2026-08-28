@@ -9,7 +9,6 @@ import concurrent.futures
 import hashlib
 import json
 import os
-import random
 import re
 import httpx
 from dataclasses import dataclass, field
@@ -17,6 +16,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence
 
 from openai import AsyncOpenAI
+from .sampling import deterministic_sample
 from .contracts import iter_scalar_fields
 from .llm.runtime_config import resolve_runtime_llm_config
 
@@ -27,6 +27,304 @@ PROCESS_SUBTYPES = (
     "classification",
     "cross_node_synthesis",
 )
+
+
+ROW_MATERIALIZATION_PATTERNS = (
+    r"\btarget\s+table\s+variable\b",
+    r"\brow[-\s]*shaped\b",
+    r"\bmateriali[sz]e\b",
+    r"\b(?:create|emit|produce|return)\b.{0,120}\brows?\b",
+    r"\b(?:create|emit|produce|return)\b.{0,120}\bfields?\b",
+    r"\bpopulate\b.{0,120}\bfields?\b",
+    r"\bone\s+row\s+per\b",
+    r"\bstable_row_key\b",
+    r"\brow_key\b",
+    r"\bdedup(?:lication)?[_\s-]*key\b",
+    r"\bsource_refs\b",
+    r"\bsource_chunks\b",
+)
+
+# `CARDINALITY <exactly_input|zero_to_n>` is part of the declared PROCESS
+# contract surface (see docs/GASL_GUIDE.md); it serializes as
+# `output_cardinality`. A bare token is required so the `<a|b>` placeholder in
+# the planner-facing grammar is not mistaken for a declaration.
+OUTPUT_CARDINALITY_EXACTLY_INPUT = "exactly_input"
+OUTPUT_CARDINALITY_ZERO_TO_N = "zero_to_n"
+DECLARED_CARDINALITIES = (
+    OUTPUT_CARDINALITY_EXACTLY_INPUT,
+    OUTPUT_CARDINALITY_ZERO_TO_N,
+)
+DECLARED_CARDINALITY_PATTERN = re.compile(
+    r"\bCARDINALITY\s+(" + "|".join(DECLARED_CARDINALITIES) + r")\b",
+    flags=re.IGNORECASE,
+)
+
+ROW_PRESERVATION_PATTERNS = (
+    r"\bemit\s+exactly\s+one\b",
+    r"\bemit\s+one\s+row\s+for\s+every\b",
+    r"\bone\s+row\s+per\s+input\b",
+    r"\bone\s+row\s+for\s+every\s+input\b",
+    r"\bone\s+row\s+per\s+current\b",
+    r"\bone\s+row\s+per\s+collapsed\b",
+    r"\bone\s+row\s+per\s+projected\b",
+    r"\bone\s+row\s+per\s+input\s+path\b",
+    r"\bone\s+row\s+per\s+path\b",
+    r"\bone\s+row\s+per\s+estimate\b",
+    r"\bone\s+row\s+per\s+candidate\b",
+    r"\bone\s+row\s+per\s+row\b",
+    r"\bpreserve\s+(?:the\s+)?one\s+row\s+per\b",
+    r"\bpreserve\s+multiplicity\b",
+)
+
+ROW_MATERIALIZE_EACH_PATTERN = re.compile(
+    r"\b(?:for|from)\s+(?:each|every)\b.{0,160}"
+    r"\b(?:create|emit|produce|return|materiali[sz]e)\b.{0,80}\brows?\b"
+    r"|"
+    r"\b(?:create|emit|produce|return|materiali[sz]e)\b.{0,160}"
+    r"\b(?:for|from)\s+(?:each|every)\b"
+    r"|"
+    r"\b(?:normalize|standardi[sz]e|transform)\b.{0,80}"
+    r"\b(?:each|every)\b.{0,160}\brows?\b",
+    flags=re.IGNORECASE,
+)
+
+SELECTIVE_ROW_CRITERIA_PATTERN = re.compile(
+    r"\b(?:filter|select)\b"
+    r"|"
+    r"\b(?:include|keep)\s+only\b"
+    r"|"
+    r"\bonly\s+(?:rows?|items?|records?|entries?)\s+"
+    r"(?:with|where|when|if|that|having|matching)\b"
+    r"|"
+    r"\b(?:exclude|omit|skip|drop)\b"
+    r"|"
+    r"\b(?:eligible|ineligible|matching|matches|criteria)\b"
+    r"|"
+    r"\bwhere\b",
+    flags=re.IGNORECASE,
+)
+
+
+def requires_row_materialization(
+    instruction: str,
+    target_variable: Optional[str] = None,
+) -> bool:
+    """Return True when PROCESS must emit row objects, not filter decisions."""
+    text = (instruction or "").lower()
+    if target_variable and str(target_variable).endswith("_table"):
+        return True
+    return any(re.search(pattern, text) for pattern in ROW_MATERIALIZATION_PATTERNS)
+
+
+def declared_output_cardinality(
+    instruction: str,
+    source_contract: Optional[Dict[str, Any]] = None,
+) -> Optional[str]:
+    """Return the explicitly declared PROCESS output cardinality, if any.
+
+    In practice this reads the `CARDINALITY <token>` clause of the instruction,
+    which is planner output being read back out of planner output. The
+    `output_cardinality` branch below is forward-looking: nothing in the tree
+    populates that key today, so do not assume a caller supplies it. Returns
+    None when nothing was declared, leaving the caller free to infer.
+    """
+    declared = (source_contract or {}).get("output_cardinality")
+    if isinstance(declared, str) and declared.strip().lower() in DECLARED_CARDINALITIES:
+        return declared.strip().lower()
+
+    match = DECLARED_CARDINALITY_PATTERN.search(instruction or "")
+    return match.group(1).lower() if match else None
+
+
+def requires_input_row_preservation(
+    instruction: str,
+    interpretation: Optional[Dict[str, Any]] = None,
+    *,
+    target_variable: Optional[str] = None,
+    source_contract: Optional[Dict[str, Any]] = None,
+) -> bool:
+    """Return True when PROCESS should emit one result for each input row."""
+    # An explicit declaration outranks every prose heuristic below. Those
+    # heuristics exist to guess a cardinality that was never stated; when the
+    # planner has stated one, guessing against it forces exactly-input
+    # cardinality onto a contract that declared zero_to_n and fails every batch
+    # whose eligible rows are fewer than its inputs.
+    declared = declared_output_cardinality(instruction, source_contract)
+    if declared is not None:
+        return declared == OUTPUT_CARDINALITY_EXACTLY_INPUT
+
+    text = f"{instruction or ''}\n{(interpretation or {}).get('output_contract') or ''}"
+    compact = re.sub(r"[\s_-]+", " ", text.lower())
+
+    if _has_explicit_row_preservation(compact):
+        return True
+
+    if _group_rows_default_to_preserve(target_variable, source_contract or {}):
+        return not _has_selective_row_criteria(compact)
+
+    return False
+
+
+def _has_explicit_row_preservation(text: str) -> bool:
+    return (
+        any(re.search(pattern, text) for pattern in ROW_PRESERVATION_PATTERNS)
+        or bool(ROW_MATERIALIZE_EACH_PATTERN.search(text))
+    )
+
+
+def _group_rows_default_to_preserve(
+    target_variable: Optional[str],
+    source_contract: Dict[str, Any],
+) -> bool:
+    return bool(
+        target_variable
+        and str(target_variable).endswith("_table")
+        and (
+            source_contract.get("payload_kind") == "collapsed_rows"
+            or source_contract.get("grain_type") == "group"
+        )
+    )
+
+
+def _has_selective_row_criteria(text: str) -> bool:
+    return bool(SELECTIVE_ROW_CRITERIA_PATTERN.search(text))
+
+
+# Response-protocol keys that name rows the model has *rejected*. A container
+# under one of these names must never be mistaken for the accepted-row payload,
+# because doing so would invert the model's decision. These are response
+# vocabulary, not graph schema.
+REJECTED_PAYLOAD_KEYS = frozenset(
+    {
+        "excluded",
+        "excluded_items",
+        "excluded_rows",
+        "rejected",
+        "rejected_items",
+        "rejected_rows",
+        "dropped",
+        "dropped_items",
+        "dropped_rows",
+        "ineligible",
+        "ineligible_items",
+        "ineligible_rows",
+        "errors",
+        "warnings",
+    }
+)
+
+
+def recover_row_container(
+    parsed_result: Any,
+    target_variable: Optional[str] = None,
+) -> Optional[List[Any]]:
+    """Recover the accepted-row array from a PROCESS response of any shape.
+
+    Models routinely name the row container after the output they were asked to
+    produce — the target variable, the table, the mode, or the task — rather
+    than after the engine's canonical key. Those rows are well formed, so the
+    engine recovers them instead of discarding the batch.
+
+    Selection is by shape (exactly one list-valued key) and by runtime state
+    (`target_variable`, the command's own AS binding). Container names are
+    matched only against the response-protocol denylist in
+    `REJECTED_PAYLOAD_KEYS`, never against graph schema or any vocabulary of
+    field names. That denylist is incomplete by construction, so an
+    unrecognized rejection container can still be read as the accepted set;
+    the row-shape guard below limits, but does not eliminate, that risk.
+
+    Returns None when no unambiguous row container is present, leaving the
+    caller to apply its own fallback.
+    """
+    if isinstance(parsed_result, list):
+        return parsed_result
+    if not isinstance(parsed_result, dict):
+        return None
+
+    if target_variable:
+        value = parsed_result.get(str(target_variable))
+        if isinstance(value, list) and _is_row_container(value):
+            return value
+
+    containers = [
+        value
+        for key, value in parsed_result.items()
+        if isinstance(value, list)
+        and str(key).strip().lower() not in REJECTED_PAYLOAD_KEYS
+        and _is_row_container(value)
+    ]
+    if len(containers) == 1:
+        return containers[0]
+    return None
+
+
+def _is_row_container(value: List[Any]) -> bool:
+    """Rows are objects. An empty array is a valid zero-row answer."""
+    return not value or any(isinstance(item, dict) for item in value)
+
+
+def normalize_table_items(
+    items: List[Dict[str, Any]],
+    target_variable: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """Lift wrapped row payloads and remove sibling table rows."""
+    if not target_variable or not str(target_variable).endswith("_table"):
+        return items
+
+    normalized: List[Dict[str, Any]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        table_item = _lift_wrapped_table_item(item)
+        table_name = table_item.get("table_name")
+        if table_name and table_name != target_variable:
+            continue
+        normalized.append(table_item)
+    return normalized
+
+
+def _lift_wrapped_table_item(item: Dict[str, Any]) -> Dict[str, Any]:
+    nested_key = _best_wrapped_row_key(item)
+    if not nested_key:
+        return item
+
+    lifted = {
+        key: value
+        for key, value in item.items()
+        if key not in {nested_key, "items"}
+    }
+    lifted.update(item[nested_key])
+    return lifted
+
+
+def _best_wrapped_row_key(item: Dict[str, Any]) -> str:
+    best_key = ""
+    best_score = 0
+    for key, value in item.items():
+        if not isinstance(value, dict):
+            continue
+        key_text = str(key).lower()
+        if key_text not in {"row", "record"} and not (
+            key_text.endswith("_row") or key_text.endswith("_record")
+        ):
+            continue
+        score = sum(
+            1
+            for field in (
+                "deduplication_key",
+                "row_id",
+                "source_refs",
+                "source_chunks",
+                "table_name",
+                "entity_type",
+                "relation_type",
+            )
+            if field in value
+        )
+        if score > best_score:
+            best_key = key
+            best_score = score
+    return best_key
 
 
 @dataclass
@@ -53,9 +351,15 @@ class ProcessSubtypeRouter:
     DERIVE_PATTERNS = (
         r"\bcalculate\b",
         r"\bcompute\b",
+        r"\bcreate\b",
         r"\bderive\b",
+        r"\bemit\b",
         r"\bextract\b",
+        r"\bmateriali[sz]e\b",
         r"\bnormalize\b",
+        r"\bpopulate\b",
+        r"\bproduce\b",
+        r"\breturn\b.{0,120}\brows?\b",
         r"\bstandardize\b",
         r"\badd field\b",
         r"\bmap\b",
@@ -65,10 +369,12 @@ class ProcessSubtypeRouter:
         text = (instruction or "").lower()
         if any(re.search(p, text) for p in self.CLASSIFY_PATTERNS):
             return "classification"
-        if any(re.search(p, text) for p in self.FILTER_PATTERNS):
-            return "semantic_filter"
+        if requires_row_materialization(instruction):
+            return "field_derivation"
         if any(re.search(p, text) for p in self.DERIVE_PATTERNS):
             return "field_derivation"
+        if any(re.search(p, text) for p in self.FILTER_PATTERNS):
+            return "semantic_filter"
         return "cross_node_synthesis"
 
     def confirm_from_result(self, initial_subtype: str, result: Dict[str, Any]) -> str:
@@ -86,13 +392,13 @@ class ProcessSubtypeRouter:
 
     def routed_model(self, current_model: str, subtype: str) -> str:
         model = (current_model or "").strip()
-        mini_default = os.getenv("PROCESS_MINI_MODEL", "gpt-5-mini")
-        large_default = os.getenv("PROCESS_LARGE_MODEL", model or "gpt-5.5")
+        mini_override = os.getenv("PROCESS_MINI_MODEL", "").strip()
+        large_default = os.getenv("PROCESS_LARGE_MODEL", model or "gpt-5.5").strip()
         if subtype in {"semantic_filter", "field_derivation"}:
-            return mini_default
-        if subtype == "cross_node_synthesis" and "mini" in model:
+            return mini_override or model or large_default
+        if subtype == "cross_node_synthesis" and "mini" in model.lower():
             return large_default
-        return model
+        return model or large_default
 
 
 class DerivedArtifactRegistry:
@@ -119,7 +425,7 @@ class CandidateSelector:
 
     def __init__(self, graph=None, api_key: Optional[str] = None):
         self.graph = graph
-        runtime_cfg = resolve_runtime_llm_config(explicit_api_key=api_key or os.getenv("OPENAI_API_KEY") or os.getenv("VIZ_API_KEY"))
+        runtime_cfg = resolve_runtime_llm_config(explicit_api_key=api_key)
         self.api_key = runtime_cfg.api_key
         self.base_url = runtime_cfg.base_url
         self.transport = runtime_cfg.transport
@@ -342,14 +648,16 @@ class CandidateSelector:
         )[: self.PROBE_SIZE]
 
     def _deterministic_random_tail(self, data: List[Dict[str, Any]], query: str, instruction: str, subtype: str, *, k: int) -> List[Dict[str, Any]]:
-        seed_material = f"{query}|{instruction}|{subtype}|{len(data)}"
-        seed = int(hashlib.sha1(seed_material.encode("utf-8")).hexdigest()[:8], 16)
-        rng = random.Random(seed)
-        if k >= len(data):
-            return list(data)
-        idxs = list(range(len(data)))
-        rng.shuffle(idxs)
-        return [data[i] for i in idxs[:k]]
+        """The anti-rank-bias draw that rounds out the ranked slices above.
+
+        The implementation moved to `gasl.sampling.deterministic_sample`, which
+        is now the engine's only sampler: this one was correct and the other one
+        -- a stratifier in the refinement agent that never executed -- is gone.
+        One implementation, so a fix to sampling is a fix everywhere.
+        """
+        return deterministic_sample(
+            data, seed_text=f"{query}|{instruction}|{subtype}", k=k
+        )
 
     @staticmethod
     def _merge_unique(*groups: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:

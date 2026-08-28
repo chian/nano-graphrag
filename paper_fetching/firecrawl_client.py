@@ -11,45 +11,59 @@ from typing import List, Dict, Optional
 from datetime import datetime
 
 
-# Scientific publication domains to prioritize
-SCIENTIFIC_DOMAINS = [
-    'pubmed.ncbi.nlm.nih.gov',
-    'ncbi.nlm.nih.gov/pmc',
-    'biorxiv.org',
-    'medrxiv.org',
-    'nature.com',
-    'science.org',
-    'cell.com',
-    'plos.org',
-    'frontiersin.org',
-    'springer.com',
-    'wiley.com',
-    'acs.org',
-    'arxiv.org'
-]
+FIRECRAWL_SEARCH_PROVIDER = "firecrawl"
+FIRECRAWL_SEARCH_API_VERSION = "v1"
+FIRECRAWL_SEARCH_ENDPOINT = (
+    f"https://api.firecrawl.dev/{FIRECRAWL_SEARCH_API_VERSION}/search"
+)
+# Firecrawl Search v1 and v2 both accept ``limit`` values through 100. Keep
+# this provider constraint beside the request payload it governs: acquisition
+# consumes the provider default and never turns it into a processing budget.
+FIRECRAWL_SEARCH_MAX_BATCH_SIZE = 100
 
-# Domains to exclude (news, blogs, general websites)
-EXCLUDED_DOMAINS = [
-    'wikipedia.org',
-    'news.google.com',
-    'sciencedaily.com',
-    'medscape.com',
-    'webmd.com',
-    'healthline.com',
-    'mayoclinic.org',
-    'medium.com',
-    'forbes.com',
-    'cnn.com',
-    'bbc.com',
-    'reddit.com'
-]
+
+def firecrawl_search_batch_metadata(
+    requested_results: Optional[int] = None,
+) -> Dict[str, object]:
+    """Describe one Firecrawl search request without making a stop rule of it."""
+
+    requested = (
+        FIRECRAWL_SEARCH_MAX_BATCH_SIZE
+        if requested_results is None
+        else int(requested_results)
+    )
+    return {
+        "provider": FIRECRAWL_SEARCH_PROVIDER,
+        "api_version": FIRECRAWL_SEARCH_API_VERSION,
+        "endpoint": FIRECRAWL_SEARCH_ENDPOINT,
+        "batch_size_owner": "paper_fetching.firecrawl_client",
+        "requested_batch_size": requested,
+        "provider_max_batch_size": FIRECRAWL_SEARCH_MAX_BATCH_SIZE,
+    }
+
+
+# No domain allowlist and no domain denylist.
+#
+# This engine's purpose is to find *everything* about a subject. Any list of
+# permitted or forbidden domains decides in advance where the answer is allowed
+# to live, which is the opposite of that goal. A thirteen-domain allowlist used
+# to sit here and it discarded 80-100% of every search's results -- including
+# the structured data repositories that carry per-field provenance, the exact
+# evidence the aggregation layer reports as missing.
+#
+# Admission is decided downstream on *content*, never on the address:
+# `SearchHarvester._source_relevance_decision` reads the fetched text, and the
+# length bounds in `question_pipeline/search.py` drop malformed pages at either
+# end. Do not reintroduce a domain list here in any form.
 
 
 def search_papers(
     query: str,
     api_key: str,
-    max_results: int = 10,
-    format: str = 'markdown'
+    max_results: int = FIRECRAWL_SEARCH_MAX_BATCH_SIZE,
+    format: str = 'markdown',
+    raise_on_error: bool = False,
+    scrape_results: bool = True,
 ) -> List[Dict]:
     """
     Search for scientific papers using Firecrawl API.
@@ -59,15 +73,14 @@ def search_papers(
         api_key: Firecrawl API key
         max_results: Maximum number of results to return
         format: Content format ('markdown', 'html', 'text')
+        raise_on_error: Raise Firecrawl request errors instead of returning [].
+        scrape_results: Ask Firecrawl Search to scrape returned pages.
 
     Returns:
         List of search results with URLs and metadata
     """
 
     print(f"Searching for: '{query}'")
-
-    # Firecrawl search endpoint
-    search_url = "https://api.firecrawl.dev/v1/search"
 
     headers = {
         'Authorization': f'Bearer {api_key}',
@@ -77,39 +90,33 @@ def search_papers(
     payload = {
         'query': query,
         'limit': max_results,
-        'scrapeOptions': {
+    }
+    if scrape_results:
+        payload['scrapeOptions'] = {
             'formats': [format]
         }
-    }
 
     try:
-        response = requests.post(search_url, headers=headers, json=payload, timeout=30)
+        response = requests.post(
+            FIRECRAWL_SEARCH_ENDPOINT,
+            headers=headers,
+            json=payload,
+            timeout=30,
+        )
         response.raise_for_status()
 
         data = response.json()
         results = data.get('data', [])
 
-        # Filter for scientific publications only
-        filtered_results = []
-        for result in results:
-            url = result.get('url', '')
-
-            # Skip excluded domains
-            if any(excluded in url.lower() for excluded in EXCLUDED_DOMAINS):
-                continue
-
-            # Prioritize scientific domains
-            is_scientific = any(domain in url.lower() for domain in SCIENTIFIC_DOMAINS)
-
-            if is_scientific:
-                filtered_results.append(result)
-
-        print(f"  Found {len(filtered_results)} scientific papers (filtered from {len(results)} total)")
-
-        return filtered_results
+        # Every result is returned. Nothing is dropped on the basis of its
+        # domain -- see the note at the top of this module.
+        print(f"  Found {len(results)} search result(s)")
+        return results
 
     except requests.exceptions.RequestException as e:
         print(f"  ✗ Error searching: {e}")
+        if raise_on_error:
+            raise
         return []
 
 

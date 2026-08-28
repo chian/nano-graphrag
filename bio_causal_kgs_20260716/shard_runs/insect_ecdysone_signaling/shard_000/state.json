@@ -1,0 +1,36 @@
+{
+  "completed_chunk_ids": [
+    "pmid_11729082:0:0:1000:e7b34b2dc67d",
+    "pmid_16399410:0:0:1488:0b4a68b4ee36",
+    "pmid_23072462:0:0:706:b1ea3777fe89",
+    "pmid_23347514:0:0:1601:c6508369d645",
+    "pmid_25341104:0:0:1188:89f0faae654a",
+    "pmid_26374522:0:0:805:a05a3c8c34c8",
+    "pmid_30157455:0:0:1908:c9fe38086f14",
+    "pmid_31585879:0:0:877:1dea729d4e08",
+    "pmid_31745213:0:0:880:6a65c0a49b10",
+    "pmid_33065339:0:0:1230:c865c4c08fb8",
+    "pmid_33214126:0:0:1265:0697dcfee1a1",
+    "pmid_36064128:0:0:1616:ae0f8d4ee696",
+    "pmid_36645270:0:0:2102:39e447c8ccd1",
+    "pmid_38271845:0:0:1076:3327b9338130",
+    "pmid_40411750:0:0:1970:fcb94f86d44a",
+    "pmid_4370522:0:0:2127:4b14420f1fb4",
+    "pmid_8167571:0:0:1602:25e48add6868",
+    "pmid_8582609:0:0:1491:4a38bb086807"
+  ],
+  "processed": 18,
+  "total": 18,
+  "summary": {
+    "shard_path": "bio_causal_kgs_20260716/shards/insect_ecdysone_signaling/shard_000.jsonl",
+    "graph_path": "bio_causal_kgs_20260716/shard_runs/insect_ecdysone_signaling/shard_000/local_graph.graphml",
+    "entities_path": "bio_causal_kgs_20260716/shard_runs/insect_ecdysone_signaling/shard_000/entities.jsonl",
+    "relationships_path": "bio_causal_kgs_20260716/shard_runs/insect_ecdysone_signaling/shard_000/relationships.jsonl",
+    "chunk_results_path": "bio_causal_kgs_20260716/shard_runs/insect_ecdysone_signaling/shard_000/chunk_results.jsonl",
+    "chunks_total": 18,
+    "chunks_completed": 18,
+    "nodes": 220,
+    "edges": 277,
+    "elapsed_sec": 315.31
+  }
+}

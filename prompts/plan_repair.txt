@@ -46,7 +46,7 @@ Rules:
   uses the wrong substrate.
 - Use replace_command / replacement_command when fixing one bad line.
 - Use insert_after_command / insert_command when a missing PROJECT, COLLAPSE,
-  GRAPHWALK, or AGGREGATE step should be added.
+  GRAPHWALK, or fully contracted PROCESS step should be added.
 - Use delete_command only when an existing command should be removed entirely.
 - Use mode=pass if the current plan should not be patched directly and the
   executor should fall through to the next planning iteration / strategy path.
@@ -59,13 +59,23 @@ Hard constraints:
   continue reusing the same substrate unchanged.
 - If a prior traversal/path artifact is semantically invalid, patch the walk or
   source selection directly. Do not hide weak traversal semantics behind later
-  PROCESS/AGGREGATE steps.
+  PROCESS or COLLAPSE steps.
 - Use the structured failure summary first. Do not ignore concrete command
   errors/empties in favor of vague plan rewrites.
 - If the failing line is a broad `FIND paths` query, replace it with either an
   anchored `FIND paths` source/edge/target query or with `FIND nodes` + `GRAPHWALK`.
+- If GRAPHWALK reports a duplicate declared edge/depth grain, narrow or reshape the upstream graph selection; do not invent a row-order or occurrence identity.
+- Preserve exact typed relation identity in FIND/GRAPHWALK repairs: bare Boolean/numeric literals are typed values. JSON-quote a string that looks Boolean/numeric, contains `,` or `|`, case-insensitively equals the reserved GRAPHWALK wildcard `a`, `an`, `any`, `all`, or `*`, or begins with the reserved `relation_type=` or `relationship_name=` assignment prefix. Preserve exact case and punctuation.
 - If the issue is variable handoff, patch the plan so downstream commands
-  reference the exact produced variable names.
+  reference exact named outputs that are durably materialized in StateStore.
+- Repairs may use only DECLARE, FIND, PROCESS, PROJECT, COLLAPSE,
+  GRAPHWALK, JOIN, MERGE, SELECT, SHOW, or INSPECT.
+- PROCESS repairs must include CONTRACT gasl_process_execution_v6, an explicit
+  MODE and CARDINALITY, MAX_INPUT_ITEMS, MAX_MODEL_CALLS, a structured
+  REQUIRED_FIELDS list, and AS target. PROCESS cannot author an unregistered
+  semantic field.
+- PROCESS REQUIRED_FIELDS must be compatible with the exact durable input contract: identity roles must be declared grain_keys and metadata/container roles must be declared row_schema fields. Never request observation_id from FIND nodes whose grain key is id.
+- eligible_materialization may emit zero or one row per exact source token; repair one-to-many requests by creating an upstream producer with a declared child grain.
 - Use exact GASL command syntax.
 
 Output requirements:

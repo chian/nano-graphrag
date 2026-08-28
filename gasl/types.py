@@ -94,12 +94,46 @@ class ExecutionResult:
 
 @dataclass
 class AdapterCapabilities:
-    """Describes what a graph adapter can do."""
+    """Describes what a graph adapter can do.
+
+    This used to carry a single `max_results` field that did two incompatible
+    jobs: it capped how many rows a retrieval was allowed to *return*, and it
+    bounded how much work path generation was allowed to *do*. The first job is
+    positional truncation — it silently discarded matching rows by iteration
+    order, so a FIND over a graph larger than the cap answered a different
+    question than the one asked — and it is gone. The second job is real and is
+    kept, under a name that says what it bounds.
+
+    Neither field carries a default value here, and neither may acquire one
+    without a cited measurement: an adapter that wants a bound declares it and
+    says in words what justifies the number.
+    """
     supports_path_finding: bool = True
     supports_cypher: bool = False
     supports_networkx: bool = False
     max_path_length: int = 10
-    max_results: int = 1000
+    # Work bound on path generation, counted in SOURCES EXPANDED. Paths only.
+    # None means the backend generates paths without a standing work bound
+    # unless a caller supplies one per call.
+    #
+    # This counted (source, target) pairs until path generation stopped running
+    # one graph search per pair. A single-source traversal reaches every target
+    # in one pass, so the cost of a path query scales with |sources|, not with
+    # |sources| x |targets|, and a budget denominated in pairs measured
+    # something no longer performed.
+    path_source_budget: Optional[int] = None
+    # Work bound on GRAPHWALK, counted in SEEDS EXPANDED. None means the backend
+    # expands every seed it is given.
+    #
+    # Unlike the path budget this one is kept, because there is no algorithmic
+    # fix behind it: walking costs a per-node adapter query per hop, and that
+    # cost is irreducible in a way a single-source traversal made the path cost
+    # reducible. It is a real bound, so it is declared and it discloses.
+    walk_seed_budget: Optional[int] = None
+    # Server-side page size. This is a TRANSPORT concern, not a result bound:
+    # a paging adapter still delivers every matching row, it just fetches them
+    # in windows. None means the backend needs no paging.
+    transport_window: Optional[int] = None
     supported_node_properties: List[str] = field(default_factory=list)
     supported_edge_properties: List[str] = field(default_factory=list)
 

@@ -1,0 +1,36 @@
+{
+  "completed_chunk_ids": [
+    "pmid_16369945:0:0:1309:c50f332109e1",
+    "pmid_16529985:0:0:1003:bbc961e58391",
+    "pmid_19289068:0:0:1466:382ae83806e5",
+    "pmid_20967322:0:0:2192:cf33e5a34f6f",
+    "pmid_22540625:0:0:984:ddab5c22cf37",
+    "pmid_25374297:0:0:1365:341d77d0be86",
+    "pmid_25843366:0:0:1421:6295ecd38c2c",
+    "pmid_28822274:0:0:1064:f931178a918c",
+    "pmid_30674662:0:0:1732:1b3640510732",
+    "pmid_33687766:0:0:1388:8b93ca1aa9ee",
+    "pmid_35035514:0:0:1222:440c2e3f82f7",
+    "pmid_35292761:0:0:1488:2b8290f29f23",
+    "pmid_35465687:0:0:2743:383af2a840c5",
+    "pmid_36411201:0:0:1041:0c3d70fd768a",
+    "pmid_39437738:0:0:857:a931d6e5541b",
+    "pmid_40533942:0:0:719:c1b15063eae3",
+    "pmid_41085327:0:0:2337:192fae68d9c9",
+    "pmid_8809743:0:0:1296:c673553d3d7c"
+  ],
+  "processed": 18,
+  "total": 18,
+  "summary": {
+    "shard_path": "bio_causal_kgs_20260716/shards/bacterial_chemotaxis/shard_000.jsonl",
+    "graph_path": "bio_causal_kgs_20260716/shard_runs/bacterial_chemotaxis/shard_000/local_graph.graphml",
+    "entities_path": "bio_causal_kgs_20260716/shard_runs/bacterial_chemotaxis/shard_000/entities.jsonl",
+    "relationships_path": "bio_causal_kgs_20260716/shard_runs/bacterial_chemotaxis/shard_000/relationships.jsonl",
+    "chunk_results_path": "bio_causal_kgs_20260716/shard_runs/bacterial_chemotaxis/shard_000/chunk_results.jsonl",
+    "chunks_total": 18,
+    "chunks_completed": 18,
+    "nodes": 247,
+    "edges": 279,
+    "elapsed_sec": 282.24
+  }
+}

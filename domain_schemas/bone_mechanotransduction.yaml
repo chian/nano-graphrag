@@ -1,0 +1,110 @@
+# Bone Mechanotransduction Domain Schema
+# Focus: osteocyte fluid-shear and membrane-damage sensing, integrin and Wnt
+# signaling, sclerostin control, IL-11 coupling of bone and fat, periostin,
+# and skeletal adaptation to mechanical loading.
+
+domain_name: "Bone Mechanotransduction"
+domain_description: "Causal mechanisms by which osteocytes and osteoblast-lineage cells convert mechanical loading, fluid shear, membrane disruption, and matrix-integrin cues into Wnt/beta-catenin, sclerostin, cytokine, and remodeling outputs that control bone formation, cartilage maintenance, adipogenesis, and bone strength."
+
+entity_types:
+  BONE_CELL:
+    description: "An osteocyte, osteoblast, osteoclast, chondrocyte, or lineage cell participating in skeletal mechanotransduction."
+    examples: ["osteocyte", "osteoblast", "chondrocyte", "osteoblast/osteocyte lineage"]
+
+  MECHANICAL_STIMULUS:
+    description: "A loading, shear, orthodontic, membrane-disruptive, or tissue-level mechanical input."
+    examples: ["mechanical loading", "fluid shear", "orthodontic tooth movement", "plasma membrane disruption"]
+
+  MECHANOSENSOR:
+    description: "A receptor, channel, integrin, membrane feature, or matrix-linked molecule that detects force."
+    examples: ["integrin", "Lrp5", "plasma membrane", "Piezo channel"]
+
+  SIGNALING_PATHWAY:
+    description: "A force-responsive intracellular pathway or kinase cascade in skeletal tissue."
+    examples: ["Wnt/beta-catenin pathway", "mechanotransduction pathway", "YAP/TAZ signaling"]
+
+  SECRETED_FACTOR:
+    description: "A secreted cytokine, inhibitor, matricellular factor, or anabolic signal released by bone cells."
+    examples: ["sclerostin", "interleukin-11", "periostin", "Wnt ligand"]
+
+  TRANSCRIPTIONAL_STATE:
+    description: "A transcription factor, gene-expression state, or osteogenic program induced by mechanical cues."
+    examples: ["Sost expression", "osteogenic transcription", "beta-catenin activity"]
+
+  BONE_MATRIX:
+    description: "A mineralized matrix, periosteal, cartilage, or extracellular-matrix structure remodeled by loading."
+    examples: ["bone matrix", "cartilage", "periosteum", "craniomaxillofacial bone"]
+
+  REMODELING_PROCESS:
+    description: "A formation, resorption, remodeling, osteogenesis, or cartilage maintenance process."
+    examples: ["bone formation", "bone remodeling", "osteogenesis", "cartilage maintenance"]
+
+  DISEASE_OR_CONTEXT:
+    description: "An age, ovariectomy, osteoporosis, orthodontic, or pathobiology setting that modifies force response."
+    examples: ["bone aging", "ovariectomized mouse", "osteoporosis", "orthodontic tooth movement"]
+
+  SKELETAL_OUTCOME:
+    description: "A tissue-level endpoint of skeletal adaptation."
+    examples: ["bone mass", "bone strength", "systemic adipogenesis", "adaptive response"]
+
+relationship_types:
+  SENSES_FORCE:
+    description: "A bone cell or mechanosensor detects a mechanical stimulus."
+    inverse: "FORCE_SENSED_BY"
+    examples: ["osteocyte SENSES_FORCE fluid shear"]
+
+  ACTIVATES_PATHWAY:
+    description: "A mechanical stimulus or sensor turns on a downstream signaling pathway."
+    inverse: "PATHWAY_ACTIVATED_BY"
+    examples: ["mechanical loading ACTIVATES_PATHWAY Wnt/beta-catenin"]
+
+  INHIBITS_PATHWAY:
+    description: "A factor, disease state, or context suppresses mechanotransduction signaling."
+    inverse: "PATHWAY_INHIBITED_BY"
+    examples: ["sclerostin INHIBITS_PATHWAY Wnt signaling"]
+
+  INDUCES_SECRETION:
+    description: "A mechanical or signaling input increases release of a secreted factor."
+    inverse: "SECRETION_INDUCED_BY"
+    examples: ["mechanical loading INDUCES_SECRETION IL-11"]
+
+  REPRESSES_EXPRESSION:
+    description: "A pathway or load stimulus decreases expression of a target gene."
+    inverse: "EXPRESSION_REPRESSED_BY"
+    examples: ["mechanical loading REPRESSES_EXPRESSION Sost"]
+
+  PROMOTES_OSTEOGENESIS:
+    description: "A pathway, cell, or secreted factor increases osteoblast activity or bone formation."
+    inverse: "OSTEOGENESIS_PROMOTED_BY"
+    examples: ["Wnt/beta-catenin PROMOTES_OSTEOGENESIS bone formation"]
+
+  PROMOTES_RESORPTION:
+    description: "A signal or cell state increases osteoclast-mediated bone loss."
+    inverse: "RESORPTION_PROMOTED_BY"
+    examples: ["pathologic osteocyte signaling PROMOTES_RESORPTION bone matrix"]
+
+  REMODELS_MATRIX:
+    description: "A cellular or mechanical process changes bone, cartilage, or periosteal extracellular matrix."
+    inverse: "MATRIX_REMODELED_BY"
+    examples: ["bone remodeling REMODELS_MATRIX mineralized matrix"]
+
+  COUPLES_BONE_FAT:
+    description: "A bone-derived signal links skeletal loading to systemic or marrow adipogenesis."
+    inverse: "BONE_FAT_COUPLED_BY"
+    examples: ["IL-11 COUPLES_BONE_FAT systemic adipogenesis"]
+
+  MODIFIES_LOAD_RESPONSE:
+    description: "An age, hormone, genotype, or disease context changes the response to mechanical loading."
+    inverse: "LOAD_RESPONSE_MODIFIED_BY"
+    examples: ["ovariectomy MODIFIES_LOAD_RESPONSE osteocyte Wnt activation"]
+
+  MAINTAINS_TISSUE:
+    description: "A mechanical or cell-derived process preserves cartilage, bone quality, or skeletal strength."
+    inverse: "TISSUE_MAINTAINED_BY"
+    examples: ["mechanical loading MAINTAINS_TISSUE cartilage maintenance"]
+
+  RESULTS_IN_SKELETAL_OUTCOME:
+    description: "A signaling or remodeling process produces a tissue-level skeletal endpoint."
+    inverse: "SKELETAL_OUTCOME_FROM"
+    examples: ["bone formation RESULTS_IN_SKELETAL_OUTCOME increased bone mass"]
+

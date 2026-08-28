@@ -3,6 +3,7 @@ Main execution engine for GASL system.
 """
 
 import json
+import re
 import time
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -126,7 +127,7 @@ class GASLExecutor:
         self.handlers = [
             # Core commands
             DeclareHandler(self.state_store, self.context_store, self.state_manager),
-            FindHandler(self.state_store, self.context_store, adapter, llm_func, self.state_manager),
+            FindHandler(self.state_store, self.context_store, adapter, llm_func, self.state_manager, prompt_logger=self.prompt_obs),
             ProcessHandler(
                 self.state_store,
                 self.context_store,
@@ -149,7 +150,7 @@ class GASLExecutor:
             IterateHandler(self.state_store, self.context_store, self.micro_framework, self.state_manager),
             
             # New command categories
-            GraphNavHandler(self.state_store, self.context_store, adapter, llm_func, self.state_manager),
+            GraphNavHandler(self.state_store, self.context_store, adapter, llm_func, self.state_manager, prompt_logger=self.prompt_obs),
             MultiVarHandler(self.state_store, self.context_store, self.state_manager),
             DataTransformHandler(self.state_store, self.context_store, llm_func, self.state_manager),
             FieldCalcHandler(self.state_store, self.context_store, llm_func, self.state_manager),
@@ -427,6 +428,8 @@ class GASLExecutor:
             print(f"DEBUG: Executing command: {command.command_type} - {command.args}")
             print(f"🔍 STATE DEBUG: Before command, state variables: {list(self.state_store.get_state().get('variables', {}).keys())}")
             result = handler.execute(command)
+            if not result.command:
+                result.command = command.raw_text
             result.duration_ms = int((time.time() - start_time) * 1000)
             print(f"DEBUG: Command result: {result.status} - count: {result.count}")
             print(f"🔍 STATE DEBUG: After command, state variables: {list(self.state_store.get_state().get('variables', {}).keys())}")
@@ -600,8 +603,36 @@ class GASLExecutor:
             "grain_keys": contract.get("grain_keys", []),
             "multiplicity_preserved": contract.get("multiplicity_preserved"),
             "safe_for": contract.get("usable_by", []),
-            "refinement_hint": refinement.get("refinement_hint"),
-            "refinement_reason": refinement.get("refinement_reason", ""),
+            # The typed decision and the facts it was formed under. The model's
+            # prose `refinement_reason` is deliberately NOT carried: it is still
+            # produced and still recorded in prompt_observations.jsonl for
+            # offline audit, but transmitting it put one role's generated
+            # sentences into another role's context, where a sentence like "no
+            # matching edges exist" -- written about an empty result under a
+            # 60-row cap -- is indistinguishable from an engine fact.
+            "refinement_hint": refinement.get("hint"),
+            "refinement_available": refinement.get("available"),
+            "refinement_trigger": refinement.get("trigger", ""),
+            "refinement_sample_size": refinement.get("sample_size"),
+            "refinement_caps": refinement.get("caps", {}),
+            "requested_depth": refinement.get("requested_depth"),
+            "effective_depth": refinement.get("effective_depth"),
+            # Carried through because this record — not the contract — is what
+            # the planner prompt is built from. A disclosure that stops at the
+            # contract is written and read by nothing: it satisfies "recorded"
+            # and fails "observable", which is the same silent-degradation
+            # shape it was added to remove.
+            "completeness": contract.get("completeness"),
+            # Carried for the same reason as `completeness`: a diagnostic that
+            # stops at the contract is written and read by nothing. The planner
+            # prompt is built from THIS record, so a grouping that resolved
+            # below `exact`, or a collapse that could nominate no evidence
+            # metric, has to arrive here to be visible at all.
+            "aggregate_diagnostics": contract.get("aggregate_diagnostics"),
+            "collapse_diagnostics": contract.get("collapse_diagnostics"),
+            "row_weight_field": contract.get("row_weight_field", ""),
+            "row_weight_basis": contract.get("row_weight_basis", ""),
+            "engine_columns": contract.get("engine_columns", []),
             "timestamp": result.timestamp.isoformat(),
         }
     
@@ -776,18 +807,52 @@ class GASLExecutor:
                         break
 
                     self.state_store.set_last_failure_summary(failure_summary)
-                    self.state_store.set_planner_constraints([])
+                    # The clear that stood here is DELETED, not moved and not
+                    # guarded. It wrote `[]` to disk via `_save_state()` BEFORE
+                    # the repair call, so any failure of that call -- a raise, a
+                    # provider outage, a crash -- left a persisted state file
+                    # with every constraint gone and nothing to say they had
+                    # ever existed. The next planner resumed unconstrained and
+                    # was told nothing.
+                    #
+                    # Clearing before an operation that might not produce a
+                    # replacement is the same defect as truncating before
+                    # knowing what you need: it destroys the only copy in
+                    # exchange for nothing. The single write site is below, and
+                    # it fires only when repair actually produced constraints.
+                    constraints_before = self.state_store.get_planner_constraints()
                     repaired_plan, plan_repair_response = self._attempt_plan_repair(
                         query=query,
                         previous_plan=plan_json,
                         variables=variables,
                         iteration=iteration,
                     )
+                    new_constraints = list(
+                        (plan_repair_response or {}).get("planner_constraints") or []
+                    )
+                    if new_constraints:
+                        self.state_store.set_planner_constraints(
+                            new_constraints,
+                            authored_iteration=iteration,
+                            authored_for=query,
+                        )
+                    # Traced whether or not anything changed. Nothing logged this
+                    # before, which is how a clear-then-lose survived unnoticed:
+                    # the constraints simply were not there on the next
+                    # iteration and no record said when they left.
+                    self.trace.log("planner_constraints_delta", {
+                        "iteration": iteration,
+                        "before": constraints_before,
+                        "after": self.state_store.get_planner_constraints(
+                            current_iteration=iteration, current_for=query
+                        ),
+                        "replaced": bool(new_constraints),
+                        "repair_produced_plan": repaired_plan is not None,
+                    })
                     if repaired_plan is not None:
                         pending_plan_json = repaired_plan
-                        self.state_store.set_planner_constraints(
-                            plan_repair_response.get("planner_constraints", [])
-                        )
+                        continue
+                    if new_constraints:
                         continue
 
                     current_schema = self.get_schema()
@@ -868,9 +933,17 @@ class GASLExecutor:
         """Summarize iteration outcomes for planning while preserving the operational retry gate."""
         errors: List[Dict[str, Any]] = []
         empties: List[Dict[str, Any]] = []
-        for result in results:
+        successful_table_outputs = self._successful_table_outputs(results)
+        for index, result in enumerate(results):
             status = getattr(result, "status", None)
             if status not in {"error", "empty"}:
+                continue
+            if self._superseded_by_successful_command_repair(result, results[index + 1:index + 2]):
+                continue
+            if status == "empty" and self._empty_intermediate_is_nonblocking(
+                result,
+                successful_table_outputs=successful_table_outputs,
+            ):
                 continue
             entry = {
                 "command": getattr(result, "command", ""),
@@ -891,6 +964,66 @@ class GASLExecutor:
             # Backward-compatible alias for older prompt/tests.
             "reasons": reasons,
         }
+
+    def _empty_intermediate_is_nonblocking(
+        self,
+        result: ExecutionResult,
+        *,
+        successful_table_outputs: set[str],
+    ) -> bool:
+        outputs = self._command_output_variables(getattr(result, "command", ""))
+        if not outputs:
+            return False
+        if any(output.endswith("_table") for output in outputs):
+            return False
+        return bool(successful_table_outputs)
+
+    def _successful_table_outputs(self, results: List[ExecutionResult]) -> set[str]:
+        outputs: set[str] = set()
+        for result in results:
+            if getattr(result, "status", None) != "success":
+                continue
+            outputs.update(
+                output
+                for output in self._command_output_variables(getattr(result, "command", ""))
+                if output.endswith("_table")
+            )
+        return outputs
+
+    def _command_output_variables(self, command: str) -> set[str]:
+        names: set[str] = set()
+        try:
+            parsed = self.parser.parse_command(command, 0)
+        except Exception:
+            parsed = None
+
+        if parsed is not None:
+            for key in ("result_var", "result_variable", "target", "target_variable"):
+                value = parsed.args.get(key)
+                if isinstance(value, str) and value:
+                    names.add(value)
+
+        for match in re.finditer(r"\bAS\s+([A-Za-z_][A-Za-z0-9_]*)\b", command or "", flags=re.IGNORECASE):
+            names.add(match.group(1))
+
+        return names
+
+    @staticmethod
+    def _superseded_by_successful_command_repair(
+        result: ExecutionResult,
+        later_results: List[ExecutionResult],
+    ) -> bool:
+        """Return true when a command-local repair succeeded for this failed result."""
+        command = getattr(result, "command", "")
+        for later_result in later_results:
+            if getattr(later_result, "status", None) != "success":
+                continue
+            for provenance in getattr(later_result, "provenance", []) or []:
+                if provenance.source_id != "command_repair":
+                    continue
+                if provenance.extraction.get("original_command") == command:
+                    return True
+        return False
 
     def _build_expertise_context(self, results: List[ExecutionResult]) -> Dict[str, Any]:
         """Provide Gentner-like context for how much the current system should have been expected to know."""
@@ -914,7 +1047,7 @@ class GASLExecutor:
                 "edge_properties_count": len(schema.get("edge_properties", []) or []),
             },
             "source_coverage": {
-                "artifacts_with_source_papers": sum(1 for fields in artifact_fields if "source_papers" in fields),
+                "artifacts_with_source_refs": sum(1 for fields in artifact_fields if "source_refs" in fields),
                 "artifacts_with_source_chunks": sum(1 for fields in artifact_fields if "source_chunks" in fields),
                 "history_entries_with_provenance": sum(1 for entry in history if entry.get("provenance")),
             },
@@ -1037,7 +1170,21 @@ class GASLExecutor:
             iteration=iteration,
             state=self.state_store.get_state(),
         )
-        return self.plan_iteration_agent.iterate_plan(request)
+        try:
+            return self.plan_iteration_agent.iterate_plan(request)
+        except Exception as exc:
+            # A raising repair and a repair that returns None are the same
+            # outcome -- no repaired plan -- and they must reach the same
+            # branch. Letting the exception propagate skipped the caller's
+            # recovery path entirely, and it did so AFTER a mutation had already
+            # been persisted, so the run died with state on disk that no
+            # surviving code path had agreed to write.
+            self.trace.log("plan_repair_failed", {
+                "iteration": iteration,
+                "error": str(exc),
+                "error_type": type(exc).__name__,
+            })
+            return None, {}
 
     @staticmethod
     def _parse_plan_repair_response(text: str) -> Dict[str, Any]:

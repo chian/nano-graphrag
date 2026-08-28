@@ -1,0 +1,136 @@
+{
+  "domains": [
+    {
+      "domain": "bacterial_chemotaxis",
+      "source_graph": "/home/chia/repos/nano-graphrag/bio_causal_kgs_20260716/shard_runs/bacterial_chemotaxis/shard_000/local_graph.graphml",
+      "merged_graph": "/home/chia/repos/nano-graphrag/bio_causal_kgs_20260716/merge/bacterial_chemotaxis/final_graph.graphml",
+      "output_graph": "/home/chia/repos/nano-graphrag/bio_causal_kgs_20260716/graphs/bacterial_chemotaxis.graphml",
+      "raw_nodes": 247,
+      "raw_edges": 279,
+      "nodes": 200,
+      "edges": 236,
+      "compacted": true
+    },
+    {
+      "domain": "bacterial_sporulation",
+      "source_graph": "/home/chia/repos/nano-graphrag/bio_causal_kgs_20260716/shard_runs/bacterial_sporulation/shard_000/local_graph.graphml",
+      "merged_graph": "/home/chia/repos/nano-graphrag/bio_causal_kgs_20260716/merge/bacterial_sporulation/final_graph.graphml",
+      "output_graph": "/home/chia/repos/nano-graphrag/bio_causal_kgs_20260716/graphs/bacterial_sporulation.graphml",
+      "raw_nodes": 216,
+      "raw_edges": 267,
+      "nodes": 200,
+      "edges": 261,
+      "compacted": true
+    },
+    {
+      "domain": "biofilm_dispersal",
+      "source_graph": "/home/chia/repos/nano-graphrag/bio_causal_kgs_20260716/shard_runs/biofilm_dispersal/shard_000/local_graph.graphml",
+      "merged_graph": "/home/chia/repos/nano-graphrag/bio_causal_kgs_20260716/merge/biofilm_dispersal/final_graph.graphml",
+      "output_graph": "/home/chia/repos/nano-graphrag/bio_causal_kgs_20260716/graphs/biofilm_dispersal.graphml",
+      "raw_nodes": 241,
+      "raw_edges": 287,
+      "nodes": 200,
+      "edges": 258,
+      "compacted": true
+    },
+    {
+      "domain": "bone_mechanotransduction",
+      "source_graph": "/home/chia/repos/nano-graphrag/bio_causal_kgs_20260716/shard_runs/bone_mechanotransduction/shard_000/local_graph.graphml",
+      "merged_graph": "/home/chia/repos/nano-graphrag/bio_causal_kgs_20260716/merge/bone_mechanotransduction/final_graph.graphml",
+      "output_graph": "/home/chia/repos/nano-graphrag/bio_causal_kgs_20260716/graphs/bone_mechanotransduction.graphml",
+      "raw_nodes": 191,
+      "raw_edges": 217,
+      "nodes": 191,
+      "edges": 217,
+      "compacted": false
+    },
+    {
+      "domain": "c_elegans_dauer_formation",
+      "source_graph": "/home/chia/repos/nano-graphrag/bio_causal_kgs_20260716/shard_runs/c_elegans_dauer_formation/shard_000/local_graph.graphml",
+      "merged_graph": "/home/chia/repos/nano-graphrag/bio_causal_kgs_20260716/merge/c_elegans_dauer_formation/final_graph.graphml",
+      "output_graph": "/home/chia/repos/nano-graphrag/bio_causal_kgs_20260716/graphs/c_elegans_dauer_formation.graphml",
+      "raw_nodes": 262,
+      "raw_edges": 308,
+      "nodes": 200,
+      "edges": 269,
+      "compacted": true
+    },
+    {
+      "domain": "fungal_metabolic_switching",
+      "source_graph": "/home/chia/repos/nano-graphrag/bio_causal_kgs_20260716/shard_runs/fungal_metabolic_switching/shard_000/local_graph.graphml",
+      "merged_graph": "/home/chia/repos/nano-graphrag/bio_causal_kgs_20260716/merge/fungal_metabolic_switching/final_graph.graphml",
+      "output_graph": "/home/chia/repos/nano-graphrag/bio_causal_kgs_20260716/graphs/fungal_metabolic_switching.graphml",
+      "raw_nodes": 251,
+      "raw_edges": 291,
+      "nodes": 200,
+      "edges": 254,
+      "compacted": true
+    },
+    {
+      "domain": "insect_ecdysone_signaling",
+      "source_graph": "/home/chia/repos/nano-graphrag/bio_causal_kgs_20260716/shard_runs/insect_ecdysone_signaling/shard_000/local_graph.graphml",
+      "merged_graph": "/home/chia/repos/nano-graphrag/bio_causal_kgs_20260716/merge/insect_ecdysone_signaling/final_graph.graphml",
+      "output_graph": "/home/chia/repos/nano-graphrag/bio_causal_kgs_20260716/graphs/insect_ecdysone_signaling.graphml",
+      "raw_nodes": 220,
+      "raw_edges": 277,
+      "nodes": 200,
+      "edges": 264,
+      "compacted": true
+    },
+    {
+      "domain": "limb_regeneration",
+      "source_graph": "/home/chia/repos/nano-graphrag/bio_causal_kgs_20260716/shard_runs/limb_regeneration/shard_000/local_graph.graphml",
+      "merged_graph": "/home/chia/repos/nano-graphrag/bio_causal_kgs_20260716/merge/limb_regeneration/final_graph.graphml",
+      "output_graph": "/home/chia/repos/nano-graphrag/bio_causal_kgs_20260716/graphs/limb_regeneration.graphml",
+      "raw_nodes": 237,
+      "raw_edges": 280,
+      "nodes": 200,
+      "edges": 252,
+      "compacted": true
+    },
+    {
+      "domain": "plant_circadian_clock",
+      "source_graph": "/home/chia/repos/nano-graphrag/bio_causal_kgs_20260716/shard_runs/plant_circadian_clock/shard_000/local_graph.graphml",
+      "merged_graph": "/home/chia/repos/nano-graphrag/bio_causal_kgs_20260716/merge/plant_circadian_clock/final_graph.graphml",
+      "output_graph": "/home/chia/repos/nano-graphrag/bio_causal_kgs_20260716/graphs/plant_circadian_clock.graphml",
+      "raw_nodes": 203,
+      "raw_edges": 306,
+      "nodes": 200,
+      "edges": 306,
+      "compacted": true
+    },
+    {
+      "domain": "plant_stomatal_aba_signaling",
+      "source_graph": "/home/chia/repos/nano-graphrag/bio_causal_kgs_20260716/shard_runs/plant_stomatal_aba_signaling/shard_000/local_graph.graphml",
+      "merged_graph": "/home/chia/repos/nano-graphrag/bio_causal_kgs_20260716/merge/plant_stomatal_aba_signaling/final_graph.graphml",
+      "output_graph": "/home/chia/repos/nano-graphrag/bio_causal_kgs_20260716/graphs/plant_stomatal_aba_signaling.graphml",
+      "raw_nodes": 219,
+      "raw_edges": 248,
+      "nodes": 200,
+      "edges": 245,
+      "compacted": true
+    },
+    {
+      "domain": "quorum_sensing",
+      "source_graph": "/home/chia/repos/nano-graphrag/bio_causal_kgs_20260716/shard_runs/quorum_sensing/shard_000/local_graph.graphml",
+      "merged_graph": "/home/chia/repos/nano-graphrag/bio_causal_kgs_20260716/merge/quorum_sensing/final_graph.graphml",
+      "output_graph": "/home/chia/repos/nano-graphrag/bio_causal_kgs_20260716/graphs/quorum_sensing.graphml",
+      "raw_nodes": 213,
+      "raw_edges": 240,
+      "nodes": 200,
+      "edges": 229,
+      "compacted": true
+    },
+    {
+      "domain": "synaptic_ltp_ltd",
+      "source_graph": "/home/chia/repos/nano-graphrag/bio_causal_kgs_20260716/shard_runs/synaptic_ltp_ltd/shard_000/local_graph.graphml",
+      "merged_graph": "/home/chia/repos/nano-graphrag/bio_causal_kgs_20260716/merge/synaptic_ltp_ltd/final_graph.graphml",
+      "output_graph": "/home/chia/repos/nano-graphrag/bio_causal_kgs_20260716/graphs/synaptic_ltp_ltd.graphml",
+      "raw_nodes": 125,
+      "raw_edges": 171,
+      "nodes": 125,
+      "edges": 171,
+      "compacted": false
+    }
+  ]
+}

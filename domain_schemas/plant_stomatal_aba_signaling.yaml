@@ -1,0 +1,110 @@
+# Plant Stomatal ABA Signaling Domain Schema
+# Focus: guard-cell abscisic acid perception, SnRK2/OST1 and CPK kinases,
+# PP2C/PYR/PYL regulation, SLAC1 activation, ROS and Ca2+ second messengers,
+# malate, CO2, phytocytokine reopening, drought, immunity, and water loss.
+
+domain_name: "Plant Stomatal ABA Signaling"
+domain_description: "Causal guard-cell signaling by which abscisic acid, drought, CO2, malate, ROS, calcium, phytocytokines, and immune cues regulate PYR/PYL/RCAR receptors, PP2Cs, SnRK2/OST1, CPKs, MAP4Ks, SLAC1-type anion channels, ion efflux, stomatal closure or reopening, water loss, and drought tolerance."
+
+entity_types:
+  PLANT_CONTEXT:
+    description: "A plant species, mutant, guard-cell system, leaf, or drought/pathogen setting."
+    examples: ["Arabidopsis", "maize", "guard cell", "leaf", "drought-stressed plant"]
+
+  STOMATAL_CUE:
+    description: "A hormone, metabolite, gas, ROS, phytocytokine, drought, or pathogen cue detected by guard cells."
+    examples: ["abscisic acid", "ABA", "malate", "CO2", "H2O2", "phytocytokine"]
+
+  ABA_RECEPTOR_CORE:
+    description: "A PYR/PYL/RCAR receptor, PP2C inhibitor, or core ABA signaling module."
+    examples: ["PYR/PYL/RCAR", "PP2C", "ABA receptor"]
+
+  KINASE_OR_PHOSPHATASE:
+    description: "A kinase or phosphatase that relays ABA, calcium, ROS, or MAPK signals."
+    examples: ["SnRK2", "OST1", "CPK15", "MAP4K1", "MAP4K2"]
+
+  ION_CHANNEL:
+    description: "An anion, potassium, or SLAC1-type channel controlling guard-cell turgor."
+    examples: ["SLAC1", "S-type anion channel", "ZmSLAC1"]
+
+  SECOND_MESSENGER:
+    description: "A calcium, ROS, nitric oxide, or phosphorylation state within guard-cell signaling."
+    examples: ["Ca2+", "ROS", "protein phosphorylation", "hydrogen peroxide"]
+
+  METABOLIC_REGULATOR:
+    description: "A sugar, malate, magnesium-chelatase, WD-repeat, or metabolism-linked regulator of guard-cell movement."
+    examples: ["extracellular malate", "ABAR", "ZmGCT1", "ZmGCT2"]
+
+  STOMATAL_MOVEMENT:
+    description: "A guard-cell turgor, opening, closure, or reopening process."
+    examples: ["stomatal closure", "stomatal reopening", "guard cell turgor loss"]
+
+  STRESS_OR_IMMUNITY_OUTCOME:
+    description: "A drought tolerance, bacterial invasion, innate immunity, water-loss, or crop-resilience phenotype."
+    examples: ["drought tolerance", "water loss", "bacterial invasion", "innate immunity"]
+
+  MEASUREMENT_OR_ASSAY:
+    description: "A channel, phosphorylation, imaging, or gas-exchange assay used to quantify stomatal signaling."
+    examples: ["anion-channel recording", "phosphorylation assay", "stomatal aperture assay"]
+
+relationship_types:
+  PERCEIVES:
+    description: "A receptor, channel, or guard cell detects an ABA, malate, CO2, ROS, or peptide cue."
+    inverse: "PERCEIVED_BY"
+    examples: ["PYR/PYL/RCAR PERCEIVES ABA"]
+
+  RELEASES_INHIBITION_OF:
+    description: "ABA receptor activation relieves PP2C suppression of a kinase."
+    inverse: "INHIBITION_RELEASED_BY"
+    examples: ["ABA receptor RELEASES_INHIBITION_OF OST1"]
+
+  PHOSPHORYLATES:
+    description: "A kinase phosphorylates a channel or regulator."
+    inverse: "PHOSPHORYLATED_BY"
+    examples: ["OST1 PHOSPHORYLATES SLAC1"]
+
+  DEPHOSPHORYLATES:
+    description: "A phosphatase removes phosphorylation from a signaling protein."
+    inverse: "DEPHOSPHORYLATED_BY"
+    examples: ["PP2C DEPHOSPHORYLATES SnRK2"]
+
+  ACTIVATES_CHANNEL:
+    description: "A kinase, metabolite, or second messenger opens or activates an ion channel."
+    inverse: "CHANNEL_ACTIVATED_BY"
+    examples: ["CPK15 ACTIVATES_CHANNEL SLAC1"]
+
+  INHIBITS_CHANNEL:
+    description: "A regulator decreases ion-channel activity."
+    inverse: "CHANNEL_INHIBITED_BY"
+    examples: ["ZmGCT1 INHIBITS_CHANNEL ZmSLAC1"]
+
+  RAISES_SECOND_MESSENGER:
+    description: "A cue or signaling node increases Ca2+, ROS, or another guard-cell second messenger."
+    inverse: "SECOND_MESSENGER_RAISED_BY"
+    examples: ["ABA RAISES_SECOND_MESSENGER Ca2+"]
+
+  DRIVES_ION_EFFLUX:
+    description: "A channel or signaling state exports anions or ions that reduce turgor."
+    inverse: "ION_EFFLUX_DRIVEN_BY"
+    examples: ["SLAC1 DRIVES_ION_EFFLUX anion efflux"]
+
+  CLOSES_STOMA:
+    description: "A cue, channel, kinase, or ion flux promotes stomatal closure."
+    inverse: "STOMA_CLOSED_BY"
+    examples: ["ABA CLOSES_STOMA stomatal closure"]
+
+  REOPENS_STOMA:
+    description: "A phytocytokine, pathogen, or counter-signal reverses closure."
+    inverse: "STOMA_REOPENED_BY"
+    examples: ["phytocytokine REOPENS_STOMA stomatal reopening"]
+
+  MODULATES_IMMUNITY:
+    description: "A stomatal signal changes bacterial entry, innate immunity, or defense."
+    inverse: "IMMUNITY_MODULATED_BY"
+    examples: ["stomatal closure MODULATES_IMMUNITY bacterial invasion"]
+
+  IMPROVES_DROUGHT_TOLERANCE:
+    description: "A guard-cell regulator or closure response improves water retention or drought resilience."
+    inverse: "DROUGHT_TOLERANCE_IMPROVED_BY"
+    examples: ["ABA signaling IMPROVES_DROUGHT_TOLERANCE water retention"]
+

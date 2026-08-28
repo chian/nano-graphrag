@@ -1,0 +1,1877 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=0.9in]{geometry}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{longtable}
+\usepackage{tikz}
+\usepackage{xcolor}
+\usepackage{amsmath}
+\usepackage{url}
+
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue!45!black,
+  urlcolor=blue!45!black
+}
+
+\setlist[itemize]{leftmargin=*, itemsep=2pt, topsep=3pt}
+\setlist[enumerate]{leftmargin=*, itemsep=2pt, topsep=3pt}
+\renewcommand{\arraystretch}{1.15}
+
+\newcommand{\code}[1]{\path{#1}}
+\newcommand{\state}[1]{\textsf{#1}}
+\newcommand{\action}[1]{\texttt{#1}}
+\newcommand{\roundid}[1]{\texttt{round #1}}
+
+\title{\vspace{-0.3in}Multi-Turn Policy Learning for Table-Fill Aggregation}
+\author{Internal technical white paper}
+\date{July 2026}
+
+\begin{document}
+\maketitle
+
+\begin{quote}
+\textbf{Status amendment (2026-08-28).} This paper is retained as historical
+mechanism-design context, not as the active acquisition-loop specification.
+\code{docs/ACQUISITION_LOOP.md} governs. The active target is one composed
+\code{Episode} method with fixed \code{ChannelSchema} declarations and an
+\code{IncidenceEstimator} that produces the generic role-based
+\code{IncidenceEstimate}. Exact rolling incidence rarefaction is a required
+role; bias-corrected incidence Chao2 internally fills the expected and remaining
+roles. The controller remains arithmetic and per-channel, accepted identities
+remain evidence-first, and enabled best-guess columns remain anchored and
+deterministic. A future \code{IncidenceEstimator} version may replace the
+internal total calculation while preserving the same estimate roles, including
+the rarefaction role consumed by the controller.
+\end{quote}
+
+\begin{abstract}
+The table-fill pipeline has evolved from a single question-answering pass into
+an iterative aggregation system.  Each outer round decides which parts of the
+answer universe remain unknown, searches for candidate sources, ingests any
+accepted sources into the knowledge graph, materializes answer-view tables,
+records best-guess candidates as operational diagnostics, projects one
+semantic criteria state, scores its marginal transition, and plans
+the next frontier.  The current implementation is stateful: it records source
+acceptance, duplicate and blocked URLs, failed operators, completion issues,
+best-guess operator diagnostics, supported and unresolved criteria,
+exact assertion/evidence/canonical-source support units, and
+membership-projected semantic-transition reward.  Operational
+record counts are retained only as diagnostics.  It is not yet a learned
+controller.  Most routing decisions still come from finite operator orders and
+single-call prompt judgments.
+
+This document specifies the current control loop, shows how strategy is
+adapting today using the legacy round-27b trace, identifies which decision
+boundaries are now explicit and which remain implicit, and proposes a staged
+multi-turn reinforcement-learning design.  Search planning, best-guess
+candidate generation, and stopping now emit replayable state, decision, action,
+task, and criteria-snapshot joins where applicable.  Best-guess records do not
+yet create typed derived assertions and therefore do not contribute semantic
+support.  The next design stage extends the
+same boundary to source gating, GASL graph scope, path selection, and repair;
+adds action-level cost; and introduces learned routing and offline policy
+evaluation before any online exploration.
+\end{abstract}
+
+\section{Purpose and Scope}
+
+The system is trying to solve a data aggregation task, not merely produce a
+natural-language answer.  Given one or more table specifications and a question,
+it should grow evidence-backed tables until the task-level completion criteria
+are defensible.  A full iteration of that process is an \emph{outer round}.  One
+outer round can include many catalog searches, many deficit searches, several
+source ingestions, one or more GASL executions, table export, best-guess
+candidate generation, reward scoring, completion estimation, and frontier
+expansion.
+
+The desired long-term behavior is adaptive in the reinforcement-learning sense:
+the agent should learn which strategy works for a class of current states,
+observe what it spent and what it gained, and improve future choices.  The
+current implementation now records learner-ready decisions for search,
+best-guess candidate generation, and stopping, but it does not yet provide one
+complete trajectory across source gating, GASL, path selection, repair, and
+action cost.
+
+\subsection{Repository context}
+
+The current table-fill loop is centered in the following modules:
+
+\begin{itemize}
+  \item \code{question_pipeline/pipeline.py}: orchestration, outer rounds,
+  Firecrawl harvesting, graph ingestion, GASL, table exports, completion
+  updates, and frontier expansion.
+  \item \code{question_pipeline/criteria.py}: the pure, versioned projection
+  from operational records to stable supported and unresolved criterion
+  instances, evidence bindings, snapshots, and transitions.
+  \item \code{question_pipeline/control.py}: policy-state manifests, validated
+  search actions, policy decisions, and stop decisions with stable identifiers.
+  \item \code{question_pipeline/search_planning.py}: the boundary that turns
+  prompt proposals and authoritative deficits into ranked, executable search
+  actions without trusting model-generated target metadata.
+  \item \code{question_pipeline/goals.py}: criterion profiles, aggregate count
+  deficits, unresolved-criterion deficits, and task-level stop-state
+  construction.
+  \item \code{question_pipeline/completion.py}: persistent completion scope,
+  open bins, open estimate issues, and actionability checks.
+  \item \code{question_pipeline/search.py}: durable search tasks, frontier
+  scheduling, candidate acceptance, and harvest outcomes.
+  \item \code{question_pipeline/search_memory.py}: cross-round aggregation of
+  successful and failed target-search attempts.
+  \item \code{question_pipeline/strategy.py}: LLM query construction for
+  catalog and target deficits.
+  \item \code{question_pipeline/strategy_state.py}: deterministic operator
+  routing, failure classification, and operator exhaustion.
+  \item \code{question_pipeline/progress_judge.py}: generic source-progress
+  relevance judgments.
+  \item \code{question_pipeline/best_guess.py}: deterministic and LLM
+  candidate operators over declared derived criteria; their action and
+  candidate artifacts are currently diagnostic rather than semantic evidence.
+  \item \code{question_pipeline/reward.py}: marginal reward for criterion
+  support, resolution, bounded source-support depth, conflicts, and regressions.
+\end{itemize}
+
+\subsection{Active evidence substrate}
+
+The active infectivity use case is an all-disease graph for infectious-dose
+measures and reproduction-number estimates.  COVID-19 is the dense branch used
+to expose missing coverage across strains, countries, time periods,
+circumstances, hosts, and methods; it is not a COVID-only schema.  Infectious
+dose and reproduction number remain different source-local observation types,
+with disease, pathogen or strain, host, route, geography, time, method, and
+source context attached to the observation that reports them.
+
+\code{evidence\_registry\_v2} represents source documents and versions, source
+aliases, evidence items, source-local observations, and field and relationship
+assertions as first-class records.  Their identifiers derive from immutable
+record content, and the append-only registry rejects a conflicting payload for
+an existing identifier.  Source-local observations and assertions therefore
+cannot be collapsed by canonicalization or graph edge overwrite.
+
+Concept merging follows the schema's explicit \code{merge\_policy}.  An
+\action{exact} concept merges only on the same lower-cased, trimmed display
+name; it never enters fuzzy similarity, substring, abbreviation, or synonym
+matching.  Only \action{canonical} concepts remain eligible for those legacy
+heuristics, while \action{source\_local} and \action{immutable} records never
+concept-merge.  The active infectious-dose/R0 schema uses \action{exact} for
+disease, pathogen, strain, host, measure, route, geography, time, method, and
+other identifier-like concepts.
+\code{SourceAlias} records aid lookup, but normalization across DOI, PMID, URL,
+and other aliases is not a complete source-equivalence resolver.
+
+The extraction prompt requires a source-local observation name to copy one
+contiguous source phrase.  The collector must locate that quote uniquely in the
+content-hashed chunk before recording an
+\code{observation\_clause\_exact} anchor.  For an observation type with
+schema-declared \code{association\_fields}, every association value must be one
+recognizable scalar, and every field quote must be unique within the anchor and
+contain its own scalar value plus every association-tuple fragment.  Numeric
+and measure guards reject extra or ambiguous claims.  Accepted field spans are
+recorded as \code{field\_quote\_exact:<field>} evidence items.
+
+Missing, repeated, differently anchored, coordinated, or structurally
+multi-claim quotes remain \code{candidate\_unverified}; nearby context does not
+ground a field.  Source-extracted semantic \code{RelationshipAssertion}
+records also remain candidates.  This is typed lexical atomic grounding, not
+semantic entailment.  Novel text-only measure notation
+that the typed guard does not recognize and comparisons spread across multiple
+caption sentences deliberately remain candidate-only.
+
+Every \code{FieldAssertion} records the
+\action{typed\_exact\_tuple\_v2} contract and stable acceptance or rejection
+reason codes.  These fields preserve the grounding result for audit, but they
+do not make grounding replayable: the registry does not persist the complete
+rejected extraction occurrence, schema snapshot, and all alternative quote
+spans needed to recompute the decision.  A first-class immutable grounding
+decision/input record remains future work.
+
+Parallel phrases containing \code{respectively} fail closed.  Literal spans for
+all list members do not establish their ordered association, so even a correct
+enumeration remains unresolved until a typed ordered-list or tuple assertion
+is implemented.  Literal grounding establishes only that the immediate source
+version contains the statement.  No typed primary-versus-secondary
+citation-role assertion exists; a secondary document therefore cannot
+establish that the statement is primary-study evidence.
+
+The mature legacy GraphML is read-only candidate and traversal context.  Its
+merged nodes, edges, \code{source_refs}, and \code{source_chunks} are not
+evidence.  Direct graph edges produced by fresh extraction are also discovery
+links, not assertion support.  The registry's graph projection reifies claims,
+but criteria consume registry records and their exact joins rather than an
+ordinary edge.  A legacy source enters the current evidence overlay only through
+explicit selective replay: the caller names a source ID already referenced by
+the seed graph, the runtime resolves one unambiguous saved source body, and the
+body is freshly extracted.  Omitted sources remain context.  This mechanism is
+not corpus discovery or a knowledge-graph rebuild, and full legacy migration
+has not been implemented.  Content hashes and exact spans ground what the
+selected local saved body contains, but the replay path does not independently
+authenticate that body as the claimed external publication.
+
+The live semantic boundary is \action{criteria\_projection\_v10} with
+\action{criteria\_transition\_v7}.  Support requires an exact active
+\code{FieldAssertion} $\rightarrow$ \code{SourceLocalObservation}
+$\rightarrow$ \code{EvidenceItem} $\rightarrow$ \code{SourceVersion}
+$\rightarrow$ \code{SourceDocument} chain for the field and normalized value.
+For a reported assertion, the registry must also derive a
+\code{semantic\_claim\_id} from the canonical document, observation type, and
+exact anchor checksum.  That cross-version identity is registry-owned; a
+persisted snapshot or sidecar cannot mint it.
+Coarse source references, populated operational fields, and record-level
+completeness cannot substitute for that chain.
+The projector accepts only a live \code{EvidenceRegistry} object as support
+authority; a missing registry or registry-shaped mapping fails closed.
+Deserialized criteria snapshots are audit-only: they clear serialized support,
+carry \action{criteria\_projection\_v10:unvalidated\_replay}, and receive a new
+replay-audit ID.  Reward v7 returns unknown status, zero score, and no
+components or transition for that version mismatch.  Offline semantic reward
+replay therefore requires authoritative reprojection before scoring.
+This is an implementation contract, not a claim of fresh end-to-end real-run
+validation.  The historical observations below predate the final evidence
+boundary and cannot validate it.
+
+\section{Current Control Loop}
+
+\subsection{Outer-round definition}
+
+The table-fill \emph{round} must mean the largest iterative loop in the
+pipeline.  In the current code that loop is \code{QuestionPipeline.run()}.
+Smaller operations such as a search wave, a best-guess operator, or a GASL
+iteration are sub-actions inside one outer round.
+
+At a high level, an outer round performs the following steps:
+
+\begin{enumerate}
+  \item Drain pending search tasks from the \code{SearchFrontier}.
+  \item Harvest search results, scrape accepted pages, and record one
+  \code{SearchOutcome} per search task.
+  \item Freshly extract accepted papers and explicitly selected saved source
+  bodies into the versioned evidence registry and current graph projection.
+  \item Select a source-local graph for GASL and seed source nodes.
+  \item Execute GASL against the declared answer-view tables.
+  \item Export declared operational tables and derived artifacts.
+  \item Record best-guess candidates from existing record, source, chunk, and
+  KG context as operational diagnostics.  Typed derived analyses and derived
+  assertion registration are not implemented.
+  \item Project the materialization into one immutable
+  \code{CriteriaSnapshot} and compare it with the previous snapshot.
+  \item Score the criteria transition, with no separate best-guess reward.
+  \item Estimate completion separately, critique the estimate, and persist open
+  bins.
+  \item Build criterion and aggregate-target deficits and enqueue the next
+  search frontier.
+\end{enumerate}
+
+Rounds with no newly accepted paper still write carried-forward tables, refresh
+completion and search memory, and enqueue more frontier work when the goal is
+not complete.  This is important because a zero-source round still changes the
+policy state: it distinguishes ``we have not tried this'' from ``this operator
+on this deficit produced no hits, duplicates, or irrelevant pages.''
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[
+  node distance=7mm and 10mm,
+  box/.style={draw, rounded corners, align=center, minimum width=32mm,
+    minimum height=9mm, fill=blue!4},
+  store/.style={draw, cylinder, shape border rotate=90, aspect=0.25,
+    align=center, minimum width=27mm, minimum height=11mm, fill=green!5},
+  decision/.style={draw, diamond, aspect=2.1, align=center, inner sep=1pt,
+    fill=orange!8},
+  arr/.style={-{Latex[length=2mm]}, thick}
+]
+\node[box] (frontier) {Search\\frontier};
+\node[box, right=of frontier] (harvest) {Harvest and\\gate sources};
+\node[box, right=of harvest] (ingest) {Ingest into\\KG};
+\node[box, below=of ingest] (gasl) {Source-scoped\\GASL};
+\node[box, left=of gasl] (tables) {Operational\\table exports};
+\node[box, left=of tables] (guess) {Best-guess candidate\\diagnostics};
+\node[box, below=of guess] (reward) {Criteria transition\\and reward};
+\node[decision, below=of tables] (complete) {Complete?};
+\node[box, below=of harvest] (deficit) {Goal and\\deficit agents};
+\node[store, below=of frontier] (memory) {Search\\memory};
+
+\draw[arr] (frontier) -- (harvest);
+\draw[arr] (harvest) -- (ingest);
+\draw[arr] (ingest) -- (gasl);
+\draw[arr] (gasl) -- (tables);
+\draw[arr] (tables) -- (guess);
+\draw[arr] (guess) -- (reward);
+\draw[arr] (reward) -- (complete);
+\draw[arr] (complete) -- node[above, sloped]{open bins} (deficit);
+\draw[arr] (deficit) -- (memory);
+\draw[arr] (memory) -- (frontier);
+\draw[arr] (harvest) -- (memory);
+\end{tikzpicture}
+\caption{Current table-fill feedback loop.  Search, best-guess, and stop
+choices have explicit replay joins, while source-gate, GASL, path, and repair
+choices remain implicit and the action policy is still heuristic.}
+\label{fig:current-loop}
+\end{figure}
+
+\section{How Strategy Adapts Today}
+
+\subsection{Completion and deficit adaptation}
+
+\code{TableFillGoalTracker} consumes one immutable \code{CriteriaSnapshot} for
+each materialization.  The snapshot contains stable subjects, independently
+supported fields, unresolved required fields, conflicts, and source bindings.
+The answer-universe estimate is a separate completion input: the tracker
+normalizes it and assesses its declared aggregate targets against the snapshot's
+supported criterion membership.  It emits \code{FillDeficit} objects for two
+broad purposes:
+
+\begin{itemize}
+  \item \textbf{Aggregate criterion shortfalls}: the estimated answer
+  universe says that too few distinct subjects satisfy the target's declared
+  membership criteria.
+  \item \textbf{Unresolved criteria}: a stable subject and field still lack a
+  value, source support, or conflict resolution.
+\end{itemize}
+
+Under \action{criteria\_projection\_v10}, every multi-key subject receives a
+required \code{\_\_subject\_identity\_\_} criterion.  Raw key fields must share
+registered assertions on a common source-local observation; sharing only an
+\code{(evidence\_item\_id, source\_id)} pair is insufficient.  Aggregate
+membership and source rarefaction use that joint-identity boundary.
+Independently evidenced key
+components remain supported while an unbound tuple stays unresolved; raw
+non-key criteria must join an exact assertion on the observation that
+establishes the subject.  Record-level completion cannot close coverage.
+
+Table specifications serialize as version 4 contracts.  When loading a version
+1 specification, the
+\code{table\_spec\_v1\_operational\_columns\_to\_diagnostics\_v2}
+compatibility migration removes operational transport columns from semantic
+keys, relaxes affected non-nullable columns to nullable diagnostics, and
+records the changed columns.  It does not invent a semantic replacement key;
+invalid derived keys still require an author-reviewed migration.
+
+Version 3 added an explicit task-owned criterion contract.  A specification may
+declare one stable \code{criterion\_contract\_id} and a list of
+\code{required\_criterion\_families}.  Each family fixes a stable
+\code{family\_id}, \code{rule\_version}, exact accepted source-local observation
+types, required semantic fields, target table adapter, and optional runtime
+capability.  Families are authored from the question.  They are never inferred
+from a table name, table presence, key set, or operational record, and every
+deliverable table under an explicit criterion contract must be covered by an
+explicit family declaration.
+
+Version 4 adds optional author-owned \code{required\_field\_values}.  Every
+constrained key must also be a required semantic field, and its normalized exact
+task value must be supported on the same registry claim as the rest of the
+family.  These predicates are part of the family semantic payload; they are not
+inferred from table names, descriptions, model routing, aliases, or entity
+resolution.  Changing one requires a new \code{rule\_version}.
+
+\action{criteria\_projection\_v10} recomputes these task-level gates from the
+current atomic criteria.  One family becomes supported only when one bound
+subject has every required field supported on the same registry-owned semantic
+claim and an exact accepted observation type.  This is an existence or
+capability witness, not evidence of coverage over all diseases, countries,
+contexts, or observations.  An empty adapter table therefore yields an explicit
+unresolved task criterion rather than making the family disappear.  An absent
+runtime capability yields a structural, non-search-actionable deficit; the
+design-held country comparison and country/time trend types currently require
+the absent \action{authoritative\_country\_resolution\_v1} capability.
+
+A supported family records
+\action{existence\_only\_not\_scope\_complete} and
+\action{system\_derived\_from\_atomic\_criteria}.  Missing subjects, unresolved
+fields, unaccepted observation types, and the absence of a joint observation
+claim remain distinct stable failure reasons.  Any author-reviewed change to
+accepted types, required fields, required field values, or capability semantics
+requires a new \code{rule\_version} rather than silently reinterpreting the
+prior family ID.
+For a constrained family, absent supported predicate fields yield
+\action{required\_family\_field\_values\_unresolved}; supported values that do
+not equal the normalized author literals yield
+\action{required\_family\_field\_values\_mismatched}.
+
+Required-family assessments emit no source IDs, evidence IDs,
+\code{CriterionEvidence}, or support units.  Semantic membership, rarefaction,
+and reward v7 exclude them, so only the underlying exact atomic field criteria
+receive source-grounded reward.  A family may still block fulfillment, and a
+rule-version change or regression remains auditable without double-crediting
+the evidence used to establish it.
+
+\code{semantic\_membership\_v2} requires an explicit member grain.  Under
+\action{semantic\_signature}, the declared
+\code{member\_signature\_columns} include every semantic key and must resolve on
+one common source-local observation and canonical source before they form one
+cross-source member.  Under \action{source\_observation}, a registry-owned
+cross-version \code{semantic\_claim\_id} identifies the member for semantic
+criterion projection and reward.  That occurrence is still a source-local
+provenance unit rather than a cross-source species, so it cannot define
+rarefaction overlap.  A missing claim ID remains unprojected.  Missing or
+invalid membership is not inferred from \code{key\_columns} and contributes
+zero scalar reward with explicit projection diagnostics.
+
+The implemented estimator contract is
+\code{supported\_semantic\_signature\_chao1\_v1}.  It applies Chao1 only to an
+eligible \action{semantic\_signature} family with a nonempty signature, at
+least one supported semantic member, more than one contributing source unit,
+and an estimate no smaller than the observed supported count.
+\action{source\_observation} remains unestimated with
+\code{source\_observation\_cross\_source\_overlap\_undefined}; unconfigured or
+invalid membership remains unestimated with
+\code{semantic\_membership\_contract\_unconfigured}.  Raw
+source-by-subject incidence is not a universal estimator.
+
+\code{completion.py} tracks whether the estimate is actionable.  An estimate
+must contain count targets, its scope must be \action{estimated}, and every
+blocking issue and underexplored bin must be closed or justified.  Persisted
+completion replay uses state version 2 and
+\code{criteria\_completion\_state\_v2}; it requires an exact match over the
+table-spec ID, criteria-projection version, membership-contract version, and
+estimator-contract version.  A legacy state or contract mismatch discards the
+old semantic completion fields, records an open high-severity
+\code{completion\_state\_contract\_migration\_required} issue, and remains
+\action{insufficient\_evidence}.  No automatic semantic state migration is
+implemented.  A separate estimator that synthesizes
+deliberate probe yield, overlap, and count-bearing evidence is future work;
+probe count is not a current actionability threshold.
+
+The universe-estimate merge is conservative across rounds.  A lower proposed
+expected count does not replace the previous expected-count floor unless an
+explicit \code{target\_revision} joins the prior target ID and expected count to
+the revised count, carries \action{accepted}, \action{supported}, or
+\action{resolved} status and supporting sources, and passes validation.  The
+target retains transition history for both accepted and rejected supersession
+attempts.
+
+Completion blockers also have monotone lifecycle semantics.  Underexplored bins
+and estimate issues merge by stable ID; omission or an empty replacement cannot
+clear them.  A blocker becomes nonblocking only when the same ID receives
+\action{accepted}, \action{deferred}, \action{out\_of\_scope}, or
+\action{resolved} status.  These target and blocker transitions preserve state
+that a later stop or learning policy would otherwise have to reconstruct.
+
+\subsection{Target-search adaptation}
+
+Deficit searches are stateful at two levels.  First,
+\code{SearchMemory.from_outcomes()} folds prior attempts into a per-target
+record containing accepted URLs, duplicate URLs, failed and successful query
+terms, missing needs, off-topic axes, avoid cues, and better-search cues.
+Second, \code{plan_target_operator()} classifies the latest failure and chooses
+the next finite operator.
+
+The current target operator families are generic.  They change the shape of a
+query rather than the data domain:
+
+\begin{itemize}
+  \item exact anchors: preserve specific anchors when previous context looked
+  promising;
+  \item context pivots: move from a failed anchor to adjacent context terms;
+  \item anchor drops: remove overly narrow anchors that caused duplicate or
+  zero-hit searches;
+  \item terminology swaps: change surface terms while preserving the criterion
+  need;
+  \item source shifts: change the family of likely source rather than the
+  criterion.
+\end{itemize}
+
+This is real adaptation, but it is not learned adaptation.  The transition from
+one operator to the next is encoded in \code{strategy_state.py}.  The LLM is
+asked to instantiate queries under the chosen operator constraints.  The
+resulting proposals terminate at \code{search_planning.py}, which validates
+them against authoritative deficits and records \code{SearchCandidate},
+\code{PolicyStateManifest}, and \code{PolicyDecision} objects.  Each executable
+task carries control decision, action, policy-state, decision-snapshot, and
+target-basis-snapshot IDs.  Search action selection is therefore replayable
+even though its ranking is still static.
+
+\subsection{Catalog adaptation}
+
+Catalog tasks are broader than target deficits.  They try to bound the search
+space: systematic reviews, datasets, dashboards, source families, and broad
+criterion families.  Catalog outcomes are annotated with catalog-discovery
+progress---estimate status, quantified target families, and remaining
+unestimated families.  This is deliberately distinct from criteria-transition
+attribution, which is attached to target-deficit outcomes after materialization.
+A catalog-progress delta is useful for routing but is not evidence that a table
+criterion became supported.
+
+\subsection{Source relevance adaptation}
+
+When \code{--source-relevance-mode focused} is enabled, each candidate source is
+judged by the reusable progress judge before scraping and ingestion.  The judge
+receives the task goal, deficit context, compact result metadata, and a snippet
+of source text.  It emits a verdict plus structured fields such as matched
+needs, missing needs, better-search cues, avoid cues, and off-topic axes.  Those
+fields flow into the search outcome and then into \code{SearchMemory}.
+
+The relevance gate is a decision point with delayed reward: a source that looks
+useful may fail to add graph entities or support criteria, while an initially
+modest source can later support several criteria because its supplementary text
+contains dense evidence.  The current code records the verdict and candidate
+fate under the originating search action, but the gate itself does not yet emit
+its own policy-state, decision, and action identifiers.  It is therefore still a
+missing policy boundary, and it is not trained against delayed criterion
+reward.
+
+\subsection{Best-guess adaptation}
+
+Best-guess candidate generation has an explicit operator/task action queue and
+replay boundary, although its selection rule and execution order remain fixed.  For
+each unresolved declared non-key derived criterion, the runner considers one
+deterministic local operator and three LLM operators:
+
+\begin{enumerate}
+  \item \action{same\_row\_scan}
+  \item \action{source\_metadata\_extract}
+  \item \action{source\_chunk\_extract}
+  \item \action{kg\_neighbor\_extract}
+\end{enumerate}
+
+Each \code{BestGuessAction} is one legal operator/task pair bound to a criterion
+and criteria snapshot.  \code{BestGuessDecision} records all candidate action
+IDs and the statically selected subset; actions that lack usable evidence are
+not selected.  The current static rule selects every same-row action and every
+LLM action for which a bounded evidence item is available.  Every candidate
+joins back to the selected action, decision, task, criterion, subject,
+operator, and snapshot.  LLM extraction candidates must name validated,
+versioned evidence items, and their source IDs are restricted to those selected
+items.
+
+That is an operational decision boundary, not a semantic derived-evidence
+boundary.  \action{best\_guess\_binding\_v4},
+\action{in\_process\_v1}, and \action{persisted\_action\_join\_v1} validate
+candidate/action/decision ledger joins, but the current adapter does not
+register a typed derived analysis or a derived \code{FieldAssertion}.  The v10
+projector therefore rejects these sidecars as criterion support.  An evidence
+item cited as input context does not itself assert the inferred output value.
+Typed derived analyses, provisional-subject rekey, and decision-bound derived
+supersession/retraction are not implemented.
+
+The derived \action{best\_guess\_strategy\_state} artifact still reports gross
+and marginal candidate acceptances by operator plus overlap between operators.
+These are operational diagnostics, not supported criteria or reward.  A future
+ordinary projection may credit a declared derived criterion only after the
+typed assertion chain exists.  The operator diagnostics are not yet used to
+reorder the next batch.
+
+\subsection{Stop adaptation}
+
+Stopping also has an explicit static-policy boundary.  The
+\action{table\_fill\_gasl\_runtime\_status\_v1} adapter accepts a terminal GASL
+result only when PROCESS persistence v9 and run-local call-ledger v4, current
+job and query, durable final-answer disposition, one terminal traversal,
+disposition mode,
+plan and iteration cursor, and owner-local reason agree, with no active PROCESS
+owner or competing outstanding plan.  Clean completion
+requires one linked \code{llm\_analysis} clean-finalize plan.  A plan defect
+requires one linked repair-exhausted plan and its summary; a plan-less pre-plan
+defect requires the terminal traversal's own summary, with no global-summary
+fallback.  \action{semantic\_stop\_context\_v3} then captures that operational
+status alongside task fulfillment, budget and frontier state, the current
+criteria snapshot, and the current criteria transition.
+\action{stop\_policy\_state\_v3} gives that
+state and decision stable IDs.  The pipeline records this decision on
+bootstrap termination before GASL, the no-queued-search path, no-new-paper
+assessment, empty-graph rounds, and normal post-GASL assessed rounds.  The
+no-new-paper, empty-graph, and normal paths also pass whether another outer
+round remains, so exhaustion of the round budget produces a recorded stop
+decision unless a higher-priority fulfilled, paper-budget, or frontier reason
+already applies.  Every round carries runtime-status v1; skipped GASL rounds
+record \code{not\_run} and their reason, and the final-round status remains
+separate from the labeled last-observed GASL status and round.  A future learned
+policy can replace nonterminal choices without reconstructing its input from
+operational record counts.  A required empty frontier is an
+orchestration-owned terminal condition and cannot leave a recorded
+\code{continue}; a bootstrap universe gap exits only on a terminal decision,
+while an actionable frontier and paper budget carry a nonterminal decision into
+the normal round/search path.  Malformed GASL containers likewise become a
+typed error with an empty operational export input instead of failing before
+the stop artifact.  At the hard outer-round cap, a custom nonterminal decision
+is overridden by the orchestration-owned
+\code{round\_budget\_exhausted} stop.  Finalization also canonicalizes an
+impossible zero-round nonterminal return, rejects any other premature
+nonterminal return, and reasserts that a completed fixed-length loop cannot
+serialize \code{running}.  The terminal-error stop is orchestration-owned and
+bypasses replaceable policy logic.  It has priority over fulfilled, paper,
+frontier, and round-budget branches and emits
+\code{execution\_status=halted\_execution\_error} with its exact typed
+\code{execution\_error\_reason}, while reported \code{goal\_status} remains
+incomplete.  This operational label neither revises the criteria snapshot or
+transition nor rescores reward.  A budget or frontier halt with unresolved
+required criteria is likewise incomplete, not fulfilled completion.  The
+separate execution and goal statuses may not be inferred from each other.
+
+\subsection{Reward adaptation}
+
+\code{score_table_fill_snapshot()} receives a pair of criteria snapshots plus
+the explicit membership modes and member-signature columns.  Reward version
+\action{criteria\_transition\_v7} first applies
+\code{semantic\_membership\_v2}, then reports both the source-local criteria
+transition ID and a separate membership-projected
+\code{semantic\_transition\_id}.  Under
+\action{semantic\_signature}, novelty is the reviewed member field/value
+signature plus criterion field/value.  Under
+\action{source\_observation}, novelty is the registry-owned cross-version
+\code{semantic\_claim\_id} plus criterion field/value.  Missing membership
+configuration or a missing claim ID yields zero scalar credit and explicit
+unprojected-criterion diagnostics.
+
+Task-scoped required-family assessments are deliberately absent from that
+semantic reward projection.  They are deterministic existence gates derived
+from the underlying atomic assertion IDs, emit no support units of their own,
+and cannot earn a second reward for the same evidence.  They can block
+\code{goal\_status} and their transition remains auditable, but only the atomic
+field criteria contribute source-grounded reward.
+
+Positive terms count newly supported and resolved semantic claims, with
+bounded depth credit for each semantic-claim/canonical-source pair.  Regressed,
+removed, revised, or newly conflicting semantic criterion addresses and
+support beyond the depth cap are penalized; disappearance of an unresolved
+address is penalized so omission cannot masquerade as resolution.  The
+source-local transition's assertion/evidence units remain audit data rather
+than an alternate scalar reward.  Future typed derived evidence could receive
+credit only through the same semantic projection; current best-guess sidecars
+do not.  Operational record and observation cardinality remain diagnostic.
+
+The reward is useful as an empirical signal, but today it is reported rather
+than fed back as an optimization target.  It also lacks an explicit cost term
+for Firecrawl calls, LLM calls, token volume, scrape bytes, and wall-clock time.
+
+\section{Legacy All-Disease Case Study: Dense COVID Branch}
+
+The historical round-27b run exercised an earlier version of the adaptive
+machinery on the dense COVID-19 branch of the all-disease infectious-dose/R0
+use case.  Its focused source-level table contained reproduction-number
+estimates, date or time interval, location, strain or variant, model basis,
+uncertainty, and provenance.  The same graph schema is intended to compare
+infectious-dose and reproduction-number observations across diseases, hosts,
+routes, countries, times, and circumstances; the COVID branch was selected
+because it should have been dense enough to expose omissions.  The durable
+artifacts at the sampling point contained completed outer rounds 27--29 and
+search outcomes for round 30.
+
+These artifacts predate the current criteria projection and reward contract.
+Their GraphML remains read-only candidate/context unless individual saved
+source bodies are explicitly selected and freshly extracted into the evidence
+registry.  No bulk legacy migration or graph-wide replay has occurred.
+The record, cell, source, and sidecar counts below are retained as historical
+operational observations.  They are out of scope as evidence of semantic
+goodness: without a reconstructable table specification, field-level
+provenance, and before/after criteria snapshots, they cannot establish how many
+criteria became supported or unresolved.
+
+\begin{table}[htbp]
+\centering
+\small
+\begin{tabular}{@{}p{0.09\linewidth}p{0.22\linewidth}p{0.12\linewidth}p{0.10\linewidth}p{0.12\linewidth}p{0.25\linewidth}@{}}
+\toprule
+Round & Operators & Search outcomes & Accepted sources & Legacy operational diagnostics & Interpretation \\
+\midrule
+27 &
+\action{catalog\_broad\_review}, \action{target\_batch\_family},
+\action{target\_exact\_anchor} &
+17 & 0 & 0 operational rows &
+The seed frontier mostly found duplicate or unusable paths.  The zero-record
+delta is an execution diagnostic, not a criteria transition. \\
+28 &
+\action{catalog\_source\_shift}, \action{target\_context\_pivot} &
+20 & 1 & 999 new operational record identities; 40 legacy best-guess counters &
+A failed target branch pivoted away from exact anchors and accepted a dense
+B.1.1.7 source, producing the largest operational materialization in the
+sampled trace. \\
+29 &
+\action{catalog\_source\_shift}, \action{target\_anchor\_drop} &
+20 & 0 & 0 new operational records; 6 legacy best-guess counters &
+Anchor dropping avoided one local failure mode but did not find a new source
+family.  The sidecar delta came from reprocessing existing chunks; it is not a
+reconstructed criteria reward. \\
+30 &
+\action{catalog\_terminology\_swap}, \action{target\_terminology\_swap} &
+20 & 0 & no completed round record at sampling &
+Term changes found a few hits but no accepted source; one hit was a known
+duplicate and most target queries had zero hits. \\
+\bottomrule
+\end{tabular}
+\caption{Sampled round-27b search behavior.  These legacy artifact counts
+describe execution and materialization only; they do not prove semantic
+criterion progress under the current contract.}
+\label{tab:round27b}
+\end{table}
+
+\subsection{A large legacy operational materialization}
+
+Round 27 spent five \action{target\_exact\_anchor} attempts and did not accept
+a source.  The next target-search plan classified those attempts as exhausted
+for that deficit and moved to \action{target\_context\_pivot}.  In round 28,
+the query for a B.1.1.7 effective reproduction-number estimate in England
+accepted one Science source.  After ingestion and GASL, the exported table grew
+from 30 operational record identities to 1029.  The record-era reward snapshot
+reported these legacy operational diagnostics for round 28:
+
+\begin{itemize}
+  \item 999 new operational record identities;
+  \item 19,578 newly populated operational record fields;
+  \item 9,226 unique operational field values not seen in the prior export;
+  \item 159 source IDs represented in the operational exports;
+  \item 40 legacy best-guess acceptance counters.
+\end{itemize}
+
+This is evidence of a routing change followed by substantial operational
+materialization.  It is not evidence that the action produced semantic progress
+under the current contract.  A learnable trajectory may call the branch useful
+only when its action joins to a criteria transition containing newly supported
+semantic claims or new bounded semantic-claim/canonical-source pairs.
+
+\subsection{A weak pivot}
+
+Round 29 tried \action{target\_anchor\_drop}; round 30 tried
+\action{target\_terminology\_swap}.  In the sampled trace those 20 round-30
+tasks yielded seven total search hits, no accepted source, five duplicate URLs,
+one Firecrawl timeout, and several zero-hit target searches.  The prompts did
+change terminology and sometimes dropped a concrete anchor, but the policy did
+not learn that the current target was already saturated or that broad
+terminology probes were less promising than a new source family.
+
+This is the core gap: the code observed enough data to know that one local
+route had stopped paying off, but the next action was still selected by a
+finite operator order rather than by expected marginal reward.
+
+\subsection{Legacy best-guess sidecars}
+
+Round 28 evaluated 512 legacy sidecar positions.  The historical deterministic
+same-row and sibling-row scans accepted no candidates.  LLM source metadata
+extraction recorded 18 acceptances, source chunk extraction recorded 19, and
+KG-neighbor extraction recorded 3.  Round 29 re-evaluated the same 512-position
+operational budget and increased the legacy acceptance counter from 40 to 43.
+These are historical operator diagnostics.  They do not establish that 43
+declared derived criteria became source-supported; the current implementation
+no longer includes \action{sibling\_row\_scan}.
+
+The state artifact already reports operator yield and overlap:
+
+\begin{itemize}
+  \item deterministic row-local operators recorded zero legacy acceptances;
+  \item source metadata and chunk operators recorded disjoint legacy
+  acceptances;
+  \item KG-neighbor extraction recorded a smaller but still non-overlapping
+  legacy acceptance count;
+  \item 469 of 512 legacy sidecar positions remained open after round 29.
+\end{itemize}
+
+This operator-level state suggests a contextual-bandit surface, but current
+training labels must come from projection.  The next batch should rank legal
+operators for unresolved derived-criterion families only after typed derived
+assertions make projected support measurable.  Until then, operator outcomes
+are candidate diagnostics and cost observations.
+
+\subsection{Completion critic}
+
+The completion state remained open after the large-materialization round.  The
+critic kept blocking acceptance because the run still lacked a defensible lower-bound
+estimate of the answer universe, a defensible source-level aggregation unit, and
+a granularity decision for time-series sources.  The historical observation is
+consistent with the current stop rule, but does not validate it: a large
+operational record delta is not the same as resolving all required criteria.
+
+\section{Outcomes and Interpretation}
+
+Table~\ref{tab:gap-analysis} separates observed outcomes from interpretation
+and marks whether each outcome is in scope for the tested mechanism.
+
+\begin{longtable}{@{}p{0.19\linewidth}p{0.28\linewidth}p{0.11\linewidth}p{0.32\linewidth}@{}}
+\caption{Legacy observations interpreted against the current mechanism.}
+\label{tab:gap-analysis}\\
+\toprule
+Outcome & What it means & Scope & Interpretation \\
+\midrule
+\endfirsthead
+\toprule
+Outcome & What it means & Scope & Interpretation \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+Round 28 accepted one source after moving from exact anchors to a context
+pivot. &
+Failure classification and operator exhaustion can move a deficit branch away
+from an unproductive local query form. &
+In scope &
+The current state machine can exploit short-horizon feedback when the next
+finite operator is appropriate. \\
+\addlinespace
+Round 29 and round 30 changed operators but found no new accepted sources. &
+The route changed syntax, but not necessarily expected value.  The system did
+not decide to abandon, split, or reframe the deficit based on prior low yield. &
+In scope &
+Operator order is a hand-coded prior, not a learned value function.  Search
+memory is prompt context, not a policy. \\
+\addlinespace
+The source relevance judge recorded better-search and avoid cues. &
+The acceptance prompt emits information that can be used as policy feedback. &
+In scope &
+Those fields should become a source-gate observation with its own decision and
+action ID, joined to delayed criterion reward. \\
+\addlinespace
+Best-guess source metadata and chunk extraction recorded all legacy acceptance
+counters in the sampled rounds. &
+The old artifacts distinguish operator acceptance, but not projected derived
+criterion support. &
+Out of scope for semantic reward &
+The current \action{best\_guess\_binding\_v4} contract now preserves decision,
+action, task, candidate, snapshot, source, and evidence-item joins as
+operational diagnostics.  It does not register the typed derived assertion
+required for semantic support.  Derived projection and learned ranking by
+projected criterion yield per cost remain future work. \\
+\addlinespace
+The round-28 legacy export recorded 999 new operational record identities from
+one accepted source. &
+One source can dominate operational record materialization. &
+Out of scope for semantic goodness &
+The count may motivate a source-density feature, but it cannot establish
+criterion yield.  Policy reward requires a joined criteria transition and
+membership-projected semantic-claim/canonical-source pairs. \\
+\addlinespace
+The completion critic rejected round 28 and round 29 despite nonzero
+record-era reward. &
+Legacy artifact growth and task completion were different signals. &
+In scope &
+The current contract makes the separation stricter: membership-projected
+semantic transitions drive reward, while an estimate assessed against the current snapshot and
+the remaining unresolved required criteria constrain completion. \\
+\addlinespace
+Firecrawl returned duplicate, zero-hit, blocked, and timeout outcomes. &
+Search has observable costs and failure modes before ingestion. &
+Out of scope for GASL &
+Search outcome quality must be evaluated upstream of graph extraction; GASL
+cannot repair a source that was never accepted. \\
+\end{longtable}
+
+\section{Current Gap}
+
+The pipeline no longer lacks decision records everywhere.  Search planning
+persists candidate actions, a policy-state manifest, the ranked decision, and
+the selected action IDs.  Best-guess candidate generation persists operator/task
+actions, a snapshot-bound static decision, selected action IDs, candidates,
+and evidence-item context joins, though it does not register typed derived
+assertions or learn their ranking.  Stopping persists its state and decision
+against the current criteria snapshot and transition.
+
+The remaining gap is uneven coverage.  Source gating, graph-scope selection,
+path selection, and GASL retry or repair are still executable procedures rather
+than first-class policy decisions.  There is also no unified costed trajectory
+that joins every covered and uncovered surface to its delayed criteria
+transition.  Learned routing is not implemented.
+
+\subsection{Static routes instead of learned value}
+
+\code{plan_target_operator()} and \code{plan_catalog_operator()} encode a
+finite sequence of fallback operators.  When a failure class appears, the code
+chooses the first not-yet-exhausted operator in a static order.  This keeps the
+system generic and predictable, but it cannot learn from a corpus of prior
+aggregation tasks that a particular state calls for:
+
+\begin{itemize}
+  \item a source-family jump instead of a terminology swap;
+  \item abandoning an over-saturated target;
+  \item splitting an aggregate count deficit into criterion-bound children;
+  \item changing source type from papers to data repositories;
+  \item spending a budgeted completion-probe wave before target filling.
+\end{itemize}
+
+\subsection{Prompt memory instead of policy memory}
+
+\code{SearchMemory} is already close to the right substrate.  It compresses
+prior attempts into better-search cues, avoid cues, accepted URLs, duplicate
+URLs, and failure evidence.  However, the record is passed back to an LLM as
+context.  The system does not treat it as a feature vector or an observation in
+a trajectory.
+
+For example, the legacy record-dense round-28 search generated reusable cues
+about the kind of source that materialized the table.  Its 999 new operational
+record identities are only a historical diagnostic feature.  A learned policy
+may label the source-family action productive only when its stable action and
+source joins reach newly supported or resolved semantic claims or bounded new
+semantic-claim/canonical-source pairs.
+
+\subsection{Delayed reward attribution is incomplete across surfaces}
+
+The criteria-transition reward is computed after GASL and best-guess candidate
+generation.
+For the implemented boundaries, attribution no longer depends only on round
+proximity:
+
+\begin{itemize}
+  \item search tasks carry policy-state, decision, action, criteria-snapshot,
+  target-basis, deficit, criterion, subject, prompt-arm, and query IDs through
+  their outcomes;
+  \item best-guess sidecars carry decision, action, task, candidate,
+  criteria-snapshot, source, and versioned evidence-item IDs as operational
+  diagnostics, but do not enter semantic projection without a future typed
+  derived assertion;
+  \item stop decisions carry policy-state, criteria-snapshot, and
+  criteria-transition IDs into the outer-round record.
+\end{itemize}
+
+The missing joins are inside a selected search action and after source
+acceptance: the individual source-gate verdict, graph-scope choice, traversed
+path selection, GASL plan or command choice, and retry or repair action do not
+yet have the same decision/state/action contract.  Their observations and
+costs cannot yet be assigned to one replayable action without reconstruction.
+
+\subsection{Best-guess strategy is recorded but not adaptive}
+
+Best-guess artifacts report which operator proposed or operationally accepted a
+candidate, but the next best-guess batch does not use a projected criterion
+yield because the typed derived projection path is not implemented.  Each
+declared derived criterion family has a local history of cheap deterministic
+scans, metadata extraction, chunk extraction, KG-neighbor extraction, and their overlaps.  The
+future policy should rank operators only after typed derived assertions make
+the number of newly supported derived criteria per token and per second
+measurable.
+
+\subsection{Reward lacks explicit cost and scope terms}
+
+The current reward intentionally ignores operational-record growth as a
+success metric.  It rewards newly supported and resolved membership-projected
+semantic claims plus bounded semantic-claim/canonical-source pairs, then
+penalizes semantic-address regression, removal, revision, conflict, and repeated
+support beyond the depth target.  A new source matters only through a projected
+semantic claim backed by the exact assertion/evidence chain; there is no
+separate source-ID reward.  Missing or invalid membership and a missing
+registry-owned claim ID produce projection diagnostics and zero reward.
+Derived evidence has no separate reward term; it
+could receive credit only after a future typed derived assertion lets the common
+projector produce one of those semantic transitions.  Reward v7 retains the
+version-5 penalty for unresolved semantic addresses that disappear without a
+typed retraction.
+
+Future learning also needs negative terms for:
+
+\begin{itemize}
+  \item Firecrawl credits and zero-hit result pages;
+  \item scraped bytes that never produce an accepted source;
+  \item LLM calls that return invalid JSON or no criterion delta;
+  \item repeated candidates already in the graph;
+  \item high operational-record growth with no criterion progress;
+  \item progress that leaves declared task axes untouched.
+\end{itemize}
+
+\section{A Multi-Turn Reinforcement Learning Formulation}
+
+\subsection{Problem type}
+
+The table-fill controller is best modeled as a partially observable Markov
+decision process.  The true answer universe is unknown.  Each source fetch and
+GASL extraction reveals partial observations.  The policy must trade off
+exploration of the search space against exploitation of source families with
+known supported-criterion yield.
+
+At outer round \(t\):
+
+\begin{align*}
+s_t &= \{\text{table specs}, \text{criteria snapshot}, \text{completion state},
+\text{criterion deficits}, \text{search memory},\\
+&\quad\quad \text{frontier}, \text{source set}, \text{KG summary},
+\text{best-guess candidate diagnostics}, \text{budget state}\}\\
+a_t &= \text{one selected action at one decision point}\\
+o_t &= \text{search hits, scrape text, gate judgment, graph delta,
+criteria transition}\\
+r_t &= R(\text{snapshot}_{t-1}, \text{snapshot}_{t}, \text{cost}_{t})
+\end{align*}
+
+The action space is hierarchical.  A top-level policy chooses which unresolved
+criterion, aggregate criterion family, source family, or derived-criterion
+family deserves budget.  Lower-level policies choose operators, query
+candidates, source acceptance, graph scope, GASL repair, best-guess candidate
+operators, and stop or continue actions.  Typed derived assertion actions
+remain future work.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[
+  node distance=8mm and 11mm,
+  box/.style={draw, rounded corners, align=center, minimum width=31mm,
+    minimum height=9mm, fill=purple!5},
+  policy/.style={draw, rounded corners, align=center, minimum width=34mm,
+    minimum height=9mm, fill=orange!10},
+  obs/.style={draw, rounded corners, align=center, minimum width=30mm,
+    minimum height=9mm, fill=green!6},
+  arr/.style={-{Latex[length=2mm]}, thick}
+]
+\node[box] (state) {Task state\\$s_t$};
+\node[policy, right=of state] (top) {Budget and\\deficit policy};
+\node[policy, right=of top] (sub) {Operator and\\query policies};
+\node[obs, below=of sub] (obs) {Search, scrape,\\KG, GASL};
+\node[obs, below=of top] (reward) {Costed\\reward};
+\node[box, below=of state] (next) {Next task\\state $s_{t+1}$};
+
+\draw[arr] (state) -- (top);
+\draw[arr] (top) -- (sub);
+\draw[arr] (sub) -- (obs);
+\draw[arr] (obs) -- (reward);
+\draw[arr] (reward) -- (next);
+\draw[arr] (next) -- (state);
+\end{tikzpicture}
+\caption{Future hierarchical policy.  Existing operators remain available, but
+their selection is scored against expected delayed reward.}
+\label{fig:policy}
+\end{figure}
+
+\subsection{Policy surfaces}
+
+The first learned policies should be narrow rerankers wrapped around existing
+actions, not unconstrained generators.
+
+\begin{longtable}{@{}p{0.18\linewidth}p{0.24\linewidth}p{0.22\linewidth}p{0.26\linewidth}@{}}
+\caption{Decision surfaces for policy learning.}
+\label{tab:policies}\\
+\toprule
+Surface & Current action & Learned replacement & Primary reward \\
+\midrule
+\endfirsthead
+\toprule
+Surface & Current action & Learned replacement & Primary reward \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+Catalog frontier &
+Prompt proposes validated candidate actions; static policy ranks them. &
+Rank source-family probes and expected answer-universe information gain. &
+New supported or resolved semantic claims and bounded
+semantic-claim/canonical-source pairs attributable after
+materialization per cost; scope estimates remain state, not reward. \\
+\addlinespace
+Target deficit &
+Static operator order plus validated, snapshot-bound candidate actions. &
+Rank deficit, operator, and query candidates jointly. &
+Newly supported and resolved required criteria per cost. \\
+\addlinespace
+Source relevance &
+Prompt judge records a verdict inside the originating search outcome. &
+Calibrated gate that predicts delayed criterion reward and duplicate risk. &
+Supported or resolved semantic claims and bounded
+semantic-claim/canonical-source pairs attributable to the
+gate action per cost. \\
+\addlinespace
+Graph scope &
+Source-neighborhood graph construction. &
+Rank source neighborhoods and path scopes before GASL. &
+Supported or resolved semantic claims and bounded
+semantic-claim/canonical-source pairs per extraction cost. \\
+\addlinespace
+Best-guess recovery &
+Static selection over explicit operator/task actions with decision, candidate,
+evidence-item, and snapshot joins. &
+Contextual bandit over unresolved derived-criterion families and operators. &
+After typed derived assertions exist, newly supported derived criteria through
+the ordinary criteria transition per token and second. \\
+\addlinespace
+Stop/continue &
+Static snapshot-bound stop decision. &
+Risk-sensitive stop policy constrained by open bins. &
+Avoided search cost subject to all required criteria being supported; a budget
+halt with unresolved criteria remains incomplete. \\
+\end{longtable}
+
+\subsection{Reward}
+
+The existing criteria-transition reward should become a costed task reward:
+
+\[
+R_t =
+R_{\text{supported}} +
+R_{\text{resolution}} +
+R_{\text{bounded claim-source}}
+- C_{\text{search}}
+- C_{\text{scrape}}
+- C_{\text{llm}}
+- P_{\text{regression}}
+- P_{\text{conflict}}
+- P_{\text{untyped-removal}}
+- P_{\text{excess-support}}
+\]
+
+The positive semantic terms are exclusively transitions among supported and
+unresolved membership-projected claims plus bounded
+semantic-claim/canonical-source pairs backed by exact registered support.
+Completion
+scope, open aggregate criterion families, and the separately assessed universe
+estimate constrain action selection and stopping; they do not introduce a
+surrogate row-count or sidecar-count goodness term.  Accepted-source, graph,
+record, and best-guess-sidecar counts remain observations.  A future derived
+artifact matters only after a typed assertion joins it to a criteria
+transition.  Costs should be attached to the action that caused them:
+Firecrawl search calls to query actions, scrape calls to candidate acceptance,
+tokens to LLM actions, and wall time to all blocking actions.
+
+\subsection{Offline before online}
+
+The rollout path should be conservative:
+
+\begin{enumerate}
+  \item Preserve the existing search, best-guess, and stop decision contracts;
+  instrument source gating, GASL, path selection, and repair without changing
+  behavior.
+  \item Build offline action/outcome joins over prior \code{question_runs}.
+  \item Generate deterministic preference pairs from observed reward:
+  an action with projected criterion yield beats a same-state zero-yield action;
+  at equal criteria transition, a duplicate-only action loses to a lower-cost
+  nonduplicate action; after typed derived projection exists, a no-cost
+  deterministic derived action beats an LLM action with equal projected
+  criterion yield.
+  \item Add LLM preference labels only for ambiguous comparisons where delayed
+  reward is close or confounded.
+  \item Train a reranker or contextual-bandit head for one low-risk surface,
+  starting with best-guess operator order or source relevance.
+  \item Run off-policy evaluation and replay against held-out traces.
+  \item Enable online use behind \code{--policy learned --policy-path ...} with
+  small exploration and strict budget caps.
+\end{enumerate}
+
+\section{Implemented Boundary and Remaining Code Changes}
+
+\subsection{Criteria snapshots as the learning-state boundary}
+
+The operational table representation is an input and export format, not a
+measure of task quality.  The implemented pure projector interprets each
+materialization exactly once under \action{criteria\_projection\_v10}:
+
+\begin{verbatim}
+TableSpec + operational records
+  -> stable subjects and criterion evidence
+  -> supported / unresolved criterion assessments
+  -> CriteriaSnapshot
+  -> CriteriaTransition from the previous snapshot
+\end{verbatim}
+
+Criterion identifiers are value-independent joins over table specification,
+subject identity, and declared field.  A present value is supported only when
+the exact assertion, source-local observation, evidence item, content version,
+and canonical source document resolve in the active registry.  A reported
+binding must also carry the registry-derived cross-version
+\code{semantic\_claim\_id}.  Deserialization deliberately does not restore that
+registry-owned identity or trust serialized support.  It converts formerly
+supported assessments to unresolved, marks the result
+\action{criteria\_projection\_v10:unvalidated\_replay}, and computes a new audit
+ID.  Reward v7 returns unknown status, zero score, and no components or
+transition for that version.  Offline semantic reward replay must reproject the
+underlying operational records through the authoritative registry first.
+Subject-bound
+partial records therefore support only their independently registered fields;
+an unbound operational record cannot create a semantic subject.
+Transport fields such as row keys, source references, evidence containers, and
+decision IDs are excluded from semantic keys and declared reward criteria.
+Version 4 table-spec construction rejects them when configured as key or
+non-nullable columns.  The explicit version 1 compatibility path instead
+demotes affected transport columns to nullable diagnostics, removes them from
+semantic keys, and records the migration; it never fabricates a semantic
+replacement.  Those compatibility diagnostics are excluded from the semantic
+table-spec payload, so they do not change its identity by themselves.  Authors
+must declare a semantic identifier such as a study or
+source identifier when that grain is required.  The projector repeats this
+filtering at its public boundary so a direct or replay caller cannot
+reintroduce transport-field goodness.
+Derived \code{best\_guess} columns are likewise rejected as keys.  Supporting
+a missing or corrected derived key requires a future provisional-subject
+identity, typed derived analysis, derived assertion, and typed rekey
+transition.  None is implemented.  Historical specifications using such keys
+must be migrated to stable reported semantic keys instead of being silently
+reinterpreted.
+A multi-key subject additionally remains unresolved until its required
+\code{\_\_subject\_identity\_\_} criterion has registered assertions on a
+common source-local observation across its raw identity fields.
+A present but unsourced value alone leaves its criterion unresolved; an
+unsourced alternate is retained as a diagnostic and does not veto an
+independently source-supported value.  Conflicting sourced values remain unresolved.
+Best-guess sidecars may accumulate operationally, but they are not accepted
+derived support.  Decision-bound derived supersession or retraction is future
+work after typed derived assertion registration exists.
+Duplicate records cannot increase criterion cardinality.  Additional
+independent sources increase support depth without pretending that a new
+criterion was resolved.
+
+PROCESS materialization does not turn row-level provenance into support.  The
+validator strips model-emitted provenance and preserves only a pre-registered
+binding containing the assertion ID, evidence-item ID, versioned canonical
+source-document ID, exact field, typed value, and matching observation or
+subject anchor.  It never promotes merged graph source references or mints
+source evidence.  Prior semantic values and authoritative bindings are
+monotone; operational partial/gap markers are contract-relative and may be
+archived and recomputed for a nonempty required-field contract.  Every semantic
+field without an authoritative binding remains unresolved.
+A renamed, normalized, or generated value fails closed unless an already
+registered typed derived assertion exists; registration of such derived
+analyses is future work.  Validated field provenance is serialized under
+\code{assertion\_bindings}, the container consumed by
+\action{criteria\_projection\_v10}.  PROCESS never closes task coverage.
+Recomputed operational \code{completeness} and \code{evidence\_gap} markers
+have no semantic authority by themselves.  The projector still requires exact
+current authoritative bindings; typed derived resolution remains future work
+for transformations without them.
+
+The executable command boundary is
+\action{gasl\_process\_execution\_v5} under
+\action{gasl\_process\_execution\_policy\_v5}.  Each action declares exactly
+one of \code{semantic\_filter/zero\_to\_n},
+\code{eligible\_materialization/zero\_to\_n}, or
+\code{exact\_enrichment/exactly\_input}, plus a structured
+\code{REQUIRED\_FIELDS} list.  Under
+\action{gasl\_process\_required\_field\_roles\_v2}, each required entry is
+exactly a source-bound semantic assertion, declared-grain identity,
+registry-metadata field, or authoritative binding container.  Semantic fields
+need exact active FieldAssertions; identity fields must be exact declared source
+grain keys.  Registry metadata and \code{field\_evidence} must exist in the
+exact durable source schema and use deterministic nonsemantic authority, not
+fictitious assertions.  Thus FIND grain \code{id} cannot satisfy required
+identity \code{observation\_id}.  Reserved, assertion, criterion, unknown, and
+other operational containers fail closed.
+One command is capped at 72 inputs and eight logical model calls: at most five
+primary batches of 15 plus three repair-reserved calls.  Zero filter output remains
+zero; only exact enrichment is row-preserving; and the unprocessed remainder is
+named under the output's \code{\_\_unresolved} continuation.  These controls
+bound execution cost and cardinality but do not create evidence.  The
+\code{\_\_unresolved} and \code{\_\_unsupported} suffixes are runtime-reserved.
+Their exact contracts are respectively
+\code{process\_unresolved\_inputs} with
+\code{usable\_by=["PROCESS"]} and
+\code{unsupported\_process\_outputs} with
+\code{usable\_by=["SHOW"]}.
+
+Every model-visible source and response row carries
+\action{gasl\_process\_operational\_row\_token\_v1}, an opaque SHA-256 over its
+exact ordered, typed declared-grain tuple.  Boolean, integer, finite-float, and
+string values remain distinct; alias, coercion, ordinal fallback, token
+mismatch, and duplicate declared grains fail closed.  Duplicate grains are a
+noncontinuable upstream producer defect.  The token is operational parent
+attribution, not evidence or semantic membership.
+\code{target\_row\_count} and all other PROCESS counts are operational audit
+cardinality, not reward, semantic goodness, or completion.
+\action{gasl\_process\_declared\_grain\_authority\_v2} records the accepted
+row's exact grain type, keys, parent values, token, and authoritative
+parent-token list.  It is operational identity authority, not a FieldAssertion.
+
+Every retained durable output projects
+\action{gasl\_deterministic\_producer\_contract\_v1}: payload kind, row schema,
+grain, multiplicity, \code{usable\_by}, and evidence state.  Planner simulation
+and runtime production must agree exactly; planner, compiler, executor, runtime, and
+StateStore require the current consumer to appear in it.  A same-type DECLARE
+preserves that complete contract.  A defined empty FIND or valid retained
+PROJECT, COLLAPSE, GRAPHWALK, JOIN, MERGE, or SELECT is successful durable
+empty output, while a missing or invalid input remains an error.  Empty SELECT,
+PROJECT, COLLAPSE, and GRAPHWALK outputs carry their declared schemas and replace
+stale input structure.  JOIN requires its key in both declared input schemas and
+projects a deterministic joined union-plus-identity schema even when empty;
+empty MERGE may retain only the deterministic union of available source
+schemas.  On the in-scope NetworkX backend,
+\action{gasl\_graphwalk\_limits\_v1} enforces depth 1--8, a deterministic
+100-source slice, the first 50 deterministic incident edges per node, and a
+prospective global cap of 10,000 unique declared-grain queued/emitted rows; the
+deduplicated emitted subset cannot exceed that cap.  Ordered typed truncation
+reasons mark evidence partial, non-search-actionable, non-continuable, and unable
+to close coverage.  There is no truncation continuation.  Narrowing or
+replanning is planner/operator guidance, not automatic executor repair: a
+successful truncated walk may clean-finalize operationally, but cannot close
+criteria.  These are liveness/cost limits, not support or coverage.  Neo4j
+\code{id\_filter} and source/target filtering remains an out-of-scope backend
+residual.
+
+Graph identity is exact and typed.  FIND nodes use \code{node(id)}, edges use
+\code{edge(src\_id,tgt\_id,relation\_type)}, paths use \code{path(path\_id)},
+and GRAPHWALK adds \code{path\_depth}.  Alias conflicts and duplicate grains
+fail closed.  Bare relationship controls \code{a}, \code{an}, \code{any},
+\code{all}, and \code{*} are wildcards.  Colliding literals, numeric- or
+boolean-looking strings, values containing comma or pipe, and values beginning
+\code{relation\_type=} or \code{relationship\_name=} must be JSON quoted.
+
+Restart state uses \action{gasl\_process\_execution\_persistence\_v9},
+\action{gasl\_traversal\_execution\_v1}, and the read-only
+\action{gasl\_execution\_recovery\_ownership\_v1} boundary.  The pipeline
+checks persisted ownership, job, and exact reconstructed task/spec query before
+any source or table seed write; active, pending-disposition, pre-plan,
+exhausted, and terminal owners resume without reseeding.  In-flight PROCESS
+state uses \action{gasl\_process\_attempt\_snapshot\_v4}, which captures exact
+prior input, target, unresolved, and unsupported state before the pre-call
+started/pending target-plus-sidecars triple.  Both sidecars carry the exact
+incoming \code{row\_schema}; the target carries the deterministic PROCESS
+target schema extending it with required, grain, parent, row, completeness,
+gap, and unsupported fields.  Grain type, keys, multiplicity, and action/family
+identity are shared, while StateStore validates the distinct exact
+projections.
+\action{gasl\_process\_fail\_stop\_restoration\_v3}
+restores that bundle and records a changed-family conflict separately from the
+active interruption reason.  The authoritative
+\action{gasl\_process\_call\_ledger\_v4} resides inside the run at
+\code{answers/gasl\_artifacts/process\_call\_ledger}; it has no external
+fallback and binds exact state/artifact/checkpoint paths, run/job/query,
+persistence, authoritative/audit/nonsemantic flags, source/target/command,
+occurrence, and attempt identity.  Each logical PROCESS
+model call, including retries and missing-row repair, has a per-call durable
+reservation and terminal record there.  Symbol and plan provider calls instead
+consume a durable outer traversal-iteration reservation.  Trace and
+prompt-observation streams are auxiliary audit sinks rather than reservation
+authority; none of these execution records has semantic authority.  Terminal
+answers remain redeliverable until explicit outer acknowledgement, which the
+current question-pipeline path does not claim.  Standalone GASL final synthesis
+is the sole documented unreserved provider-call residual, so its possible
+repetition is an accepted diagnostic liveness/cost outcome with no criteria or
+evidence authority.  A plan-backed terminal answer uses one shared nonempty
+\code{terminal\_final\_answer\_at} value written identically to the completed
+plan and linked traversal in one StateStore save; recovery and acknowledgement
+require exact equality.  \action{gasl\_plan\_action\_commit\_v1} atomically
+stores history, summaries, artifacts, durable materializations, PROCESS
+retirement, and cursor movement under
+\action{gasl\_plan\_action\_state\_transaction\_v1}.  Persisted ownership uses
+\action{gasl\_plan\_execution\_v1},
+\action{gasl\_plan\_outer\_disposition\_v1}, and
+\action{gasl\_final\_answer\_disposition\_v1}.  The read-only
+\action{gasl\_plan\_resume\_preflight\_v1} proves the exact committed prefix and
+returns its first uncommitted step; semantic source validation runs only on
+that suffix.  \action{gasl\_process\_resume\_admission\_v1} admits staged
+nonactionable continuation state only for its exact active v4 snapshot.  Empty
+query adoption rejects prior PROCESS/plan/traversal ownership, family-bound
+variables, and a nonempty or malformed canonical ledger; only pristine state
+may accept a first query.
+
+Completed batch indices and digest keys must form the same exact contiguous
+prefix.  Runtime recomputes each owned batch-file digest, and canonical digests
+also bind unsupported rows and the terminal exact ordered unresolved-token
+suffix.  A mismatch fails closed.  These SHA-256 records are not external
+authentication against an actor able to rewrite both file and digest, and the
+ledger remains audit-only and nonsemantic.
+
+Each completed outer disposition atomically owns a separate
+\action{gasl\_process\_outcome\_reconciliation\_v4} audit.  Clean completion
+keeps \code{outer\_failure\_summary=\{\}} and requires
+\code{needs\_repair=false}, zero live incidents, empty top/item live code and
+incident-ID lists, and no structural defects.  Repair and fail-stop summaries
+alone own live reasons under exactly \code{needs\_repair} or
+\code{repair\_budget\_exhausted}.  The count-aligned audit pairs
+\code{(reason\_code, gasl\_outcome\_incident\_id\_v1)} must match exactly.
+PROCESS owners are unique by target/family; their globally disjoint item-pair
+sets must equal the PROCESS-tagged authoritative failure pairs.  Each PROCESS
+item ID also binds target, continuation family, and final writer, so equal codes
+cannot collapse distinct families; non-PROCESS IDs bind canonical reason payload
+plus ordinal and remain top-level.  Each PROCESS item records final
+writer/status, resolved/live codes and IDs, structural and durable
+row/sidecar/missing-binding diagnostics, and exact action entries containing
+only result index, command ID, occurrence ID, and attempt ID.  It records its
+predecessor plan and the exact prior, carried, retired, and re-keyed incident-ID
+partition.
+The exact v4 transition classes are
+\code{current\_plan\_family}, \code{carried\_clean},
+\code{carried\_unchanged},
+\code{partially\_retired}, \code{resolved},
+\code{final\_writer\_rekeyed}, \code{reevaluated},
+\code{reevaluated\_clean}, \code{superseded\_family}, and
+\code{structural\_mismatch}.  Supersession names the replacement family and its
+input actions.  Successor creation atomically snapshots and consumes
+one exact predecessor with forward/reverse links; recovery requires the same
+job/query and byte-equivalent copied failure/audit state.  A PROCESS restoration
+records one restored-bundle item/pair.  A non-PROCESS fail-stop has an empty
+PROCESS reconciliation list only when no live committed PROCESS owner exists;
+otherwise all owners remain represented and its separate incident is top-level.
+The audit is nonsemantic.  Any non-v9 persisted execution cannot cross the v9
+recovery fence, except pristine unversioned empty state adopting its first query.
+
+This v9/v4 boundary has source-review clearance only; a fresh real execution is
+still required for runtime and semantic validation.
+
+Same-target continuations share a query-bound
+\action{gasl\_process\_continuation\_family\_v4}, separate from attempt audit
+lineage, and an exact
+\action{gasl\_process\_declared\_grain\_identity\_v1} type, key, and
+multiplicity contract.  Family v4 binds the exact required-field role map, the
+canonical budget-free v5 semantic-family projection, and
+\action{gasl\_process\_source\_role\_contract\_v2}, which projects producer
+version, schema, grain, multiplicity, evidence state, and token version.
+Per-occurrence input and model-call budgets are excluded from the semantic
+family projection.
+It also binds persistence, state/artifact path, job, query digest, target, and
+semantic operation, so the family ID is not global.  Missing or ambiguous
+identity or producer drift fails closed.  Prior
+semantic field values and authoritative bindings are monotone and never
+overwritten.  An exact-identity collision may add an authoritatively bound
+missing field or union an authoritative same-value binding; new identities
+append, and conflicting values do not replace prior values.  For a nonempty
+contract, replacement, new, and collision records archive superseded partial
+diagnostics, re-evaluate existing exact \code{REQUIRED\_FIELDS} bindings, and recompute
+current gaps and completeness; an empty required-field list is a no-op.  Operational
+diagnostics may therefore change without weakening prior semantic values or
+bindings.  The current unresolved remainder replaces its predecessor.
+Unsupported audit records instead deduplicate and accumulate, with historical,
+current-action delta (including a repeated current defect whose audit record
+deduplicates), and persisted-total counts reported separately; historical-only
+audit does not trigger repair.  Carried, new, deduplicated,
+augmented, conflicting, same-value-binding-union, and identity-conflict counts
+are operational diagnostics rather than evidence, criterion support, or
+coverage.  An unresolved sidecar may be consumed only by direct same-target
+\code{PROCESS <target>\_\_unresolved ... AS <target>} with the same stable
+family and semantic contract.  Every other consumer or target fails closed;
+unsupported sidecars are SHOW-only audit state.
+
+PROCESS occurrence, attempt, call-budget, and terminal fields are action-local
+control identity.  The shared
+\code{without\_process\_execution\_metadata()} boundary strips them from every
+non-PROCESS result before context rebinding, and StateStore applies the same
+sanitization to non-PROCESS summaries, materializations, and artifacts before
+durable commit.  Materialization, history, action identity, and cursor movement
+then commit together.  A downstream \action{MERGE} must consequently commit
+once and advance its action cursor once; it cannot inherit or retire the prior
+PROCESS occurrence.
+
+The \action{gasl\_active\_plan\_interruption\_v2} fail-stop persists counts for
+each exact action/cursor/error signature across interleaving plus a separate
+active-action/plan total.  A signature's third occurrence terminalizes as
+\code{active\_plan\_interruption\_halted} with reason
+\code{active\_plan\_identical\_interruption\_recovery\_exhausted}; eight total
+interruptions terminalize with reason
+\code{active\_plan\_total\_interruption\_recovery\_exhausted}.  These bounds
+limit one repeated defect and alternating-defect recovery, not global trace
+bytes, and prevent a loop from masquerading as a larger trajectory.  A non-seed
+terminal criteria snapshot and transition, the corresponding reward artifact,
+and a final-answer artifact are required before any semantic interpretation;
+bootstrap artifacts alone do not constitute a completed run.
+
+Goals, deficits, rarefaction, source attribution, reward, and policy state now
+consume the same immutable snapshot or transition.  None should independently
+reconstruct semantic progress from operational record counts.  This boundary
+is necessary for multi-turn learning because it makes the state before a
+decision and the outcome after an action stable and versioned.  Snapshot IDs
+remain replayable audit joins; semantic labels after deserialization still
+require authoritative registry reprojection.
+
+The final table-mode handoff is versioned separately:
+\action{declared\_table\_export\_v2} accepts only exact declared deliverable
+names and retains partial records;
+\action{criteria\_input\_materialization\_v2} restores only registry-current
+exact observation, field, and normalized-value bindings;
+\action{criteria\_guarded\_final\_synthesis\_v4} renders only supported
+semantic criteria and unresolved, conflict, or structural-family status, labels
+an operational execution error, and carries its typed reason; and
+\action{table\_fill\_replay\_v4} binds the replay metadata.  Raw GASL prose is
+stored only as a labeled diagnostic.  Execution halt and semantic fulfillment
+remain separate, and a fresh real rerun is still required before claiming that
+the cleared source works end to end.
+
+\subsection{Existing decision and trajectory records}
+
+Three decision chains are already explicit:
+
+\begin{verbatim}
+search:
+  CriteriaSnapshot -> PolicyStateManifest -> PolicyDecision
+  -> SearchCandidate/control_action_id -> SearchTask/SearchOutcome
+
+best guess:
+  CriteriaSnapshot -> BestGuessTask + BestGuessAction -> BestGuessDecision
+  -> BestGuessCandidate -> diagnostic best_guess_binding_v4
+
+future derived support (not implemented):
+  BestGuessCandidate -> typed DerivedAnalysis -> derived FieldAssertion
+  -> registered assertion/evidence/source chain -> CriteriaTransition
+
+stop:
+  StopContext(criteria snapshot + transition) -> StopDecision
+\end{verbatim}
+
+Search decisions preserve alternatives as well as selections through candidate
+and ranked action IDs.  Best-guess decisions preserve all legal operator/task
+action IDs and the statically selected subset.  The pipeline exports search and
+stop records through \code{control_decisions} and best-guess actions and
+decisions through the derived artifacts.  Those three decision histories are
+replayable, but best-guess replay is operational only, and selection or ranking
+remains static.
+
+A future \code{question_pipeline/trajectory.py} may normalize those existing
+records into one JSONL stream, but it should not reimplement them.  Its main
+addition is a common observation record for the uncovered source-gate, graph
+scope, path, GASL, and repair surfaces, joined to before/after criteria
+snapshots, a criteria transition, and action cost.  The schema must stay
+generic: no domain words and no query-specific routing.
+
+\subsection{Policy interface}
+
+\code{question_pipeline/control.py} already defines the narrow policy
+interface used by orchestration:
+
+\begin{verbatim}
+class TableFillControlPolicy(Protocol):
+    def rank_actions(
+        self, context: DecisionContext,
+        candidates: Sequence[SearchCandidate],
+    ) -> PolicyDecision:
+        ...
+
+    def decide_stop(self, context: StopContext) -> StopDecision:
+        ...
+\end{verbatim}
+
+The implemented \code{StaticTableFillPolicy} validates and deterministically
+ranks catalog and target search candidates and makes the stop decision.
+\code{TableFillSearchPlanner} owns prompt interpretation and authoritative
+target binding before that policy is called.  Best-guess candidate generation
+currently uses a separate \action{static\_best\_guess\_v2} decision over explicit
+operator/task actions while retaining a fixed operator order.
+
+The remaining interface work is to expose source-gate, graph-scope, path,
+GASL, and repair choices through equivalent contracts and to bring best-guess
+ranking under a replaceable policy.  Learned and replay policies and their CLI
+selection are future work; the following flags are a proposed interface, not
+current CLI behavior:
+
+\begin{verbatim}
+--policy static
+--policy replay
+--policy learned
+--policy-path /path/to/model
+--exploration-rate 0.02
+\end{verbatim}
+
+\subsection{Instrumentation coverage}
+
+The live implementation has uneven decision coverage:
+
+\begin{longtable}{@{}p{0.27\linewidth}p{0.13\linewidth}p{0.50\linewidth}@{}}
+\caption{Current instrumentation status and remaining work.}
+\label{tab:instrumentation}\\
+\toprule
+Code path & Status & Decision or observation \\
+\midrule
+\endfirsthead
+\toprule
+Code path & Status & Decision or observation \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+\code{_enqueue_goal_catalog_searches()} &
+Implemented &
+Policy state, all validated candidate actions, ranking, selected actions,
+operator metadata, and criteria snapshot. \\
+\code{_enqueue_target_deficit_searches()} &
+Implemented &
+Authoritative deficit and target-basis snapshot, policy state, candidate
+actions, ranking, selected tasks, criterion IDs, and subject IDs. \\
+\code{SearchHarvester._accept_result_async()} &
+Partial &
+Candidate fate and verdict are recorded under the search action, but the
+source-gate choice lacks its own decision, policy-state, action, and complete
+cost record. \\
+\code{_ingest_papers()} &
+Partial &
+Graph deltas and extractor errors are diagnostics; source-local graph changes
+still need an exact decision/action observation boundary. \\
+\code{_gasl_graph_for_round()} and \code{_run_gasl()} &
+Missing policy boundary &
+Graph scope, path choice, GASL plan or command, retry, and repair need explicit
+candidate, decision, action, snapshot, observation, and cost joins. \\
+\code{_run_best_guess_recovery()} &
+Operational boundary implemented; semantic derived path missing &
+Snapshot-bound operator/task actions, candidate and selected action IDs,
+candidates, versioned evidence-item context, and sidecars are exported;
+persisted sidecars must rejoin the candidate, action, and decision ledgers.
+Typed derived analyses, derived assertions, rekey, supersession, replaceable
+ranking, and token and wall-time accounting remain missing. \\
+\code{_write_reward_exports()} &
+Implemented, uncosted &
+Criteria transition and semantic reward components are exported.  Uniform
+action-level costs are not. \\
+\code{_round_stop_decision()} &
+Implemented static boundary &
+Stop context and decision preserve policy-state, criteria-snapshot, and
+criteria-transition IDs.  Every decision enters \code{control\_decisions};
+round-scoped decisions are also embedded in that round's record, while the
+bootstrap termination precedes an outer-round record. \\
+\end{longtable}
+
+\subsection{Candidate actions, not only selected actions}
+
+Learning from a trace requires knowing which alternatives were considered.
+Search planning now keeps validated \code{SearchCandidate} alternatives before
+the static policy ranks them.  Best-guess decisions likewise keep every legal
+operator/task action and the statically selected subset.
+
+The same split remains to be added at the source gate, graph-scope, path, GASL,
+and repair surfaces: generate a bounded legal candidate set, record it against
+the current criteria snapshot, then let a policy rank and select actions.  For
+best guess, operational candidate and action enumeration exists, but typed
+derived analysis and assertion projection remain missing.  Learned or replay
+ranking over preserved actions should follow that semantic path, not optimize
+an operational sidecar count.
+
+\subsection{Cost accounting}
+
+Reward and trajectories need comparable costs across action types.  Add these
+fields to search, source, GASL, and best-guess observations:
+
+\begin{itemize}
+  \item provider call count;
+  \item provider credit estimate when available;
+  \item returned hit count;
+  \item fetched byte count;
+  \item LLM model, prompt tokens, completion tokens, and retry count;
+  \item wall-clock milliseconds;
+  \item timeout or parse-error class.
+\end{itemize}
+
+The immediate use is analysis.  The future use is a reward penalty that can
+prefer two criterion-yielding LLM calls over twenty broad searches that produce
+only duplicates.
+
+\subsection{Offline builders}
+
+Add read-only tools for offline learning:
+
+\begin{itemize}
+  \item \code{tools/build_table_fill_trajectories.py}: scan existing
+  \code{question_runs}, join search outcomes, GASL states, table exports,
+  best-guess artifacts, completion records, and reward snapshots into
+  trajectories.  An older run receives a semantic reward label only when the
+  current projector can reproject its before/after operational records through
+  a live registry with a reconstructable table specification and field-level
+  provenance; otherwise the reward remains
+  unknown rather than being inferred from row or slot counts.
+  \item \code{tools/score_table_fill_trajectories.py}: recompute reward under a
+  chosen reward version.
+  \item \code{tools/evaluate_table_fill_policy.py}: replay a policy over
+  logged candidate sets and report off-policy acceptance, expected reward,
+  duplicate rate, and unresolved completion bins.
+\end{itemize}
+
+\section{Preference Data for Multi-Turn Learning}
+
+The first training data can come from the traces that already exist.
+Useful deterministic preferences include:
+
+\begin{itemize}
+  \item A search action that accepted a source and later supported or resolved
+  criteria is preferred to a same-deficit action with zero criterion yield.
+  \item At equal criteria transition, a duplicate-only search action is worse
+  than a lower-cost action because duplicates add cost without semantic gain.
+  \item A source relevance decision is correct when the accepted source later
+  supports or resolves attributable criteria; graph delta alone is only a
+  diagnostic observation.
+  \item After typed derived assertions are implemented, a best-guess operator
+  with positive marginal non-overlapping derived-criterion support is preferred
+  to an operator with repeated zero yield for the same criterion family.
+\end{itemize}
+
+These preferences should be scoped by state.  A cheap local scan with zero
+yield in one table should not globally ban that operator; it only says the
+operator was weak for that unresolved-criterion distribution.
+
+\section{Evaluation Plan}
+
+\subsection{Holdout tasks}
+
+Evaluation needs multiple query trees with different table structures.  The
+learned policy should be trained on some tasks and replayed on held-out tasks.
+Holdouts should include:
+
+\begin{itemize}
+  \item source-level numeric aggregation from papers;
+  \item source-level materializations that require supplementary tables;
+  \item time-series or subnational materializations where operational record
+  cardinality can explode;
+  \item derived-criterion-heavy tables where location or date must be inferred
+  from source context;
+  \item tasks where catalog probing should happen before target filling.
+\end{itemize}
+
+\subsection{Metrics}
+
+Report both immediate and delayed metrics:
+
+\begin{itemize}
+  \item accepted sources per search call;
+  \item newly supported and resolved criteria per accepted source;
+  \item required-criterion resolution rate;
+  \item best-guess candidate precision now, and derived-criterion precision and
+  marginal yield only after typed derived assertions are implemented;
+  \item cost per marginal source-backed criterion;
+  \item duplicate URL rate;
+  \item blocked or timeout rate;
+  \item number of open critical completion bins;
+  \item final completion acceptance rate under the critic.
+\end{itemize}
+
+Newly supported and resolved membership-projected claims,
+required-criterion resolution, and bounded semantic-claim/canonical-source
+pairs are the semantic outcome metrics.  Search, source,
+latency, duplicate, timeout, and completion-scope measurements are efficiency
+or state diagnostics and must be reported separately from goodness.
+
+The final metric must never be operational record count.  A dense but narrow
+table can grow while failing the task because required criteria remain
+unresolved or the answer universe remains unbounded.
+
+\section{Implementation Roadmap}
+
+\begin{enumerate}
+  \item \textbf{Finish trajectory-only instrumentation.}  Preserve the live
+  search, best-guess, and stop contracts; add equivalent candidate, decision,
+  action, snapshot, observation, and cost records for source gating, graph
+  scope, path selection, GASL, and repair.  Keep static behavior unchanged.
+  \item \textbf{Offline trajectory builder.}  Backfill older round folders into
+  the same schema so analysis can start before new runs accumulate.  Mark
+  semantic outcomes unknown when criteria transitions cannot be reconstructed;
+  never backfill them from record or sidecar cardinality.
+  \item \textbf{Next costed reward version.}  Add provider and wall-time costs
+  to the existing criteria-transition reward.  Completion scope remains a
+  constraint and state input, not a surrogate reward term.
+  \item \textbf{Complete candidate preservation.}  Keep the implemented search
+  and best-guess action sets; add candidate sets for the uncovered source-gate,
+  GASL, path, and repair surfaces.
+  \item \textbf{Typed derived analysis and PROCESS transformation binding.}
+  Register an immutable derived analysis and derived \code{FieldAssertion}
+  over a versioned input fact, transformation or normalization basis, output
+  value, and source join.  Keep renamed, normalized, generated, and best-guess
+  fields unresolved until that chain passes the common projector.
+  \item \textbf{Best-guess rekey.}  Add provisional-subject identity and a
+  typed rekey transition before a derived value may create or correct a subject
+  identity.
+  \item \textbf{Derived-evidence supersession.}  Add an explicit decision-bound
+  retraction or supersession event so a future corrected derived assertion can
+  retire an older binding without silently deleting evidence or leaving a
+  permanent conflict.
+  \item \textbf{Explicit legacy migration.}  Keep the current per-source
+  selective replay fail-closed, then design a reviewed migration ledger for
+  legacy sources.  Do not reinterpret or bulk-promote the mature GraphML as
+  evidence and do not describe this as rebuilding the corpus or graph.
+  \item \textbf{Source relevance calibration.}  Train and replay a gate
+  reranker because source acceptance is narrow, frequent, and already has a
+  clear delayed label.
+  \item \textbf{Best-guess operator bandit.}  Learn best-guess operator ordering
+  from per-derived-criterion marginal yields after typed derived projection is
+  implemented.
+  \item \textbf{Search operator reranker.}  Learn a reranker over generic
+  operator and query candidates for catalog and target deficits.
+  \item \textbf{Top-level budget policy.}  Learn when to spend on completion
+  probes, target searches, ingestion, GASL, and best-guess candidate
+  generation.
+  \item \textbf{Online canary.}  Enable learned ranking only for a small
+  fraction of candidates under budget caps, log all counterfactual candidate
+  scores, and keep the static policy as the fallback.
+\end{enumerate}
+
+\section{Conclusion}
+
+The current table-fill system is already a stateful iterative aggregator with
+explicit search and best-guess action joins plus snapshot-bound stop decisions.
+Its legacy round-28 artifacts show a routing change followed by substantial
+materialization, while rounds 29 and 30 show further route changes with small
+legacy operational deltas.  Those observations are useful policy features, but
+they are not semantic training labels.  The missing work is not another
+question-specific search prompt or a replacement for the implemented control
+boundary.  It is to extend that boundary through source gating, graph scope,
+path selection, GASL, and repair; add typed derived analyses, PROCESS
+transformation bindings, provisional-subject rekey, and derived-evidence
+supersession; migrate legacy evidence explicitly rather than promoting the
+GraphML; attach action cost; and learn routing from supported/unresolved
+criteria transitions.
+
+The fastest path is to preserve the observable static search, best-guess, and
+stop boundaries while instrumenting the remaining choices.  Once every
+source-gate decision, graph-scope and path choice, GASL attempt, repair action,
+cost, decision snapshot, and criteria transition has a stable join, the same
+run logs can support deterministic preferences, offline replay, and then
+cautious online policy learning.
+
+\appendix
+
+\section{Current and Required Trajectory Join Keys}
+
+\begin{longtable}{@{}p{0.22\linewidth}p{0.68\linewidth}@{}}
+\toprule
+Key & Purpose \\
+\midrule
+\endfirsthead
+\toprule
+Key & Purpose \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+\code{run_id} &
+Required common key.  The output directory currently groups one invocation,
+but the covered decision records do not yet carry one explicit run ID. \\
+\code{round_index} &
+Identifies the outer loop iteration.  This is not a search wave or
+best-guess batch. \\
+\code{decision_id} &
+Current for search and stop records.  Best-guess records use the explicit
+\code{best_guess_decision_id} field. \\
+\code{policy_state_id} &
+Current for search and stop decisions; identifies the immutable state manifest
+or stop context used by the static policy. \\
+\code{control_action_id} &
+Current for validated search actions and carried through executable tasks and
+outcomes.  Equivalent action IDs are still required for gate, GASL, path, and
+repair decisions. \\
+\code{search_task_id} &
+Links query construction to Firecrawl hits, duplicate URLs, relevance
+judgments, and accepted sources. \\
+\code{source_id} &
+Links an accepted source to graph records, GASL outputs, and criterion
+evidence. \\
+\code{criteria_snapshot_id} &
+Identifies the complete supported/unresolved state presented to a decision. \\
+\code{criteria_transition_id} &
+Links before/after snapshots to supported, resolved, regressed, and deeper
+support outcomes. \\
+\code{criterion_id} &
+Links a stable subject-field requirement to evidence, deficits, actions, and
+reward components. \\
+\code{best_guess_task_id} &
+Links an unresolved derived criterion to deterministic or LLM candidates. \\
+\code{best_guess_action_id} &
+Links one legal operator/task pair to the decision that considered it, the
+candidate it produced, and any operationally selected sidecar. \\
+\code{best_guess_decision_id} &
+Links the snapshot-bound candidate action set and statically selected action
+IDs to candidates and diagnostic sidecars. \\
+\code{candidate_id} &
+Links an operationally selected best-guess sidecar to the candidate value that
+proposed it; it is not semantic support. \\
+\code{evidence_item_id} &
+Links an LLM-derived best-guess candidate to the exact versioned source evidence
+item it was allowed to cite. \\
+\code{assertion_id} and \code{observation_id} &
+Join a projected criterion to the immutable source-local assertion and
+observation that report its exact field and value.  A graph edge cannot replace
+these keys. \\
+\code{semantic_claim_id} &
+Registry-owned cross-version source-observation identity derived from the
+canonical document, observation type, and exact anchor checksum.  It is
+required on reported assertion support, serves as member identity for
+\action{source\_observation} semantic reward, and cannot be restored from a
+copied criteria snapshot. \\
+\code{table_spec_id} &
+Separates runs that work on different carried-forward version 4 semantic table
+definitions.  Compatibility-migration diagnostics are retained separately. \\
+\code{membership_contract_version} and
+\code{estimator_contract_version} &
+Bind semantic member identity and numeric count targets to
+\code{semantic\_membership\_v2} and
+\code{supported\_semantic\_signature\_chao1\_v1}. \\
+\code{completion_contract_version} &
+Prevents a persisted completion judgment from replaying across a different
+table, projection, membership, or estimator contract. \\
+\end{longtable}
+
+\section{Design Constraints}
+
+\begin{itemize}
+  \item The policy API must be generic over question and table schema.
+  \item Operators may encode search tactics but not domain vocabulary.
+  \item Learned policies must choose among legal planner actions; they should
+  not bypass completion, provenance, or source-relevance constraints.
+  \item A run must remain reproducible with \code{--policy static}.
+  \item Online exploration must be budget capped and must log rejected
+  alternatives.
+  \item Reward versions must be explicit so old trajectories can be rescored.
+\end{itemize}
+
+\end{document}

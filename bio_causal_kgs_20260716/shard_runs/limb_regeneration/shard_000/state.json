@@ -1,0 +1,36 @@
+{
+  "completed_chunk_ids": [
+    "pmid_24009038:0:0:991:9ca6ef291d69",
+    "pmid_26100345:0:0:1021:9af01f47575a",
+    "pmid_28648452:0:0:1214:572edf75c785",
+    "pmid_29943379:0:0:1314:564b6573d9c6",
+    "pmid_30262634:0:0:1272:f6a06145599c",
+    "pmid_31584252:0:0:1595:acc064acddf2",
+    "pmid_32924213:0:0:1771:eaf33ba86728",
+    "pmid_34096672:0:0:1260:7aaf1369a617",
+    "pmid_34400551:0:0:1459:df24e57a0ee1",
+    "pmid_34521022:0:0:941:4b76bc47f48c",
+    "pmid_35403281:0:0:1583:1b568a75b3d5",
+    "pmid_37495694:0:0:1675:c4f36eaeca90",
+    "pmid_37816738:0:0:1080:6b67ea93bd45",
+    "pmid_38788714:0:0:1290:76dcb8ca9537",
+    "pmid_39269330:0:0:1067:5f715c43fc1b",
+    "pmid_40399677:0:0:1617:71f75c28f2b5",
+    "pmid_40707535:0:0:1297:fdf9b294adcd",
+    "pmid_41138727:0:0:1343:9c78ad600b57"
+  ],
+  "processed": 18,
+  "total": 18,
+  "summary": {
+    "shard_path": "bio_causal_kgs_20260716/shards/limb_regeneration/shard_000.jsonl",
+    "graph_path": "bio_causal_kgs_20260716/shard_runs/limb_regeneration/shard_000/local_graph.graphml",
+    "entities_path": "bio_causal_kgs_20260716/shard_runs/limb_regeneration/shard_000/entities.jsonl",
+    "relationships_path": "bio_causal_kgs_20260716/shard_runs/limb_regeneration/shard_000/relationships.jsonl",
+    "chunk_results_path": "bio_causal_kgs_20260716/shard_runs/limb_regeneration/shard_000/chunk_results.jsonl",
+    "chunks_total": 18,
+    "chunks_completed": 18,
+    "nodes": 237,
+    "edges": 280,
+    "elapsed_sec": 269.15
+  }
+}

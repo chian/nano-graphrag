@@ -1,0 +1,110 @@
+# C. elegans Dauer Formation Domain Schema
+# Focus: pheromone and nutrient sensing, insulin/IGF-1 and TGF-beta pathways,
+# DAF-16/FOXO and DAF-12 outputs, steroidal dauer hormones, autophagy,
+# germline-soma communication, and dauer/longevity decisions.
+
+domain_name: "C. elegans Dauer Formation"
+domain_description: "Causal developmental regulation of Caenorhabditis elegans dauer entry, dauer maintenance, dauer exit, adult fate, metabolic remodeling, stress resistance, and longevity through ascaroside pheromones, nutritional cues, insulin/IGF-1, TGF-beta, mTOR, DAF-16/FOXO, and steroid-hormone signaling."
+
+entity_types:
+  WORM_STAGE_OR_TISSUE:
+    description: "A C. elegans life stage, larval state, tissue, gonad, germline, or epithelial context."
+    examples: ["dauer larva", "somatic gonad", "germ line", "epithelium"]
+
+  ENVIRONMENTAL_CUE:
+    description: "A nutrient, stress, pheromone, proteotoxic, or crowding cue that modulates developmental choice."
+    examples: ["ascaroside pheromone", "low nutrient", "proteotoxic stress"]
+
+  INSULIN_LIKE_SIGNAL:
+    description: "An insulin-like peptide, insulin/IGF receptor, or IIS activity state."
+    examples: ["insulin-like peptide", "DAF-2", "IIS"]
+
+  TGF_BETA_SIGNAL:
+    description: "A TGF-beta ligand, receptor, or pathway component controlling dauer decision making."
+    examples: ["TGF-beta family signal", "SMA-6", "TGFB/TGF-beta"]
+
+  STEROID_HORMONE_SIGNAL:
+    description: "A dafachronic-acid or nuclear-hormone signal that controls DAF-12-dependent dauer programs."
+    examples: ["dafachronic acid", "DAF-12 ligand", "nuclear hormone receptor signal"]
+
+  KINASE_OR_SIGNALING_NODE:
+    description: "A kinase, mTOR component, endocytic regulator, or pathway node in nutrient and dauer signaling."
+    examples: ["LET-363/MTOR", "DAF-2 kinase", "EPG-5", "RAB"]
+
+  TRANSCRIPTION_FACTOR:
+    description: "A transcription factor or fate regulator controlling dauer, adult cell fate, stress resistance, or metabolism."
+    examples: ["DAF-16/FOXO", "lin-41/TRIM71", "FOXO"]
+
+  METABOLIC_OR_AUTOPHAGY_STATE:
+    description: "A metabolic remodeling, autophagy, endocytic, or nutrient-response state."
+    examples: ["intermediary metabolism", "autophagy overactivation", "metabolic remodeling"]
+
+  DEVELOPMENTAL_OUTCOME:
+    description: "A dauer, adult, developmental progression, reproduction, or exit outcome."
+    examples: ["dauer entry", "dauer exit", "adult cell fate", "developmental progression"]
+
+  LONGEVITY_PHENOTYPE:
+    description: "A lifespan, healthspan, hormesis, or stress-resistance endpoint tied to dauer pathways."
+    examples: ["lifespan extension", "hormesis", "healthspan"]
+
+relationship_types:
+  SENSES_CUE:
+    description: "A worm tissue or pathway detects a pheromone, nutrient, or stress cue."
+    inverse: "CUE_SENSED_BY"
+    examples: ["C. elegans larvae SENSES_CUE ascaroside pheromone"]
+
+  SECRETES_PEPTIDE:
+    description: "A tissue releases an insulin-like, neuropeptide, or TGF-beta signal."
+    inverse: "PEPTIDE_SECRETED_BY"
+    examples: ["sensory neurons SECRETES_PEPTIDE insulin-like peptide"]
+
+  ACTIVATES_RECEPTOR:
+    description: "A ligand or cue activates a receptor in an insulin, TGF-beta, or steroid pathway."
+    inverse: "RECEPTOR_ACTIVATED_BY"
+    examples: ["insulin-like peptide ACTIVATES_RECEPTOR DAF-2"]
+
+  INHIBITS_FOXO:
+    description: "A kinase cascade or insulin activity suppresses DAF-16/FOXO nuclear function."
+    inverse: "FOXO_INHIBITED_BY"
+    examples: ["DAF-2 signaling INHIBITS_FOXO DAF-16"]
+
+  ACTIVATES_FOXO:
+    description: "Reduced insulin signaling or stress permits DAF-16/FOXO activity."
+    inverse: "FOXO_ACTIVATED_BY"
+    examples: ["low IIS ACTIVATES_FOXO DAF-16"]
+
+  MODULATES_NUCLEAR_RECEPTOR:
+    description: "A steroid signal, kinase, or pathway changes nuclear-hormone receptor output."
+    inverse: "NUCLEAR_RECEPTOR_MODULATED_BY"
+    examples: ["dafachronic acid MODULATES_NUCLEAR_RECEPTOR DAF-12"]
+
+  PROMOTES_DAUER_ENTRY:
+    description: "A cue or regulatory state pushes larvae toward dauer formation."
+    inverse: "DAUER_ENTRY_PROMOTED_BY"
+    examples: ["pheromone PROMOTES_DAUER_ENTRY dauer larva"]
+
+  PROMOTES_DAUER_EXIT:
+    description: "A favorable cue or hormone state drives recovery from dauer."
+    inverse: "DAUER_EXIT_PROMOTED_BY"
+    examples: ["food signal PROMOTES_DAUER_EXIT developmental progression"]
+
+  REMODELS_METABOLISM:
+    description: "A transcriptional or signaling node changes intermediary metabolism during dauer or longevity control."
+    inverse: "METABOLISM_REMODELED_BY"
+    examples: ["DAF-16 REMODELS_METABOLISM dauer metabolism"]
+
+  INDUCES_AUTOPHAGY:
+    description: "A stress or nutrient-sensing state activates autophagy."
+    inverse: "AUTOPHAGY_INDUCED_BY"
+    examples: ["MTOR sequestration INDUCES_AUTOPHAGY autophagy overactivation"]
+
+  SIGNALS_GERMLINE_TO_SOMA:
+    description: "A reproductive or germline signal controls a somatic dauer or insulin response."
+    inverse: "SOMA_SIGNALED_BY_GERMLINE"
+    examples: ["germ line SIGNALS_GERMLINE_TO_SOMA dauer entry pathway"]
+
+  EXTENDS_LIFESPAN:
+    description: "A dauer-pathway state or regulator increases lifespan or healthspan."
+    inverse: "LIFESPAN_EXTENDED_BY"
+    examples: ["daf-2 mutant EXTENDS_LIFESPAN adult lifespan"]
+
