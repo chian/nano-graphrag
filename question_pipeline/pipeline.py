@@ -100,7 +100,8 @@ from .path_gate import PathGateResult, PathGateSettings, gate_rows
 from .estimator import estimate_count_expectations
 from .derived_context import context_slots_from_count_targets
 from .derived_context import source_ids_from_row
-from .extraction import chunk_text, enrich_graph, extract_from_text
+from .evidence_registry import EvidenceRegistry
+from .extraction import chunk_spans, chunk_text, enrich_graph, extract_from_text
 from .goals import (
     FillGoalState,
     TableFillGoalTracker,
@@ -768,6 +769,9 @@ class QuestionPipeline:
         self.judgments_dir = self.answers_dir / "judgments"
         for d in (self.graphs_dir, self.papers_dir, self.answers_dir):
             d.mkdir(parents=True, exist_ok=True)
+        self.evidence_registry = EvidenceRegistry(
+            self.answers_dir / "evidence_registry"
+        )
 
         self.graph = nx.DiGraph()
         self.schema: Optional[DomainSchema] = None
@@ -1861,7 +1865,9 @@ genuinely separate view that is not covered by a listed target."""
                 overlap=self.config.chunk_overlap,
                 concurrency=self.config.extraction_concurrency,
                 timeout=self.config.extraction_timeout_sec,
-                on_chunk=self._chunk_observer(chunks),
+                on_chunk=self._chunk_observer(
+                    chunks, source_id=source_id, page_text=str(paper["text"])
+                ),
             )
         except Exception as exc:  # noqa: BLE001 - converted, never raised
             error_class = classify_error(exc)
@@ -1926,6 +1932,73 @@ genuinely separate view that is not covered by a listed target."""
             )
 
         records = self._extracted_records(entities, relationships)
+        try:
+            document, version, source_chunks = self.evidence_registry.source_records(
+                source_id=source_id,
+                canonical_locator=str(
+                    paper.get("url") or paper.get("source_url") or source_id
+                ),
+                title=str(paper.get("title") or ""),
+                content=str(paper.get("text") or ""),
+                chunks=chunks,
+            )
+            spans, assertions = self.crediter.assertion_candidates(
+                records,
+                document=document,
+                version=version,
+                chunks=source_chunks,
+            )
+            source_batch_id = self.evidence_registry.register_source_candidates(
+                document=document,
+                version=version,
+                content=str(paper.get("text") or ""),
+                chunks=source_chunks,
+                spans=spans,
+                candidates=assertions,
+            )
+            evidence_commit = self.evidence_registry.accept_direct(
+                source_batch_id,
+                required_columns_by_table=self.crediter.required_column_ids_by_table,
+            )
+            accepted_by_chunk: Dict[str, set[str]] = {}
+            for cell in evidence_commit.accepted_cells:
+                accepted_by_chunk.setdefault(cell.chunk_id, set()).add(
+                    cell.criterion_id
+                )
+            seen_chunk_credits: set[str] = set()
+            for chunk_record, source_chunk in zip(chunks, source_chunks):
+                identities = accepted_by_chunk.get(source_chunk.id, set())
+                new = identities - seen_chunk_credits
+                chunk_record["registry_chunk_id"] = source_chunk.id
+                chunk_record["credits_minted"] = len(identities)
+                chunk_record["new_within_page"] = len(new)
+                chunk_record["repeats_within_page"] = len(identities) - len(new)
+                seen_chunk_credits.update(identities)
+        except (OSError, ValueError, LookupError) as exc:
+            error_class = classify_error(exc)
+            ingestion.update(
+                {
+                    "extraction_state": "evidence_registry_failed",
+                    "reason": f"{type(exc).__name__}: {exc}",
+                    "error_class": error_class,
+                }
+            )
+            return PageMaterial(
+                source_id=source_id,
+                fate=page_fate(
+                    gate=gate_outcome,
+                    extraction=acq.EXTRACT_RAISED,
+                    error_class=error_class,
+                    score_reason=str(gate_record.get("reason_class") or ""),
+                ),
+                paper=paper,
+                ingestion=ingestion,
+                gate=gate_record,
+                relevance=relevance,
+                reduction=candidate.reduction,
+                chunks=tuple(chunks),
+                text_chars=len(candidate.text),
+            )
         ingestion.update(
             {
                 "extraction_state": (
@@ -1960,6 +2033,7 @@ genuinely separate view that is not covered by a listed target."""
             reduction=candidate.reduction,
             chunks=tuple(chunks),
             text_chars=len(candidate.text),
+            evidence_commit=evidence_commit,
         )
 
     async def _gate_page(
@@ -2117,7 +2191,13 @@ genuinely separate view that is not covered by a listed target."""
             )
         return self._gate_contract_digest_value
 
-    def _chunk_observer(self, sink: List[Dict[str, Any]]):
+    def _chunk_observer(
+        self,
+        sink: List[Dict[str, Any]],
+        *,
+        source_id: str,
+        page_text: str,
+    ):
         """Per-chunk encounters, including FAILURE, for the unbound chunk grain.
 
         The counters live in this closure and not on the crediter, which is
@@ -2126,33 +2206,29 @@ genuinely separate view that is not covered by a listed target."""
         depend on `credit`'s.
         """
 
-        seen: set[str] = set()
+        declared = {
+            chunk.index: chunk
+            for chunk in chunk_spans(
+                page_text, self.config.chunk_size, self.config.chunk_overlap
+            )
+        }
 
         def observe(index, chunk_id, entities, relationships, failure) -> None:
-            projected = self.crediter.identities(
-                self._extracted_records(
-                    {
-                        str(getattr(entity, "entity_name", "") or index): entity.to_dict()
-                        for entity in entities
-                    }
-                    if entities and not isinstance(entities, Mapping)
-                    else (entities or {}),
-                    relationships or (),
-                )
-            )
-            identities = projected.identities
-            new = [item for item in identities if item not in seen]
-            seen.update(identities)
+            source_chunk = declared[int(index)]
             sink.append(
                 {
                     "chunk_index": int(index),
                     "chunk_id": str(chunk_id),
+                    "source_id": source_id,
+                    "start_offset": source_chunk.start_offset,
+                    "end_offset": source_chunk.end_offset,
+                    "text": source_chunk.text,
                     "failed": bool(failure),
                     "failure_class": str(failure or ""),
-                    "credits_minted": len(identities),
-                    "new_within_page": len(new),
-                    "repeats_within_page": len(identities) - len(new),
-                    "row_credits_minted": len(projected.row_credits),
+                    "credits_minted": 0,
+                    "new_within_page": 0,
+                    "repeats_within_page": 0,
+                    "row_credits_minted": 0,
                 }
             )
 
@@ -2726,6 +2802,11 @@ genuinely separate view that is not covered by a listed target."""
             "credit_semantics": CREDIT_SEMANTICS,
             "text_chars": material.text_chars,
             "guess_count": len(material.guesses),
+            "evidence_commit": (
+                material.evidence_commit.to_dict()
+                if material.evidence_commit is not None
+                else None
+            ),
             **(detail.to_dict() if detail is not None else {}),
         }
         self.acquisition_page_details.append(row)
@@ -4132,6 +4213,7 @@ genuinely separate view that is not covered by a listed target."""
                 self.table_spec,
                 accepted_source_ids=accepted_source_ids,
                 deliverable_tables=self._deliverable_tables(previous_rows_by_name),
+                evidence_registry=self.evidence_registry,
             )
         after = project_rows(
             current_rows_by_name,
@@ -4139,6 +4221,7 @@ genuinely separate view that is not covered by a listed target."""
             accepted_source_ids=accepted_source_ids,
             best_guess_resolutions=resolutions,
             deliverable_tables=self._deliverable_tables(current_rows_by_name),
+            evidence_registry=self.evidence_registry,
         )
         reward = score_criterion_yield(
             before,
@@ -4164,6 +4247,7 @@ genuinely separate view that is not covered by a listed target."""
             self.table_spec,
             accepted_source_ids=accepted_source_ids,
             deliverable_tables=self._deliverable_tables(previous_rows_by_name),
+            evidence_registry=self.evidence_registry,
         )
         report["before_snapshot_source"] = (
             "previous_round_after" if chained else "projection_of_previous_rows"
@@ -7397,6 +7481,7 @@ genuinely separate view that is not covered by a listed target."""
             "table_schema_disclosure": self.table_schema_disclosure,
             "field_provenance_coverage": self.last_field_provenance_ledger,
             "criteria_projection_version": CRITERIA_PROJECTION_VERSION,
+            "evidence_registry": self.evidence_registry.summary(),
             "hook_failures": list(self.hook_failures),
             "page_best_guess": list(self._page_guess_reports),
         }
@@ -7677,6 +7762,7 @@ genuinely separate view that is not covered by a listed target."""
                         {name: candidates},
                         self.table_spec,
                         accepted_source_ids=accepted,
+                        evidence_registry=self.evidence_registry,
                     )
                     if self.path_gate_settings.gates
                     else None
@@ -7759,6 +7845,7 @@ genuinely separate view that is not covered by a listed target."""
             rows_by_variable,
             self.table_spec,
             accepted_source_ids=sorted(self._source_records_by_id()),
+            evidence_registry=self.evidence_registry,
         )
 
     def _control_decision_context(

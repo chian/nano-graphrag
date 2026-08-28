@@ -10,6 +10,13 @@
 > internally fills the expected and remaining roles; verdicts remain arithmetic
 > and per-channel.
 
+The live evidence boundary is now ``evidence_registry_v1``. It persists exact
+source blobs, content-addressed versions, chunks, spans, and direct assertion
+candidates in a first durable commit, then appends deterministic acceptances in
+a second durable commit. Criteria support and acquisition incidence resolve
+through that accepted chain. The more elaborate contracts in the historical
+sections below remain snapshot history rather than the live API.
+
 The table-fill completion system estimates the expected size of declared
 aggregate criterion families without treating operational record cardinality
 as evidence of completeness.

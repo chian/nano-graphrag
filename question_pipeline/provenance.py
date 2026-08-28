@@ -1,10 +1,8 @@
-"""Field-scoped provenance for materialised table rows.
+"""Pure field-to-chunk trace annotations for materialised table rows.
 
-Lives in the application, not the GASL runtime. It touches no graph, no state
-and no command: it is string containment over a table row and a chunk-id to
-text map, existing only to let `criteria` promote ROW_REF_ACCEPTED to
-FIELD_REF_ACCEPTED. Both halves of that contract are application concepts, so
-the runtime has no business holding it.
+This module performs deterministic string containment only. Its annotations
+support inspection and source navigation; evidence acceptance is owned by the
+durable registry's exact source/version/chunk/span/assertion chain.
 """
 
 from __future__ import annotations
@@ -86,10 +84,6 @@ def derive_field_provenance(row, chunk_texts, groundable_fields):
     and admits every field nobody anticipated. An allowlist of declared
     columns fails safe -- an unrecognised field is simply not a datapoint.
 
-    THIS IS ALSO THE SECOND CREDIT GATE, AND IT IS LOAD-BEARING FOR REWARD.
-    The argument above is about meaning; this one is about consequences, and it
-    is why the no-fallback rule must not be relaxed as a convenience.
-
     A traversal's COLLAPSE and AGGREGATE mint structural columns describing the
     GROUPING rather than the subject -- `occurrence_count`, `items`, `item_ids`.
     Those reach exported tables, and they reach them inside compiled answer
@@ -100,18 +94,8 @@ def derive_field_provenance(row, chunk_texts, groundable_fields):
     runs this fired at scale rather than in theory -- one run minted 12,206
     structural criteria of which 646 reached SUPPORTED, another 2,081 and 94.
 
-    None was ever credited, and the reason is this function. A structural
-    column cannot acquire field-level provenance, because it is not a declared
-    datapoint column, so every such criterion halts at `ROW_REF_ACCEPTED` or
-    `ROW_VALUE_ONLY` -- both below reward's floor. Field-level provenance is
-    the only route to a creditable basis.
-
-    So a "ground everything" fallback added here as an obvious convenience
-    would open credit to operational volume across the whole corpus, and would
-    do it silently: nothing else in the chain is watching. That is why
-    `groundable_fields` is required with no default, and why
-    `tests/test_field_provenance.py` asserts an undeclared column stays
-    ungrounded even when its value genuinely appears in the chunk text.
+    The declared-field allowlist keeps those trace annotations scoped to
+    intended datapoint columns. It does not establish criterion support.
 
     A field is grounded when its value appears verbatim (whitespace- and
     case-normalised) in at least one parent chunk. Several chunks may contain

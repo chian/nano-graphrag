@@ -12,6 +12,58 @@ from typing import Any, Iterable, Mapping, Sequence
 import yaml
 
 from .control import canonical_subject_identity
+from .control import stable_id
+
+
+TABLE_IDENTITY_VERSION = "table_identity_v1"
+COLUMN_IDENTITY_VERSION = "column_identity_v1"
+
+
+@dataclass(frozen=True)
+class TableRef:
+    """Stable address of one declared result table."""
+
+    id: str
+    name: str
+
+    @classmethod
+    def create(cls, name: str) -> "TableRef":
+        normalized = str(name or "").strip()
+        if not normalized:
+            raise ValueError("TableRef.name must be non-empty")
+        return cls(
+            id=stable_id({"version": TABLE_IDENTITY_VERSION, "name": normalized}),
+            name=normalized,
+        )
+
+
+@dataclass(frozen=True)
+class ColumnRef:
+    """Stable address of one declared real result column."""
+
+    id: str
+    table_id: str
+    table: str
+    name: str
+
+    @classmethod
+    def create(cls, table: str | TableRef, name: str) -> "ColumnRef":
+        table_ref = table if isinstance(table, TableRef) else TableRef.create(table)
+        normalized = str(name or "").strip()
+        if not normalized:
+            raise ValueError("ColumnRef.name must be non-empty")
+        return cls(
+            id=stable_id(
+                {
+                    "version": COLUMN_IDENTITY_VERSION,
+                    "table_id": table_ref.id,
+                    "name": normalized,
+                }
+            ),
+            table_id=table_ref.id,
+            table=table_ref.name,
+            name=normalized,
+        )
 
 
 @dataclass(frozen=True)

@@ -65,12 +65,25 @@ from .derived_context import (
     infer_best_guess_context,
 )
 from .table_specs import (
+    ColumnRef,
     TableSpec,
+    TableRef,
     load_table_spec,
     load_table_spec_with_seed_tables,
     merge_table_specs,
     observed_table_spec_paths_for_seed,
     table_spec_paths_with_seed_tables,
+)
+from .evidence_registry import (
+    AcceptedCell,
+    BestGuessCellRef,
+    DirectAssertionCandidate,
+    EvidenceCommit,
+    EvidenceRegistry,
+    SourceChunk,
+    SourceDocument,
+    SourceVersion,
+    TextSpan,
 )
 from .progress_judge import (
     DeclaredColumn,
@@ -114,6 +127,17 @@ __all__ = [
     "run_best_guess_recovery",
     "table_gap_search_tasks",
     "TableSpec",
+    "TableRef",
+    "ColumnRef",
+    "EvidenceRegistry",
+    "EvidenceCommit",
+    "SourceDocument",
+    "SourceVersion",
+    "SourceChunk",
+    "TextSpan",
+    "DirectAssertionCandidate",
+    "AcceptedCell",
+    "BestGuessCellRef",
     "load_table_spec",
     "load_table_spec_with_seed_tables",
     "merge_table_specs",

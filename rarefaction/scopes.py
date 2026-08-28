@@ -158,7 +158,9 @@ class ScopedYield:
         if scope in self._estimators or scope in self._controllers:
             raise ValueError(f"scope already open at path {normalized!r}")
         primary, facets = self._build_estimators(scope, channel_schema)
-        bound_control = control.bind_channels(channel_schema.channels)
+        bound_control = control.bind_channels(
+            tuple(channel_schema.controller_channels or ())
+        )
         controller = NumericalController(bound_control)
         self._estimators[scope] = primary
         self._channel_schemas[scope] = channel_schema
@@ -279,8 +281,12 @@ class ScopedYield:
                 counts_toward_verdict=counted,
             )
         if counted:
+            estimates = self.estimates(scope)
             self.controller(scope).observe(
-                self.estimates(scope),
+                {
+                    channel: estimates[channel]
+                    for channel in self.controller(scope).config.required_channels
+                },
                 is_root=len(scope) == 1,
             )
         return unit

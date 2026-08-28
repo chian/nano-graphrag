@@ -8,16 +8,10 @@ already had, whether or not anything was learned. A system optimized against it
 gets busier without getting better, and the failure is invisible because every
 number goes up.
 
-What replaces it counts **datapoints**. There are exactly two kinds, and they
-are the two the reward charter names:
+What replaces it counts direct datapoints whose complete durable assertion
+chain was accepted by the evidence registry.
 
-1. **Verbatim** -- a value a source states, resolved through a field-scoped
-   join into the set of sources the run actually accepted.
-2. **Evidenced best guess** -- a derived value carrying the decision that
-   accepted it and the sources named for that field. The judgment and the
-   sources are part of the datapoint; without them it is a candidate.
-
-Both arrive here the same way: as a :class:`~question_pipeline.criteria.
+Accepted support arrives here as a :class:`~question_pipeline.criteria.
 CriterionTransition` produced by ``criteria.diff_snapshots``. This module does
 **not** define what a criterion or a transition is. ``criteria.py`` owns that,
 and 3B joins the same IDs; a second definition here would make the two
@@ -176,7 +170,9 @@ __all__ = [
 #: place it is declared, and every trace stamps it. Criterion IDs differ between
 #: projection versions, so traces from two of them will not join at all -- read
 #: the version off the trace.
-REWARD_VERSION = "criterion_yield_v1"
+#: ``criterion_yield_v2`` narrows the admissible evidence map to the live
+#: registry's ``RESOLVED_ASSERTION_CHAIN`` basis.
+REWARD_VERSION = "criterion_yield_v2"
 
 REWARD_COMPONENT_COLUMNS = [
     "component",
@@ -188,15 +184,10 @@ REWARD_COMPONENT_COLUMNS = [
 
 
 class DatapointKind(str, Enum):
-    """The two kinds of real datapoint, and there are only two."""
+    """The accepted datapoint kind supported by this reward version."""
 
     #: A source states the value, joined at field scope.
     VERBATIM = "verbatim"
-
-    #: A derived value carrying the decision that accepted it and the sources
-    #: named for that field.
-    EVIDENCED_BEST_GUESS = "evidenced_best_guess"
-
 
 #: The only evidence bases a credited datapoint may rest on, named outright
 #: rather than derived from a strength threshold.
@@ -208,8 +199,6 @@ class DatapointKind(str, Enum):
 #: A set changes only when someone edits this line.
 CREDITABLE_EVIDENCE_BASES: Mapping[EvidenceBasis, DatapointKind] = {
     EvidenceBasis.RESOLVED_ASSERTION_CHAIN: DatapointKind.VERBATIM,
-    EvidenceBasis.FIELD_REF_ACCEPTED: DatapointKind.VERBATIM,
-    EvidenceBasis.JUDGED_BEST_GUESS_ACCEPTED: DatapointKind.EVIDENCED_BEST_GUESS,
 }
 
 #: The only transition kind that can carry credit. The other five are counters.

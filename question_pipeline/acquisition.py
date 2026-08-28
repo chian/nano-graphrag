@@ -31,29 +31,16 @@ What this module owns
    and the crediter, calls the kernel once, and writes ledger decisions from
    the emitted records. It consults nothing between units.
 
-What a credit is NOT: a reward datapoint. The reward's standard -- verbatim or
-an evidenced best guess, judged, with sources -- is unchanged and lives in
-``reward.py``. An acquisition credit is the acquisition-control signal, "this
-page carried a value shaped like a declared target column", used to decide
-where further fetching is still yielding. Conflating the two would let
-operational volume buy reward, which is banned.
-
-**And the two cannot be joined, by construction.** A kind-1 identity is
-``table|column|normalized value`` -- it *contains a value*, which a criterion id
-deliberately excludes ("A criterion is the *question*, not the answer to it",
-``criteria.py``). A kind-2 identity spells the subject as ``col=value`` pairs
-while a criterion's subject is a hash. Nothing joins in either direction, and
-that is correct. **The one honest join is ``source_id``**, on both sides: a
-later phase asking "did the pages this strategy fetched produce datapoints"
-joins page source ids to ``reward``'s ``crediting_source_ids`` and to nothing
-else. No reward component may read a credit identity, a facet estimate, an
-``observed_results`` band, a Q1/Q2 pair, or a Chao2 estimate; and no component may
-join ``(table, column)`` to ``(table, field)`` by text, with or without a value
-comparison. Credits join by stable ids, never by matching text.
+An acquisition credit is an accepted criterion identity.  The source version,
+exact chunk and span, direct assertion candidate, and deterministic acceptance
+must already be durable in ``evidence_registry`` before this surface can emit
+that identity. Completed-row identities are a separate channel and appear only
+on the first accepted transition to the table's required ordinary columns.
 """
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass, field
 from typing import (
@@ -86,7 +73,15 @@ from rarefaction import (
 from . import criteria
 from .control import select_first_clearing, stable_id
 from .costs import CostErrorClass, ObservationKind, classify_error
-from .provenance import is_provenance_name
+from .evidence_registry import (
+    DirectAssertionCandidate,
+    EvidenceCommit,
+    SourceChunk,
+    SourceDocument,
+    SourceVersion,
+    TextSpan,
+)
+from .table_specs import ColumnRef, TableRef
 
 __all__ = [
     "ACQUISITION_POLICY_NAME",
@@ -731,7 +726,7 @@ class PageUnit:
 class PageMaterial:
     """What ``extract`` returns. Facts only -- no ``active`` flag, no fate.
 
-    ``records`` are the extracted records the crediter iterates, each
+    ``records`` are the extracted records the assertion-candidate builder iterates, each
     ``{"table", "index", "values", "source_chunks"}``: kind-2 credits are a
     property of ONE extracted record, and a stream that flattens every entity's
     attributes together cannot say whether one subject carried six columns or
@@ -758,6 +753,7 @@ class PageMaterial:
     chunks: Sequence[Mapping[str, Any]] = ()
     #: Model calls and their cost belong to the SOURCE scope this ran inside.
     text_chars: int = 0
+    evidence_commit: Optional[EvidenceCommit] = None
 
 
 # ==========================================================================
@@ -772,7 +768,6 @@ RULE_DECLARED_ALIAS = "declared_alias"
 RULE_TOKEN_OVERLAP = "token_overlap"
 
 SOURCE_KIND_VERBATIM = "verbatim"
-SOURCE_KIND_BEST_GUESS = "best_guess"
 
 
 def _tokens(name: Any) -> frozenset[str]:
@@ -795,6 +790,9 @@ class CreditColumn:
 
     table: str
     column: str
+    table_id: str
+    column_id: str
+    required: bool
     token_keys: tuple[frozenset[str], ...]
     normalized_names: tuple[str, ...] = ()
     normalized_aliases: tuple[str, ...] = ()
@@ -815,32 +813,11 @@ class ExcludedColumn:
 
 @dataclass(frozen=True)
 class CreditBasis:
-    """The declared credit columns, the exclusions, and the subject keys.
-
-    ONE PASS, ONE MATCHER, TWO COLUMN SETS. The counterfactual ledger the run
-    emits -- what 4C's wider basis *would* have credited -- is computed from
-    :attr:`counterfactual` here, not from a second ``declared_credit_columns``
-    kept alive to be deliberately wrong. Two implementations of the basis, one
-    of them intentionally weaker, is a second owner however it is labelled; and
-    a differential computed by a second matcher would be attributable to the
-    second matcher rather than to the exclusion it exists to measure.
-    """
+    """The declared ordinary columns, exclusions, and subject keys."""
 
     columns: tuple[CreditColumn, ...]
     excluded: tuple[ExcludedColumn, ...]
-    #: Columns excluded by the criteria predicate that 4C's weaker basis would
-    #: have credited: declared, deliverable, non-key, non-provenance columns
-    #: that `criteria.is_datapoint_field` refuses.
-    counterfactual: tuple[CreditColumn, ...]
     subject_key_columns: Mapping[str, tuple[str, ...]]
-    #: The identity-excluded columns, built by the SAME pass that excludes them,
-    #: so a declared `value_type`/`unit` on a key column survives its exclusion.
-    #: A key column is in neither `columns` nor `counterfactual` -- it is
-    #: excluded before either list is built -- so without this the row-credit
-    #: rule would check every subject key with an empty type, which is the
-    #: permissive direction: "non-empty and not missing" instead of the declared
-    #: type's own admission test.
-    key_columns: tuple[CreditColumn, ...]
     tables: tuple[str, ...]
 
     def to_dict(self) -> dict[str, Any]:
@@ -848,7 +825,10 @@ class CreditBasis:
             "columns": [
                 {
                     "table": column.table,
+                    "table_id": column.table_id,
                     "column": column.column,
+                    "column_id": column.column_id,
+                    "required": column.required,
                     "value_type": column.value_type,
                     "unit": column.unit,
                 }
@@ -862,31 +842,12 @@ class CreditBasis:
                 }
                 for item in self.excluded
             ],
-            "counterfactual_columns": [
-                {"table": column.table, "column": column.column}
-                for column in self.counterfactual
-            ],
             "subject_key_columns": {
                 table: list(columns)
                 for table, columns in self.subject_key_columns.items()
             },
-            "key_columns": [
-                {
-                    "table": column.table,
-                    "column": column.column,
-                    "value_type": column.value_type,
-                    "unit": column.unit,
-                }
-                for column in self.key_columns
-            ],
             "typed_column_count": sum(
                 1 for column in self.columns if column.value_type or column.unit
-            ),
-            # Counted separately because `typed_column_count` counts the credit
-            # basis only: a declared type carried on a KEY column would not
-            # show there, and its silent loss is what this pair makes legible.
-            "typed_key_column_count": sum(
-                1 for column in self.key_columns if column.value_type or column.unit
             ),
         }
 
@@ -895,15 +856,14 @@ def declared_credit_columns(table_spec: Any) -> tuple[CreditColumn, ...]:
     """The columns whose values count as acquisition credits.
 
     Kept as the package's public name for the basis; :func:`credit_basis`
-    returns the same computation with its exclusions and its counterfactual set
-    attached.
+    returns the same computation with its exclusions attached.
     """
 
     return credit_basis(table_spec).columns
 
 
 def credit_basis(table_spec: Any) -> CreditBasis:
-    """Compute the credit basis, its exclusions, and its counterfactual, once.
+    """Compute the accepted-assertion column basis and exclusions once.
 
     Declared, deliverable, non-key, non-provenance contract columns that
     ``criteria`` agrees are datapoints.
@@ -930,8 +890,6 @@ def credit_basis(table_spec: Any) -> CreditBasis:
 
     columns: list[CreditColumn] = []
     excluded: list[ExcludedColumn] = []
-    counterfactual: list[CreditColumn] = []
-    key_columns: list[CreditColumn] = []
     subject_keys: dict[str, tuple[str, ...]] = {}
     tables: list[str] = []
     spec_tables = getattr(table_spec, "tables", None) or {}
@@ -946,50 +904,41 @@ def credit_basis(table_spec: Any) -> CreditBasis:
         )
         keys = {str(k) for k in (getattr(table, "key_columns", ()) or ())}
         keys |= set(subject_keys[name])
+        required_names = {
+            str(column)
+            for column in (
+                table.required_columns()
+                if callable(getattr(table, "required_columns", None))
+                else ()
+            )
+        }
         for column in table.all_columns():
             column_name = str(column.name)
-            built = _credit_column(name, column)
+            built = _credit_column(
+                name, column, required=column_name in required_names
+            )
             if column_name in keys:
                 excluded.append(
                     ExcludedColumn(name, column_name, "identity")
                 )
-                # EXCLUDED FROM THE BASIS, NOT FORGOTTEN. A key column mints no
-                # credit, but the row-completeness rule still tests its value,
-                # and it tests it against the column's DECLARED type. Carrying
-                # the built column here is what keeps that test at the declared
-                # standard instead of the permissive fallback.
-                if built is not None:
-                    key_columns.append(built)
                 continue
             exclusion = criteria.datapoint_exclusion_class(column_name)
             if exclusion:
                 excluded.append(ExcludedColumn(name, column_name, exclusion))
-                # THE COUNTERFACTUAL SET, PARTITIONED OUT OF THIS ONE PASS.
-                # The weaker basis this replaced excluded identity columns and
-                # the provenance NAME SHAPE and nothing else, so what the
-                # criteria-owned basis actually removed is the columns it
-                # refuses that the provenance shape does not. That predicate is
-                # named here once, to *partition an exclusion list this pass
-                # already computed* -- it selects no column and mints no basis,
-                # so there is no second `declared_credit_columns` kept alive to
-                # be deliberately wrong, which would be a second owner however
-                # it was labelled.
-                if built is not None and not is_provenance_name(column_name):
-                    counterfactual.append(built)
                 continue
             if built is not None:
                 columns.append(built)
     return CreditBasis(
         columns=tuple(columns),
         excluded=tuple(excluded),
-        counterfactual=tuple(counterfactual),
         subject_key_columns=subject_keys,
-        key_columns=tuple(key_columns),
         tables=tuple(tables),
     )
 
 
-def _credit_column(table: str, column: Any) -> Optional[CreditColumn]:
+def _credit_column(
+    table: str, column: Any, *, required: bool = False
+) -> Optional[CreditColumn]:
     name = str(column.name)
     aliases = tuple(str(a) for a in (getattr(column, "aliases", ()) or ()))
     names = [name, *aliases]
@@ -999,6 +948,9 @@ def _credit_column(table: str, column: Any) -> Optional[CreditColumn]:
     return CreditColumn(
         table=table,
         column=name,
+        table_id=TableRef.create(table).id,
+        column_id=ColumnRef.create(table, name).id,
+        required=bool(required),
         token_keys=token_keys,
         normalized_names=(_normalize_name(name),),
         normalized_aliases=tuple(
@@ -1018,15 +970,7 @@ def _credit_column(table: str, column: Any) -> Optional[CreditColumn]:
 
 @dataclass(frozen=True)
 class CreditAttribution:
-    """One mint occurrence of one credit identity.
-
-    KEPT PER MINT, NEVER DEDUPED TO THE IDENTITY. When the verbatim pass and the
-    page-scoped guess pass both produce one identity, both ``source_kind``s
-    survive in the record; deduping would make the verbatim/guessed split an
-    artifact of which pass happened to run second. The credit *identity* still
-    dedupes -- one identity space, one new credit -- so the attribution count
-    and the credit count differ, and the emitted record says why.
-    """
+    """One accepted direct assertion occurrence for one criterion identity."""
 
     identity: str
     table: str
@@ -1050,67 +994,28 @@ class CreditAttribution:
 
 @dataclass(frozen=True)
 class RowCreditDetail:
-    """One row-completeness credit, and what each of its columns cost.
-
-    ``columns_best_guess`` is the half that makes the second curve honest: a
-    ``table|subject_key`` identity minted with twelve of thirteen columns
-    guessed is not "the search is producing whole answers", and neither an
-    inertness reason nor a blocked reason distinguishes it from a row the
-    sources stated. NO RULE READS THE SPLIT -- it is counted and recorded.
-    """
+    """One first accepted transition to a complete required row."""
 
     identity: str
     table: str
-    columns_verbatim: tuple[str, ...]
-    columns_best_guess: tuple[str, ...]
+    accepted_column_ids: tuple[str, ...]
     declared_total: int
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "identity": self.identity,
             "table": self.table,
-            "columns_verbatim": list(self.columns_verbatim),
-            "columns_best_guess": list(self.columns_best_guess),
+            "accepted_column_ids": list(self.accepted_column_ids),
             "declared_total": self.declared_total,
         }
 
 
 @dataclass(frozen=True)
-class CounterfactualCredit:
-    """An identity 4C's wider basis would have minted and this one does not."""
-
-    identity: str
-    table: str
-    column: str
-    exclusion_class: str
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "identity": self.identity,
-            "table": self.table,
-            "column": self.column,
-            "class": self.exclusion_class,
-        }
-
-
-@dataclass(frozen=True)
-class CreditIdentities:
-    """One projection's whole output, before it becomes a ``CreditResult``."""
+class _AcceptedProjection:
+    """Registry-accepted cells and row transitions before channel projection."""
 
     attributions: tuple[CreditAttribution, ...] = ()
     row_credits: tuple[RowCreditDetail, ...] = ()
-    row_credit_blocked: tuple[str, ...] = ()
-    row_credit_max_columns_covered: int = 0
-    counterfactual: tuple[CounterfactualCredit, ...] = ()
-
-    @property
-    def identities(self) -> tuple[str, ...]:
-        seen: dict[str, None] = {}
-        for attribution in self.attributions:
-            seen.setdefault(attribution.identity, None)
-        for row in self.row_credits:
-            seen.setdefault(row.identity, None)
-        return tuple(seen)
 
 
 @dataclass(frozen=True)
@@ -1128,10 +1033,7 @@ class PageCredit:
 
     attributions: tuple[CreditAttribution, ...]
     row_credits: tuple[RowCreditDetail, ...]
-    row_credit_blocked: tuple[str, ...]
     row_credit_inert: Mapping[str, str]
-    row_credit_max_columns_covered: int
-    counterfactual: tuple[CounterfactualCredit, ...]
     declared_facets: tuple[str, ...]
     chunk_encounters: tuple[Mapping[str, Any], ...] = ()
 
@@ -1139,24 +1041,17 @@ class PageCredit:
         return {
             "attributions": [item.to_dict() for item in self.attributions],
             "row_credits": [item.to_dict() for item in self.row_credits],
-            "row_credit_blocked": list(self.row_credit_blocked),
             "row_credit_inert_reason": dict(self.row_credit_inert),
-            "row_credit_max_columns_covered": self.row_credit_max_columns_covered,
-            "counterfactual_credits": [
-                item.to_dict() for item in self.counterfactual
-            ],
             "declared_facets": list(self.declared_facets),
             "chunk_encounters": [dict(item) for item in self.chunk_encounters],
         }
 
 
 class ColumnProjection:
-    """The what-counts rule: extracted material -> declared contract columns.
+    """The what-counts rule: accepted registry commit -> incidence channels.
 
     Deterministic. No model, no curve, no instance state that a page could
-    leave behind: :meth:`identities` is pure and the per-page counters live in
-    the caller's closure, because ``extract`` now calls this object and a memo
-    here would make ``extract``'s behaviour depend on ``credit``'s.
+    leave behind. Raw extracted records and guesses never enter its credit slot.
 
     CONSTRUCTED ONCE PER RUN, with two consequences stated rather than left to a
     run to discover: a column the planner adds to the observed spec mid-run
@@ -1166,13 +1061,11 @@ class ColumnProjection:
     """
 
     def __init__(self, table_spec: Any) -> None:
+        self._table_spec = table_spec
         self._basis = credit_basis(table_spec)
         self._by_table: dict[str, list[CreditColumn]] = {}
         for column in self._basis.columns:
             self._by_table.setdefault(column.table, []).append(column)
-        self._counterfactual_by_table: dict[str, list[CreditColumn]] = {}
-        for column in self._basis.counterfactual:
-            self._counterfactual_by_table.setdefault(column.table, []).append(column)
         self._row_inert: dict[str, str] = {}
         for table in self._basis.tables:
             if not self._basis.subject_key_columns.get(table):
@@ -1186,13 +1079,21 @@ class ColumnProjection:
                     "table declares no non-key credit columns, so its "
                     "row-completeness conjunction is over an empty set"
                 )
-        self._declared_facets = tuple(
-            [f"{column.table}|{column.column}" for column in self._basis.columns]
-            + [f"{table}|rows" for table in self._basis.tables]
-        )
+        ordinary = tuple(f"column:{column.column_id}" for column in self._basis.columns)
+        rows = tuple(f"row:{TableRef.create(table).id}" for table in self._basis.tables)
+        self._declared_facets = ordinary + rows
+        required = tuple(
+            f"column:{column.column_id}"
+            for column in self._basis.columns
+            if column.required
+        ) + rows
         self._channel_schema = (
-            ChannelSchema.partition(self._declared_facets)
-            if self._declared_facets
+            ChannelSchema.partition(
+                self._declared_facets,
+                union_members=ordinary,
+                controller_channels=required or ordinary,
+            )
+            if ordinary
             else ChannelSchema.single()
         )
         self._spec_digest = stable_id(self._basis.to_dict())
@@ -1226,32 +1127,30 @@ class ColumnProjection:
             for table, columns in self._by_table.items()
         }
 
-    # ------------------------------------------------------------------ #
-    # the projection
-    # ------------------------------------------------------------------ #
-    def identities(
+    @property
+    def required_column_ids_by_table(self) -> dict[str, tuple[str, ...]]:
+        out: dict[str, tuple[str, ...]] = {}
+        for table in self._basis.tables:
+            table_id = TableRef.create(table).id
+            out[table_id] = tuple(
+                column.column_id
+                for column in self._by_table.get(table) or ()
+                if column.required
+            )
+        return out
+
+    def assertion_candidates(
         self,
         records: Sequence[Mapping[str, Any]],
-        guesses: Sequence[Mapping[str, Any]] = (),
-    ) -> CreditIdentities:
-        """Project extracted records onto the declared columns. Pure.
+        *,
+        document: SourceDocument,
+        version: SourceVersion,
+        chunks: Sequence[SourceChunk],
+    ) -> tuple[tuple[TextSpan, ...], tuple[DirectAssertionCandidate, ...]]:
+        """Anchor direct scalar extractions to exact source-version spans."""
 
-        ``records`` are per-extracted-record ``{"table", "index", "values"}``
-        mappings; ``guesses`` are best-guess resolutions in the shape
-        ``criteria`` reads. Both passes mint into ONE identity space, so a guess
-        reproducing a value the page already stated is a repeat encounter rather
-        than a second credit -- without which the same value counts twice and
-        every curve above it inflates.
-        """
-
-        attributions: list[CreditAttribution] = []
-        row_credits: list[RowCreditDetail] = []
-        blocked: list[str] = []
-        counterfactual: list[CounterfactualCredit] = []
-        max_covered = 0
-
-        guessed_by_record = self._guessed_values(guesses)
-
+        spans: dict[str, TextSpan] = {}
+        candidates: list[DirectAssertionCandidate] = []
         for position, record in enumerate(records):
             if not isinstance(record, Mapping):
                 continue
@@ -1259,100 +1158,75 @@ class ColumnProjection:
             values = record.get("values")
             if not isinstance(values, Mapping):
                 continue
-            index = record.get("index")
-            index = int(index) if isinstance(index, int) else position
-            columns = self._by_table.get(table) or ()
-            guessed = guessed_by_record.get((table, index), {})
-
-            covered_verbatim: dict[str, str] = {}
+            subject_refs = criteria.row_subject_refs(
+                table, [values], self._table_spec
+            )
+            subject = subject_refs[0] if subject_refs else None
+            if subject is None:
+                continue
             for field_name, value in _iter_fields(values):
-                match = self._match(field_name, columns)
-                if match is None:
+                match = self._match(field_name, self._by_table.get(table) or ())
+                if match is None or isinstance(value, (Mapping, list, tuple, set, bool)):
                     continue
-                column, rule = match
+                column, match_rule = match
                 admitted = self._non_trivial(value, column)
                 if admitted is None:
                     continue
-                normalized, triviality_rule = admitted
-                identity = f"{column.table}|{column.column}|{normalized}"
-                attributions.append(
-                    CreditAttribution(
-                        identity=identity,
-                        table=column.table,
+                verbatim = str(value)
+                located: tuple[SourceChunk, int] | None = None
+                for chunk in chunks:
+                    offset = chunk.text.find(verbatim)
+                    if offset >= 0:
+                        located = (chunk, offset)
+                        break
+                if located is None:
+                    continue
+                chunk, offset = located
+                span = TextSpan.create(chunk, offset, offset + len(verbatim))
+                spans.setdefault(span.id, span)
+                ref = criteria.CriterionRef.create(
+                    table=table,
+                    field=column.column,
+                    subject_id=subject.id,
+                    subject_key=subject.key,
+                    identity_fields=subject.identity_fields,
+                    subject_bound=subject.bound,
+                )
+                candidates.append(
+                    DirectAssertionCandidate.create(
+                        table_id=column.table_id,
+                        table=table,
+                        column_id=column.column_id,
                         column=column.column,
-                        field=str(field_name),
-                        rule=rule,
-                        triviality_rule=triviality_rule,
-                        source_kind=SOURCE_KIND_VERBATIM,
+                        subject_id=subject.id,
+                        subject_bound=subject.bound,
+                        criterion_id=ref.id,
+                        source_id=document.source_id,
+                        source_document_id=document.id,
+                        source_version_id=version.id,
+                        chunk_id=chunk.id,
+                        span_id=span.id,
+                        verbatim_text=verbatim,
+                        value_json=json.dumps(value, ensure_ascii=False),
+                        normalized_value=admitted[0],
+                        value_type=column.value_type,
+                        unit=column.unit,
+                        field_name=str(field_name),
+                        match_rule=match_rule,
                     )
                 )
-                covered_verbatim.setdefault(column.column, normalized)
-
-            covered_guessed: dict[str, str] = {}
-            for column_name, value in guessed.items():
-                if column_name in covered_verbatim:
-                    continue
-                column = self._column(table, column_name)
-                if column is None:
-                    continue
-                admitted = self._non_trivial(value, column)
-                if admitted is None:
-                    continue
-                normalized, triviality_rule = admitted
-                identity = f"{column.table}|{column.column}|{normalized}"
-                attributions.append(
-                    CreditAttribution(
-                        identity=identity,
-                        table=column.table,
-                        column=column.column,
-                        field=column.column,
-                        rule=RULE_DECLARED_NAME,
-                        triviality_rule=triviality_rule,
-                        source_kind=SOURCE_KIND_BEST_GUESS,
-                    )
-                )
-                covered_guessed.setdefault(column.column, normalized)
-
-            counterfactual.extend(
-                self._counterfactual_for(table, values)
-            )
-
-            covered = len(covered_verbatim) + len(covered_guessed)
-            max_covered = max(max_covered, covered)
-            row = self._row_credit(
-                table=table,
-                values=values,
-                covered_verbatim=covered_verbatim,
-                covered_guessed=covered_guessed,
-                blocked=blocked,
-            )
-            if row is not None:
-                row_credits.append(row)
-
-        return CreditIdentities(
-            attributions=tuple(attributions),
-            row_credits=tuple(row_credits),
-            row_credit_blocked=tuple(dict.fromkeys(blocked)),
-            row_credit_max_columns_covered=max_covered,
-            counterfactual=tuple(counterfactual),
-        )
+        return tuple(spans.values()), tuple(candidates)
 
     def __call__(self, unit: PageUnit, material: PageMaterial) -> CreditResult:
         """The Leaf's ``credit`` slot. Writes the breakdown onto the unit once."""
 
         fate = material.fate
-        projected = (
-            self.identities(material.records, material.guesses)
-            if fate.judged
-            else CreditIdentities()
-        )
+        commit = material.evidence_commit if fate.judged else None
+        projected = self._accepted_identities(commit)
         detail = PageCredit(
             attributions=projected.attributions,
             row_credits=projected.row_credits,
-            row_credit_blocked=projected.row_credit_blocked,
             row_credit_inert=self.row_credit_inert,
-            row_credit_max_columns_covered=projected.row_credit_max_columns_covered,
-            counterfactual=projected.counterfactual,
             declared_facets=self._declared_facets,
             chunk_encounters=tuple(dict(item) for item in material.chunks),
         )
@@ -1366,14 +1240,44 @@ class ColumnProjection:
         if not fate.judged:
             return CreditResult.disabled(fate.disclosure)
 
-        identities = projected.identities
+        identities = tuple(
+            dict.fromkeys(item.identity for item in projected.attributions)
+        )
         facets = self._facets(projected)
         return CreditResult(credits=identities, facets=facets)
+
+    def _accepted_identities(
+        self, commit: Optional[EvidenceCommit]
+    ) -> _AcceptedProjection:
+        if commit is None:
+            return _AcceptedProjection()
+        attributions = tuple(
+            CreditAttribution(
+                identity=cell.criterion_id,
+                table=cell.table,
+                column=cell.column,
+                field=cell.column,
+                rule=cell.acceptance_rule_version,
+                triviality_rule="accepted_registry_chain",
+                source_kind=SOURCE_KIND_VERBATIM,
+            )
+            for cell in commit.accepted_cells
+        )
+        rows = tuple(
+            RowCreditDetail(
+                identity=row.subject_id,
+                table=row.table,
+                accepted_column_ids=tuple(row.required_column_ids),
+                declared_total=len(row.required_column_ids),
+            )
+            for row in commit.completed_rows
+        )
+        return _AcceptedProjection(attributions=attributions, row_credits=rows)
 
     # ------------------------------------------------------------------ #
     # internals
     # ------------------------------------------------------------------ #
-    def _facets(self, projected: CreditIdentities) -> dict[str, tuple[str, ...]]:
+    def _facets(self, projected: _AcceptedProjection) -> dict[str, tuple[str, ...]]:
         """EVERY declared facet on EVERY active result, empty where uncredited.
 
         The declared set is a property of the table spec, not of which page
@@ -1385,9 +1289,9 @@ class ColumnProjection:
         unit records, so a search whose facet set depended on which page arrived
         would give its strategy a facet set depending on which search arrived.
 
-        The groups PARTITION the credit tuple, which the kernel checks: a value
-        credit sits in its ``table|column`` facet, a row credit in its
-        ``table|rows`` facet, and no credit is in two.
+        The groups partition base-channel membership. Ordinary criterion
+        identities also form the kernel-derived pooled union; completed-row
+        subject identities remain only in their row facets.
         """
 
         groups: dict[str, list[str]] = {name: [] for name in self._declared_facets}
@@ -1396,21 +1300,16 @@ class ColumnProjection:
             if attribution.identity in seen:
                 continue
             seen.add(attribution.identity)
-            groups[f"{attribution.table}|{attribution.column}"].append(
+            groups[f"column:{ColumnRef.create(attribution.table, attribution.column).id}"].append(
                 attribution.identity
             )
         for row in projected.row_credits:
             if row.identity in seen:
                 continue
             seen.add(row.identity)
-            groups[f"{row.table}|rows"].append(row.identity)
+            groups[f"row:{TableRef.create(row.table).id}"].append(row.identity)
         return {name: tuple(members) for name, members in groups.items()}
 
-    def _column(self, table: str, column: str) -> Optional[CreditColumn]:
-        for candidate in self._by_table.get(table) or ():
-            if candidate.column == column:
-                return candidate
-        return None
 
     def _match(
         self,
@@ -1493,197 +1392,8 @@ class ColumnProjection:
             return None
         return normalized, column.value_type
 
-    def _counterfactual_for(
-        self,
-        table: str,
-        values: Mapping[str, Any],
-    ) -> list[CounterfactualCredit]:
-        columns = self._counterfactual_by_table.get(table) or ()
-        if not columns:
-            return []
-        out: list[CounterfactualCredit] = []
-        excluded_class = {
-            (item.table, item.column): item.exclusion_class
-            for item in self._basis.excluded
-        }
-        for field_name, value in _iter_fields(values):
-            match = self._match(field_name, columns)
-            if match is None:
-                continue
-            column, _rule = match
-            admitted = self._non_trivial(value, column)
-            if admitted is None:
-                continue
-            out.append(
-                CounterfactualCredit(
-                    identity=f"{column.table}|{column.column}|{admitted[0]}",
-                    table=column.table,
-                    column=column.column,
-                    exclusion_class=excluded_class.get(
-                        (column.table, column.column), ""
-                    ),
-                )
-            )
-        return out
-
-    def _row_credit(
-        self,
-        *,
-        table: str,
-        values: Mapping[str, Any],
-        covered_verbatim: Mapping[str, str],
-        covered_guessed: Mapping[str, str],
-        blocked: list[str],
-    ) -> Optional[RowCreditDetail]:
-        """Kind 2: one extracted record that completed a declared row.
-
-        THE RULE. Every column in this table's credit basis carries a
-        non-trivial value on THIS record, and every one of the table's declared
-        subject-key columns carries a non-trivial value on it too. The unit is
-        one extracted record, never the page: a page can carry many subjects,
-        and a rule over the page's flattened fields could not say whether one
-        subject carried six columns or six subjects carried one each.
-
-        WHAT MAY SATISFY WHICH HALF, AND WHY IT IS NOT SYMMETRIC. A credit
-        column may be satisfied by an evidenced best guess -- the charter's own
-        definition of this credit kind is "verbatim, **or** an evidenced best
-        guess or range", and a conjunction over every declared column from one
-        page's verbatim extraction essentially never fires. A **subject key may
-        not**: a guessed identity is a manufactured subject, and manufactured
-        subjects are how row-completeness volume would be minted from nothing.
-
-        THAT ASYMMETRY IS WHY A CONTRACT CHANGE CAN LOOSEN THIS RULE WITHOUT ANY
-        DESIGN CHANGE, AND IT HAS ALREADY DONE SO ONCE. On the deliverable
-        earthquake contract, ``magnitude`` was a subject-key column and became
-        one of the declared credit columns when the subject grain was narrowed
-        (HEAD 6f06549, a separate phase's ruling). So a **guessed** ``magnitude``
-        can now contribute to a row-completeness credit where a guessed
-        ``magnitude`` previously could not, and the deliverable table's
-        row-credit conjunction is that much easier to satisfy. Nothing in this
-        module changed to permit it; a column crossed a line in the contract.
-        A reader reconstructing why a row credit fired should not have to find
-        that in an experiment log, so it is written here, beside the rule, and
-        the emitted ``row_credit_rule`` block carries it into the artifact.
-
-        Every row credit records which of its columns were verbatim and which
-        were guessed, so the second curve's height is legible as a property of
-        the sources or of the guesser. No rule reads that split.
-
-        THE KEY TEST RUNS AT THE KEY COLUMN'S DECLARED STANDARD. A subject key
-        is excluded from the credit basis as class ``identity``, so its declared
-        ``value_type``/``unit`` reach this test through
-        :attr:`CreditBasis.key_columns` -- carried by the same pass that
-        excludes it -- rather than being lost and the key checked at the
-        permissive fallback. The clause is inert on a contract that declares
-        neither field, and ``typed_key_column_count`` in the emitted basis says
-        which case a run is in rather than leaving it assumed.
-        """
-
-        keys = self._basis.subject_key_columns.get(table) or ()
-        declared = [column.column for column in (self._by_table.get(table) or ())]
-        if not keys or not declared:
-            return None
-
-        key_parts: list[str] = []
-        for key in keys:
-            column = CreditColumn(
-                table=table,
-                column=key,
-                token_keys=(),
-                value_type=_declared_key_type(self._basis, table, key),
-                unit=_declared_key_unit(self._basis, table, key),
-            )
-            admitted = self._non_trivial(_read(values, key), column)
-            if admitted is None:
-                blocked.append("subject_unbound")
-                return None
-            key_parts.append(f"{key}={admitted[0]}")
-
-        missing = [
-            column
-            for column in declared
-            if column not in covered_verbatim and column not in covered_guessed
-        ]
-        if missing:
-            return None
-
-        identity = f"{table}|{'|'.join(key_parts)}"
-        return RowCreditDetail(
-            identity=identity,
-            table=table,
-            columns_verbatim=tuple(
-                column for column in declared if column in covered_verbatim
-            ),
-            columns_best_guess=tuple(
-                column for column in declared if column in covered_guessed
-            ),
-            declared_total=len(declared),
-        )
-
-    @staticmethod
-    def _guessed_values(
-        guesses: Sequence[Mapping[str, Any]],
-    ) -> dict[tuple[str, int], dict[str, Any]]:
-        """Admissible guesses, indexed by (table, record index) and column.
-
-        THE ADMISSION TEST HAS ONE OWNER: ``criteria.admits_judged_best_guess``,
-        the same predicate the projection applies, exported so this crediter
-        cannot keep a second, looser opinion. What that predicate does not carry
-        -- "only where no row supplies the field", which the projection applies
-        against a row -- is applied at this grain by the caller's own task
-        builder, which builds a guess task only for a declared column the
-        verbatim pass left missing on that record.
-        """
-
-        out: dict[tuple[str, int], dict[str, Any]] = {}
-        for resolution in guesses or ():
-            if not criteria.admits_judged_best_guess(resolution):
-                continue
-            table = str(resolution.get("target_table") or "")
-            index = int(resolution.get("source_row_index"))
-            column = str(resolution.get("canonical_column") or "")
-            out.setdefault((table, index), {})[column] = resolution.get(
-                "best_guess_value"
-            )
-        return out
 
 
-def _declared_key_type(basis: CreditBasis, table: str, key: str) -> str:
-    """The declared ``value_type`` of a subject-key column, or ``""``.
-
-    ``key_columns`` IS SEARCHED FIRST AND IS WHERE A SUBJECT KEY ACTUALLY LIVES:
-    a key column is excluded from the basis as class ``identity`` before either
-    ``columns`` or ``counterfactual`` is built, so a lookup over those two alone
-    always returned ``""`` and every subject key was checked at the permissive
-    fallback -- non-empty and not missing -- however it was declared. The other
-    two lists stay in the lookup because a table may key on a column that a
-    different table declares as a credit column, and the declared type is a
-    property of the column wherever it is found.
-    """
-
-    for column in basis.key_columns + basis.counterfactual + basis.columns:
-        if column.table == table and column.column == key:
-            return column.value_type
-    return ""
-
-
-def _declared_key_unit(basis: CreditBasis, table: str, key: str) -> str:
-    """The declared ``unit`` of a subject-key column, or ``""``. See above."""
-
-    for column in basis.key_columns + basis.counterfactual + basis.columns:
-        if column.table == table and column.column == key:
-            return column.unit
-    return ""
-
-
-def _read(values: Mapping[str, Any], name: str) -> Any:
-    if name in values:
-        return values[name]
-    normalized = _normalize_name(name)
-    for key, value in values.items():
-        if _normalize_name(key) == normalized:
-            return value
-    return None
 
 
 def _iter_fields(values: Mapping[str, Any]) -> Iterable[tuple[str, Any]]:
@@ -2650,9 +2360,8 @@ class AcquisitionController:
             ],
             "credit_semantics": CREDIT_SEMANTICS,
             "credit_join": (
-                "acquisition credit identities do not join to criterion or "
-                "transition ids by construction; source_id is the one join, on "
-                "both sides"
+                "direct-cell fan-up uses registry-accepted criterion IDs; "
+                "completed-row fan-up uses registry-accepted subject IDs"
             ),
             "facet_gate": "crediting_active",
             "grains": [
@@ -2694,28 +2403,9 @@ class AcquisitionController:
 #: A reader reconstructing why a row credit fired reads this beside the curve.
 ROW_CREDIT_RULE_DISCLOSURE = {
     "rule": (
-        "one extracted record carries a non-trivial value for every declared "
-        "credit column of its table AND for every one of that table's declared "
-        "subject-key columns"
+        "the first durable acceptance transition at which one bound subject "
+        "has accepted direct assertions for every required ordinary column"
     ),
-    "unit": "one extracted record, never the page",
-    "credit_columns_may_be_guessed": True,
-    "subject_key_columns_may_be_guessed": False,
-    "why_asymmetric": (
-        "the charter defines this credit kind as 'verbatim, or an evidenced "
-        "best guess or range', and a conjunction over every declared column "
-        "from one page's verbatim extraction essentially never fires; but a "
-        "guessed identity is a manufactured subject, and manufactured subjects "
-        "are how row-completeness volume would be minted from nothing"
-    ),
-    "consequence_of_a_contract_change": (
-        "a column that moves OUT of a table's subject key and INTO its credit "
-        "basis becomes eligible for a judged best guess where it never was, "
-        "which loosens this conjunction on that table without any change to the "
-        "rule. On the deliverable earthquake contract `magnitude` made exactly "
-        "that move at HEAD 6f06549, so a guessed `magnitude` can now contribute "
-        "to a row-completeness credit. The per-row verbatim/guessed split is "
-        "emitted for every row credit so this is legible rather than inferred; "
-        "no rule reads the split"
-    ),
+    "identity": "registry-accepted stable subject ID",
+    "required_columns": "required ordinary ColumnRef IDs from the frozen schema",
 }

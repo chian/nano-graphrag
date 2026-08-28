@@ -175,9 +175,11 @@ it: `gasl/commands/graph_nav.py` (4B, Diagnosed) and
 
 ### Evidence rules at baseline
 
-There is no evidence registry in the tree: `FieldAssertion`,
-`SourceLocalObservation`, `EvidenceItem`, `SourceVersion`, and `SourceDocument`
-do not exist.
+`question_pipeline/evidence_registry.py` is the durable acceptance boundary.
+It commits the exact source blob plus source/version/chunk/span/assertion
+candidates before appending deterministic direct acceptances. Acquisition and
+criteria may credit only identities whose complete accepted chain resolves in
+that registry.
 
 **Criteria snapshots DO exist and this paragraph previously denied it.**
 `CriteriaSnapshot`, `criteria_snapshot`, and `snapshot_id` are live in
@@ -186,8 +188,9 @@ reward chain, and path selection all use. The claim below that `criteria` are
 merely goal-completion flags describes `goals.py` only, and must not be read as
 a statement about the package.
 
-Support today rests on graph content and `source_refs`. Code must not claim a
-registry join it cannot perform.
+Graph content, raw values, `source_refs`, and best guesses do not mint
+incidence. Best guesses have a stable cell address; their derivation and
+acceptance route is a later phase.
 
 `docs/MEMORY.md` describes the registry contract and version 3/4 table specs as
 current. That describes `cd44ebb`, not this tree; the sections are banner-marked

@@ -35,60 +35,16 @@ The subject's own identity fields never become criteria of that subject.  A
 criterion over the very field that identifies the subject is supported by
 construction, and counting it would inflate every yield number downstream.
 
-Be honest about the evidence basis
-----------------------------------
+Evidence acceptance boundary
+----------------------------
 
-The five-link assertion chain -- field assertion, source-local observation,
-evidence item, source version, source document -- does not exist in this tree.
-There is no evidence registry.  What a row actually offers is a value and, at
-best, some provenance references.
-
-So every :class:`CriterionState` records **which basis was used**, as a typed
-:class:`EvidenceBasis`, and the names say what was really joined:
-
-* a *field*-scoped reference (``<field>_source_refs`` and friends) is provenance
-  the producer attached to that field;
-* a *row*-scoped reference (``source_refs`` and friends) is provenance attached
-  to the whole row -- co-location, not a field-level join;
-* ``ACCEPTED`` means the reference resolved into a caller-supplied set of
-  accepted source IDs, ``UNMATCHED`` means it did not, and ``UNCHECKED`` means
-  no accepted-source set was supplied and the projection did not check.
-
-:attr:`EvidenceBasis.RESOLVED_ASSERTION_CHAIN` is declared and is never emitted
-here; it is the slot the registry will fill.  :data:`PRODUCIBLE_EVIDENCE_BASES`
-enumerates what this version can actually produce, so a later reward can demand
-a stronger basis without silently redefining what ``supported`` meant in
-historical traces.
-
-The second kind of datapoint (v2)
----------------------------------
-
-``criteria_projection_v2`` adds the ``judged_best_guess_*`` bases.  A row cell
-can be established two ways: a source *states* it, or an operator *derives* it
-and says from which source and why.  v1 could only see the first, so a run
-whose extraction never populates a column had no way to record that the value
-was recovered, judged, and sourced -- it projected ``unresolved`` and the
-recovery was invisible to everything downstream.
-
-A judged best guess is admitted only as the whole package: the derived value,
-the operator that produced it, the acceptance decision, and the source IDs that
-operator selected *for that column*.  Without the judgment and the sources it is
-a candidate, not a datapoint, and :func:`project_rows` will not take it.  Two
-guards keep it from becoming a laundering route for row-level co-location:
-
-* it applies **only** where no row of the subject supplies the field, so it can
-  never overwrite or upgrade a stated value; and
-* its ``source_ids`` come from the resolution, not from the row.  On real
-  recorded runs those are a strict subset of the row's own sources in 425 of
-  452 cases -- the operator names which of the row's sources supports *this*
-  column, which is the field-scoped join v1's row-scoped bases could not make.
-
-**This is a version bump, and the bump is the point.**
-:data:`CRITERIA_PROJECTION_VERSION` is folded into every criterion and subject
-ID, so no v1 ID joins to a v2 ID.  ``supported`` means something different in
-v2 -- it now includes derived values -- and a v1 trace compared against a v2
-trace would silently compare two different quantities.  A failed join is the
-honest form of that incomparability.
+``criteria_projection_v6`` supports a populated cell only when its stable
+criterion ID and normalized value resolve through the durable
+``EvidenceRegistry`` to a direct assertion acceptance.  The state carries the
+source document/version, exact span, assertion, and acceptance identifiers.
+Raw row values and provenance references remain observable context but cannot
+establish support.  A best-guess cell has a stable address at the acceptance
+boundary; its derivation and acceptance are supplied by a later phase.
 
 What this module refuses to do
 ------------------------------
@@ -136,6 +92,7 @@ __all__ = [
     "EvidenceBasis",
     "TransitionKind",
     "CriterionRef",
+    "SubjectRef",
     "CriterionState",
     "CriteriaSnapshot",
     "CriterionTransition",
@@ -150,15 +107,12 @@ __all__ = [
     "subject_key",
     "normalize_key_value",
     "row_subject_ids",
+    "row_subject_refs",
 ]
 
 
-#: v3: the criterion field set changed (canonical graph keys and provenance
-#: columns are no longer datapoints) and `FIELD_REF_ACCEPTED`'s producing
-#: condition changed (field-scoped provenance is now derived and reachable,
-#: where it was previously unreachable and identically zero). Counts before and
-#: after are not comparable, and the version is folded into criterion ids so a
-#: v2/v3 join fails visibly rather than silently comparing different things.
+#: v3 changed the criterion field set and historical provenance metadata.
+#: Field-provenance promotion was retired by v6 and is not producible now.
 #: v4: engine-minted structural columns (`occurrence_count`, `items`,
 #: `item_ids`, `row_count`, `contributing_rows`) stopped projecting as
 #: criteria. Excluding columns changes WHICH criteria exist, hence criterion
@@ -180,7 +134,10 @@ __all__ = [
 #: declared subject-key column the subject is re-keyed and its criteria are
 #: removed and re-minted -- and a re-minted criterion is `SUPPORT_GAINED`, which
 #: `reward.CreditLedger` cannot suppress because it dedupes by criterion id.
-CRITERIA_PROJECTION_VERSION = "criteria_projection_v5"
+#: v6 makes the durable registry's resolved direct-assertion chain the sole
+#: supported basis. Raw values, provenance annotations, and best guesses remain
+#: noncrediting inputs.
+CRITERIA_PROJECTION_VERSION = "criteria_projection_v6"
 CRITERIA_SNAPSHOT_VERSION = "criteria_snapshot_v1"
 CRITERIA_TRANSITION_VERSION = "criteria_transition_v1"
 
@@ -212,75 +169,29 @@ class EvidenceBasis(str, Enum):
     Nothing here may be emitted for a join the projection did not do.
     """
 
-    #: Reserved for the evidence registry: field assertion -> source-local
-    #: observation -> evidence item -> source version -> source document.
-    #: That registry does not exist in this tree and this member is never
-    #: produced by :func:`project_rows`.  It is declared so a later reward can
-    #: require it by name without rewriting historical traces.
+    #: A direct assertion resolves through its deterministic acceptance, exact
+    #: span/chunk, content-addressed source version, and source document/blob.
     RESOLVED_ASSERTION_CHAIN = "resolved_assertion_chain"
 
-    #: A provenance reference scoped to this field resolved into the supplied
-    #: accepted-source set.
+    # Historical serialized vocabulary. Current projection cannot produce
+    # these members; PRODUCIBLE_EVIDENCE_BASES is the closed live boundary.
     FIELD_REF_ACCEPTED = "field_ref_accepted"
-
-    #: A field-scoped reference was present, an accepted-source set was
-    #: supplied, and no reference matched it.
     FIELD_REF_UNMATCHED = "field_ref_unmatched"
-
-    #: A field-scoped reference was present and no accepted-source set was
-    #: supplied.  The projection did not check it.
     FIELD_REF_UNCHECKED = "field_ref_unchecked"
-
-    #: A row-scoped reference resolved into the accepted-source set.  The
-    #: reference belongs to the row, not to this field: co-location only.
     ROW_REF_ACCEPTED = "row_ref_accepted"
-
-    #: Row-scoped references present, an accepted-source set was supplied, and
-    #: none matched.
     ROW_REF_UNMATCHED = "row_ref_unmatched"
-
-    #: Row-scoped references present and unchecked.
     ROW_REF_UNCHECKED = "row_ref_unchecked"
-
-    #: A value is present and the row carries no provenance reference at all.
-    #: The only thing asserting this datapoint is the row itself.
     ROW_VALUE_ONLY = "row_value_only"
-
-    #: An operator derived this value for this field, the run accepted its
-    #: decision, and the sources that operator named for *this field* resolved
-    #: into the supplied accepted-source set.  The value is derived, not
-    #: quoted; the judgment and the sources are part of the datapoint.
     JUDGED_BEST_GUESS_ACCEPTED = "judged_best_guess_accepted"
-
-    #: An accepted judged best guess whose named sources did not resolve into
-    #: the accepted-source set.
     JUDGED_BEST_GUESS_UNMATCHED = "judged_best_guess_unmatched"
-
-    #: An accepted judged best guess with no accepted-source set supplied.  The
-    #: projection did not check it.
     JUDGED_BEST_GUESS_UNCHECKED = "judged_best_guess_unchecked"
 
     #: No support.  Carried by every unresolved state.
     NONE = "none"
 
 
-#: Ordering of evidence bases, weakest first.  A consumer that wants to require
-#: a minimum basis compares through this map rather than re-deriving one.
-#:
-#: **This ladder ranks the join that was performed, not how much the value
-#: deserves to be believed.**  It is a threshold predicate and nothing else: it
-#: is not a weight, a summand, or an average.  Two facts make any arithmetic on
-#: it wrong.  ``ROW_REF_UNCHECKED`` (3) outranks ``ROW_REF_UNMATCHED`` (2) even
-#: though the second is the one that actually looked, and ``accepted_source_ids``
-#: is optional -- so a strength-weighted score is *raised* by declining to
-#: verify.  Only the ACCEPTED rungs (4, 7, 8) name a check that passed.
-#:
-#: The ``judged_best_guess_*`` bases share the rungs of their ``field_ref_*``
-#: counterparts because they name the same *join*: provenance scoped to this
-#: field rather than to the row it sat in.  What differs is the kind of value --
-#: derived rather than stated -- and that difference is carried by the basis
-#: name, which is where a consumer must read it.  Encoding it as a number would
-#: invite exactly the arithmetic this ladder forbids.
+#: Compatibility metadata for historical serialized bases. Live admission is
+#: the closed PRODUCIBLE_EVIDENCE_BASES set, never a threshold over this map.
 BASIS_STRENGTH: Mapping[EvidenceBasis, int] = {
     EvidenceBasis.NONE: 0,
     EvidenceBasis.ROW_VALUE_ONLY: 1,
@@ -299,7 +210,7 @@ BASIS_STRENGTH: Mapping[EvidenceBasis, int] = {
 #: The bases this projection version can actually emit.  Anything outside this
 #: set appearing on a state produced here is a defect, not a stronger claim.
 PRODUCIBLE_EVIDENCE_BASES = frozenset(
-    basis for basis in EvidenceBasis if basis is not EvidenceBasis.RESOLVED_ASSERTION_CHAIN
+    (EvidenceBasis.NONE, EvidenceBasis.RESOLVED_ASSERTION_CHAIN)
 )
 
 
@@ -396,18 +307,25 @@ class CriterionRef:
 
 
 @dataclass(frozen=True)
+class SubjectRef:
+    """Stable typed identity of one projected table subject."""
+
+    id: str
+    table: str
+    key: tuple[tuple[str, str], ...]
+    identity_fields: tuple[str, ...]
+    bound: bool
+
+
+@dataclass(frozen=True)
 class CriterionState:
     """One criterion's status, with the basis on which it was established.
 
-    ``source_ids`` is the provenance the basis was derived from.  When the
-    basis is row-scoped, those references belong to the row rather than to this
-    field, and the basis name is the only thing that says so -- consumers must
-    read it rather than assuming a field-level join.
+    A supported state carries the registry-resolved source, source-version,
+    span, assertion, and acceptance identifiers for its accepted value.
 
     ``subject_source_ids`` is every source referenced anywhere on the subject's
-    rows, including for an unresolved criterion.  It is co-location and nothing
-    more; it exists so a verifier can ask "was this field derivable from the
-    sources this subject already cites?" without re-reading rows.
+    rows. It is noncrediting co-location context for inspection.
     """
 
     ref: CriterionRef
@@ -416,6 +334,10 @@ class CriterionState:
     values: tuple[str, ...] = ()
     source_ids: tuple[str, ...] = ()
     subject_source_ids: tuple[str, ...] = ()
+    assertion_ids: tuple[str, ...] = ()
+    acceptance_ids: tuple[str, ...] = ()
+    source_version_ids: tuple[str, ...] = ()
+    span_ids: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if self.status is CriterionStatus.UNRESOLVED:
@@ -459,6 +381,10 @@ class CriterionState:
             "values": list(self.values),
             "source_ids": list(self.source_ids),
             "subject_source_ids": list(self.subject_source_ids),
+            "assertion_ids": list(self.assertion_ids),
+            "acceptance_ids": list(self.acceptance_ids),
+            "source_version_ids": list(self.source_version_ids),
+            "span_ids": list(self.span_ids),
         }
 
     def to_dict(self) -> dict[str, Any]:
@@ -470,6 +396,10 @@ class CriterionState:
             "values": list(self.values),
             "source_ids": list(self.source_ids),
             "subject_source_ids": list(self.subject_source_ids),
+            "assertion_ids": list(self.assertion_ids),
+            "acceptance_ids": list(self.acceptance_ids),
+            "source_version_ids": list(self.source_version_ids),
+            "span_ids": list(self.span_ids),
         }
 
 
@@ -602,6 +532,7 @@ def project_rows(
     accepted_source_ids: Iterable[str] | None = None,
     best_guess_resolutions: Iterable[Mapping[str, Any]] | None = None,
     deliverable_tables: Iterable[str] | None = None,
+    evidence_registry: Any = None,
 ) -> CriteriaSnapshot:
     """Project table rows onto per-criterion state.
 
@@ -611,31 +542,16 @@ def project_rows(
     which case the criteria set is the union of value-bearing columns observed
     on that table's rows and identity falls back to canonical slots.
 
-    ``accepted_source_ids`` is the set of sources the run actually accepted.
-    Supplying it is what licenses an ``ACCEPTED`` basis; omitting it yields
-    ``UNCHECKED`` bases, never accepted ones, because a check that was not
-    performed must not be recorded as one that passed.
+    ``evidence_registry`` is the authority for support. A populated row value
+    remains unresolved unless its criterion ID and normalized value resolve
+    through a complete accepted registry chain.
 
     ``deliverable_tables``, when supplied, is the **explicit allowlist** of
-    tables that project at all.  The spec guard defaults open -- a table absent
-    from ``specs`` is treated as deliverable -- so a caller that must not credit
-    working tables has to name what it wants rather than rely on omission.  With
-    no spec and no allowlist, a *rejected* best-guess candidate row projects as
-    ``supported`` with the value ``"false"``, which is a scoring surface nobody
-    intended.  Pass the allowlist.
+    tables that project at all. The spec guard defaults open, so callers that
+    exclude working tables name the deliverable set explicitly.
 
-    ``best_guess_resolutions`` are accepted, judged best guesses, in the shape
-    :func:`question_pipeline.best_guess.resolve_candidates` returns: a
-    ``target_table``, a ``source_row_index`` into *these same rows*, a
-    ``canonical_column``, a ``best_guess_value``, the ``source_ids`` the
-    operator named for that column, and the ``operators`` that produced it.  A
-    resolution is applied only where no row of the subject supplies the field,
-    so it can never overwrite or upgrade a stated value.
-
-    The row-index join is positional and is only sound because the resolutions
-    and ``rows`` come from the same artifact write.  A resolution naming an
-    index that is out of range, or a column that is not a criterion of its
-    table, is dropped rather than guessed at.
+    ``accepted_source_ids`` and ``best_guess_resolutions`` remain accepted as
+    historical artifact inputs. They do not establish criterion support.
     """
 
     accepted = _accepted_ids(accepted_source_ids)
@@ -648,9 +564,7 @@ def project_rows(
     for table in sorted(_row_tables(rows)):
         if allowlist is not None and table not in allowlist:
             continue
-        # Positions are kept from the *raw* list, not from the filtered one: a
-        # judged best guess names its row by position, and compacting the list
-        # first would silently shift every index after a non-mapping entry.
+        # Preserve raw positions for stable artifact addressing.
         indexed_rows = [
             (index, row)
             for index, row in enumerate((rows or {}).get(table) or ())
@@ -681,6 +595,7 @@ def project_rows(
                             for index in subject.row_indices
                             for guess in table_guesses.get((index, name), ())
                         ],
+                        evidence_registry=evidence_registry,
                     )
                 )
     return CriteriaSnapshot.create(states)
@@ -776,10 +691,8 @@ def _transition_kind(
 class _Subject:
     """Internal grouping of the rows that address one semantic subject.
 
-    ``row_indices`` are the positions those rows held in the table as it was
-    handed to :func:`project_rows`.  They exist so a judged best guess, which
-    names the row it was produced for by position, lands on the subject that
-    row belongs to -- without this module re-deriving anyone else's row key.
+    ``row_indices`` preserve the positions those rows held in the supplied
+    table for stable artifact addressing.
     """
 
     id: str
@@ -788,6 +701,15 @@ class _Subject:
     bound: bool
     rows: tuple[Mapping[str, Any], ...] = ()
     row_indices: tuple[int, ...] = ()
+
+    def ref(self, table: str) -> SubjectRef:
+        return SubjectRef(
+            id=self.id,
+            table=table,
+            key=self.key,
+            identity_fields=self.identity_fields,
+            bound=self.bound,
+        )
 
 
 def _subjects(
@@ -928,13 +850,23 @@ def row_subject_ids(
     seen rather than like an error.
     """
 
+    return tuple(ref.id if ref is not None else "" for ref in row_subject_refs(table, rows, specs))
+
+
+def row_subject_refs(
+    table: str,
+    rows: Sequence[Mapping[str, Any]],
+    specs: Any = None,
+) -> tuple[SubjectRef | None, ...]:
+    """The full stable subject address for each input row."""
+
     mapping_rows = [row for row in rows if isinstance(row, Mapping)]
     spec = _spec_tables(specs).get(_text(table))
     identity_fields = _identity_fields(spec, mapping_rows)
     return tuple(
-        _subject_for_row(_text(table), row, identity_fields).id
+        _subject_for_row(_text(table), row, identity_fields).ref(_text(table))
         if isinstance(row, Mapping)
-        else ""
+        else None
         for row in rows
     )
 
@@ -1062,6 +994,7 @@ def _project_field(
     accepted: frozenset[str] | None,
     checked: bool,
     guesses: Sequence["_JudgedBestGuess"] = (),
+    evidence_registry: Any = None,
 ) -> CriterionState:
     ref = CriterionRef.create(
         table=table,
@@ -1073,8 +1006,6 @@ def _project_field(
     )
 
     display: dict[str, str] = {}
-    field_refs: set[str] = set()
-    row_refs: set[str] = set()
     for row in subject.rows:
         value = _nested(row, field)
         if _missing(value):
@@ -1083,31 +1014,48 @@ def _project_field(
         shown = _display_value(value)
         if normalized not in display or shown < display[normalized]:
             display[normalized] = shown
-        field_refs.update(_field_source_ids(row, field))
-        row_refs.update(_row_source_ids(row))
 
     if display:
-        basis, source_ids = _basis_for(field_refs, row_refs, accepted, checked)
+        bindings_by_value = {
+            normalized: tuple(
+                evidence_registry.accepted_bindings(ref.id, normalized)
+                if evidence_registry is not None
+                else ()
+            )
+            for normalized in display
+        }
+        bindings = tuple(
+            cell
+            for normalized in sorted(bindings_by_value)
+            for cell in bindings_by_value[normalized]
+        )
+        if not bindings:
+            return CriterionState(
+                ref=ref,
+                status=CriterionStatus.UNRESOLVED,
+                basis=EvidenceBasis.NONE,
+                subject_source_ids=subject_sources,
+            )
         return CriterionState(
             ref=ref,
             status=CriterionStatus.SUPPORTED,
-            basis=basis,
-            values=tuple(display[key] for key in sorted(display)),
-            source_ids=source_ids,
+            basis=EvidenceBasis.RESOLVED_ASSERTION_CHAIN,
+            values=tuple(
+                display[key]
+                for key in sorted(display)
+                if bindings_by_value[key]
+            ),
+            source_ids=tuple(sorted({cell.source_id for cell in bindings})),
             subject_source_ids=subject_sources,
+            assertion_ids=tuple(sorted({cell.assertion_id for cell in bindings})),
+            acceptance_ids=tuple(sorted({cell.acceptance_id for cell in bindings})),
+            source_version_ids=tuple(
+                sorted({cell.source_version_id for cell in bindings})
+            ),
+            span_ids=tuple(sorted({cell.span_id for cell in bindings})),
         )
 
-    # No row of this subject states the field.  A judged best guess may still
-    # have derived it -- and only here, where there is nothing to overwrite.
-    if guesses:
-        return _project_judged_best_guess(
-            ref=ref,
-            guesses=guesses,
-            subject_sources=subject_sources,
-            accepted=accepted,
-            checked=checked,
-        )
-
+    # No accepted stated value resolves for this field.
     return CriterionState(
         ref=ref,
         status=CriterionStatus.UNRESOLVED,
@@ -1124,20 +1072,7 @@ def _project_judged_best_guess(
     accepted: frozenset[str] | None,
     checked: bool,
 ) -> CriterionState:
-    """State for a field only a judged best guess establishes.
-
-    The datapoint is the whole package: the derived value, the decision that
-    accepted it, and the sources the operator named for this field.  The
-    decision is carried by the **basis member**, which is typed and closed --
-    ``judged_best_guess_accepted`` says both "derived, not quoted" and "the
-    named sources resolved".  It is deliberately not spelled into ``values``:
-    values fold into the snapshot ID, so an operator rename would surface as a
-    spurious ``EVIDENCE_CHANGED`` and rewording would become yield.
-
-    The operator names themselves stay on the resolution the caller holds.  A
-    consumer wanting them joins on the criterion ID rather than reading them
-    out of a state that must stay prose-free.
-    """
+    """Parse a historical best-guess state shape for artifact compatibility."""
 
     display: dict[str, str] = {}
     named: set[str] = set()
@@ -1179,25 +1114,10 @@ def _project_judged_best_guess(
 
 
 def admits_judged_best_guess(resolution: Any) -> bool:
-    """Whether one best-guess resolution is admissible as a datapoint.
+    """Validate the shape of a historical best-guess artifact.
 
-    THE WHOLE PACKAGE OR NOTHING: not explicitly rejected, a table, a column, an
-    integer row index, a non-missing value, and at least one source id the
-    operator named FOR THAT COLUMN.  Without the judgment and the sources it is
-    a candidate, not a datapoint, and admitting it would put an unevidenced
-    guess on the same footing as an evidenced one.
-
-    Extracted from :func:`_judged_best_guesses`, which calls it, so the rule has
-    one expression rather than two inside one module.  Exported so a consumer
-    that must decide "would the projection take this guess" asks this module
-    instead of keeping a second, looser opinion.
-
-    **What this predicate does NOT carry, stated because assuming it would be a
-    silent loosening.**  The projection's other guard -- that a guess applies
-    only where no row of the subject supplies the field
-    (:func:`_project_field`) -- is applied against a *row*, not against a
-    resolution, so it is not inherited by any caller of this function.  A caller
-    working at a different grain owns the equivalent guard itself.
+    This predicate is artifact validation only. Criterion support requires a
+    resolved durable registry chain.
     """
 
     if not isinstance(resolution, Mapping):
@@ -1220,7 +1140,7 @@ def admits_judged_best_guess(resolution: Any) -> bool:
 
 @dataclass(frozen=True)
 class _JudgedBestGuess:
-    """One accepted, judged best guess, read from the caller's resolution."""
+    """One parsed historical best-guess artifact record."""
 
     table: str
     row_index: int
@@ -1232,19 +1152,7 @@ class _JudgedBestGuess:
 def _judged_best_guesses(
     resolutions: Iterable[Mapping[str, Any]] | None,
 ) -> dict[str, dict[tuple[int, str], tuple[_JudgedBestGuess, ...]]]:
-    """Index resolutions by table, row position, and column.
-
-    Anything without all four of a table, an integer row index, a column, and a
-    non-missing value is dropped.  A resolution carrying no ``source_ids`` is
-    dropped too: a derived value with no source basis is a candidate, not a
-    datapoint, and admitting it would put an unevidenced guess on the same
-    footing as an evidenced one.
-
-    An explicit ``accepted`` of ``False`` is honoured where the caller supplies
-    it.  Its absence is not read as acceptance of an unjudged candidate -- the
-    resolution shape this reads is already the accepted set -- but a caller
-    passing raw candidates gets the rejected ones dropped rather than scored.
-    """
+    """Index shape-valid historical artifacts by table, row, and column."""
 
     out: dict[str, dict[tuple[int, str], list[_JudgedBestGuess]]] = {}
     for resolution in resolutions or ():
@@ -1276,13 +1184,7 @@ def _basis_for(
     accepted: frozenset[str] | None,
     checked: bool,
 ) -> tuple[EvidenceBasis, tuple[str, ...]]:
-    """Name the strongest join actually performed, and nothing stronger.
-
-    Field-scoped provenance outranks row-scoped provenance because it is the
-    stronger claim: the producer attached it to this field rather than to the
-    row it happened to sit in.  Neither is a resolved assertion chain, and
-    neither may be reported as one.
-    """
+    """Decode historical provenance-basis metadata for artifact compatibility."""
 
     if field_refs:
         if not checked:
@@ -1323,16 +1225,14 @@ _NON_VALUE_FIELDS = frozenset(
         # ENGINE-MINTED STRUCTURAL COLUMNS. A traversal's COLLAPSE and AGGREGATE
         # mint these to describe the GROUPING, not the subject: how many rows
         # merged, which row ids went in. They are operational volume, and
-        # `reward` exists to count datapoints rather than volume, so a criterion
-        # minted from one is a criterion that can be satisfied by doing more
-        # work rather than by learning more.
+        # They are extraction/identity plumbing rather than declared datapoints.
         #
         # This matters because two fallbacks compose. `_criteria_fields` mints a
         # criterion per observed column when a table has no spec, and
         # `pipeline._deliverable_tables` falls back to every table handed in
         # when a run declares none -- and a traversal hands in its intermediate
-        # variables. With both open, `occurrence_count: 12` projects as a
-        # datapoint with the value "12" and is eligible for credit.
+        # variables. Excluding these fields keeps that plumbing out of the
+        # criterion set before registry resolution is considered.
         #
         # LATENT, MEASURED, AND NOT EXOTIC. No credited datapoint in 88 recorded
         # reward reports carries these fields, and the two runs that exercise
@@ -1466,11 +1366,8 @@ _CANONICAL_GRAPH_KEYS = frozenset(
         # key's label. Reconciling the doc's vocabulary with the code's
         # spelling, not inventing new exclusions.
         #
-        # These matter more than the rest: an entity name matches its chunk
-        # verbatim *because extraction copied it out of that chunk*, so
-        # grounding it is circular. Left in, 713 of 5,545 grounded cells were
-        # these two, crossing from uncreditable ROW_REF_ACCEPTED to creditable
-        # FIELD_REF_ACCEPTED.
+        # Entity names are extraction/identity plumbing, not declared result
+        # datapoints, even when their text appears in a source chunk.
         "entity_name",
         "group_name",
     }
@@ -1548,11 +1445,10 @@ def _subject_source_ids(rows: Sequence[Mapping[str, Any]]) -> tuple[str, ...]:
 
 
 def _source_ids(value: Any) -> set[str]:
-    """Canonical source-document IDs from a provenance field.
+    """Canonical source-document IDs from noncrediting provenance context.
 
     A chunk reference is reduced to the document it came from, so a chunk-level
-    and a document-level reference to the same source match each other and the
-    accepted-source set.
+    and document-level annotation share one co-location identifier.
     """
 
     ids: set[str] = set()

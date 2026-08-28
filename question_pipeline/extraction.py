@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -24,23 +25,39 @@ from graph_enrichment.graph_merger import (
 from nano_graphrag.graph_slots import get_salience_score, set_salience_score
 
 
-def chunk_text(text: str, chunk_size: int = 2000, overlap: int = 200) -> List[str]:
-    """Split text into overlapping character chunks."""
+@dataclass(frozen=True)
+class TextChunk:
+    """One deterministic source slice with exact character offsets."""
+
+    index: int
+    start_offset: int
+    end_offset: int
+    text: str
+
+
+def chunk_spans(
+    text: str, chunk_size: int = 2000, overlap: int = 200
+) -> List[TextChunk]:
+    """Split text while retaining exact source-version offsets."""
+
     if chunk_size <= 0:
         raise ValueError("chunk_size must be positive")
     if overlap >= chunk_size:
         raise ValueError("overlap must be smaller than chunk_size")
-    chunks: List[str] = []
+    chunks: List[TextChunk] = []
     start = 0
     while start < len(text):
-        end = start + chunk_size
-        chunks.append(text[start:end])
-        if end >= len(text):
-            break
-        if len(text) - end <= overlap:
+        end = min(len(text), start + chunk_size)
+        chunks.append(TextChunk(len(chunks), start, end, text[start:end]))
+        if end >= len(text) or len(text) - end <= overlap:
             break
         start = end - overlap
     return chunks
+
+
+def chunk_text(text: str, chunk_size: int = 2000, overlap: int = 200) -> List[str]:
+    """Split text into overlapping character chunks."""
+    return [chunk.text for chunk in chunk_spans(text, chunk_size, overlap)]
 
 
 #: Signature of :func:`extract_from_text`'s per-chunk observer:

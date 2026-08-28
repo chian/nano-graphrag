@@ -56,7 +56,7 @@ NUMERIC_BAND_VERSION = "numeric_band_v1"
 INCIDENCE_ESTIMATOR_VERSION = "incidence_estimator_v1"
 RAREFACTION_FORMULA_VERSION = "rolling_exact_incidence_rarefaction_v1"
 REACHABLE_TOTAL_FORMULA_VERSION = "bias_corrected_incidence_chao2_v1"
-CHANNEL_SCHEMA_VERSION = "channel_schema_v1"
+CHANNEL_SCHEMA_VERSION = "channel_schema_v2"
 
 DEFAULT_WINDOW_SIZE = 8
 DEFAULT_SUBSAMPLE_SIZE = 4
@@ -80,13 +80,21 @@ class ChannelSchema:
 
     A single-channel schema sends the unit's declared credit tuple directly to
     that channel. A partition schema declares base channels plus one union
-    channel. The kernel validates every base membership and derives the union;
-    the application's pooled credit tuple is only a check on that derivation.
+    channel. ``union_members`` names which base channels form that union;
+    ``controller_channels`` names the independently estimated channels the
+    numerical controller must conjoin. The two roles are deliberately
+    separate: an application can require a completed-row channel without
+    pooling row identities into its ordinary-column richness estimate.
+
+    The kernel validates every base membership and derives the union; the
+    application's pooled credit tuple is only a check on that derivation.
     """
 
     base_channels: tuple[str, ...]
     union_channel: Optional[str] = None
     overlap_allowed: bool = False
+    union_members: Optional[tuple[str, ...]] = None
+    controller_channels: Optional[tuple[str, ...]] = None
     version: str = field(default=CHANNEL_SCHEMA_VERSION, init=False)
 
     def __post_init__(self) -> None:
@@ -108,6 +116,28 @@ class ChannelSchema:
                 raise ValueError("union_channel must be a non-empty string")
             if self.union_channel in self.base_channels:
                 raise ValueError("union_channel must be distinct from every base channel")
+        union_members = (
+            self.base_channels
+            if self.union_members is None
+            else tuple(str(channel) for channel in self.union_members)
+        )
+        if self.union_channel is None and union_members != self.base_channels:
+            raise ValueError("a single-channel schema cannot narrow union_members")
+        if not union_members or len(set(union_members)) != len(union_members):
+            raise ValueError("union_members must be a non-empty unique tuple")
+        if not set(union_members) <= set(self.base_channels):
+            raise ValueError("union_members must be declared base channels")
+        controller_channels = (
+            self.channels
+            if self.controller_channels is None
+            else tuple(str(channel) for channel in self.controller_channels)
+        )
+        if not controller_channels or len(set(controller_channels)) != len(controller_channels):
+            raise ValueError("controller_channels must be a non-empty unique tuple")
+        if not set(controller_channels) <= set(self.channels):
+            raise ValueError("controller_channels must be declared schema channels")
+        object.__setattr__(self, "union_members", union_members)
+        object.__setattr__(self, "controller_channels", controller_channels)
         if not isinstance(self.overlap_allowed, bool):
             raise TypeError("overlap_allowed must be a bool")
         if not isinstance(self.version, str) or not self.version.strip():
@@ -124,11 +154,21 @@ class ChannelSchema:
         *,
         union_channel: str = DEFAULT_CHANNEL,
         overlap_allowed: bool = False,
+        union_members: Optional[Iterable[str]] = None,
+        controller_channels: Optional[Iterable[str]] = None,
     ) -> "ChannelSchema":
         return cls(
             base_channels=tuple(base_channels),
             union_channel=union_channel,
             overlap_allowed=overlap_allowed,
+            union_members=(
+                tuple(union_members) if union_members is not None else None
+            ),
+            controller_channels=(
+                tuple(controller_channels)
+                if controller_channels is not None
+                else None
+            ),
         )
 
     @property
@@ -184,8 +224,6 @@ class ChannelSchema:
             )
 
         owner: dict[str, str] = {}
-        derived: list[str] = []
-        derived_seen: set[str] = set()
         for channel in self.base_channels:
             for identity in groups[channel]:
                 previous = owner.get(identity)
@@ -199,6 +237,11 @@ class ChannelSchema:
                         f"{previous!r} and {channel!r}, but overlap_allowed=False"
                     )
                 owner.setdefault(identity, channel)
+
+        derived: list[str] = []
+        derived_seen: set[str] = set()
+        for channel in self.union_members or ():
+            for identity in groups[channel]:
                 if identity not in derived_seen:
                     derived_seen.add(identity)
                     derived.append(identity)
@@ -222,6 +265,8 @@ class ChannelSchema:
             "base_channels": list(self.base_channels),
             "union_channel": self.union_channel or "",
             "overlap_allowed": self.overlap_allowed,
+            "union_members": list(self.union_members or ()),
+            "controller_channels": list(self.controller_channels or ()),
         }
 
 
