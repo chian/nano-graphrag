@@ -181,7 +181,9 @@ from .table_specs import (
     dump_table_spec_yaml,
     load_table_spec,
     load_table_spec_with_seed_tables,
+    merge_table_specs,
     observed_table_spec,
+    synthesize_table_spec,
 )
 
 
@@ -789,7 +791,13 @@ class QuestionPipeline:
         self.table_schema_disclosure: Dict[str, Any] = (
             self.table_spec.column_yield_diagnostic()
         )
-        if not self.table_schema_disclosure["usable_schema"]:
+        if (
+            not self.table_schema_disclosure["usable_schema"]
+            and not (
+                config.pipeline_mode == PIPELINE_MODE_TABLE_FILL
+                and self.table_spec.is_empty
+            )
+        ):
             print(
                 "  [table-spec] WARNING: no usable column schema "
                 f"({self.table_schema_disclosure['status']}): "
@@ -1678,6 +1686,92 @@ genuinely separate view that is not covered by a listed target."""
         if not self.table_spec.is_empty:
             return self.table_spec.empty_rows_by_table()
         return {table_name: [] for table_name in self._table_target_names()}
+
+    async def _ensure_table_contract(self) -> None:
+        """Freeze a usable table contract before the acquisition tree opens."""
+
+        if self.config.pipeline_mode != PIPELINE_MODE_TABLE_FILL:
+            return
+        if self.table_schema_disclosure["usable_schema"]:
+            return
+
+        print("  No usable table contract supplied -- synthesizing it from the question.")
+        run_path = ((RUN_GRAIN.name, self.out.name),)
+        with prompt_scope(
+            self.out / "prompts" / self._run_episode_id,
+            episode_id=self._run_episode_id,
+            episode_path=run_path,
+        ):
+            synthesized = await synthesize_table_spec(
+                self.llm,
+                self.config.question,
+            )
+
+        self.table_spec = merge_table_specs(self.table_spec, synthesized)
+        self.table_spec_id = self._table_spec_id(self.table_spec)
+        self._required_columns_by_table = self.table_spec.required_columns_by_table()
+        self._all_columns_by_table = self.table_spec.all_columns_by_table()
+        self._key_columns_by_table = self.table_spec.key_columns_by_table()
+        self._cold_start_anchors_by_table = (
+            self.table_spec.cold_start_anchors_by_table()
+        )
+        synthesized_columns = synthesized.all_columns_by_table()
+        self._cold_start_columns_by_table = {
+            name: list(
+                synthesized_columns.get(name)
+                or self._all_columns_by_table.get(name, ())
+            )
+            for name in self._cold_start_anchors_by_table
+        }
+        self._best_guess_columns_by_table = (
+            self.table_spec.best_guess_columns_by_table()
+        )
+        self._completeness_columns_by_table = (
+            self.table_spec.completeness_columns_by_table()
+        )
+        self.table_schema_disclosure = self.table_spec.column_yield_diagnostic()
+        if not self.table_schema_disclosure["usable_schema"]:
+            raise ValueError(
+                "automatic table-contract synthesis did not produce a usable "
+                f"contract: {self.table_schema_disclosure}"
+            )
+
+        self.goal_tracker = TableFillGoalTracker(
+            table_schemas=self._required_columns_by_table,
+            table_columns=self._all_columns_by_table,
+            table_key_columns=self._key_columns_by_table,
+            cold_start_columns=self._cold_start_columns_by_table,
+            cold_start_anchors=self._cold_start_anchors_by_table,
+            best_guess_columns=self._best_guess_columns_by_table,
+        )
+        self._validate_seed_tables_declared_by_spec()
+        self._ensure_declared_seed_tables()
+
+        # The contract is immutable for the run. Replace the pre-run empty
+        # projection and its context before any Episode is built or opened.
+        self.crediter = ColumnProjection(self.table_spec)
+        self.acquisition = AcquisitionController(
+            crediter=self.crediter,
+            budget=self.source_budget,
+            health=self.provider_health,
+            termination=self.run_termination,
+        )
+        self.acquisition.context.bind_run_id(self.out.name)
+        self.provider_binding.controller = self.acquisition
+        self.provider_binding.crediter = self.crediter
+
+        self.table_specs_dir.mkdir(parents=True, exist_ok=True)
+        contract_path = self.table_specs_dir / "synthesized_table_spec.yaml"
+        contract_path.write_text(
+            dump_table_spec_yaml(self.table_spec),
+            encoding="utf-8",
+        )
+        print(
+            "  Synthesized table contract: "
+            f"{self.table_schema_disclosure['table_count']} table(s), "
+            f"{sum(self.table_schema_disclosure['all_column_counts'].values())} "
+            f"columns -> {contract_path}"
+        )
 
     # ------------------------------------------------------------------ #
     # Schema resolution
@@ -5737,6 +5831,7 @@ genuinely separate view that is not covered by a listed target."""
         cfg = self.config
         print(f"\n{'='*70}\nQuestion-driven pipeline\n{'='*70}")
         print(f"Question: {cfg.question}\nOutput:   {self.out}\n")
+        await self._ensure_table_contract()
         if self.seed_tables.row_count:
             print(
                 "  Loaded seed tables: "

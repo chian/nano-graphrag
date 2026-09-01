@@ -13,10 +13,24 @@ import yaml
 
 from .control import canonical_subject_identity
 from .control import stable_id
+from .llm_utils import ModelTier, ask_json, register_call_site_tier
 
 
 TABLE_IDENTITY_VERSION = "table_identity_v1"
 COLUMN_IDENTITY_VERSION = "column_identity_v1"
+
+# Table-contract synthesis is model string work: the model names the tables,
+# grains, and columns implied by the question. Coercion and the usable-schema
+# decision remain deterministic. This untested call site stays on reasoning.
+_TABLE_CONTRACT_SYNTHESIS_TIER = register_call_site_tier(
+    "table-contract-synthesis",
+    ModelTier.REASONING,
+)
+
+_TABLE_CONTRACT_SYSTEM_PROMPT = """You design explicit result-table contracts
+for scientific evidence acquisition. Return one valid JSON object and no
+markdown or prose. The contract must be generic to the supplied question and
+must not invent results, sources, or domain facts."""
 
 
 @dataclass(frozen=True)
@@ -465,6 +479,92 @@ def load_table_spec(
             _load_table_spec_payload(spec_path),
         )
     return _coerce_table_spec(payload)
+
+
+async def synthesize_table_spec(llm: Any, question: str) -> TableSpec:
+    """Derive the table-fill contract from the question before acquisition."""
+
+    prompt = f"""RESEARCH QUESTION:
+{question}
+
+Design the result table or tables needed to answer this question. This is the
+contract against which every acquired source will be extracted, credited, and
+counted, so declare the complete requested output now.
+
+Rules:
+- Prefer one deliverable table when one row grain can express the answer. Use
+  multiple tables only when the question genuinely asks for different grains.
+- Give every table a concise snake_case name, a precise row grain, and a short
+  description.
+- Declare every field requested by the question as a column. Mark requested
+  answer fields nullable=false so missing evidence remains a visible deficit.
+- key_columns identify a complete row. subject_key_columns identify the stable
+  real-world subject whose evidence accumulates across sources; declare both
+  explicitly and include every named key in columns.
+- Preserve reported ranges, bounds, comparisons, and source wording in their
+  reported columns. When an evidence-anchored numeric best guess would be a
+  distinct useful output, add a separate real column with role="best_guess";
+  never replace or relabel the reported column.
+- A best-guess column must have value_type="number" or "integer". It remains
+  nullable=false when the question requires that estimate, so unsupported
+  guesses remain missing rather than being fabricated.
+- value_type must be one of: number, integer, range, date, year, category, text.
+  Use an empty unit when values may legitimately carry different units or
+  scales; otherwise state the unit.
+- aliases and field_hints should contain ordinary source-language labels that
+  help extracted fields map to the declared column.
+- Do not include workflow, scoring, search, provenance, or evidence-management
+  columns. Provenance is carried separately by the evidence registry.
+- Do not include migrations or any result rows.
+
+Return exactly this JSON shape:
+{{
+  "version": 1,
+  "tables": {{
+    "table_name": {{
+      "description": "what the table represents",
+      "grain": "one row per ...",
+      "deliverable": true,
+      "key_columns": ["..."],
+      "subject_key_columns": ["..."],
+      "columns": {{
+        "column_name": {{
+          "role": "reported or best_guess",
+          "nullable": false,
+          "description": "what belongs here",
+          "aliases": ["source wording"],
+          "field_hints": ["related source wording"],
+          "value_type": "text",
+          "unit": ""
+        }}
+      }},
+      "keep_existing_rows": true
+    }}
+  }},
+  "migrations": []
+}}"""
+    payload = await ask_json(
+        llm,
+        prompt,
+        system_prompt=_TABLE_CONTRACT_SYSTEM_PROMPT,
+        tier=_TABLE_CONTRACT_SYNTHESIS_TIER,
+        call_site="table-contract-synthesis",
+    )
+    if not isinstance(payload, Mapping):
+        raise ValueError("table-contract synthesis must return a JSON object")
+    spec = _coerce_table_spec(payload)
+    diagnostic = spec.column_yield_diagnostic()
+    if not diagnostic["usable_schema"]:
+        raise ValueError(
+            "synthesized table contract is unusable: "
+            f"{diagnostic['status']}: {diagnostic['reason']}"
+        )
+    for table in spec.tables.values():
+        if table.deliverable and not table.subject_key_columns:
+            raise ValueError(
+                f"synthesized table {table.name!r} declares no subject_key_columns"
+            )
+    return spec
 
 
 def table_spec_paths_with_seed_tables(
