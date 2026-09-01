@@ -1,9 +1,9 @@
-"""The provider binding of the composed ``rarefaction.Episode`` method.
+"""The provider binding of the composed ``method_loop.Episode`` method.
 
 Chartered in ``docs/ACQUISITION_LOOP.md``; designed in
 ``experiments/log/4E-c-provider-composition.md``. This is the ONE file that
 owns the provider surface's binding; the generic kernel stays in
-``rarefaction/`` and provider/search mechanics stay injected collaborators.
+``method_loop/`` and provider/search mechanics stay injected collaborators.
 
     run Episode  (unit: one completed strategy Episode)
       |
@@ -25,7 +25,7 @@ owns the provider surface's binding; the generic kernel stays in
 The run is driven by **one** ``Episode.run_async`` call. Nothing in this package
 contains a ``for`` or ``while`` that pulls a unit, calls ``scoped.observe``,
 reads a verdict, or keeps a per-scope list. The loop body is the kernel's, once,
-in ``rarefaction.episode.Episode``.
+in ``method_loop.episode.Episode``.
 
 What this module owns
 ---------------------
@@ -72,13 +72,12 @@ from typing import (
     Sequence,
 )
 
-from rarefaction import (
+from method_loop import (
     END_BOUND_HIT,
     END_EXHAUSTED,
     END_SOURCE_FAILED,
     END_YIELD_STOP,
     Context,
-    ChannelSchema,
     ControllerConfig,
     CreditResult,
     Episode,
@@ -88,6 +87,7 @@ from rarefaction import (
     Leaf,
     SourceEnd,
 )
+from rarefaction import ChannelSchema
 
 from . import criteria
 from .control import select_first_clearing, stable_id
@@ -234,7 +234,7 @@ GRAIN_ORDER = (RUN_GRAIN, STRATEGY_GRAIN, SEARCH_GRAIN)
 class GrainDisclosure:
     """A grain named and derived, but deliberately NOT bound.
 
-    A distinct type, not a :class:`~rarefaction.Grain`: a ``Grain`` carries a
+    A distinct type, not a :class:`~method_loop.Grain`: a ``Grain`` carries a
     ``ControllerConfig`` and ``Context.enter`` would open a scope from it. This
     carries no controller, no estimator state and no verdict, and nothing in the kernel can
     consume it. It exists so the charter's innermost row is unbound *and says
@@ -243,7 +243,7 @@ class GrainDisclosure:
     **OWNED BY THIS MODULE.** The GASL depth step's own disclosure is not
     required to use it -- that surface may say the same thing its own way -- and
     a second surface that genuinely needs this type lifts it into
-    ``rarefaction/`` rather than importing it from here. Two surfaces disclosing
+    ``method_loop/`` rather than importing it from here. Two surfaces disclosing
     different objects is not a duplicated owner; two surfaces importing one
     provider-surface type would make this module a dependency of a surface that
     has nothing to do with providers.
@@ -2410,8 +2410,11 @@ class ProviderBinding:
         self.termination = controller.termination
         self.run_key = str(run_key)
         self.run_path = ((RUN_GRAIN.name, self.run_key),)
-        self.run_episode_id = self.controller.context.episode_ref(
-            self.run_path
+        self.controller.context.bind_run_id(self.run_key)
+        self.run_episode_id = Episode.identity(
+            self.controller.context,
+            RUN_GRAIN,
+            self.run_key,
         ).episode_id
         self.episode_unit_safety_cap = int(episode_unit_safety_cap)
         self.strategy_catalog = frozenset(strategy_catalog)
@@ -2549,8 +2552,11 @@ class ProviderBinding:
             (STRATEGY_GRAIN.name, strategy_key),
             (SEARCH_GRAIN.name, task.id),
         )
-        search_episode_id = self.controller.context.episode_ref(
-            search_path
+        search_episode_id = Episode.identity(
+            self.controller.context,
+            SEARCH_GRAIN,
+            task.id,
+            parent_path=search_path[:-1],
         ).episode_id
         source = PageSource(
             task=task,

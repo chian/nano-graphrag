@@ -1,4 +1,4 @@
-"""The composable acquisition episode (phase 4E-a).
+"""The generic composable acquisition method.
 
 The class template of ``docs/ACQUISITION_LOOP.md`` §"The template", in the
 form of the operator template note: Composite, Template Method, Strategy,
@@ -35,9 +35,10 @@ import inspect
 from dataclasses import dataclass, field
 from typing import Any, Callable, Iterable, Mapping, Optional, Protocol, runtime_checkable
 
-from .accumulator import ChannelSchema, IncidenceEstimate, UnitYield
+from rarefaction import ChannelSchema, IncidenceEstimate, UnitYield
 from .controller import ControllerConfig, ControllerVerdict
-from .scopes import Path, Scope, ScopedYield
+from .runtime import Path, Scope, ScopedYield
+from .identities import EpisodeRef, UnitRef
 
 __all__ = [
     "COUNTING_ENDS",
@@ -125,6 +126,11 @@ class UnitRecord:
     facets: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
     child: Optional["EpisodeRecord"] = None
     epoch: str = ""
+    unit_ref: Optional[UnitRef] = None
+
+    @property
+    def unit_id(self) -> str:
+        return self.unit_ref.unit_id if self.unit_ref is not None else ""
 
     def as_record(self) -> dict:
         out = self.yield_record.as_record()
@@ -135,6 +141,8 @@ class UnitRecord:
         if self.child is not None:
             out["child"] = self.child.as_record()
         out["epoch"] = self.epoch
+        out["unit_ref"] = self.unit_ref.as_record() if self.unit_ref else None
+        out["unit_id"] = self.unit_id
         return out
 
 
@@ -155,6 +163,15 @@ class EpisodeRecord:
     incidence_estimate: Optional[IncidenceEstimate] = None
     controller_verdict: Optional[ControllerVerdict] = None
     channel_schema: Optional[ChannelSchema] = None
+    episode_ref: Optional[EpisodeRef] = None
+
+    @property
+    def episode_id(self) -> str:
+        return self.episode_ref.episode_id if self.episode_ref is not None else ""
+
+    @property
+    def run_id(self) -> str:
+        return self.episode_ref.run_id if self.episode_ref is not None else ""
 
     @property
     def distinct_identities(self) -> tuple[str, ...]:
@@ -177,7 +194,7 @@ class EpisodeRecord:
         return out
 
     def as_record(self) -> dict:
-        return {"scope_level": self.scope_level, "scope_key": self.scope_key, "path": [list(item) for item in self.path], "units_consumed": self.units_consumed, "ended_by": self.ended_by, "end_reason": self.end_reason, "safety_bound": self.safety_bound, "controller": dict(self.controller), "final_verdict": self.final_verdict, "curve": self.curve, "facets": dict(self.facets), "channel_schema": self.channel_schema.as_record() if self.channel_schema else {}, "units": [unit.as_record() for unit in self.unit_records]}
+        return {"scope_level": self.scope_level, "scope_key": self.scope_key, "path": [list(item) for item in self.path], "episode_ref": self.episode_ref.as_record() if self.episode_ref else None, "episode_id": self.episode_id, "run_id": self.run_id, "units_consumed": self.units_consumed, "ended_by": self.ended_by, "end_reason": self.end_reason, "safety_bound": self.safety_bound, "controller": dict(self.controller), "final_verdict": self.final_verdict, "curve": self.curve, "facets": dict(self.facets), "channel_schema": self.channel_schema.as_record() if self.channel_schema else {}, "units": [unit.as_record() for unit in self.unit_records]}
 
 
 @dataclass(frozen=True)
@@ -265,6 +282,7 @@ class EpisodeView:
     units: tuple[UnitRecord, ...]
     curve: IncidenceEstimate
     verdict: ControllerVerdict
+    episode_ref: EpisodeRef
 
 
 class UnitSource(Protocol):
@@ -355,6 +373,31 @@ class Episode:
     def label(self) -> str:
         return self.key
 
+    @classmethod
+    def identity(
+        cls,
+        ctx: "Context",
+        grain: Grain,
+        key: str,
+        *,
+        parent_path: Path = (),
+    ) -> EpisodeRef:
+        """Create an Episode identity from generic method structure only."""
+
+        path = tuple(parent_path) + ((grain.name, str(key)),)
+        return EpisodeRef(run_id=ctx.require_run_id(), path=path)
+
+    def reference(
+        self,
+        ctx: "Context",
+        *,
+        parent_path: Optional[Path] = None,
+    ) -> EpisodeRef:
+        """Return this Episode's stable identity under its structural parent."""
+
+        parent = ctx.path if parent_path is None else tuple(parent_path)
+        return self.identity(ctx, self.grain, self.key, parent_path=parent)
+
     # -------------------------------------------------------------- #
     # an Episode is a unit of its parent
     # -------------------------------------------------------------- #
@@ -409,6 +452,8 @@ class Episode:
     # the template method -- FINAL; one call to the kernel's loop body
     # -------------------------------------------------------------- #
     def run(self, ctx: "Context") -> EpisodeRecord:
+        if not ctx.path and not ctx.has_run_id:
+            ctx.bind_run_id(self.key)
         scope = ctx.enter(self.grain, self.key)
         try:
             return self._run_loop(ctx, scope)
@@ -416,6 +461,8 @@ class Episode:
             ctx.leave(scope)
 
     async def run_async(self, ctx: "Context") -> EpisodeRecord:
+        if not ctx.path and not ctx.has_run_id:
+            ctx.bind_run_id(self.key)
         scope = ctx.enter(self.grain, self.key)
         try:
             return await self._run_loop_async(ctx, scope)
@@ -432,13 +479,14 @@ class Episode:
             units=tuple(records),
             curve=ctx.scoped.curve(scope),
             verdict=ctx.scoped.verdict(scope),
+            episode_ref=EpisodeRef(run_id=ctx.require_run_id(), path=scope),
         )
 
     def _record(self, ctx: "Context", scope: Scope, records: list[UnitRecord], ended_by: str, end_reason: str) -> EpisodeRecord:
         curve = ctx.scoped.curve(scope)
         verdict = ctx.scoped.verdict(scope)
         path = scope
-        return EpisodeRecord(path[-1][0], path[-1][1], len(records), ended_by, tuple(records), verdict.as_record(), curve.as_record(), self.bound, path, end_reason, verdict.config.as_record(), ctx.scoped.facet_curves(scope), curve, verdict, ctx.scoped.channel_schema(scope))
+        return EpisodeRecord(path[-1][0], path[-1][1], len(records), ended_by, tuple(records), verdict.as_record(), curve.as_record(), self.bound, path, end_reason, verdict.config.as_record(), ctx.scoped.facet_curves(scope), curve, verdict, ctx.scoped.channel_schema(scope), EpisodeRef(run_id=ctx.require_run_id(), path=path))
 
     def _run_loop(self, ctx: "Context", scope: Scope) -> EpisodeRecord:
         records: list[UnitRecord] = []
@@ -457,7 +505,7 @@ class Episode:
             if not isinstance(contribution, Contribution):
                 raise TypeError("Acquirable.acquire() must return Contribution")
             unit = ctx.scoped.observe(scope, item.label, contribution.credit.credits, crediting_active=contribution.credit.active, counts_toward_verdict=contribution.counts_toward_verdict, facets=contribution.credit.facets)
-            record = UnitRecord(item.label, unit, contribution.credit.note, contribution.credit.credits, contribution.credit.facets, contribution.child, ctx.scoped.epoch(scope))
+            record = UnitRecord(item.label, unit, contribution.credit.note, contribution.credit.credits, contribution.credit.facets, contribution.child, ctx.scoped.epoch(scope), UnitRef(EpisodeRef(run_id=ctx.require_run_id(), path=scope).episode_id, len(records)))
             records.append(record)
             if self.on_unit is not None:
                 self.on_unit(item, contribution, record)
@@ -496,7 +544,7 @@ class Episode:
             if not isinstance(contribution, Contribution):
                 raise TypeError("Acquirable.acquire_async() must return Contribution")
             unit = ctx.scoped.observe(scope, item.label, contribution.credit.credits, crediting_active=contribution.credit.active, counts_toward_verdict=contribution.counts_toward_verdict, facets=contribution.credit.facets)
-            record = UnitRecord(item.label, unit, contribution.credit.note, contribution.credit.credits, contribution.credit.facets, contribution.child, ctx.scoped.epoch(scope))
+            record = UnitRecord(item.label, unit, contribution.credit.note, contribution.credit.credits, contribution.credit.facets, contribution.child, ctx.scoped.epoch(scope), UnitRef(EpisodeRef(run_id=ctx.require_run_id(), path=scope).episode_id, len(records)))
             records.append(record)
             if self.on_unit is not None:
                 result = self.on_unit(item, contribution, record)
@@ -605,6 +653,7 @@ class Context:
         *,
         channel_schemas: Mapping[str, ChannelSchema],
         order: Optional[Iterable[Grain]] = None,
+        run_id: Optional[str] = None,
     ) -> None:
         self.scoped = scoped if scoped is not None else ScopedYield()
         self.order: Optional[tuple[Grain, ...]] = None
@@ -635,6 +684,27 @@ class Context:
                 )
         self._stack: list[Path] = []
         self._grains: dict[str, Grain] = {}
+        self._run_id: Optional[str] = None
+        if run_id is not None:
+            self.bind_run_id(run_id)
+
+    def bind_run_id(self, run_id: str) -> None:
+        """Bind the run identity once; every Episode and unit derives from it."""
+
+        if not isinstance(run_id, str) or not run_id:
+            raise ValueError("Context run_id must be a non-empty string")
+        if self._run_id is not None and self._run_id != run_id:
+            raise ValueError("Context run_id is already bound")
+        self._run_id = run_id
+
+    @property
+    def has_run_id(self) -> bool:
+        return self._run_id is not None
+
+    def require_run_id(self) -> str:
+        if self._run_id is None:
+            raise RuntimeError("Context run_id must be bound before Episode identity is read")
+        return self._run_id
 
     @property
     def path(self) -> Path:

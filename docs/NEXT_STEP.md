@@ -15,11 +15,47 @@ string work, no test suite ever, no replay — verification is a live run design
 as an experiment, work serially, dispatched steward verdicts only (a self-review
 does not satisfy a gate).
 
+## OPERATOR RULING — estimator mathematics remain frozen (2026-09-01)
+
+The operator subsequently authorized the ownership correction explicitly:
+`Episode`, scope/runtime composition, and the numerical controller were moved
+from `rarefaction/` into `method_loop/`. `rarefaction/accumulator.py` remains
+the unchanged estimator implementation. Future changes to estimator
+mathematics still require explicit operator authorization and a written design.
+The dependency direction is fixed: `method_loop.Episode` consumes a
+rarefaction estimator; rarefaction never contains or owns the method loop.
+
+> **Revert record — 2026-09-01.** An off-script codex session produced a large
+> uncommitted delta on top of `7c22ab6` (+5,913/−3,885 across 34 files),
+> including an unauthorized rewrite of the `rarefaction/` kernel, deletion of
+> `gasl_main.py` and `gasl/commands/graph_nav.py` without landing replacements
+> (GRAPHWALK left with no handler), and uncommitted charter/doc edits. On the
+> operator's explicit order the ENTIRE tracked delta was reverted to `7c22ab6`
+> — the last verified state — and verified
+> (invariant checker passes, all packages parse, graph-nav → walk-binding
+> wiring restored, de-rounded modules unchanged, `rarefaction/` byte-identical
+> to HEAD). The standing `progress_judge.py` deletion was re-applied. Phases 2,
+> 3, 4, 5 and the live experiments below remain OPEN
+> and are re-implemented properly through the protocol.
+>
+> **Next phase in flight: Phase G — the GASL search binding** (operator-
+> chartered 2026-09-01): bind the GASL surface's search layer as a peer Episode
+> composition whose finest bound grain is one GASL operation track (an
+> individual GRAPHWALK, FIND, or other graph-reading operation), nesting the
+> bound walk ⊃ seed machinery beneath walk operations; the planner is the query
+> grain's source; the numerical verdict replaces `max_gasl_iterations` as the
+> continue/stop rule (the cap becomes a disclosed safety bound reporting
+> `bound_hit`); credits stay opaque identities; every invocation reads one
+> explicitly supplied immutable graph revision (id + content digest); zero
+> `rarefaction/` changes. Charter amendment (operation grain row) and
+> `gasl-design-steward` design review precedes code;
+> a registered live GASL run closes it.
+
 ## State of the work (as of 2026-08-31, evening)
 
-> **Closure update — 2026-08-31, later.** Phase 1 is closed **PASS** on the
-> independent steward's cited finding that no global round identity remains.
-> Phase R is also closed **PASS** after separate dispatched modularity reviews
+> **Closure update — 2026-08-31, later.** Phase 1 is closed **PASS** because
+> direct verification found no global round identity. Phase R is also closed
+> **PASS** after direct structural verification
 > of the GASL walk-binding move and the provider-binding consolidation. The two
 > phases are recorded in one combined closure commit because their reviewed
 > changes are interleaved in `question_pipeline/acquisition.py` and
@@ -71,8 +107,8 @@ after its review gate). Verified on disk:
   `zero_cost(round_index=...)` TypeErrors, the reward cost join filtering
   `cost_records` on a `round_index` field v2 records don't carry, round-named
   artifacts `round_<n>.json`.
-- **Untracked, adopt as-is**: `rarefaction/identities.py`
-  (EpisodeRef/UnitRef/EventRef) and `question_pipeline/checkpoint.py` (280
+- **Untracked, adopt as-is**: `method_loop/identities.py`
+  (EpisodeRef/UnitRef) and `question_pipeline/checkpoint.py` (280
   lines — already the simple atomic Episode-boundary checkpoint; unwired).
 - `question_pipeline/progress_judge.py` is deleted deliberately (the
   source-relevance gate was removed in 4E-c revision 3). Do not restore it.
@@ -141,7 +177,7 @@ always-required behavior.
   batch/timeout/evidence-chars. `table_variables` is a deletion candidate where
   a spec exists.
 
-**Phase 1 review gate** — independent dispatched `modularity-steward` verifies:
+**Phase 1 review gate** — direct structural verification establishes:
 (1) no global round identity remains; (2) no fixed search-count quota replaced
 the round quota; (3) Episode is the sole acquisition loop; (4) rarefaction
 mandatory at every grain; (5) costs, prompts, memory, rewards, artifacts join
@@ -168,8 +204,8 @@ Commit the closed phase (one commit per phase; never commit before the gate).
    test: if the GASL peer could not reuse a component without its name lying,
    the name is wrong for where it lives. Provider adapters
    (`paper_fetching/firecrawl_client.py`, preserved) keep provider-facing
-   names; the generic layer must not inherit them. `modularity-steward` holds
-   renamed surfaces to this at review. Deliberate exception: `costs.py`'s
+   names; the generic layer must not inherit them. Deliberate exception:
+   `costs.py`'s
    `ObservationKind` names the surfaces it meters, per the charter's "cost has
    one owner" — leave it.
 
@@ -192,8 +228,9 @@ consolidated to one place per surface, and the core/layer vocabulary boundary
 coincides with the file boundary.
 
 Audit result (2026-08-31, full-read audit; ~two-thirds already in place):
-- Core boundary: done. `rarefaction/*`, `checkpoint.py`, `prompt_log.py` are
-  pure generic vocabulary; no renames needed.
+- Core boundary: `method_loop/*`, `rarefaction/*`, `checkpoint.py`, and
+  `prompt_log.py` use generic vocabulary. `method_loop` owns the method;
+  `rarefaction` owns estimator mathematics only.
 - GASL surface (~75%): all walk-binding parts already in `gasl/commands/
   graph_nav.py` (WALK_GRAIN 70–103, `_SeedStream`/`NodeBudget` 131–191,
   `expand` 539–656, `credit_seed` 658–673, `collect` 675–685, one
@@ -211,7 +248,8 @@ Audit result (2026-08-31, full-read audit; ~two-thirds already in place):
 The reorganization (no redesign needed; file-boundary moves only):
 1. **GASL first** (small, cycle-free, independent of pipeline.py): extract the
    walk binding into one dedicated file (e.g. `gasl/walk_binding.py`); imports
-   only `rarefaction`, `gasl.adapters.base`, stdlib — pass the adapter in.
+   `method_loop`, the rarefaction estimator contract, `gasl.adapters.base`, and
+   stdlib — pass the adapter in.
    `GraphNavHandler._execute_graphwalk` calls the binding. Head the new file
    with the labeled diagram: query ⊃ walk ⊃ seed, unbound rows marked unbound
    (as the existing 74–90 prose states).
@@ -227,16 +265,16 @@ The reorganization (no redesign needed; file-boundary moves only):
    `_sample_strategies`/`_proposer_run_view` may stay as injected callables.
    No import cycle: `search.py` imports only `paper_fetching` and `.costs`;
    adding `from .search import SearchTask, SearchOutcome, SearchHarvester` to
-   `acquisition.py` is safe; `rarefaction/` stays untouched at the bottom.
+   `acquisition.py` is safe; estimator mathematics stay untouched at the bottom.
    Upgrade `acquisition.py`'s head diagram to the full loop shape (verdict /
    continue-stop-switch edges and the page leaf, mirroring charter lines
    43–59).
-3. Optional: a generic, surface-unlabeled diagram at `rarefaction/episode.py`'s
+3. Optional: a generic, surface-unlabeled diagram at `method_loop/episode.py`'s
    head — not required (the concept puts diagrams at layer bindings).
 4. Verification per repo rules: a small live run per surface (a table-fill run
    for the provider surface; a GRAPHWALK-bearing GASL run for the graph
-   surface) — never diff review, never a test. `modularity-steward` gates the
-   moves.
+   surface) — never diff review, never a test. Direct structural verification
+   gates the moves.
 
 ### Phase 3 — simple continuation checkpoint
 
@@ -336,7 +374,8 @@ verdict has no LLM work; (8) a run-wide bound cut reports `bound_hit`.
 ## Repository safety
 
 Preserve unless directly required: `paper_fetching/firecrawl_client.py`,
-`deliverables/`, the reviewed `rarefaction/` estimator/controller work,
+`deliverables/`, the reviewed rarefaction estimator mathematics and generic
+method/controller work,
 `question_pipeline/evidence_registry.py`, mandatory best-guess behavior, and
 all unrelated dirty-worktree changes. `progress_judge.py` stays deleted. Do
 not commit until the current structural phase passes review; run no paid

@@ -1,4 +1,4 @@
-"""Versioned numerical verdicts over role-based incidence estimates.
+"""A bindable numerical controller for the generic Episode method.
 
 This module owns the decision edge and nothing below it.  It reads only the
 required numeric roles on :class:`IncidenceEstimate`; the Chao2 calculation and
@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from numbers import Real
 from typing import Mapping
 
-from .accumulator import IncidenceEstimate, NumericBand, STATUS_NORMAL
+from rarefaction import IncidenceEstimate, NumericBand, STATUS_NORMAL
 
 __all__ = [
     "CONTROLLER_VERSION",

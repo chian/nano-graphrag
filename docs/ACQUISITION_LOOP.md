@@ -314,7 +314,7 @@ repetition is the signal that there is one higher-order structure with
 swappable parts, and that a surface binds to the loop by **composing
 instances of it**, never by writing the loop again. This section is the
 class template the team builds to and the only place its rules are stated;
-every other document points here. `rarefaction/episode.py::Episode` owns the
+every other document points here. `method_loop/episode.py::Episode` owns the
 single loop body and template method (phase 4E); nested grains reach that same
 body through `Episode.run` or `Episode.run_async`.
 
@@ -386,19 +386,21 @@ transitions and streaks have one owner; and a child episode is one unit of its
 parent. Records nest as episodes do. The method core calls no model and does no
 I/O — whether an injected `extract` fetches a page is invisible to it.
 
-Swapped per grain and surface: `source`, `extract`, the deterministic acceptance
-projection, the post-verdict observation hook, explicit safety boundary, fixed
-channel declarations, and numeric thresholds. Not swapped: the incidence
-sample builder, rolling rarefaction calculation, decision-facing estimate
-role contract, the fact that the controller consumes rarefaction, order of
-operations, eligibility rules, fan-up, or epoch lifecycle. The reachable-total
-calculation inside `IncidenceEstimator` is versioned, currently bias-corrected
-incidence Chao2; a replacement fills the same `IncidenceEstimate` roles under a new
-registered experiment. The numerical controller can also be versioned, but must
+Bound at the method level: `source`, `extract`, the deterministic acceptance
+projection, the post-verdict observation hook, explicit safety boundary,
+incidence estimator, numerical controller, fixed channel declarations, and
+numeric thresholds. The current estimator binding is incidence rarefaction
+plus bias-corrected incidence Chao2 and fills the stable `IncidenceEstimate`
+roles. A replacement estimator fills those same roles under a new registered
+experiment. The numerical controller can also be versioned, but must
 declare and consume the required rarefaction role and emit recomputable
 arithmetic rather than becoming an arbitrary stop function. Python code remains editable, but this class makes the
 correct method the obvious path and makes an alternative stop rule require a
 visible rewrite rather than a harmless-looking configuration change.
+
+Fixed in `Episode`: order of operations, eligibility handling, identity,
+nesting, fan-up, record shape, and epoch lifecycle. Rarefaction is one attached
+numerical component. It never owns the method that calls it.
 
 ### Fan-up, stated
 
@@ -534,8 +536,8 @@ semantics.
 
 1. **No loop is written on a surface.** A `for` over units that reads a
    verdict, keeps a per-scope list, or calls `scoped.observe` outside
-   `Episode.run` is the loop re-implemented (`modularity-steward`:
-   NOT-BOUND, cited). The provider binding as coded in 4C is the example:
+   `Episode.run` is the loop re-implemented. The provider binding as coded in
+   4C is the example:
    its harvester loops inline and consults a controller between pages.
 2. **Fan-up is automatic.** A parent never keeps its own list of a child's
    identities (4C's `_search_new` is the example).
@@ -606,21 +608,23 @@ Three structural facts made insertion impossible and mandated the rebuild:
    budgets; searches had paper budgets. A cap answers "how much am I allowed",
    never "is this still producing".
 
-## The Episode method core: `rarefaction/`
+## Method composition and numerical components
 
-A **top-level package**, pure stdlib, no I/O, no provider access, no LLM. It is
-the bottom layer of the repo: anything may import it; it imports nothing from
-an application surface. This is not a restoration of the pruned `cd44ebb`
-`question_pipeline/rarefaction.py`. The package entered the tree in 4A; the
-current migration keeps its Episode composition and replaces its superseded
-estimator/controller internals.
+`method_loop/` owns the generic method and tree. It has no provider access and
+no model calls. A surface composes its source, extraction, acceptance,
+post-verdict learning, persistence, and safety bindings around `Episode`.
 
-| Target module | Owns |
+`rarefaction/` owns only incidence-estimator mathematics and its typed numeric
+contract. It does not own Episode identity, scope lifecycle, nesting, control,
+memory, persistence, or a surface. This is not a restoration of the pruned
+`cd44ebb` `question_pipeline/rarefaction.py`.
+
+| Module | Owns |
 | --- | --- |
-| `accumulator.py` | `IncidenceEstimator` retains immutable per-unit incidence sets, within-unit deduplication, `T`, `D`, `Q1`, `Q2`, exact rolling rarefaction and pairwise uncertainty, and emits the generic role-based `IncidenceEstimate`. The current internal reachable-total calculation is bias-corrected incidence Chao2 |
-| `controller.py` | Versioned numerical controllers over `IncidenceEstimate`. The current version derives tail yield and applies per-channel flat/done predicates and streaks. Every version declares and consumes the rarefied role, emits recomputable arithmetic, and preserves local/root outcome semantics |
-| `scopes.py` | Scope/epoch ownership and nested fan-up. An eligible completed child contributes one distinct identity set per channel to its parent; invalidating cuts are retained in records but excluded from parent incidence |
-| `episode.py` | The single composable loop: safety check → pull one unit → extract → accept → construct incidence sample → estimate → arithmetic verdict → publish post-verdict observation. A child Episode is one parent unit and records nest exactly once |
+| `method_loop/episode.py` | The single composable loop: safety check → pull one unit → extract → accept → construct incidence sample → estimate → arithmetic verdict → publish post-verdict observation. It owns Episode/unit identities, nesting, fan-up, and records |
+| `method_loop/runtime.py` | Path/epoch state that attaches the estimator and controller to each Episode scope |
+| `method_loop/controller.py` | The versioned numerical controller over the estimator's stable `IncidenceEstimate` roles |
+| `rarefaction/accumulator.py` | `IncidenceEstimator`: immutable per-unit incidence sets, within-unit deduplication, `T`, `D`, `Q1`, `Q2`, exact rolling rarefaction and pairwise uncertainty, and the current bias-corrected incidence Chao2 reachable-total estimate |
 
 `stop_rule.py` is removed when the upgraded `accumulator.py` and
 `controller.py` are wired. `Episode` is the sole owner of the composed loop
@@ -643,10 +647,10 @@ Semantics the kernel enforces, all of which are standing rules of this repo:
 
 ## Layering
 
-`gasl/` may import `rarefaction/`. This is not a weakening of the layering
-rule in `docs/RUNTIME_INVARIANTS.md`: that rule keeps the generic engine from
-importing the ingestion and control layers above it, and `rarefaction/` is a
-*lower* layer — schema-agnostic pure math over opaque identity tokens. The
+`gasl/` may import `method_loop/` for the generic Episode method and
+`rarefaction/` for its estimator contract. This is not a weakening of the
+layering rule in `docs/RUNTIME_INVARIANTS.md`: both are lower, schema-agnostic
+layers over opaque identity tokens. The
 frozen-inventory checker (`tools/check_runtime_invariants.py`) was amended in
 phase 4A to admit `rarefaction` as a permitted lower layer; the
 `nano_graphrag`/`question_pipeline` prohibition is unchanged.
@@ -686,7 +690,7 @@ phase 4A to admit `rarefaction` as a permitted lower layer; the
   `close_search`) — 4C's first binding — are replaced by an `Episode`
   composition (phase 4E). The controller survives as the thing that builds
   the composition and writes ledger decisions from episode records.
-- `rarefaction/stop_rule.py` and its exports and configuration fields are
+- The historical `rarefaction/stop_rule.py` and its exports and configuration fields are
   deleted in the atomic Episode migration.
 - `IncidenceEstimator` and `IncidenceEstimate` are the single estimator and
   decision-facing output names for incidence rarefaction.

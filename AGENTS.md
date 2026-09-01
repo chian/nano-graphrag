@@ -26,7 +26,7 @@ These are the operator's instructions, and each agent definition under
   cells, sample new prompt and query strings, and judge semantic distance and
   content relevance. Not numerical plus a model: a model handed a curve or a
   count and asked to decide is on a decision edge. Charter:
-  `docs/ACQUISITION_LOOP.md` §"Decisions are numerical"; the stewards veto it.
+  `docs/ACQUISITION_LOOP.md` §"Decisions are numerical".
 - **Compose the loop; do not write it.** The acquisition loop is one class
   (`Episode`) with swappable parts; a surface declares its grains and parts
   and composes them. The template and its rules are stated once, in
@@ -175,13 +175,13 @@ unvalidated, and reintroducing it silently undoes the prune. A module from that
 list enters the tree only as the deliverable of a build phase that owns it, with
 its own charter and tracker row.
 
-**`rarefaction` has entered the tree that way, as a *top-level* package** —
-`rarefaction/` (accumulator, stop rule, scopes, episode driver), not a
-`question_pipeline` module and not a restoration of the `cd44ebb` file. Its
-charter is `docs/ACQUISITION_LOOP.md`; tracker row 4A in
-`docs/CONTROL_LAYER_BUILD.md` is Confirmed (2026-08-24). Two consumers bind
-it: `gasl/commands/graph_nav.py` (4B, Diagnosed) and
-`question_pipeline/acquisition.py` (4C, Coded, live verification pending).
+**The generic method and rarefaction estimator have entered the tree as
+separate top-level packages.** `method_loop/` owns `Episode`, nesting, runtime
+identity, scope state, and the numerical controller attachment. `rarefaction/`
+owns only the incidence estimator and its typed numeric output. Neither is a
+`question_pipeline` module or a restoration of the `cd44ebb` file. Surface
+bindings import the generic method from `method_loop` and estimator contracts
+from `rarefaction`.
 
 ### Evidence rules at baseline
 

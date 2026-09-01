@@ -1,4 +1,4 @@
-"""Path-addressed estimator+controller scopes for the Episode kernel.
+"""Path-addressed component state for the generic Episode method.
 
 A scope is the episode's ancestry as a tuple of ``(grain name, key)`` pairs --
 never a joined string -- so uniqueness is structural and every record joins by
@@ -40,7 +40,7 @@ from __future__ import annotations
 
 from typing import Iterable, Mapping, Optional
 
-from .accumulator import (
+from rarefaction.accumulator import (
     DEFAULT_ALPHA,
     DEFAULT_EPOCH,
     DEFAULT_SUBSAMPLE_SIZE,

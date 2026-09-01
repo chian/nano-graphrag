@@ -17,12 +17,11 @@ adapter and remains responsible for command parsing and result storage.
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Tuple
 
-from rarefaction import (
+from method_loop import (
     END_BOUND_HIT,
     END_EXHAUSTED,
     END_REASON_UNIT_BOUND,
     END_YIELD_STOP,
-    ChannelSchema,
     ControllerConfig,
     Context,
     CreditResult,
@@ -32,6 +31,7 @@ from rarefaction import (
     UnitRecord,
     leaves,
 )
+from rarefaction import ChannelSchema
 
 from .adapters.base import (
     BOUND_KIND_NONE,
