@@ -1,13 +1,28 @@
-"""The provider surface, re-stated as a composition of ``rarefaction.Episode``.
+"""The provider binding of the composed ``rarefaction.Episode`` method.
 
 Chartered in ``docs/ACQUISITION_LOOP.md``; designed in
-``experiments/log/4E-c-provider-composition.md``. The composition is
+``experiments/log/4E-c-provider-composition.md``. This is the ONE file that
+owns the provider surface's binding; the generic kernel stays in
+``rarefaction/`` and provider/search mechanics stay injected collaborators.
 
-    run  (unit: one completed strategy episode)
-     |__ strategy  (unit: one completed search episode)
-          |__ search  (unit: one fetched page; the LEAF, never an episode)
+    run Episode  (unit: one completed strategy Episode)
+      |
+      +-- strategy Episode  (unit: one completed search Episode)
+            |
+            +-- search Episode  (unit: one fetched page/document)
+                  |
+                  +-- page Leaf
+                        acquire -> extract -> accept evidence -> credit
+                                                            |
+                                                            v
+                       incidence -> numerical verdict -> continue
+                                              |          -> stop search
+                                              +----------> switch strategy
 
-and it runs on **one** ``Episode.run_async`` call. Nothing in this package
+    fan-up: page credits -> search record -> strategy record -> run record
+    nesting: page Leaf ⊂ search Episode ⊂ strategy Episode ⊂ run Episode
+
+The run is driven by **one** ``Episode.run_async`` call. Nothing in this package
 contains a ``for`` or ``while`` that pulls a unit, calls ``scoped.observe``,
 reads a verdict, or keeps a per-scope list. The loop body is the kernel's, once,
 in ``rarefaction.episode.Episode``.
@@ -27,9 +42,10 @@ What this module owns
    surface's ``extract`` -- never re-derived by a second module.
 4. **The sources**, one per grain, and the typed objects they read before a
    pull (a page budget, provider health, the run's terminal state).
-5. **The controller**: it builds the context, the three episode declarations
-   and the crediter, calls the kernel once, and writes ledger decisions from
-   the emitted records. It consults nothing between units.
+5. **The binding**: ``ProviderBinding`` builds the three Episode declarations,
+   binds the page leaf, hooks, source callbacks, and record writers through
+   injected collaborators. ``AcquisitionController`` owns the context and the
+   single kernel call. Neither consults anything between units.
 
 An acquisition credit is an accepted criterion identity.  The source version,
 exact chunk and span, direct assertion candidate, and deterministic acceptance
@@ -42,7 +58,9 @@ from __future__ import annotations
 
 import json
 import re
+from collections import Counter
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import (
     Any,
     AbstractSet,
@@ -58,6 +76,7 @@ from rarefaction import (
     END_BOUND_HIT,
     END_EXHAUSTED,
     END_SOURCE_FAILED,
+    END_YIELD_STOP,
     Context,
     ChannelSchema,
     ControllerConfig,
@@ -82,6 +101,15 @@ from .evidence_registry import (
     TextSpan,
 )
 from .table_specs import ColumnRef, TableRef
+from .search import (
+    SearchFrontier,
+    SearchHarvester,
+    SearchOutcome,
+    SearchTask,
+    is_fatal_search_error,
+    search_result_observation,
+    summarize_prompt_arms,
+)
 
 __all__ = [
     "ACQUISITION_POLICY_NAME",
@@ -90,15 +118,9 @@ __all__ = [
     "DEFAULT_ITEM_CONTROL",
     "DEFAULT_RUN_CONTROL",
     "DEFAULT_STRATEGY_CONTROL",
-    "GATE_BELOW",
-    "GATE_CLEARED",
-    "GATE_FAILED_OPEN",
-    "GATE_NOT_RUN",
-    "GATE_UNSCORED",
     "MAX_PROPOSAL_SAMPLES",
     "PAGE_CREDIT_WINDOW",
     "REJECT_OPERATOR_NOT_IN_CATALOG",
-    "RELEVANCE_SCORE_FLOOR",
     "RUN_GRAIN",
     "SEARCH_GRAIN",
     "STRATEGY_DISTANCE_FLOOR",
@@ -114,13 +136,13 @@ __all__ = [
     "PageSource",
     "PageUnit",
     "ProviderHealth",
+    "ProviderBinding",
     "RunTermination",
     "SourceBudget",
     "StrategyProposer",
     "StrategySearches",
     "declared_credit_columns",
     "join_costs",
-    "page_clears_relevance",
     "page_fate",
     "window_episode_record",
 ]
@@ -174,7 +196,7 @@ SEARCH_GRAIN = Grain(
     name="search",
     unit=(
         "one fetched page or document from this search's result list: the page "
-        "is acquired, gated, and extracted before the next one is pulled"
+        "is acquired and extracted before the next one is pulled"
     ),
     credit=(
         "one non-trivial value for a declared, deliverable, non-key contract "
@@ -267,6 +289,12 @@ CHUNK_GRAIN_DISCLOSURE = GrainDisclosure(
     ),
 )
 
+#: Chunks a page must carry before the current all-barren item-controller
+#: arithmetic could have fired at a hypothetical chunk grain. The grain stays
+#: explicitly unbound; this number is replay disclosure only and never steers
+#: acquisition.
+CHUNK_GRAIN_CROSSING = 10
+
 
 def grain_disclosure(grain: Grain) -> dict[str, Any]:
     """One grain's declaration plus its all-barren crossing, for the record.
@@ -291,7 +319,7 @@ def grain_disclosure(grain: Grain) -> dict[str, Any]:
 FATAL_SEARCH_ERROR = "fatal_search_error"
 SEARCH_ERROR = "search_error"
 BOUND_KIND_RUN_SOURCE_BUDGET = "run_source_budget"
-BOUND_KIND_RUN_ROUND_BUDGET = "run_round_budget"
+BOUND_KIND_EPISODE_UNIT_SAFETY_CAP = "episode_unit_safety_cap"
 #: A spent sampling budget is a CUT, not exhaustion. ``None`` stays reserved for
 #: the honest end -- the declared catalog is drained and the sampler returned
 #: nothing at all -- because "the mutation mechanism gave up" and "the search
@@ -309,7 +337,10 @@ RUN_END_EXECUTION_ERROR = "run_execution_error"
 STOP_REASON_ENDS: dict[str, tuple[str, str]] = {
     "task_goal_fulfilled": (END_BOUND_HIT, RUN_END_GOAL_FULFILLED),
     "source_budget_exhausted": (END_BOUND_HIT, BOUND_KIND_RUN_SOURCE_BUDGET),
-    "round_budget_exhausted": (END_BOUND_HIT, BOUND_KIND_RUN_ROUND_BUDGET),
+    "episode_unit_safety_cap": (
+        END_BOUND_HIT,
+        BOUND_KIND_EPISODE_UNIT_SAFETY_CAP,
+    ),
     "execution_error": (END_SOURCE_FAILED, RUN_END_EXECUTION_ERROR),
 }
 STOP_REASON_FRONTIER_EXHAUSTED = "search_frontier_exhausted"
@@ -326,10 +357,9 @@ class SourceBudget:
 
     Written by the page hook, read by the sources before a pull, and read by
     ``extract`` never at all -- which is the clause rule 7 is about. It charges
-    every **pulled** page, not every accepted one: under the fate table a page
-    the gate refused is still a unit that cost a fetch and a gate call, and a
-    budget that charged only acceptances would let a run pull unlimited refused
-    pages for free, leaving the stop rule's denominator unbounded.
+    every **pulled** page, not every accepted one: mechanically unusable and
+    extraction-failed pages still cost acquisition work and remain explicit
+    units even though they do not enter the estimator's judged history.
     """
 
     limit: int
@@ -403,75 +433,10 @@ class RunTermination:
 
 
 # ==========================================================================
-# The page gate's rule -- one implementation, called from `extract`
-# ==========================================================================
-
-#: The gate on whether a fetched page is extracted. A page whose reported
-#: specificity clears this floor is extracted; one below it is a judged unit
-#: that carried nothing.
-#:
-#: NO MEASUREMENT JUSTIFIES 0.5. It is the midpoint of the [0,1] scale the
-#: prompt declares and `_optional_score` clamps to -- chosen because it is the
-#: scale's own midpoint rather than fitted to any observation -- and it is
-#: registered as an instrument parameter that can move a result, with every
-#: page's reported score emitted so a later phase can set it from data. It is a
-#: module constant and NOT a `PipelineConfig` knob: a config knob on a threshold
-#: invites re-running until the direction flips.
-#:
-#: A LATER PHASE SETS IT FROM A BLIND RE-DERIVATION, NEVER FROM THE EMITTED
-#: DISTRIBUTION ALONE. `evidence-verifier` re-derives from a source chunk
-#: whether a page carries a value at the grain of a declared column, without
-#: seeing what the pipeline concluded; that measures this score against
-#: something other than the model. "Set it from data" using only the emitted
-#: histogram decays into moving it until the below-floor count looks right,
-#: which is fitting to a number with no referent.
-RELEVANCE_SCORE_FLOOR = 0.5
-
-GATE_CLEARED = "cleared"
-GATE_BELOW = "below_floor"
-GATE_UNSCORED = "unscored"
-GATE_FAILED_OPEN = "failed_open"
-GATE_NOT_RUN = "not_run"
-
-
-def page_clears_relevance(
-    score: float | None,
-    *,
-    floor: float = RELEVANCE_SCORE_FLOOR,
-) -> tuple[bool, str]:
-    """Whether this page is extracted, and the class label saying why.
-
-    Pure: one comparison and one three-way class, recomputable offline from the
-    emitted per-page record. ``None`` is NOT zero -- it is
-    :data:`GATE_UNSCORED`, and it **fails open**, which is the policy this tree
-    already applies when the gate call raises ("relevance gating should not drop
-    evidence on LLM failure"). Failing closed would drop evidence on a JSON
-    error, and a stream of parse failures would read as a search producing
-    nothing.
-
-    THE MODEL IS NOT ON THIS BRANCH. It reports a number whose definition
-    predates this design; this comparison decides what the number means for the
-    loop. It emits no label, and the prompt that produced the number names no
-    gate, no decision word and no consequence -- a model told a gate exists has
-    been handed the rule back and will encode its verdict into the float.
-    """
-
-    if score is None:
-        return True, GATE_UNSCORED
-    try:
-        value = float(score)
-    except (TypeError, ValueError):
-        return True, GATE_UNSCORED
-    if value >= float(floor):
-        return True, GATE_CLEARED
-    return False, GATE_BELOW
-
-
-# ==========================================================================
 # The fate table -- a PAIR of axes, so it partitions
 # ==========================================================================
 
-#: Mechanical outcomes reached before the gate. First match in this order wins,
+#: Mechanical outcomes reached before extraction. First match in this order wins,
 #: and every one of them is an announced NON-JUDGEMENT: the page is in the curve
 #: with its disclosure count and out of the stop history, because a fact about a
 #: URL is not evidence about whether the result list is still yielding.
@@ -483,7 +448,7 @@ FATE_TOO_LARGE = "too_large"
 FATE_NO_EXTRACTOR = "no_extractor"
 FATE_NO_CREDIT_COLUMNS = "no_credit_columns"
 
-PRE_GATE_FATES = (
+PRE_EXTRACTION_FATES = (
     FATE_DUPLICATE_URL,
     FATE_FETCH_FAILED,
     FATE_BLOCKED_PAGE,
@@ -508,27 +473,15 @@ EXTRACT_NOT_RUN = "not_run"
 
 @dataclass(frozen=True)
 class PageFate:
-    """One page's outcome on both axes, and what the kernel makes of it.
+    """One page's mechanical and extraction outcome."""
 
-    TWO AXES, NOT ONE FIRST-MATCH LIST. A gate outcome and an extraction outcome
-    are independent facts about a page: a gate-off page can still fail
-    extraction, and a first-match ordering over a single list either hides that
-    or makes the classes overlap -- and ``credit_note`` is a counted class
-    label, so overlapping classes make its counts uninterpretable. Each axis is
-    itself a partition, so the pair is one.
-    """
-
-    #: One of :data:`PRE_GATE_FATES`, or ``""`` when the page reached the gate.
+    #: One of :data:`PRE_EXTRACTION_FATES`, or ``""`` when extraction was attempted.
     mechanical: str = ""
-    #: One of the ``GATE_*`` labels, or ``""`` when a mechanical fate preempted.
-    gate: str = ""
     #: One of the ``EXTRACT_*`` labels, or ``""`` likewise.
     extraction: str = ""
     #: The classified error, for the two classified mechanical rows and for a
     #: raised extraction. A class label from `costs.classify_error`, never prose.
     error_class: str = ""
-    #: Why no gate score arrived, when ``gate`` is :data:`GATE_UNSCORED`.
-    score_reason: str = ""
 
     @property
     def credit_note(self) -> str:
@@ -538,27 +491,19 @@ class PageFate:
             if self.error_class:
                 return f"not_judged:{self.mechanical}:{self.error_class}"
             return f"not_judged:{self.mechanical}"
-        gate = self.gate or GATE_NOT_RUN
-        if gate == GATE_UNSCORED and self.score_reason:
-            gate = f"{gate}:{self.score_reason}"
-        elif gate == GATE_FAILED_OPEN and self.error_class:
-            gate = f"{gate}:{self.error_class}"
         extraction = self.extraction or EXTRACT_NOT_RUN
         if extraction == EXTRACT_RAISED and self.error_class:
             extraction = f"{extraction}:{self.error_class}"
-        return f"gate:{gate}|extract:{extraction}"
+        return f"extract:{extraction}"
 
     @property
     def judged(self) -> bool:
         """Whether this page is evidence about the search's yield.
 
-        A mechanical skip is a fact about a URL and stays out. A page the gate
-        refused IS a judged unit carrying nothing -- that is precisely the
-        observation the search-grain rule is about, and excluding it would let a
-        strict gate hold a barren search open indefinitely because the search
-        could never accumulate the barren evidence that would end it. An
-        extraction that raised, or one whose every chunk failed, is an
-        instrument failure and stays out.
+        A mechanical skip is a fact about a URL and stays out. An extraction
+        that raised, or one whose every chunk failed, is an instrument failure
+        and stays out. Every successfully extracted page is a judged unit,
+        including pages that produce no new accepted evidence.
         """
 
         if self.mechanical:
@@ -596,10 +541,8 @@ class PageFate:
     def to_dict(self) -> dict[str, Any]:
         return {
             "mechanical": self.mechanical,
-            "gate": self.gate,
             "extraction": self.extraction,
             "error_class": self.error_class,
-            "score_reason": self.score_reason,
             "credit_note": self.credit_note,
             "judged": self.judged,
         }
@@ -611,26 +554,6 @@ class PageFate:
 #: strings, because arm penalties and arm provenance are read from declared
 #: fields and never reconstructed from wording.
 #:
-#: ``GATE_BELOW`` maps to ``not_relevant`` deliberately, and the choice is a
-#: registered change rather than an emergent one. ``not_relevant`` is the sole
-#: producer of ``search_memory``'s ``off_axis_count``, which is one of three
-#: penalty terms on an arm's score and the whole of the ``off_axis`` outcome
-#: class that routes ``off_axis_dominant -> target_terminology_swap``. The
-#: producer this phase deletes is the model's accept/reject label; mapping the
-#: floor's refusal onto the same reason keeps that axis alive, and "the reported
-#: specificity for the declared columns was below the floor" is a closer match
-#: to "this arm drifted off axis" than a model's decision word was. Retiring one
-#: of the four named classes of the pseudo-gradient inside a phase that never
-#: set out to change it is the emergent removal this mapping exists to avoid.
-#:
-#: THE POPULATION CHANGES AND THE DIRECTION IS NOT PREDICTED. How many pages
-#: fall below 0.5 relative to how many the label rejected is not knowable
-#: without running it, and no prior run may be replayed to guess it. The
-#: per-arm ``off_axis_count`` distribution and the count of arms classed
-#: ``off_axis`` are emitted per strategy attempt, two-sided: zero across the run
-#: means the branch was inert on this configuration and that is reported as the
-#: finding -- which is the only way "the branch never fired" can be told from
-#: "the branch no longer exists".
 FATE_SKIP_REASONS: dict[str, str] = {
     FATE_DUPLICATE_URL: "duplicate_url",
     FATE_FETCH_FAILED: "fetch_failed",
@@ -639,7 +562,6 @@ FATE_SKIP_REASONS: dict[str, str] = {
     FATE_TOO_LARGE: "too_large",
     FATE_NO_EXTRACTOR: "no_extractor",
     FATE_NO_CREDIT_COLUMNS: "no_credit_columns",
-    GATE_BELOW: "not_relevant",
     EXTRACT_RAISED: "extract_failed",
     EXTRACT_ALL_CHUNKS_FAILED: "extract_all_chunks_failed",
 }
@@ -650,18 +572,14 @@ def fate_skip_reason(fate: PageFate) -> str:
 
     if fate.mechanical:
         return FATE_SKIP_REASONS.get(fate.mechanical, "")
-    if fate.gate == GATE_BELOW:
-        return FATE_SKIP_REASONS[GATE_BELOW]
     return FATE_SKIP_REASONS.get(fate.extraction, "")
 
 
 def page_fate(
     *,
     mechanical: str = "",
-    gate: str = "",
     extraction: str = "",
     error_class: str = "",
-    score_reason: str = "",
 ) -> PageFate:
     """Mint one page's fate. The only constructor callers use.
 
@@ -670,14 +588,12 @@ def page_fate(
     on ``CreditResult.active`` in the first place.
     """
 
-    if mechanical and mechanical not in PRE_GATE_FATES:
-        raise ValueError(f"{mechanical!r} is not a declared pre-gate fate")
+    if mechanical and mechanical not in PRE_EXTRACTION_FATES:
+        raise ValueError(f"{mechanical!r} is not a declared pre-extraction fate")
     return PageFate(
         mechanical=mechanical,
-        gate=gate,
         extraction=extraction,
         error_class=error_class,
-        score_reason=score_reason,
     )
 
 
@@ -698,7 +614,8 @@ class PageUnit:
     task: Any
     result: Mapping[str, Any]
     rank: int
-    round_index: int
+    episode_id: str
+    episode_path: tuple[tuple[str, str], ...]
     #: The PULL-TIME identity: ``f"{task.id}#{rank}"``. Every page has one,
     #: accepted or not, before any I/O -- which is what a source id could never
     #: be, because it is minted inside ``extract`` while ``Leaf`` is frozen
@@ -739,15 +656,12 @@ class PageMaterial:
     relationships: Sequence[Mapping[str, Any]] = ()
     records: Sequence[Mapping[str, Any]] = ()
     guesses: Sequence[Mapping[str, Any]] = ()
-    paper: Optional[Mapping[str, Any]] = None
+    #: The accepted source unit's persisted record, or ``None`` when the page
+    #: was refused before one was written. Generic unit vocabulary on purpose:
+    #: the unit is one fetched page or document, whatever the medium.
+    source_record: Optional[Mapping[str, Any]] = None
     ingestion: Mapping[str, Any] = field(default_factory=dict)
-    relevance: Optional[Mapping[str, Any]] = None
     reduction: Mapping[str, Any] = field(default_factory=dict)
-    #: The gate's recorded facts: score, floor, rule, outcome, reason class,
-    #: window count, every window's own score, and which window decided. Route 2
-    #: recomputes the fate offline from these, and a later phase reads the
-    #: distribution to set the floor.
-    gate: Mapping[str, Any] = field(default_factory=dict)
     #: Per-chunk encounters, including whether each chunk's extraction FAILED --
     #: so a chunk-grain replay cannot read an instrument failure as barrenness.
     chunks: Sequence[Mapping[str, Any]] = ()
@@ -783,9 +697,8 @@ class CreditColumn:
     """One declared target column, with everything a consumer needs of it.
 
     Carries the declared fields as well as the matching keys so the ONE
-    selection of columns lives here: the gate's contract block renders from this
-    object and never goes back to the spec to re-select, which would be a second
-    column-selection rule at the renderer.
+    selection of columns lives here, so acceptance and incidence cannot drift
+    onto independently selected contracts.
     """
 
     table: str
@@ -1472,8 +1385,11 @@ class PageSource:
         make_leaf: LeafFactory,
         budget: SourceBudget,
         health: ProviderHealth,
-        round_index: int,
-        open_cost_scope: Callable[[str, str, int], Any],
+        episode_id: str,
+        episode_path: tuple[tuple[str, str], ...],
+        open_cost_scope: Callable[
+            [str, str, str, tuple[tuple[str, str], ...]], Any
+        ],
         on_results: Optional[Callable[[Any, Sequence[Mapping[str, Any]]], None]] = None,
         on_error: Optional[Callable[[Any, BaseException, bool], None]] = None,
         is_fatal: Callable[[BaseException], bool] = lambda _exc: False,
@@ -1483,7 +1399,8 @@ class PageSource:
         self._make_leaf = make_leaf
         self._budget = budget
         self._health = health
-        self._round_index = int(round_index)
+        self._episode_id = str(episode_id)
+        self._episode_path = tuple(episode_path)
         self._open_cost_scope = open_cost_scope
         self._on_results = on_results
         self._on_error = on_error
@@ -1538,7 +1455,10 @@ class PageSource:
         end: Optional[SourceEnd] = None
         results: list[Mapping[str, Any]] = []
         with self._open_cost_scope(
-            ObservationKind.SEARCH.value, str(self._task.id), self._round_index
+            ObservationKind.SEARCH.value,
+            str(self._task.id),
+            self._episode_id,
+            self._episode_path,
         ) as meter:
             try:
                 # ``None`` is the acquisition framework's explicit absence of
@@ -1621,8 +1541,8 @@ class StrategySearches:
 STRATEGY_DISTANCE_FLOOR = 0.5
 
 #: How many samples per pull before the proposer gives up. With the run grain's
-#: verdict unreachable below ten completed strategies, THIS CONSTANT AND
-#: `max_rounds` ARE THE OPERATIVE ENDS OF THE PROPOSING ARC ON ANY RUN SMALLER
+#: verdict unreachable below ten completed strategies, this explicit proposal
+#: cap and the run Episode's emergency unit boundary are the operative ends
 #: THAN THAT. It is a bound, disclosed as a bound and never presented as a
 #: decision, and the run record names which end fired.
 MAX_PROPOSAL_SAMPLES = 3
@@ -1678,8 +1598,11 @@ class StrategyProposer:
         budget: SourceBudget,
         health: ProviderHealth,
         termination: RunTermination,
-        open_cost_scope: Callable[[str, str, int], Any],
-        round_index: Callable[[], int],
+        open_cost_scope: Callable[
+            [str, str, str, tuple[tuple[str, str], ...]], Any
+        ],
+        episode_id: str,
+        episode_path: tuple[tuple[str, str], ...],
         run_key: str,
         record_proposal: Optional[Callable[[Mapping[str, Any]], None]] = None,
         distance_floor: float = STRATEGY_DISTANCE_FLOOR,
@@ -1694,7 +1617,8 @@ class StrategyProposer:
         self._health = health
         self._termination = termination
         self._open_cost_scope = open_cost_scope
-        self._round_index = round_index
+        self._episode_id = str(episode_id)
+        self._episode_path = tuple(episode_path)
         self._run_key = run_key
         self._record_proposal = record_proposal
         self._floor = float(distance_floor)
@@ -1770,19 +1694,11 @@ class StrategyProposer:
         # edge joins to something -- which is the defect this scope removes, one
         # level out.
         #
-        # THE ROUND INDEX COMES FROM ITS ONE OWNER and is NOT `units_consumed`.
-        # The two agree only when the run's round offset is zero: the owner is
-        # `round_offset + completed strategies` and the view counts completed
-        # strategies alone, so on a resumed run (both live launchers pass
-        # `--round-offset 3`) this edge would be stamped with a round no other
-        # record in the same strategy carries, and `reward.aggregate_round_cost`
-        # filters on exactly that field -- dropping the proposer's spend from
-        # the round that paid for it. A second expression for `round_index` is
-        # the defect this callable exists to prevent.
         with self._open_cost_scope(
             ObservationKind.STRATEGY_PROPOSAL.value,
             f"{self._run_key}#p{self._pulls}",
-            int(self._round_index()),
+            self._episode_id,
+            self._episode_path,
         ):
             episode = await self._pull()
         return episode
@@ -1792,9 +1708,8 @@ class StrategyProposer:
 
         Every input is a typed object this class was handed -- the run's
         terminal state, provider health, the page budget, the declared families,
-        the declared target ids -- and the round index comes from its owner. The
-        proposer reads no curve, no verdict and no unit count, so there is no
-        expression here that could disagree with one kept elsewhere.
+        and the declared target ids. The proposer reads no curve, no verdict and
+        no unit count, so there is no second acquisition decision hidden here.
         """
 
         # Step 4: a declared family eligible to open. NO MODEL CALL. `declared`
@@ -2186,14 +2101,17 @@ def join_costs(
     both hops are id joins in emitted artifacts and neither is a text match.
     """
 
-    keys = {record.scope_key}
-    labels = {unit.unit_label for unit in record.unit_records}
     out: dict[str, list[dict]] = {"scope": [], "units": []}
+    record_path = [list(segment) for segment in record.path]
     for cost in cost_records:
+        if str(cost.get("episode_id") or "") != str(record.episode_id or ""):
+            continue
+        if list(cost.get("episode_path") or ()) != record_path:
+            continue
         observation_id = str(cost.get("observation_id") or "")
-        if observation_id in keys:
+        if observation_id == record.scope_key:
             out["scope"].append(dict(cost))
-        elif observation_id in labels:
+        else:
             out["units"].append(dict(cost))
     return out
 
@@ -2409,3 +2327,1073 @@ ROW_CREDIT_RULE_DISCLOSURE = {
     "identity": "registry-accepted stable subject ID",
     "required_columns": "required ordinary ColumnRef IDs from the frozen schema",
 }
+
+
+class ProviderBinding:
+    """Own the provider surface's Episode wiring behind injected collaborators.
+
+    This class is deliberately a binding, not a second loop and not a provider
+    adapter. ``Episode`` still owns every pull/observe/verdict edge;
+    ``SearchHarvester`` still owns page preparation and persistence; the
+    evidence registry, graph transform, prompt/cost scopes, model string work,
+    and the pipeline's downstream post-strategy transformation are injected.
+    Moving those collaborations here makes the file boundary coincide with the
+    surface boundary without changing any collaborator's behavior.
+    """
+
+    def __init__(
+        self,
+        *,
+        controller: AcquisitionController,
+        run_key: str,
+        episode_unit_safety_cap: int,
+        strategy_catalog: AbstractSet[str],
+        frontier: SearchFrontier,
+        search_fn: SearchFn,
+        harvester: SearchHarvester,
+        search_provider_batch: Mapping[str, Any],
+        answers_dir: Path,
+        open_cost_scope: Callable[
+            [str, str, str, tuple[tuple[str, str], ...]], Any
+        ],
+        open_prompt_scope: Callable[
+            [str, tuple[tuple[str, str], ...]], Any
+        ],
+        sample_strategies: Callable[
+            [Sequence[Mapping[str, Any]]],
+            Awaitable[Sequence[Mapping[str, Any]]],
+        ],
+        post_strategy: Callable[..., Awaitable[None]],
+        get_extractor: Callable[[], Any],
+        extract_text: Callable[..., Awaitable[tuple[Any, Any]]],
+        chunk_spans: Callable[..., Iterable[Any]],
+        page_best_guess_fn: Callable[..., Awaitable[Mapping[str, Any]]],
+        infer_best_guess_candidates: Callable[..., Awaitable[Sequence[Mapping[str, Any]]]],
+        evidence_registry: Any,
+        get_graph: Callable[[], Any],
+        set_graph: Callable[[Any], None],
+        enrich_graph_fn: Callable[..., Any],
+        similarity_threshold: float,
+        auto_merge_entities: bool,
+        chunk_size: int,
+        chunk_overlap: int,
+        extraction_concurrency: int,
+        extraction_timeout_sec: Optional[float],
+        best_guess_evidence_chars: int,
+        best_guess_llm_batch_size: int,
+        best_guess_llm_timeout_sec: Optional[float],
+        record_goal_discovery_sources: Callable[[list[dict[str, Any]]], None],
+        refresh_search_memory: Callable[[], None],
+        record_prompt_attempt_counts: Callable[[Sequence[SearchOutcome]], None],
+        append_control_decision: Callable[[Mapping[str, Any]], Mapping[str, Any]],
+        record_hook_failure: Callable[[str, str, BaseException], None],
+        set_active_strategy: Callable[
+            [str, tuple[tuple[str, str], ...]], None
+        ],
+        set_units_pulled: Callable[[int], None],
+        set_search_provider_error: Callable[[str], None],
+        goal_states: Callable[[], Sequence[Mapping[str, Any]]],
+        exported_rows: Callable[[], Mapping[str, Sequence[Mapping[str, Any]]]],
+        source_ingestion_ledger: dict[str, dict[str, Any]],
+        last_search_outcomes: list[SearchOutcome],
+        search_outcomes: list[dict[str, Any]],
+        queries_used: list[str],
+        orphan_snapshot: Callable[[], Mapping[str, Any]],
+        hook_failures: Callable[[], Sequence[Mapping[str, Any]]],
+        criteria_projection_version: str,
+        missing_tokens: Callable[[], AbstractSet[str]],
+    ) -> None:
+        self.controller = controller
+        self.crediter = controller.crediter
+        self.budget = controller.budget
+        self.health = controller.health
+        self.termination = controller.termination
+        self.run_key = str(run_key)
+        self.run_path = ((RUN_GRAIN.name, self.run_key),)
+        self.run_episode_id = self.controller.context.episode_ref(
+            self.run_path
+        ).episode_id
+        self.episode_unit_safety_cap = int(episode_unit_safety_cap)
+        self.strategy_catalog = frozenset(strategy_catalog)
+        self.frontier = frontier
+        self.search_fn = search_fn
+        self.harvester = harvester
+        self.search_provider_batch = dict(search_provider_batch)
+        self.answers_dir = Path(answers_dir)
+        self.open_cost_scope = open_cost_scope
+        self.open_prompt_scope = open_prompt_scope
+        self.sample_strategies = sample_strategies
+        self.post_strategy = post_strategy
+        self.get_extractor = get_extractor
+        self.extract_text = extract_text
+        self.chunk_spans = chunk_spans
+        self.page_best_guess_fn = page_best_guess_fn
+        self.infer_best_guess_candidates = infer_best_guess_candidates
+        self.evidence_registry = evidence_registry
+        self.get_graph = get_graph
+        self.set_graph = set_graph
+        self.enrich_graph_fn = enrich_graph_fn
+        self.similarity_threshold = float(similarity_threshold)
+        self.auto_merge_entities = bool(auto_merge_entities)
+        self.chunk_size = int(chunk_size)
+        self.chunk_overlap = int(chunk_overlap)
+        self.extraction_concurrency = int(extraction_concurrency)
+        self.extraction_timeout_sec = extraction_timeout_sec
+        self.best_guess_evidence_chars = int(best_guess_evidence_chars)
+        self.best_guess_llm_batch_size = int(best_guess_llm_batch_size)
+        self.best_guess_llm_timeout_sec = best_guess_llm_timeout_sec
+        self.record_goal_discovery_sources = record_goal_discovery_sources
+        self.refresh_search_memory = refresh_search_memory
+        self.record_prompt_attempt_counts = record_prompt_attempt_counts
+        self.append_control_decision = append_control_decision
+        self.record_hook_failure = record_hook_failure
+        self.set_active_strategy = set_active_strategy
+        self.set_units_pulled = set_units_pulled
+        self.set_search_provider_error = set_search_provider_error
+        self.goal_states = goal_states
+        self.exported_rows = exported_rows
+        self.source_ingestion_ledger = source_ingestion_ledger
+        self.last_search_outcomes = last_search_outcomes
+        self.search_outcomes = search_outcomes
+        self.queries_used = queries_used
+        self.orphan_snapshot = orphan_snapshot
+        self.hook_failures = hook_failures
+        self.criteria_projection_version = str(criteria_projection_version)
+        self.missing_tokens = missing_tokens
+
+        self._strategy_ends: dict[str, str] = {}
+        self._strategy_seed_queries: dict[str, list[str]] = {}
+        self._open_outcomes: dict[str, SearchOutcome] = {}
+        self._open_sources: dict[str, PageSource] = {}
+        self._accepted_sources: list[dict[str, Any]] = []
+        self._episode_records: list[dict[str, Any]] = []
+        self._strategy_proposals: list[dict[str, Any]] = []
+        self._page_guess_reports: list[dict[str, Any]] = []
+        self._pending_followup_outcomes: list[SearchOutcome] = []
+        self.acquisition_page_details: list[dict[str, Any]] = []
+        self._completed_strategies = 0
+        self.proposer: Optional[StrategyProposer] = None
+        self._page_detail_path = self.answers_dir / "acquisition_page_detail.jsonl"
+        self._episodes_path = self.answers_dir / "acquisition_episodes.json"
+
+    # ------------------------------------------------------------------ #
+    # Episode declarations: the surface binds; the kernel loops.
+    # ------------------------------------------------------------------ #
+    def build_run_episode(self) -> Episode:
+        self.proposer = StrategyProposer(
+            declared=self.eligible_families,
+            sample=self.sample_strategies,
+            build=self._build_strategy_episode,
+            catalog=self.strategy_catalog,
+            declared_target_ids=self._declared_target_ids,
+            budget=self.budget,
+            health=self.health,
+            termination=self.termination,
+            open_cost_scope=self.open_cost_scope,
+            episode_id=self.run_episode_id,
+            episode_path=self.run_path,
+            run_key=self.run_key,
+            record_proposal=self._record_strategy_proposal,
+        )
+        self.controller.proposer = self.proposer
+        return Episode(
+            grain=RUN_GRAIN,
+            key=self.run_key,
+            source=self.proposer,
+            on_unit=self._on_strategy,
+            bound=self.episode_unit_safety_cap,
+        )
+
+    def _build_strategy_episode(
+        self,
+        strategy_key: str,
+        family: str,
+        seeds: Sequence[str],
+    ) -> Episode:
+        if seeds:
+            self._strategy_seed_queries[strategy_key] = list(seeds)
+            self.frontier.enqueue_queries(
+                seeds,
+                topic="strategy_proposal",
+                expansion_op=family,
+                producer_class="strategy_proposer",
+            )
+        return Episode(
+            grain=STRATEGY_GRAIN,
+            key=strategy_key,
+            source=StrategySearches(
+                strategy_key=strategy_key,
+                family=family,
+                next_task=self.frontier.next_for,
+                make_search=lambda task: self._build_search_episode(
+                    task, strategy_key, family
+                ),
+                budget=self.budget,
+                health=self.health,
+            ),
+            on_unit=lambda unit, contribution, record: self._on_search(
+                unit, contribution, record, strategy_key, family
+            ),
+        )
+
+    def _build_search_episode(
+        self,
+        task: SearchTask,
+        strategy_key: str,
+        family: str,
+    ) -> Episode:
+        outcome = SearchOutcome.for_task(task)
+        self._open_outcomes[task.id] = outcome
+        search_path = (
+            (RUN_GRAIN.name, self.run_key),
+            (STRATEGY_GRAIN.name, strategy_key),
+            (SEARCH_GRAIN.name, task.id),
+        )
+        search_episode_id = self.controller.context.episode_ref(
+            search_path
+        ).episode_id
+        source = PageSource(
+            task=task,
+            search_fn=self.search_fn,
+            make_leaf=lambda task, result, rank: self._make_page_leaf(
+                task,
+                result,
+                rank,
+                episode_id=search_episode_id,
+                episode_path=search_path,
+            ),
+            budget=self.budget,
+            health=self.health,
+            episode_id=search_episode_id,
+            episode_path=search_path,
+            open_cost_scope=self.open_cost_scope,
+            on_results=self._note_search_results,
+            on_error=self._note_search_error,
+            is_fatal=is_fatal_search_error,
+        )
+        self._open_sources[task.id] = source
+        return Episode(
+            grain=SEARCH_GRAIN,
+            key=task.id,
+            source=source,
+            on_unit=lambda unit, contribution, record: self._on_page(
+                unit, contribution, record, outcome, strategy_key, family
+            ),
+        )
+
+    def _make_page_leaf(
+        self,
+        task: SearchTask,
+        result: Mapping[str, Any],
+        rank: int,
+        *,
+        episode_id: str,
+        episode_path: tuple[tuple[str, str], ...],
+    ) -> Leaf:
+        unit = PageUnit(
+            task=task,
+            result=result,
+            rank=rank,
+            episode_id=episode_id,
+            episode_path=episode_path,
+            label=f"{task.id}#{rank}",
+        )
+        return Leaf(
+            unit=unit,
+            extract=self.fetch_extract,
+            credit=self.crediter,
+            label=unit.label,
+        )
+
+    # ------------------------------------------------------------------ #
+    # Page leaf: provider mechanics, extraction, evidence acceptance.
+    # ------------------------------------------------------------------ #
+    async def fetch_extract(self, unit: PageUnit) -> PageMaterial:
+        task = unit.task
+        outcome = self._open_outcomes.get(task.id)
+        if outcome is None:
+            outcome = SearchOutcome.for_task(task)
+            self._open_outcomes[task.id] = outcome
+
+        with self.open_prompt_scope(unit.episode_id, unit.episode_path):
+            with self.open_cost_scope(
+                ObservationKind.SOURCE.value,
+                unit.label,
+                unit.episode_id,
+                unit.episode_path,
+            ):
+                return await self._acquire_page(unit, outcome)
+
+    async def _acquire_page(
+        self,
+        unit: PageUnit,
+        outcome: SearchOutcome,
+    ) -> PageMaterial:
+        task = unit.task
+        prepared = self.harvester.prepare_page(
+            task, dict(unit.result), outcome, rank=unit.rank
+        )
+        if prepared.candidate is None:
+            return PageMaterial(
+                fate=page_fate(
+                    mechanical=prepared.fate,
+                    error_class=prepared.error_class,
+                ),
+                text_chars=prepared.text_length,
+            )
+        candidate = prepared.candidate
+
+        extractor = self.get_extractor()
+        if extractor is None:
+            return PageMaterial(
+                fate=page_fate(mechanical=FATE_NO_EXTRACTOR),
+                text_chars=len(candidate.text),
+            )
+        if not self.crediter.basis.columns:
+            return PageMaterial(
+                fate=page_fate(mechanical=FATE_NO_CREDIT_COLUMNS),
+                text_chars=len(candidate.text),
+            )
+
+        source_record = self.harvester.write_source(
+            task, candidate, outcome, rank=unit.rank, episode_id=unit.episode_id
+        )
+        source_id = str(source_record.get("id") or "")
+        ingestion = self._open_ingestion_entry(source_record)
+        chunks: list[dict[str, Any]] = []
+        try:
+            entities, relationships = await self.extract_text(
+                extractor,
+                source_record["text"],
+                source_id,
+                chunk_size=self.chunk_size,
+                overlap=self.chunk_overlap,
+                concurrency=self.extraction_concurrency,
+                timeout=self.extraction_timeout_sec,
+                on_chunk=self._chunk_observer(
+                    chunks,
+                    source_id=source_id,
+                    page_text=str(source_record["text"]),
+                ),
+            )
+        except Exception as exc:  # noqa: BLE001 - converted, never raised
+            error_class = classify_error(exc)
+            ingestion.update(
+                {
+                    "extraction_state": "extraction_failed",
+                    "reason": f"{type(exc).__name__}: {exc}",
+                    "error_class": error_class,
+                }
+            )
+            return PageMaterial(
+                source_id=source_id,
+                fate=page_fate(
+                    extraction=EXTRACT_RAISED,
+                    error_class=error_class,
+                ),
+                source_record=source_record,
+                ingestion=ingestion,
+                reduction=candidate.reduction,
+                chunks=tuple(chunks),
+                text_chars=len(candidate.text),
+            )
+
+        failed_chunks = sum(1 for chunk in chunks if chunk.get("failed"))
+        if chunks and failed_chunks == len(chunks):
+            ingestion.update(
+                {
+                    "extraction_state": "extraction_all_chunks_failed",
+                    "reason": (
+                        f"all {failed_chunks} chunk(s) of this page failed to "
+                        f"extract, so zero entities here means 'could not "
+                        f"judge', not 'this page carried nothing'"
+                    ),
+                    "failed_chunks": failed_chunks,
+                }
+            )
+            return PageMaterial(
+                source_id=source_id,
+                fate=page_fate(extraction=EXTRACT_ALL_CHUNKS_FAILED),
+                source_record=source_record,
+                ingestion=ingestion,
+                reduction=candidate.reduction,
+                chunks=tuple(chunks),
+                text_chars=len(candidate.text),
+            )
+
+        records = self._extracted_records(entities, relationships)
+        try:
+            document, version, source_chunks = self.evidence_registry.source_records(
+                source_id=source_id,
+                canonical_locator=str(
+                    source_record.get("url")
+                    or source_record.get("source_url")
+                    or source_id
+                ),
+                title=str(source_record.get("title") or ""),
+                content=str(source_record.get("text") or ""),
+                chunks=chunks,
+            )
+            spans, assertions = self.crediter.assertion_candidates(
+                records,
+                document=document,
+                version=version,
+                chunks=source_chunks,
+            )
+            source_batch_id = self.evidence_registry.register_source_candidates(
+                document=document,
+                version=version,
+                content=str(source_record.get("text") or ""),
+                chunks=source_chunks,
+                spans=spans,
+                candidates=assertions,
+            )
+            evidence_commit = self.evidence_registry.accept_direct(
+                source_batch_id,
+                required_columns_by_table=self.crediter.required_column_ids_by_table,
+            )
+            accepted_by_chunk: dict[str, set[str]] = {}
+            for cell in evidence_commit.accepted_cells:
+                accepted_by_chunk.setdefault(cell.chunk_id, set()).add(
+                    cell.criterion_id
+                )
+            seen_chunk_credits: set[str] = set()
+            for chunk_record, source_chunk in zip(chunks, source_chunks):
+                identities = accepted_by_chunk.get(source_chunk.id, set())
+                new = identities - seen_chunk_credits
+                chunk_record["registry_chunk_id"] = source_chunk.id
+                chunk_record["credits_minted"] = len(identities)
+                chunk_record["new_within_page"] = len(new)
+                chunk_record["repeats_within_page"] = len(identities) - len(new)
+                seen_chunk_credits.update(identities)
+        except (OSError, ValueError, LookupError) as exc:
+            error_class = classify_error(exc)
+            ingestion.update(
+                {
+                    "extraction_state": "evidence_registry_failed",
+                    "reason": f"{type(exc).__name__}: {exc}",
+                    "error_class": error_class,
+                }
+            )
+            return PageMaterial(
+                source_id=source_id,
+                fate=page_fate(
+                    extraction=EXTRACT_RAISED,
+                    error_class=error_class,
+                ),
+                source_record=source_record,
+                ingestion=ingestion,
+                reduction=candidate.reduction,
+                chunks=tuple(chunks),
+                text_chars=len(candidate.text),
+            )
+
+        ingestion.update(
+            {
+                "extraction_state": (
+                    "extracted_entities" if entities else "extracted_no_entities"
+                ),
+                "entity_count": len(entities or {}),
+                "relationship_count": len(relationships or ()),
+                "failed_chunks": failed_chunks,
+                "chunk_count": len(chunks),
+            }
+        )
+        guesses = await self._page_best_guess(
+            records=records,
+            source_id=source_id,
+            page_text=str(source_record.get("text") or ""),
+        )
+        return PageMaterial(
+            source_id=source_id,
+            fate=page_fate(extraction=EXTRACT_OK),
+            entities=entities or {},
+            relationships=list(relationships or ()),
+            records=records,
+            guesses=guesses,
+            source_record=source_record,
+            ingestion=ingestion,
+            reduction=candidate.reduction,
+            chunks=tuple(chunks),
+            text_chars=len(candidate.text),
+            evidence_commit=evidence_commit,
+        )
+
+    def _chunk_observer(
+        self,
+        sink: list[dict[str, Any]],
+        *,
+        source_id: str,
+        page_text: str,
+    ) -> Callable[..., None]:
+        declared = {
+            chunk.index: chunk
+            for chunk in self.chunk_spans(
+                page_text, self.chunk_size, self.chunk_overlap
+            )
+        }
+
+        def observe(index, chunk_id, entities, relationships, failure) -> None:
+            source_chunk = declared[int(index)]
+            sink.append(
+                {
+                    "chunk_index": int(index),
+                    "chunk_id": str(chunk_id),
+                    "source_id": source_id,
+                    "start_offset": source_chunk.start_offset,
+                    "end_offset": source_chunk.end_offset,
+                    "text": source_chunk.text,
+                    "failed": bool(failure),
+                    "failure_class": str(failure or ""),
+                    "credits_minted": 0,
+                    "new_within_page": 0,
+                    "repeats_within_page": 0,
+                    "row_credits_minted": 0,
+                }
+            )
+
+        return observe
+
+    def _extracted_records(
+        self,
+        entities: Mapping[str, Mapping[str, Any]],
+        relationships: Sequence[Mapping[str, Any]] = (),
+    ) -> list[dict[str, Any]]:
+        tables = self.crediter.basis.tables
+        out: list[dict[str, Any]] = []
+        index = 0
+        for record in list((entities or {}).values()) + list(relationships or ()):
+            if not isinstance(record, Mapping):
+                continue
+            attributes = record.get("attributes")
+            values: dict[str, Any] = {}
+            if isinstance(attributes, Mapping):
+                values.update(attributes)
+            for key, value in record.items():
+                if key in ("attributes", "source_chunks", "source_chunk"):
+                    continue
+                values.setdefault(str(key), value)
+            chunks = record.get("source_chunks") or (
+                [record.get("source_chunk")] if record.get("source_chunk") else []
+            )
+            for table in tables:
+                out.append(
+                    {
+                        "table": table,
+                        "index": index,
+                        "values": values,
+                        "source_chunks": [str(chunk) for chunk in chunks if chunk],
+                    }
+                )
+            index += 1
+        return out
+
+    async def _page_best_guess(
+        self,
+        *,
+        records: Sequence[Mapping[str, Any]],
+        source_id: str,
+        page_text: str,
+    ) -> list[dict[str, Any]]:
+        if not records:
+            return []
+        report = await self.page_best_guess_fn(
+            records=records,
+            columns_by_table=self.crediter.columns_by_table(),
+            source_id=source_id,
+            page_text=page_text,
+            extract_fn=self.infer_best_guess_candidates,
+            llm_batch_size=self.best_guess_llm_batch_size,
+            llm_timeout_sec=self.best_guess_llm_timeout_sec,
+            evidence_chars=self.best_guess_evidence_chars,
+        )
+        self._page_guess_reports.append(
+            {
+                "source_id": source_id,
+                "task_count": report.get("task_count"),
+                "llm_calls": report.get("llm_calls"),
+                "resolution_count": len(report.get("resolutions") or []),
+                "errors": report.get("errors") or [],
+            }
+        )
+        return list(report.get("resolutions") or [])
+
+    def _open_ingestion_entry(
+        self,
+        source_record: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        source_id = str(source_record.get("id") or "")
+        entry = {
+            "source_id": source_id,
+            "extraction_state": "attempted",
+            "reason": "",
+            "entity_count": 0,
+            "relationship_count": 0,
+            "text_chars": len(str(source_record.get("text") or "")),
+            "search_episode_id": str(source_record.get("search_episode_id") or ""),
+        }
+        self.source_ingestion_ledger[source_id] = entry
+        return entry
+
+    # ------------------------------------------------------------------ #
+    # Post-verdict hooks. Their return values never steer the current unit.
+    # ------------------------------------------------------------------ #
+    def _on_page(
+        self,
+        leaf: Leaf,
+        contribution: Any,
+        record: Any,
+        outcome: SearchOutcome,
+        strategy_key: str,
+        family: str,
+    ) -> None:
+        unit = leaf.unit
+        material = contribution.extracted
+        try:
+            self.budget.charge(1)
+            self.set_units_pulled(self.budget.spent)
+            if isinstance(material, PageMaterial):
+                skip = fate_skip_reason(material.fate)
+                if skip:
+                    outcome.skip(skip)
+                if material.source_record is not None:
+                    source = dict(material.source_record)
+                    self._accepted_sources.append(source)
+                    self.record_goal_discovery_sources([source])
+                    graph = self.enrich_graph_fn(
+                        self.get_graph(),
+                        dict(material.entities),
+                        list(material.relationships),
+                        material.source_id,
+                        similarity_threshold=self.similarity_threshold,
+                        auto_merge=self.auto_merge_entities,
+                    )
+                    self.set_graph(graph)
+                self._write_page_detail(
+                    unit, record, material, strategy_key, family
+                )
+        except Exception as exc:  # noqa: BLE001 - hook must not unwind the tree
+            self.record_hook_failure("on_page", unit.label, exc)
+
+    def _on_search(
+        self,
+        episode: Episode,
+        contribution: Any,
+        record: Any,
+        strategy_key: str,
+        family: str,
+    ) -> None:
+        child = contribution.child
+        try:
+            task_id = child.scope_key if child is not None else episode.key
+            outcome = self._open_outcomes.pop(task_id, None)
+            source = self._open_sources.pop(task_id, None)
+            if outcome is None:
+                return
+            if child is not None and child.ended_by == END_YIELD_STOP:
+                remaining = source.remaining if source is not None else 0
+                if remaining > 0:
+                    outcome.skip("yield_stop", remaining)
+                self.append_control_decision(
+                    self.controller.write_decision(
+                        child,
+                        decision_point=DECISION_SEARCH_ITEM_YIELD,
+                        family=family,
+                    )
+                )
+            if source is not None and source.cost is not None:
+                outcome.cost = dict(source.cost)
+            outcome.provider_batch = dict(self.search_provider_batch)
+            if source is not None:
+                outcome.result_buffer = source.result_buffer
+            self.last_search_outcomes.append(outcome)
+            self.frontier.record([outcome])
+            self.search_outcomes.append(outcome.to_dict())
+            self.queries_used.append(outcome.query)
+            self.harvester.record_outcome(outcome)
+            self.refresh_search_memory()
+            self.record_prompt_attempt_counts([outcome])
+            self._pending_followup_outcomes.append(outcome)
+        except Exception as exc:  # noqa: BLE001 - hook must not unwind the tree
+            self.record_hook_failure("on_search", episode.key, exc)
+
+    async def _on_strategy(
+        self,
+        episode: Episode,
+        contribution: Any,
+        record: Any,
+    ) -> None:
+        child = contribution.child
+        family = str(episode.key).split("#", 1)[0]
+        try:
+            if child is not None:
+                self._strategy_ends[family] = child.ended_by
+                self.append_control_decision(
+                    self.controller.write_decision(
+                        child,
+                        decision_point=DECISION_STRATEGY_YIELD,
+                        family=family,
+                    )
+                )
+                self.write_episode_record(child)
+                observed = int(record.yield_record.unit_index)
+                if observed != int(self._completed_strategies):
+                    self.record_hook_failure(
+                        "strategy_unit_index",
+                        episode.key,
+                        ValueError(
+                            f"local completed-strategy count "
+                            f"{self._completed_strategies} disagrees with the "
+                            f"run episode's unit index {observed}"
+                        ),
+                    )
+            strategy_episode_id = child.episode_id if child is not None else ""
+            strategy_path = (
+                (RUN_GRAIN.name, self.run_key),
+                (STRATEGY_GRAIN.name, str(episode.key)),
+            )
+            self.set_active_strategy(strategy_episode_id, strategy_path)
+            await self.post_strategy(
+                episode.key,
+                family,
+                strategy_episode_id,
+                run_unit_index=int(record.yield_record.unit_index),
+            )
+        except Exception as exc:  # noqa: BLE001 - hook must not unwind the tree
+            self.record_hook_failure("on_strategy", episode.key, exc)
+        finally:
+            self.set_active_strategy("", ())
+            self._completed_strategies += 1
+
+    # ------------------------------------------------------------------ #
+    # Source callbacks and provider-binding state.
+    # ------------------------------------------------------------------ #
+    def eligible_families(self) -> list[str]:
+        """Pending families whose last instance ended by honest exhaustion."""
+
+        pending = self.frontier.pending_by_family()
+        return [
+            family
+            for family in pending
+            if self._strategy_ends.get(family, END_EXHAUSTED) == END_EXHAUSTED
+        ]
+
+    def current_strategy_seed_queries(self) -> list[str]:
+        seeds: list[str] = []
+        for values in self._strategy_seed_queries.values():
+            for seed in values:
+                if seed not in seeds:
+                    seeds.append(seed)
+        return seeds
+
+    def _declared_target_ids(self) -> AbstractSet[str]:
+        ids: set[str] = set()
+        for state in self.goal_states():
+            catalog = state.get("target_catalog") if isinstance(state, Mapping) else None
+            for key in ("fill_deficits", "unmet_count_targets", "count_targets"):
+                for target in (catalog or {}).get(key) or []:
+                    if isinstance(target, Mapping):
+                        value = str(target.get("id") or target.get("target_id") or "")
+                        if value:
+                            ids.add(value)
+        return ids
+
+    def accepted_source_terms(self) -> list[str]:
+        terms: list[str] = []
+        for record in self._accepted_sources[-25:]:
+            title = str(record.get("title") or "").strip()
+            if title:
+                terms.append(title)
+        return terms
+
+    def _record_strategy_proposal(self, row: Mapping[str, Any]) -> None:
+        self._strategy_proposals.append(dict(row))
+        try:
+            self.answers_dir.mkdir(parents=True, exist_ok=True)
+            with (self.answers_dir / "strategy_proposals.jsonl").open(
+                "a", encoding="utf-8"
+            ) as handle:
+                handle.write(json.dumps(dict(row), default=str) + "\n")
+        except OSError:  # recording never breaks the run
+            pass
+
+    def _note_search_results(
+        self,
+        task: SearchTask,
+        results: Sequence[Mapping[str, Any]],
+    ) -> None:
+        outcome = self._open_outcomes.get(task.id)
+        if outcome is None:
+            return
+        outcome.firecrawl_hits = len(results)
+        for rank, result in enumerate(results, start=1):
+            outcome.search_result_observations.append(
+                search_result_observation(dict(result), rank=rank)
+            )
+
+    def _note_search_error(
+        self,
+        task: SearchTask,
+        exc: BaseException,
+        fatal: bool,
+    ) -> None:
+        outcome = self._open_outcomes.get(task.id)
+        if outcome is not None:
+            outcome.error = str(exc)
+            outcome.skip("search_failed")
+        if fatal:
+            self.set_search_provider_error(str(exc))
+            print(f"  Search provider stopped the run: {exc}")
+
+    def drain_strategy_sources(
+        self,
+        bootstrap_sources: Sequence[Mapping[str, Any]] = (),
+    ) -> list[dict[str, Any]]:
+        records = [
+            *(dict(record) for record in bootstrap_sources),
+            *self._accepted_sources,
+        ]
+        self._accepted_sources = []
+        return records
+
+    def drain_followup_outcomes(self) -> list[SearchOutcome]:
+        outcomes = self._pending_followup_outcomes
+        self._pending_followup_outcomes = []
+        return outcomes
+
+    def reset_strategy_state(self) -> list[dict[str, Any]]:
+        summaries = summarize_prompt_arms(self.last_search_outcomes)
+        self.harvester.record_prompt_arm_summaries(summaries)
+        self.last_search_outcomes.clear()
+        self._page_guess_reports = []
+        return summaries
+
+    @property
+    def page_guess_reports(self) -> tuple[Mapping[str, Any], ...]:
+        return tuple(self._page_guess_reports)
+
+    # ------------------------------------------------------------------ #
+    # Durable provider-binding records.
+    # ------------------------------------------------------------------ #
+    def _write_page_detail(
+        self,
+        unit: PageUnit,
+        record: Any,
+        material: PageMaterial,
+        strategy_key: str,
+        family: str,
+    ) -> None:
+        detail = unit.credit_detail
+        row = {
+            "unit_label": unit.label,
+            "source_id": material.source_id,
+            "task_id": str(unit.task.id),
+            "strategy_key": strategy_key,
+            "strategy_family": family,
+            "rank": unit.rank,
+            "episode_id": unit.episode_id,
+            "episode_path": [list(segment) for segment in unit.episode_path],
+            "fate": material.fate.to_dict(),
+            "credit_note": material.fate.credit_note,
+            "skip_reason": fate_skip_reason(material.fate),
+            "counts_toward_verdict": bool(
+                record.yield_record.counts_toward_verdict
+            ),
+            "spec_digest": self.crediter.spec_digest,
+            "crediter_built_at_episode_id": self.run_episode_id,
+            "credit_semantics": CREDIT_SEMANTICS,
+            "text_chars": material.text_chars,
+            "guess_count": len(material.guesses),
+            "evidence_commit": (
+                material.evidence_commit.to_dict()
+                if material.evidence_commit is not None
+                else None
+            ),
+            **(detail.to_dict() if detail is not None else {}),
+        }
+        self.acquisition_page_details.append(row)
+        try:
+            self.answers_dir.mkdir(parents=True, exist_ok=True)
+            with self._page_detail_path.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps(row, default=str) + "\n")
+        except OSError:  # recording never breaks the run
+            pass
+
+    def write_episode_record(self, record: EpisodeRecord) -> None:
+        if record.scope_level == STRATEGY_GRAIN.name:
+            self._episode_records.append(window_episode_record(record.as_record()))
+        try:
+            self.answers_dir.mkdir(parents=True, exist_ok=True)
+            self._episodes_path.write_text(
+                json.dumps(
+                    {
+                        "policy_name": ACQUISITION_POLICY_NAME,
+                        "credit_semantics": CREDIT_SEMANTICS,
+                        "facet_gate": "crediting_active",
+                        "declared_facets": list(self.crediter.declared_facets),
+                        "spec_digest": self.crediter.spec_digest,
+                        "grains": [
+                            grain_disclosure(grain)
+                            for grain in (RUN_GRAIN, STRATEGY_GRAIN, SEARCH_GRAIN)
+                        ],
+                        "chunk_grain": CHUNK_GRAIN_DISCLOSURE.to_dict(),
+                        "strategies": self._episode_records,
+                        "run": (
+                            window_episode_record(
+                                self.controller.record.as_record()
+                            )
+                            if self.controller.record is not None
+                            else {}
+                        ),
+                    },
+                    indent=2,
+                    default=str,
+                ),
+                encoding="utf-8",
+            )
+        except OSError:  # recording never breaks the run
+            pass
+
+    def stranded_frontier_work(self) -> list[dict[str, Any]]:
+        classes: list[dict[str, Any]] = []
+        for family, tasks in self.frontier.pending_by_family().items():
+            ended = self._strategy_ends.get(family, "")
+            if ended == END_YIELD_STOP:
+                reason = "abandoned_by_verdict"
+            elif self.budget.exhausted:
+                reason = "budget_spent"
+            elif self.termination.stopped:
+                reason = "run_terminated"
+            elif ended == "":
+                reason = "never_opened"
+            else:
+                reason = "frontier_exhausted"
+            classes.append(
+                {
+                    "strategy_family": family,
+                    "pending_tasks": len(tasks),
+                    "class": reason,
+                    "last_instance_ended_by": ended,
+                    "run_termination_reason": self.termination.reason,
+                    "instances_opened": (
+                        self.proposer.instances_opened().get(family, 0)
+                        if self.proposer is not None
+                        else 0
+                    ),
+                }
+            )
+        return classes
+
+    def write_acquisition_yield(self) -> None:
+        path = self.answers_dir / "acquisition_yield.json"
+        payload = self.controller.export()
+        payload["stranded_frontier_work"] = self.stranded_frontier_work()
+        payload["pages_pulled"] = self.budget.spent
+        payload["pages_accepted"] = len(self.source_ingestion_ledger)
+        payload["orphan_meter"] = dict(self.orphan_snapshot())
+        payload["missing_token_owner"] = {
+            "module": "criteria",
+            "tokens": len(self.missing_tokens()),
+        }
+        payload["hook_failures"] = [dict(item) for item in self.hook_failures()]
+        payload["criteria_projection_version"] = self.criteria_projection_version
+        try:
+            path.write_text(
+                json.dumps(payload, indent=2, default=str),
+                encoding="utf-8",
+            )
+        except Exception as exc:  # noqa: BLE001 - disclosed, never silent
+            print(f"  [acquisition] yield export failed: {exc}")
+
+    def run_summary(self) -> dict[str, Any]:
+        details = self.acquisition_page_details
+        chunk_counts: Counter = Counter()
+        chunk_would_fire = 0
+        rule_counts: Counter = Counter()
+        triviality_counts: Counter = Counter()
+        source_kind_counts: Counter = Counter()
+        counterfactual = 0
+        row_guess_split: Counter = Counter()
+        key_only_pages = 0
+        subject_identities: set[str] = set()
+        for row in details:
+            chunks = row.get("chunk_encounters") or []
+            chunk_counts[len(chunks)] += 1
+            if len(chunks) >= CHUNK_GRAIN_CROSSING and not any(
+                chunk.get("new_within_page") for chunk in chunks
+            ):
+                chunk_would_fire += 1
+            for attribution in row.get("attributions") or []:
+                rule_counts[str(attribution.get("rule") or "")] += 1
+                triviality_counts[
+                    str(attribution.get("triviality_rule") or "")
+                ] += 1
+                source_kind_counts[
+                    str(attribution.get("source_kind") or "")
+                ] += 1
+            counterfactual += len(row.get("counterfactual_credits") or [])
+            for credit in row.get("row_credits") or []:
+                row_guess_split[len(credit.get("columns_best_guess") or [])] += 1
+                subject_identities.add(str(credit.get("identity") or ""))
+            if (
+                row.get("counts_toward_verdict")
+                and not (row.get("attributions") or [])
+                and row.get("row_credit_max_columns_covered") == 0
+                and row.get("skip_reason") == ""
+            ):
+                key_only_pages += 1
+
+        exported_subjects = 0
+        rows_by_table = self.exported_rows()
+        for table, columns in self.crediter.basis.subject_key_columns.items():
+            rows = rows_by_table.get(table) or []
+            if columns:
+                exported_subjects += len(
+                    {
+                        tuple(str(row.get(column, "")) for column in columns)
+                        for row in rows
+                        if isinstance(row, Mapping)
+                    }
+                )
+        return {
+            "credit_semantics": CREDIT_SEMANTICS,
+            "criteria_projection_version": self.criteria_projection_version,
+            "pages_pulled": self.budget.spent,
+            "pages_with_detail": len(details),
+            "credit_rule_counts": dict(rule_counts),
+            "triviality_rule_counts": dict(triviality_counts),
+            "credit_source_kind_counts": dict(source_kind_counts),
+            "counterfactual_credit_count": counterfactual,
+            "counterfactual_reading": (
+                "the excluded columns could never have become datapoints, so an "
+                "empty counterfactual means the exclusion had nothing to remove "
+                "on this configuration and NEVER that it was unnecessary"
+            ),
+            "row_credit_guessed_column_counts": {
+                str(k): v for k, v in sorted(row_guess_split.items())
+            },
+            "distinct_row_credit_identities": len(subject_identities),
+            "distinct_exported_subject_keys": exported_subjects,
+            "subject_key_columns": {
+                table: list(columns)
+                for table, columns in self.crediter.basis.subject_key_columns.items()
+            },
+            "extracted_pages_with_no_credit": key_only_pages,
+            "chunk_counts": {str(k): v for k, v in sorted(chunk_counts.items())},
+            "chunk_grain_crossing": CHUNK_GRAIN_CROSSING,
+            "pages_where_a_chunk_verdict_would_have_fired": chunk_would_fire,
+            "typed_credit_columns": sum(
+                1
+                for column in self.crediter.basis.columns
+                if column.value_type or column.unit
+            ),
+            "page_best_guess": {"reports": list(self._page_guess_reports)},
+            "proposer": dict(self.proposer.ledger) if self.proposer else {},
+            "strategy_instances_opened": (
+                self.proposer.instances_opened() if self.proposer else {}
+            ),
+            "strategy_proposals": list(self._strategy_proposals),
+            "stranded_frontier_work": self.stranded_frontier_work(),
+            "hook_failures": [dict(item) for item in self.hook_failures()],
+            "search_provider_batch": dict(self.search_provider_batch),
+        }

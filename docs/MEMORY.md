@@ -9,6 +9,15 @@
 > the generic role-based `IncidenceEstimate`. Bias-corrected incidence Chao2
 > internally fills the expected and remaining roles; verdicts remain arithmetic
 > and per-channel.
+>
+> **Round removal (2026-08-31):** the round concept is deleted from the live
+> tree. Wherever this file's historical sections speak of rounds, round
+> indices, per-round artifacts, or round-window credit, the live semantics are
+> Episode identity (`run_id`, `episode_id`, `episode_path`, a `unit_index`
+> local to its parent Episode), Episode-named artifacts, Episode-owned cost
+> and prompt attribution, and the identity-based first-harvest credit window
+> in `question_pipeline/reward.py`. The historical prose is snapshot history,
+> not instruction.
 
 The live evidence boundary is now ``evidence_registry_v1``. It persists exact
 source blobs, content-addressed versions, chunks, spans, and direct assertion
@@ -614,6 +623,12 @@ execution without becoming the current stop authority. Without an execution
 error, `execution_status` says whether execution finished or halted on a
 budget/frontier, while `goal_status` is `fulfilled` only when the
 supported/unresolved criteria contract is satisfied.
+
+Table compilation is a versioned downstream state transformation identified by
+`(compiler_version, table_spec_id, evidence_state_id, source_state_id,
+graph_revision_id_or_none)`. Its output carries a distinct `table_state_id` and
+the exact input bindings. It is not an Episode, cannot acquire units, and has
+no rarefaction history or verdict.
 
 The table-mode handoff is also explicit. `declared_table_export_v2` exports only
 declared deliverable variables and preserves partial records.

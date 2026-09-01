@@ -13,6 +13,17 @@
 > required, and bias-corrected incidence Chao2 internally fills the expected
 > and remaining roles. Read path-feature ideas from here and all acquisition
 > flow, counting, evidence acceptance, and verdict rules from the charter.
+>
+> Historical sequences below that ingest provider results into a graph, invoke
+> GASL afterward, or place table materialization inside one round are not
+> implementation instructions. In the current method, Firecrawl and GASL are
+> peer search types; graph addition is a separate human-mediated completed-run
+> merge boundary; table compilation is a versioned state transformation, not
+> an Episode.
+>
+> Round removal (2026-08-31): the round concept is deleted from the live tree.
+> Where this file speaks of rounds or per-round artifacts, the live semantics
+> are Episode identity and Episode-owned attribution per the charter.
 
 ## Technical Gap
 

@@ -204,7 +204,6 @@ def completion_probe_summary(
             }
         ),
         "artifact_label": artifact_label,
-        "pipeline_round": artifact_label if isinstance(artifact_label, int) else None,
         "query": str(query or "").strip(),
         "purpose": str(purpose or "").strip(),
         "axis_bindings": dict(axis_bindings or {}),
@@ -446,18 +445,19 @@ def _coerce_probe(raw: Any) -> dict[str, Any]:
     result_count = _as_int(raw.get("result_count"))
     if result_count <= 0 and results:
         result_count = len(results)
+    # Legacy persisted probes labelled themselves under "round". The value is
+    # carried as an OPAQUE label only -- nothing parses a number out of it or
+    # infers continuation from it; that loader family is deleted with the
+    # round concept.
     artifact_label = raw.get("artifact_label", raw.get("round"))
-    raw_pipeline_round = raw.get("pipeline_round")
-    if not isinstance(raw_pipeline_round, int):
-        raw_pipeline_round = (
-            raw.get("round") if isinstance(raw.get("round"), int) else None
-        )
     payload = {
         "id": str(raw.get("id") or _stable_id({"query": _normalize_text(query)}))[
             :24
         ],
         "artifact_label": artifact_label,
-        "pipeline_round": raw_pipeline_round,
+        # The Episode that issued the probe, stamped by the pipeline. Carried
+        # through normalization so the attribution survives a state merge.
+        "episode_id": str(raw.get("episode_id") or ""),
         "query": query,
         "purpose": _clean_display(raw.get("purpose")),
         "axis_bindings": (

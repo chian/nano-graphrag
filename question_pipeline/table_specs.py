@@ -443,8 +443,13 @@ class TableSpec:
 
 TableSpecPath = str | Path
 
+#: Any artifact stem. Matches both this tree's Episode-labelled observed specs
+#: (``<episode stem>_observed_table_spec.yaml``) and legacy round-numbered
+#: ones, and reads NOTHING from the stem: round-numbered continuation
+#: inference is deleted with the round concept, so "newest" is decided by
+#: modification time alone, never by filename arithmetic.
 _OBSERVED_TABLE_SPEC_RE = re.compile(
-    r"^round_(?P<label>.+)_observed_table_spec\.(?:ya?ml|json)$",
+    r"^.+_observed_table_spec\.(?:ya?ml|json)$",
 )
 
 
@@ -786,7 +791,7 @@ def _newest_observed_table_spec_path(roots: Iterable[Path]) -> Path | None:
         {
             path
             for root in roots
-            for path in root.glob("round_*_observed_table_spec.*")
+            for path in root.glob("*_observed_table_spec.*")
             if _OBSERVED_TABLE_SPEC_RE.match(path.name)
         },
         key=_observed_table_spec_sort_key,
@@ -795,20 +800,19 @@ def _newest_observed_table_spec_path(roots: Iterable[Path]) -> Path | None:
     return candidates[0] if candidates else None
 
 
-def _observed_table_spec_sort_key(path: Path) -> tuple[int, int, int, str]:
-    match = _OBSERVED_TABLE_SPEC_RE.match(path.name)
-    label = match.group("label") if match else ""
-    try:
-        round_number = int(label)
-        numeric = 1
-    except ValueError:
-        round_number = -1
-        numeric = 0
+def _observed_table_spec_sort_key(path: Path) -> tuple[int, str]:
+    """Newest by modification time; the stem breaks exact ties only.
+
+    Deliberately reads no number out of the filename: a stem is Episode
+    identity or a named pass, and filename arithmetic over it is the
+    round-continuation inference this build deleted.
+    """
+
     try:
         mtime_ns = path.stat().st_mtime_ns
     except OSError:
         mtime_ns = 0
-    return numeric, round_number, mtime_ns, path.name
+    return mtime_ns, path.name
 
 
 def _merge_table_payloads(

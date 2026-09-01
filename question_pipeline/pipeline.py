@@ -1,8 +1,8 @@
-"""Question-driven iterative GraphRAG pipeline orchestrator.
+"""Question-driven GraphRAG pipeline Episode composition.
 
-The default answer mode tries to produce one well-supported answer. Each round
-searches the web, extends a typed knowledge graph, answers the question with
-GASL, and uses identified gaps to steer the next search.
+The default answer mode tries to produce one well-supported answer. Nested
+strategy and search Episodes acquire evidence, extend a typed knowledge graph,
+answer the question with GASL, and use identified gaps to steer later work.
 
 The table-fill mode treats the answer tables as the deliverable. It estimates
 the searched answer universe, keeps a durable search frontier, and searches to
@@ -17,7 +17,6 @@ import hashlib
 import inspect
 import json
 import os
-import random
 import re
 import subprocess
 import sys
@@ -44,6 +43,7 @@ from hpc.common import save_graph
 from nano_graphrag.entity_extraction.typed_module import (
     create_domain_extractor_from_schema,
 )
+from nano_graphrag.graph_slots import get_source_refs
 from paper_fetching.firecrawl_client import (
     download_paper_content,
     firecrawl_search_batch_metadata,
@@ -57,13 +57,11 @@ from .best_guess import (
     best_guess_context_by_row_key,
     page_best_guess,
     run_best_guess_recovery,
-    run_best_guess_recovery_local,
 )
 from .completion import (
-    completion_needs_scope_search,
-    completion_scope_actionable,
     completion_update_from_critique,
     completion_update_from_estimate,
+    completion_scope_actionable,
     load_seed_completion_state,
     merge_completion_state,
     scope_probe_context,
@@ -112,40 +110,16 @@ from .goals import (
 from .prompt_log import (
     close_scope as prompt_log_close,
     open_scope as prompt_log_open,
+    prompt_scope,
 )
 from . import acquisition as acq
 from .acquisition import (
-    CHUNK_GRAIN_DISCLOSURE,
-    CREDIT_SEMANTICS,
-    RELEVANCE_SCORE_FLOOR,
     RUN_GRAIN,
-    SEARCH_GRAIN,
-    STRATEGY_GRAIN,
     AcquisitionController,
     ColumnProjection,
-    PageMaterial,
-    PageSource,
-    PageUnit,
     ProviderHealth,
     RunTermination,
     SourceBudget,
-    StrategyProposer,
-    StrategySearches,
-    fate_skip_reason,
-    grain_disclosure,
-    page_clears_relevance,
-    page_fate,
-    window_episode_record,
-)
-from .progress_judge import DeclaredColumn, score_page_against_contract
-from rarefaction import (
-    END_EXHAUSTED,
-    END_YIELD_STOP,
-    Contribution,
-    Episode,
-    EpisodeRecord,
-    Leaf,
-    UnitRecord,
 )
 from .provenance import (
     CHUNK_PARAMS_FIELD,
@@ -176,13 +150,10 @@ from .search import (
     SearchHarvester,
     SearchOutcome,
     SearchTask,
-    SourceRelevanceDecision,
-    compact_search_result,
     load_seed_frontier_tasks,
     load_seed_search_outcomes,
     load_seed_source_records,
     load_seen_urls,
-    is_fatal_search_error,
     search_result_observation,
     summarize_prompt_arms,
     table_gap_search_tasks,
@@ -202,7 +173,6 @@ from .reward import (
 )
 from .strategy_state import (
     QUERY_OPERATORS,
-    ArmRoutingMode,
     fallback_query_for_operator,
     route_next_family,
 )
@@ -229,24 +199,30 @@ class PipelineConfig:
 
     # Search / corpus limits
     firecrawl_api_key: Optional[str] = None
-    max_rounds: int = 4
-    #: Pages PULLED from result lists, accepted or not. The docstring changed
-    #: with the composition and the flag did not: under the fate table a page
-    #: the gate refused is a unit that cost a fetch and a gate call, and a
-    #: budget charging only acceptances would let a run pull unlimited refused
-    #: pages for free -- leaving the stop rule's denominator unbounded. The run
-    #: record emits BOTH counts, pulled and accepted, so nothing is ambiguous,
-    #: and no figure is compared across the change.
-    max_papers: int = 40
-    queries_per_round: int = 6
-    min_paper_length: int = 500
-    max_paper_length: Optional[int] = None
-    max_extraction_chars_per_paper: Optional[int] = None
-    search_frontier_mode: str = "batch"
+    #: Emergency boundary only. Episode records report ``bound_hit`` when it
+    #: fires; it is not a convergence rule. Never exposed as a CLI option.
+    episode_unit_safety_cap: int = 1_000_000
+    #: The ONE operator-declared run-wide bound: source units PULLED from
+    #: provider result lists, accepted or not (mechanical and extraction
+    #: failures still consume acquisition work). ``0`` means UNBOUNDED, which
+    #: is the default -- safety is absent unless the operator declares it --
+    #: and when a declared bound cuts a run the records say ``bound_hit``,
+    #: never convergence. Named in the Episode/unit vocabulary deliberately:
+    #: the unit is "one fetched page or document", whatever the medium.
+    max_source_units: int = 0
+    min_source_length: int = 500
+    max_source_length: Optional[int] = None
+    max_extraction_chars_per_source: Optional[int] = None
     scrape_search_results: bool = False
     table_gap_search_tasks: int = 12
     goal_discovery_text_chars: int = 6000
-    source_relevance_mode: str = "focused"
+    #: Query strings the initial seed-planning call emits -- planner string
+    #: breadth for one model call, never a stop rule or a wave size.
+    initial_seed_queries: int = 6
+    #: Candidate strategies one proposer call samples -- string breadth for
+    #: the switch edge's model call, never a stop rule. Split out of
+    #: ``task_goal_search_tasks``, which used to serve both concepts.
+    strategy_candidates_per_proposal: int = 3
 
     # Extraction / merge
     chunk_size: int = 2000
@@ -259,16 +235,13 @@ class PipelineConfig:
 
     # GASL
     max_gasl_iterations: int = 8
-    gasl_graph_scope: str = "auto"
-    gasl_new_source_hops: int = 1
-    gasl_source_seed_limit: int = 100
     answer_mode: str = "natural"
     table_variables: List[str] = field(default_factory=list)
     table_spec_path: Optional[str | List[str]] = None
     seed_tables_dir: Optional[str] = None
     seed_sources_dir: Optional[str] = None
     #: Additional run directories to fall back to when a citation's source id
-    #: is not resolvable under this run's own ``papers_dir`` -- typically
+    #: is not resolvable under this run's own ``sources_dir`` -- typically
     #: rows seeded from an earlier run's tables/graph via ``--graph-path`` /
     #: ``--seed-tables-dir`` whose ``fetched_papers/`` this run never fetched
     #: itself. Each entry is a run's output directory; text is read from
@@ -277,40 +250,24 @@ class PipelineConfig:
     #: only read for source ids a row already cites.
     evidence_corpus_roots: tuple[str, ...] = ()
     seed_frontier_path: Optional[str] = None
-    round_offset: Optional[int] = None
-    numeric_candidate_mode: str = "parsed"
-    best_guess_mode: str = "llm"
-    #: The PAGE-SCOPED best-guess stage, inside the leaf's ``extract``. It moves
-    #: best-guess spend from one call per round to one call per extracted page,
-    #: which is a real multiplier and is registered as one. ``"local"`` runs the
-    #: deterministic operators only; ``"off"`` skips the stage entirely, in
-    #: which case the chartered row-completeness curve is verbatim-only and the
-    #: record says so.
-    page_best_guess_mode: str = "llm"
-    #: ``None`` means no ceiling: every derivable slot gets a best-guess
-    #: task. A cap here decides in advance which cells may be filled.
-    best_guess_max_tasks: int | None = None
+    #: The page-scoped and strategy-scoped best-guess stages are structural parts
+    #: of table filling. Both use deterministic derivations and LLM-supported
+    #: inference, with every accepted guess anchored to durable evidence.
+    #: There is deliberately NO task ceiling: every derivable slot gets a
+    #: best-guess task, because a cap decides in advance which cells may be
+    #: filled. (`best_guess_max_tasks` is deleted, not defaulted off.)
     best_guess_evidence_chars: int = 5000
     best_guess_llm_batch_size: int = 8
     best_guess_llm_timeout_sec: Optional[float] = None
 
     # Stopping
-    task_goal_mode: str = "off"
     task_goal_search_tasks: int = 0
     completion_probe_tasks: int = 4
     completion_probe_results: int = 5
     completion_probe_waves: int = 2
-    target_deficit_evolutions_per_round: int = 1
+    target_deficit_max_evolutions: int = 1
     target_prompt_arms_per_evolution: int = 1
     target_queries_per_prompt_arm: int = 1
-    #: Phase 3B: which routing policy chooses the next evolution's mutation
-    #: family. ``"contrast"`` is the shipped mechanism (deterministic, from
-    #: nested arm contrast); ``"off"`` and ``"random"`` are 3B's ablation
-    #: conditions only -- see ``strategy_state.ArmRoutingMode``.
-    arm_routing_mode: str = "contrast"
-    #: Seeds `ArmRoutingMode.RANDOM`'s draw. Irrelevant under the default
-    #: `"contrast"` mode, which is deterministic and touches no RNG.
-    arm_routing_seed: int = 0
 
     # LLM
     model: Optional[str] = None
@@ -359,22 +316,25 @@ Do not issue multiple GRAPHWALK commands AS the same variable; AS replaces
 rather than appends. Before any COLLAPSE BY a deduplication key, create a
 non-empty deduplication key on every candidate row.
 
-When the state already contains `round_source_nodes`, those rows are the
-current round's newly accepted source-evidenced graph nodes. Treat that
-variable as the first source frontier: GRAPHWALK or PROCESS it before issuing
-broad FIND commands. Use broad FIND only as a supplemental fallback after
-source-seeded paths have been checked, because continuation rounds should
-extract new evidence before revisiting the older graph.
+When the state contains `source_catalog`, `strategy_sources`, and
+`strategy_source_nodes`, use `source_catalog` to distinguish sources accepted by
+the current strategy from prior sources and to inspect their acquisition,
+publication, event-time, and graph-reference metadata. `strategy_sources` and
+`strategy_source_nodes` are the current strategy's source records and the graph
+nodes they directly evidence. These variables are strategy context inside the
+full accumulated graph, not a restriction on what GASL may traverse; compare
+new with prior sources or follow other graph relations when the question calls
+for it.
 """.strip()
 
 
-ROUND_SOURCE_NODES_VAR = "round_source_nodes"
+STRATEGY_SOURCE_NODES_VAR = "strategy_source_nodes"
+STRATEGY_SOURCES_VAR = "strategy_sources"
+SOURCE_CATALOG_VAR = "source_catalog"
 TABLE_REQUIRED_COLUMNS: Dict[str, List[str]] = {}
 TABLE_COMPLETENESS_COLUMNS: Dict[str, List[str]] = {}
 PIPELINE_MODE_ANSWER = "answer"
 PIPELINE_MODE_TABLE_FILL = "table_fill"
-TASK_GOAL_OFF = "off"
-TASK_GOAL_TABLE_FILL = "table_fill"
 
 
 def _row_chunk_ids(row: Mapping[str, Any]) -> list[str]:
@@ -427,21 +387,10 @@ def _operator_metadata(operator_plan: Dict[str, Any]) -> Dict[str, Any]:
 #: Filename of the append-only control-decision ledger inside ``answers/``.
 CONTROL_LEDGER_FILENAME = "control_decisions.json"
 
-#: Chunks a page must carry before an all-barren chunk-grain verdict COULD have
-#: fired, from the same arithmetic as the bound grains: `DEFAULT_ITEM_STOP`'s
-#: all-barren crossing. The chunk grain is deliberately UNBOUND (there is no
-#: tracker and no policy at that grain), and this constant exists only so the
-#: replay can say whether a verdict would have fired -- on `chunk_size=2000`
-#: with `overlap=200` that is ten chunks, i.e. about 18,000 reduced characters,
-#: so on a page under roughly that size the grain is inert by arithmetic.
-_CHUNK_GRAIN_CROSSING = 10
-
-#: Topic on the `SearchOutcome` rows the completion probe emits (Phase 1B).
-#: Deliberately not one of the topics any existing consumer selects on, so the
-#: row is visible to cost accounting and inert to search memory, goal
-#: evaluation, and target-outcome annotation.
+#: Topic on the ``SearchOutcome`` rows the completion probe emits. Deliberately
+#: distinct from the topics existing consumers select, so the row remains
+#: visible to cost accounting without entering search-memory or target joins.
 PROBE_SEARCH_TOPIC = "completion_probe"
-
 
 def load_seed_control_decisions(
     seed_tables_dir: Optional[str],
@@ -494,29 +443,6 @@ def _normalize_pipeline_mode(value: str) -> str:
     mode = _normalize_mode(value or PIPELINE_MODE_ANSWER)
     if mode not in {PIPELINE_MODE_ANSWER, PIPELINE_MODE_TABLE_FILL}:
         raise ValueError("pipeline_mode must be 'answer' or 'table_fill'")
-    return mode
-
-
-def _normalize_task_goal_mode(value: str) -> str:
-    mode = _normalize_mode(value or TASK_GOAL_OFF)
-    if mode == "table_coverage":
-        return TASK_GOAL_TABLE_FILL
-    if mode not in {TASK_GOAL_OFF, TASK_GOAL_TABLE_FILL}:
-        raise ValueError("task_goal_mode must be 'off' or 'table_fill'")
-    return mode
-
-
-def _normalize_numeric_candidate_mode(value: str) -> str:
-    mode = _normalize_mode(value or "parsed")
-    if mode not in {"off", "parsed", "all"}:
-        raise ValueError("numeric_candidate_mode must be 'off', 'parsed', or 'all'")
-    return mode
-
-
-def _normalize_best_guess_mode(value: str) -> str:
-    mode = _normalize_mode(value or "llm")
-    if mode not in {"off", "local", "llm"}:
-        raise ValueError("best_guess_mode must be 'off', 'local', or 'llm'")
     return mode
 
 
@@ -600,7 +526,7 @@ def _orphan_interval(
     ONLY THE ADDITIVE COUNTERS ARE SUBTRACTED, and every non-numeric field is
     dropped rather than carried whole. Carrying them looks harmless and is not:
     `error_class` is a sticky first-error label, and
-    `reward.aggregate_round_cost` counts one error per record carrying a
+    `reward.aggregate_cost` counts one error per record carrying a
     non-empty one -- so one orphaned error carried onto every strategy's
     residual would inflate the run's reported error count by the number of
     strategies. `llm_model`/`llm_models` would name a model for an interval that
@@ -656,7 +582,7 @@ def _coverage_denominator(
     THE PERMANENT GUARD, AND IT IS MODULE-LEVEL ON PURPOSE.
 
     `_ground_field_provenance` runs against objects that supply rows and chunk
-    texts directly and have no `papers_dir` -- the export-hook test, the
+    texts directly and have no `sources_dir` -- the export-hook test, the
     corpus-root tests, and any caller owning its own corpus. Three separate
     times a new enumeration inside that method raised `AttributeError` on them:
     the chunk-cache keying, the accepted-source ledger, and then a `self.`-bound
@@ -674,11 +600,11 @@ def _coverage_denominator(
     against the accepted set.
     """
 
-    if getattr(owner, "papers_dir", None) is not None:
+    if getattr(owner, "sources_dir", None) is not None:
         records = getattr(owner, "_source_records_by_id", None)
         if callable(records):
-            return sorted(records()), "accepted_sources_in_papers_dir"
-    return sorted(observed_source_ids), "sources_observed_in_rows_no_papers_dir"
+            return sorted(records()), "accepted_sources_in_sources_dir"
+    return sorted(observed_source_ids), "sources_observed_in_rows_no_sources_dir"
 
 
 class QuestionPipeline:
@@ -713,19 +639,9 @@ class QuestionPipeline:
     ):
         self.config = config
         config.pipeline_mode = _normalize_pipeline_mode(config.pipeline_mode)
-        config.task_goal_mode = _normalize_task_goal_mode(config.task_goal_mode)
-        if (
-            config.pipeline_mode == PIPELINE_MODE_ANSWER
-            and config.task_goal_mode != TASK_GOAL_OFF
-        ):
-            config.pipeline_mode = PIPELINE_MODE_TABLE_FILL
         if config.pipeline_mode == PIPELINE_MODE_TABLE_FILL:
             if config.answer_mode == "natural":
                 config.answer_mode = "table"
-            if config.task_goal_mode == TASK_GOAL_OFF:
-                config.task_goal_mode = TASK_GOAL_TABLE_FILL
-            if config.search_frontier_mode == "batch":
-                config.search_frontier_mode = "persistent"
             if config.task_goal_search_tasks <= 0:
                 config.task_goal_search_tasks = 4
 
@@ -760,14 +676,17 @@ class QuestionPipeline:
 
         self.out = Path(config.output_dir)
         self.graphs_dir = self.out / "graphs"
-        self.papers_dir = self.out / "fetched_papers"
+        # Generic name in code; the on-disk directory keeps its historical
+        # name because seeding contracts (`--seed-sources-dir`,
+        # `--evidence-corpus-root`) resolve `<root>/fetched_papers/<id>.txt`
+        # against runs that already exist.
+        self.sources_dir = self.out / "fetched_papers"
         self.answers_dir = self.out / "answers"
         self.tables_dir = self.answers_dir / "tables"
         self.derived_dir = self.answers_dir / "derived"
         self.goals_dir = self.answers_dir / "goals"
         self.table_specs_dir = self.answers_dir / "table_specs"
-        self.judgments_dir = self.answers_dir / "judgments"
-        for d in (self.graphs_dir, self.papers_dir, self.answers_dir):
+        for d in (self.graphs_dir, self.sources_dir, self.answers_dir):
             d.mkdir(parents=True, exist_ok=True)
         self.evidence_registry = EvidenceRegistry(
             self.answers_dir / "evidence_registry"
@@ -778,10 +697,11 @@ class QuestionPipeline:
         self.extractor = None
         self.seen_urls: set[str] = load_seen_urls(config.seed_sources_dir)
         self.queries_used: List[str] = []
-        self.paper_count = 0
-        self.rounds: List[Dict[str, Any]] = []
+        #: Source units pulled so far -- mirrors ``source_budget.spent``.
+        self.units_pulled = 0
+        self.strategy_records: List[Dict[str, Any]] = []
         self.table_exports: List[Dict[str, Any]] = []
-        self.search_frontier = SearchFrontier(mode=config.search_frontier_mode)
+        self.search_frontier = SearchFrontier()
         #: The `SearchOutcome`s of the strategy episode that just completed,
         #: written by the `on_search` hook. It replaces `last_search_batch`,
         #: whose `SearchBatch` existed to carry a wave between two deleted loops.
@@ -794,24 +714,6 @@ class QuestionPipeline:
             for root in (config.evidence_corpus_roots or ())
             if str(root).strip()
         )
-        if config.source_relevance_mode not in {"off", "focused", "all"}:
-            raise ValueError("source_relevance_mode must be 'off', 'focused', or 'all'")
-        config.gasl_graph_scope = _normalize_mode(config.gasl_graph_scope)
-        if config.gasl_graph_scope not in {"auto", "full", "new_sources"}:
-            raise ValueError("gasl_graph_scope must be 'auto', 'full', or 'new_sources'")
-        if config.gasl_new_source_hops < 0:
-            raise ValueError("gasl_new_source_hops must be nonnegative")
-        if config.gasl_source_seed_limit < 0:
-            raise ValueError("gasl_source_seed_limit must be nonnegative")
-        config.numeric_candidate_mode = _normalize_numeric_candidate_mode(
-            config.numeric_candidate_mode,
-        )
-        config.best_guess_mode = _normalize_best_guess_mode(config.best_guess_mode)
-        config.page_best_guess_mode = _normalize_best_guess_mode(
-            config.page_best_guess_mode
-        )
-        if config.best_guess_max_tasks is not None and config.best_guess_max_tasks < 0:
-            raise ValueError("best_guess_max_tasks must be nonnegative or None")
         if config.best_guess_evidence_chars <= 0:
             raise ValueError("best_guess_evidence_chars must be positive")
         if config.best_guess_llm_batch_size <= 0:
@@ -824,28 +726,12 @@ class QuestionPipeline:
         if config.pipeline_mode == PIPELINE_MODE_TABLE_FILL:
             if config.answer_mode != "table":
                 raise ValueError("table_fill pipeline_mode requires answer_mode='table'")
-            if config.task_goal_mode != TASK_GOAL_TABLE_FILL:
-                raise ValueError(
-                    "table_fill pipeline_mode requires task_goal_mode='table_fill'"
-                )
-            if config.search_frontier_mode != "persistent":
-                raise ValueError(
-                    "table_fill pipeline_mode requires search_frontier_mode='persistent'"
-                )
-        if config.task_goal_mode != TASK_GOAL_OFF and config.answer_mode != "table":
-            raise ValueError("table-fill goals require answer_mode='table'")
-        if config.task_goal_mode != TASK_GOAL_OFF and config.task_goal_search_tasks <= 0:
+        if config.pipeline_mode == PIPELINE_MODE_TABLE_FILL and config.task_goal_search_tasks <= 0:
             raise ValueError("table-fill goals require search tasks")
-        if config.completion_probe_tasks < 0:
-            raise ValueError("completion_probe_tasks must be nonnegative")
-        if config.completion_probe_results <= 0:
-            raise ValueError("completion_probe_results must be positive")
-        if config.completion_probe_waves < 0:
-            raise ValueError("completion_probe_waves must be nonnegative")
-        if config.target_deficit_evolutions_per_round <= 0:
-            raise ValueError(
-                "target_deficit_evolutions_per_round must be positive"
-            )
+        if config.episode_unit_safety_cap <= 0:
+            raise ValueError("episode_unit_safety_cap must be positive")
+        if config.target_deficit_max_evolutions <= 0:
+            raise ValueError("target_deficit_max_evolutions must be positive")
         if config.target_prompt_arms_per_evolution <= 0:
             raise ValueError("target_prompt_arms_per_evolution must be positive")
         if config.target_queries_per_prompt_arm <= 0:
@@ -909,8 +795,8 @@ class QuestionPipeline:
                 f"({self.table_schema_disclosure['status']}): "
                 f"{self.table_schema_disclosure['reason']}. "
                 "Row completeness and fill deficits computed against this spec "
-                "cannot be falsified; see table_schema_disclosure in the round "
-                "records."
+                "cannot be falsified; see table_schema_disclosure in the "
+                "strategy Episode records."
             )
         self.goal_tracker = (
             TableFillGoalTracker(
@@ -921,12 +807,12 @@ class QuestionPipeline:
                 cold_start_anchors=self._cold_start_anchors_by_table,
                 best_guess_columns=self._best_guess_columns_by_table,
             )
-            if config.task_goal_mode == TASK_GOAL_TABLE_FILL
+            if config.pipeline_mode == PIPELINE_MODE_TABLE_FILL
             else None
         )
         self.goal_universe_estimate: Dict[str, Any] = {"status": "missing"}
         self.goal_discovery_sources: List[Dict[str, Any]] = []
-        #: Tables the answer layer was asked to compile this round, as opposed
+        #: Tables the answer layer was asked to compile for the current strategy,
         #: to working variables a traversal left behind. Empty until a GASL
         #: export runs, which is why every consumer treats empty as "no opinion"
         #: and falls back rather than concluding nothing is deliverable.
@@ -942,14 +828,6 @@ class QuestionPipeline:
         self.completion_state: Dict[str, Any] = load_seed_completion_state(
             config.seed_tables_dir,
         )
-        if config.round_offset is not None and config.round_offset < 0:
-            raise ValueError("round_offset must be nonnegative")
-        self.round_offset = (
-            config.round_offset
-            if config.round_offset is not None
-            else self.seed_tables.next_round_index
-        )
-
         seed_source_records = load_seed_source_records(config.seed_sources_dir)
         seed_search_outcomes = self._seed_search_outcome_records(
             seed_source_records,
@@ -977,20 +855,17 @@ class QuestionPipeline:
         self.reward_exports: List[Dict[str, Any]] = []
         self.last_reward_exports: List[Dict[str, Any]] = []
         self.last_reward_report: Dict[str, Any] = {}
-        #: Reward credit already paid, carried across rounds (Phase 3A).  A
+        #: Reward credit already paid, carried across strategy Episodes (Phase 3A).  A
         #: criterion is a datapoint once and a source is harvested once; without
         #: this the same yield is re-credited at every artifact write.
         self.reward_credit_ledger = CreditLedger()
-        #: Phase 3B routing. `ArmRoutingMode.CONTRAST` (the default) is
-        #: deterministic and needs no RNG; this is only ever consumed by
-        #: `ArmRoutingMode.RANDOM`, 3B's ablation control, so a run under the
-        #: shipped default never touches it.
-        self._arm_routing_rng = random.Random(config.arm_routing_seed)
         self.seed_best_guess_rows: List[Dict[str, Any]] = load_seed_best_guess_rows(
             config.seed_tables_dir,
         )
-        self._bootstrap_papers: List[Dict[str, Any]] = []
+        self._bootstrap_sources: List[Dict[str, Any]] = []
         self._gasl_source_seed_nodes: List[Dict[str, Any]] = []
+        self._gasl_strategy_sources: List[Dict[str, Any]] = []
+        self._gasl_source_catalog: List[Dict[str, Any]] = []
 
         # -- control layer (Phase 1C) ----------------------------------- #
         # The ledger is append-only.  Every write goes through
@@ -1001,11 +876,10 @@ class QuestionPipeline:
         )
         self.seeded_control_decision_count = len(self.control_decisions)
         self.criteria_snapshot: CriteriaSnapshot = empty_snapshot()
-        self._round_ledger_mark = len(self.control_decisions)
-        #: The previous scored round's `after` snapshot, carried forward so the
-        #: next round's `before` IS it rather than a fresh projection of some
-        #: other row set. See `_write_reward_exports` for why re-projecting
-        #: leaked credit into an interval no round scored.
+        self._strategy_ledger_mark = len(self.control_decisions)
+        #: The previous scored strategy Episode's `after` snapshot, carried
+        #: forward so the next strategy's `before` IS it rather than a fresh
+        #: projection of some other row set. See `_write_reward_exports`.
         self._last_reward_after: Optional[CriteriaSnapshot] = None
 
         # -- cost accounting (Phase 1B) --------------------------------- #
@@ -1016,16 +890,12 @@ class QuestionPipeline:
         #: partition identity has both ends. `_strategy_orphan_baseline` is the
         #: one that moves.
         self._run_orphan_baseline = orphan_meter().snapshot().to_dict()
-        #: Round currently issuing completion probes, or None outside one.
-        #: Declared here rather than relied on via `getattr` alone so the
-        #: attribute exists for the whole object lifetime.
-        self._probe_round_index: Optional[int] = None
         #: Per-accepted-source field-scope evaluation outcome from the last
-        #: grounding pass. Emitted on the round record so "examined and found
+        #: grounding pass. Emitted on the strategy record so "examined and found
         #: nothing" and "never examined" are separable in the artifacts.
         self.last_field_provenance_ledger: Dict[str, Any] = {}
-        #: Per-source extraction outcome, keyed by source id. Written by
-        #: `_ingest_papers` at the moment text enters the extractor, so
+        #: Per-source extraction outcome, keyed by source id. Written when text
+        #: enters the extractor, so
         #: "extraction ran" never depends on what extraction returned.
         self.source_ingestion_ledger: Dict[str, Dict[str, Any]] = {}
 
@@ -1041,7 +911,7 @@ class QuestionPipeline:
         # emitted on every record so a mid-run spec rewrite is legible against a
         # denominator that did not move.
         self.crediter = ColumnProjection(self.table_spec)
-        self.source_budget = SourceBudget(limit=int(config.max_papers))
+        self.source_budget = SourceBudget(limit=int(config.max_source_units))
         self.provider_health = ProviderHealth()
         self.run_termination = RunTermination()
         self.acquisition = AcquisitionController(
@@ -1050,59 +920,90 @@ class QuestionPipeline:
             health=self.provider_health,
             termination=self.run_termination,
         )
-        #: Per-page surface facts the kernel's frozen record cannot carry:
-        #: credit-rule attribution, chunk encounters, exclusions,
-        #: counterfactuals, and the gate block. Written durably per page.
-        self.acquisition_page_details: List[Dict[str, Any]] = []
-        #: How each family's last strategy instance ended, which is the input to
-        #: the re-open rule. `exhausted` means the queue was momentarily empty
-        #: and the family was never abandoned; `yield_stop` means its own
-        #: verdict abandoned it and it stays closed.
-        self._strategy_ends: Dict[str, str] = {}
-        #: Seed phrasings a proposed strategy suggested, forwarded to the arm
-        #: planner as prompt context for that strategy's own planning call.
-        self._strategy_seed_queries: Dict[str, List[str]] = {}
-        self._page_detail_path = self.answers_dir / "acquisition_page_detail.jsonl"
-        self._episodes_path = self.answers_dir / "acquisition_episodes.json"
-        #: In-flight per-search state the hooks close over. Keyed by task id and
-        #: popped by the `on_search` hook, so nothing accumulates across the run.
-        self._open_outcomes: Dict[str, SearchOutcome] = {}
-        self._open_sources: Dict[str, PageSource] = {}
-        self._accepted_papers: List[Dict[str, Any]] = []
-        self._episode_records: List[Dict[str, Any]] = []
-        self._strategy_proposals: List[Dict[str, Any]] = []
-        self._page_guess_reports: List[Dict[str, Any]] = []
-        self._pending_followup_outcomes: List[SearchOutcome] = []
+        self._active_strategy_episode_id = ""
+        self._active_strategy_episode_path: tuple[tuple[str, str], ...] = ()
         #: Every hook failure, as a typed class. A hook may not raise -- the
         #: driver catches nothing around `on_unit` -- so its failure is recorded
-        #: here and on the round record rather than unwinding the record tree.
+        #: here and on the strategy record rather than unwinding the record tree.
         self.hook_failures: List[Dict[str, Any]] = []
-        self._gate_columns: Optional[List[DeclaredColumn]] = None
-        self._gate_contract_digest_value = ""
-        self.proposer: Optional[StrategyProposer] = None
-        #: THE ONE EXPRESSION THAT MINTS `round_index`, and it is minted once,
-        #: at strategy-open time -- before the strategy's pages are fetched,
-        #: which is the constraint that rules out reading it at hook time. It is
-        #: carried unchanged into `PageSource`, every `SearchTask`, every
-        #: `CostRecord`, the round record stem, `seed_tables.next_round_index`
-        #: and the reward call, and the hook reads the run episode's own unit
-        #: index and asserts agreement rather than recomputing it.
-        self._completed_strategies = 0
-        self._current_round_index = self._round_label(0)
         self._seen_target_attempts: set[tuple[str, str]] = set()
         self._target_evolution_counts: Counter[str] = Counter()
         #: Rebased per completed strategy, so a per-strategy residual covers the
         #: interval since the previous one rather than the whole run to date.
         self._strategy_orphan_baseline = orphan_meter().snapshot().to_dict()
-        self._last_round_index = self.round_offset
         self._harvester = SearchHarvester(
             scrape_fn=self._scrape_fn if config.scrape_search_results else None,
-            papers_dir=self.papers_dir,
+            sources_dir=self.sources_dir,
             seen_urls=self.seen_urls,
-            min_paper_length=config.min_paper_length,
-            max_paper_length=config.max_paper_length,
-            max_extraction_chars_per_paper=config.max_extraction_chars_per_paper,
+            min_source_length=config.min_source_length,
+            max_source_length=config.max_source_length,
+            max_extraction_chars_per_source=config.max_extraction_chars_per_source,
         )
+        self.provider_binding = acq.ProviderBinding(
+            controller=self.acquisition,
+            run_key=self.out.name,
+            episode_unit_safety_cap=config.episode_unit_safety_cap,
+            strategy_catalog=frozenset(QUERY_OPERATORS),
+            frontier=self.search_frontier,
+            search_fn=self._search_fn,
+            harvester=self._harvester,
+            search_provider_batch=self.search_provider_batch,
+            answers_dir=self.answers_dir,
+            open_cost_scope=lambda kind, observation_id, episode_id, episode_path: (
+                self._cost_scope(
+                    kind,
+                    observation_id=observation_id,
+                    episode_id=episode_id,
+                    episode_path=episode_path,
+                )
+            ),
+            open_prompt_scope=lambda episode_id, episode_path: prompt_scope(
+                self.out / "prompts" / episode_id,
+                episode_id=episode_id,
+                episode_path=episode_path,
+            ),
+            sample_strategies=self._sample_strategies,
+            post_strategy=self._run_post_strategy_body,
+            get_extractor=lambda: self.extractor,
+            extract_text=extract_from_text,
+            chunk_spans=chunk_spans,
+            page_best_guess_fn=page_best_guess,
+            infer_best_guess_candidates=self._infer_best_guess_candidates,
+            evidence_registry=self.evidence_registry,
+            get_graph=lambda: self.graph,
+            set_graph=lambda graph: setattr(self, "graph", graph),
+            enrich_graph_fn=enrich_graph,
+            similarity_threshold=config.similarity_threshold,
+            auto_merge_entities=config.auto_merge_entities,
+            chunk_size=config.chunk_size,
+            chunk_overlap=config.chunk_overlap,
+            extraction_concurrency=config.extraction_concurrency,
+            extraction_timeout_sec=config.extraction_timeout_sec,
+            best_guess_evidence_chars=config.best_guess_evidence_chars,
+            best_guess_llm_batch_size=config.best_guess_llm_batch_size,
+            best_guess_llm_timeout_sec=config.best_guess_llm_timeout_sec,
+            record_goal_discovery_sources=self._record_goal_discovery_sources,
+            refresh_search_memory=self._refresh_search_memory,
+            record_prompt_attempt_counts=self._record_prompt_attempt_counts,
+            append_control_decision=self._append_control_decision,
+            record_hook_failure=self._record_hook_failure,
+            set_active_strategy=self._set_active_strategy,
+            set_units_pulled=lambda value: setattr(self, "units_pulled", value),
+            set_search_provider_error=lambda value: setattr(
+                self, "search_provider_error", value
+            ),
+            goal_states=lambda: self.goal_states,
+            exported_rows=lambda: self.seed_tables.rows_by_name,
+            source_ingestion_ledger=self.source_ingestion_ledger,
+            last_search_outcomes=self.last_search_outcomes,
+            search_outcomes=self.search_outcomes,
+            queries_used=self.queries_used,
+            orphan_snapshot=lambda: orphan_meter().snapshot().to_dict(),
+            hook_failures=lambda: self.hook_failures,
+            criteria_projection_version=CRITERIA_PROJECTION_VERSION,
+            missing_tokens=criteria_missing_tokens,
+        )
+        self._run_episode_id = self.provider_binding.run_episode_id
 
         # -- path-selection gate (Phase 2B) ----------------------------- #
         # Records on every run; demotes nothing unless configured to.  2A's
@@ -1114,6 +1015,16 @@ class QuestionPipeline:
     # ------------------------------------------------------------------ #
     # Cost accounting (Phase 1B)
     # ------------------------------------------------------------------ #
+    def _set_active_strategy(
+        self,
+        episode_id: str,
+        episode_path: tuple[tuple[str, str], ...],
+    ) -> None:
+        """Receive the binding's active strategy scope for downstream work."""
+
+        self._active_strategy_episode_id = str(episode_id)
+        self._active_strategy_episode_path = tuple(episode_path)
+
     def _record_cost(self, record: CostRecord) -> None:
         """Append one action's cost.  Never sums, never branches."""
         if not self.cost_accounting_enabled:
@@ -1121,8 +1032,8 @@ class QuestionPipeline:
         payload = record.to_dict()
         self.cost_records.append(payload)
         try:
-            self.papers_dir.mkdir(parents=True, exist_ok=True)
-            with (self.papers_dir / "cost_records.jsonl").open(
+            self.sources_dir.mkdir(parents=True, exist_ok=True)
+            with (self.sources_dir / "cost_records.jsonl").open(
                 "a",
                 encoding="utf-8",
             ) as handle:
@@ -1135,7 +1046,8 @@ class QuestionPipeline:
         kind: str,
         *,
         observation_id: str = "",
-        round_index: int = 0,
+        episode_id: str = "",
+        episode_path: tuple[tuple[str, str], ...] = (),
     ):
         """Open a meter for one action, or an inert placeholder when off."""
         if not self.cost_accounting_enabled:
@@ -1143,17 +1055,27 @@ class QuestionPipeline:
         return cost_scope(
             kind,
             observation_id=observation_id,
-            round_index=round_index,
+            episode_id=(
+                episode_id
+                or self._active_strategy_episode_id
+                or self._run_episode_id
+            ),
+            episode_path=(episode_path or self._active_strategy_episode_path),
             sink=self._record_cost,
         )
 
-    def _open_prompt_log(self, round_index: int | str) -> None:
-        """Start recording prompts for one round."""
+    def _open_prompt_log(
+        self,
+        episode_id: str,
+        episode_path: tuple[tuple[str, str], ...],
+    ) -> None:
+        """Start recording prompts owned by one strategy Episode."""
 
         self._close_prompt_log()
         self._prompt_log_token = prompt_log_open(
-            self.out / "prompts" / self._artifact_stem(round_index),
-            round_index=round_index,
+            self.out / "prompts" / episode_id,
+            episode_id=episode_id,
+            episode_path=episode_path,
         )
 
     def _close_prompt_log(self) -> None:
@@ -1162,12 +1084,12 @@ class QuestionPipeline:
             prompt_log_close(token)
             self._prompt_log_token = None
 
-    def _round_cost_records(self, round_index: int) -> List[Dict[str, Any]]:
-        """This round's cost records.  A filter, not a sum."""
+    def _episode_cost_records(self, episode_id: str) -> List[Dict[str, Any]]:
+        """One Episode's cost records. A filter, not a sum."""
         return [
             record
             for record in self.cost_records
-            if _safe_int(record.get("round_index"), -1) == round_index
+            if str(record.get("episode_id") or "") == episode_id
         ]
 
     def _provider_reported_usage(self) -> Dict[str, Any]:
@@ -1205,7 +1127,7 @@ class QuestionPipeline:
     # residual became per-strategy, because every strategy would have been handed
     # the whole run's residual to date and summing them would multiply-count the
     # same spend. It also carried every non-numeric field whole, including the
-    # sticky `error_class` that `reward.aggregate_round_cost` counts one error
+    # sticky `error_class` that `reward.aggregate_cost` counts one error
     # per record for. `_orphan_interval` replaces it: additive counters only,
     # over an interval, rebased on a single snapshot.
 
@@ -1251,48 +1173,22 @@ class QuestionPipeline:
         )
 
     def _probe_search(self, query: str, max_results: int) -> List[Dict[str, Any]]:
-        """The completion probe's search, now with an outcome row of its own.
+        """The completion probe's provider call and observable outcome row.
 
-        Before 1B this was the one provider call the record never saw. When
-        ``_uses_default_search`` is true the branch below issues its own
-        ``search_papers`` and bypasses ``_search_fn`` entirely, so no wrapper
-        around that attribute observes it; and ``estimator.py`` emits no
-        ``SearchOutcome`` either. Probe spend was therefore invisible to reward
-        **structurally**, not merely unrecorded — and a reward that cannot see a
-        path's cost prefers that path for being free, which is the exact bias
-        this phase exists to remove.
-
-        The row carries ``topic="completion_probe"``. Every existing consumer of
-        ``search_outcomes`` selects ``target_deficit`` or ``goal_catalog``
-        (`SearchMemory.from_outcomes`, `goals.evaluate`,
-        `_search_outcome_matches_target`, `_annotate_recent_target_outcomes`),
-        so the row is inert to all of them; the A/A ablation is what checks
-        that rather than the reasoning.
-
-        **A PROVIDER CALLER OUTSIDE THE ACQUISITION COMPOSITION, DISCLOSED
-        RATHER THAN MERELY ABSENT.** The probe issues provider calls and
-        composes no ``Episode``, which looks like an acquisition surface that
-        escaped the composition and is not one: it acquires no unit and credits
-        nothing, because it writes no source by construction. The tree already
-        types that -- ``SearchTask.yields_sources=False`` -- so it belongs in a
-        cost denominator and must stay out of a yield denominator, and it has
-        its own ``PROBE_SEARCH`` cost scope for exactly that reason.
+        This provider caller intentionally remains outside the acquisition
+        composition: it writes no source and mints no incidence. Its fixed
+        waves, query count, and result count are restored unchanged here; the
+        Phase 1 cleanup only replaces round attribution with Episode identity.
         """
+
+        episode_id = str(getattr(self, "_probe_episode_id", "") or "")
+        episode_path = tuple(getattr(self, "_probe_episode_path", ()) or ())
         task = SearchTask(
             query=query,
             topic=PROBE_SEARCH_TOPIC,
             expansion_op="completion_probe",
-            # The round this probe actually ran in, set by
-            # `_estimate_task_goal_universe` around the estimator call. Falls
-            # back to 0 only when no round is in scope (the "seed" bootstrap
-            # label), which is the same case `_pipeline_round` returns None for.
-            round_index=_safe_int(getattr(self, "_probe_round_index", None), 0),
+            episode_id=episode_id,
             producer_class="completion_probe",
-            # Structurally incapable of harvesting: this path issues a provider
-            # call to measure the search space and never writes a source, so it
-            # holds zero `candidate_source_outcomes` and zero acceptances by
-            # construction. It belongs in a cost denominator and must be kept
-            # out of a yield denominator, and this is the typed way to say so.
             yields_sources=False,
         )
         outcome = SearchOutcome.for_task(task)
@@ -1302,6 +1198,8 @@ class QuestionPipeline:
         with self._cost_scope(
             ObservationKind.PROBE_SEARCH.value,
             observation_id=task.id,
+            episode_id=episode_id,
+            episode_path=episode_path,
         ) as meter:
             try:
                 results = self._probe_search_results(query, max_results)
@@ -1324,8 +1222,13 @@ class QuestionPipeline:
             raise failure
         return results
 
-    def _probe_search_results(self, query: str, max_results: int) -> List[Dict[str, Any]]:
-        """The probe's provider call, exactly as it was before 1B."""
+    def _probe_search_results(
+        self,
+        query: str,
+        max_results: int,
+    ) -> List[Dict[str, Any]]:
+        """The probe's provider call, exactly as it was before remediation."""
+
         if not self._uses_default_search:
             return self._search_fn(query, max_results)
 
@@ -1343,12 +1246,8 @@ class QuestionPipeline:
         )
 
     def _record_probe_outcome(self, outcome: SearchOutcome, meter) -> None:
-        """Put the probe's outcome where every other search outcome lives.
+        """Put the probe's outcome where every other search outcome lives."""
 
-        In `self.search_outcomes` and in `search_outcomes.jsonl`, so
-        `record_search_outcomes` and `_rewrite_search_outcomes` pick it up with
-        no change to either.
-        """
         if not self.cost_accounting_enabled:
             return
         if meter is not None:
@@ -1356,8 +1255,8 @@ class QuestionPipeline:
         record = outcome.to_dict()
         self.search_outcomes.append(record)
         try:
-            self.papers_dir.mkdir(parents=True, exist_ok=True)
-            with (self.papers_dir / "search_outcomes.jsonl").open(
+            self.sources_dir.mkdir(parents=True, exist_ok=True)
+            with (self.sources_dir / "search_outcomes.jsonl").open(
                 "a",
                 encoding="utf-8",
             ) as handle:
@@ -1398,34 +1297,90 @@ class QuestionPipeline:
         )
 
     def _seed_gasl_source_nodes(self, executor: GASLExecutor) -> None:
-        if not self._gasl_source_seed_nodes:
-            return
+        if self._gasl_source_catalog:
+            catalog_contract = make_contract(
+                payload_kind="rows",
+                data=self._gasl_source_catalog,
+                scope="accumulated_accepted_source_catalog",
+                usable_by=["PROCESS", "SHOW", "SELECT"],
+                grain_type="source",
+                grain_keys=["source_id"],
+                multiplicity_preserved=False,
+                notes=[
+                    "One row per known source. acquisition_cohort distinguishes "
+                    "the current strategy from prior strategies; it does not "
+                    "describe publication recency.",
+                    "Publication and event-time fields remain inside "
+                    "source_metadata. Graph-only sources explicitly report "
+                    "metadata_available=false.",
+                ],
+            )
+            executor.state_manager.store_variable_data(
+                SOURCE_CATALOG_VAR,
+                list(self._gasl_source_catalog),
+                store_in_state=True,
+                store_in_context=True,
+                description=(
+                    "Accumulated source catalog for comparing current-strategy "
+                    "sources with prior sources when choosing graph operations."
+                ),
+                contract=catalog_contract,
+            )
 
-        contract = make_contract(
-            payload_kind="nodes",
-            data=self._gasl_source_seed_nodes,
-            label_field="data.entity_name",
-            scope="current_round_new_sources",
-            usable_by=["PROCESS", "GRAPHWALK", "SHOW", "SELECT"],
-            grain_type="node",
-            grain_keys=["id"],
-            multiplicity_preserved=True,
-            notes=[
-                "Nodes directly evidenced by papers accepted in the current "
-                "round; use before broad graph FIND commands.",
-            ],
-        )
-        executor.state_manager.store_variable_data(
-            ROUND_SOURCE_NODES_VAR,
-            list(self._gasl_source_seed_nodes),
-            store_in_state=True,
-            store_in_context=True,
-            description=(
-                "Current-round source-evidenced graph nodes. Start table-fill "
-                "GRAPHWALK commands from this list before broad FIND fallbacks."
-            ),
-            contract=contract,
-        )
+        if self._gasl_strategy_sources:
+            source_contract = make_contract(
+                payload_kind="rows",
+                data=self._gasl_strategy_sources,
+                scope="current_strategy_accepted_sources",
+                usable_by=["PROCESS", "SHOW", "SELECT"],
+                grain_type="source",
+                grain_keys=["source_id"],
+                multiplicity_preserved=True,
+                notes=[
+                    "Complete metadata for sources accepted by the current "
+                    "strategy. Publication/event dates remain source fields; "
+                    "accepted_at and accepted_episode_id describe ingestion."
+                ],
+            )
+            executor.state_manager.store_variable_data(
+                STRATEGY_SOURCES_VAR,
+                list(self._gasl_strategy_sources),
+                store_in_state=True,
+                store_in_context=True,
+                description=(
+                    "Sources accepted by the current strategy, with provenance "
+                    "and temporal metadata for graph-search strategy selection."
+                ),
+                contract=source_contract,
+            )
+
+        if self._gasl_source_seed_nodes:
+            contract = make_contract(
+                payload_kind="nodes",
+                data=self._gasl_source_seed_nodes,
+                label_field="data.entity_name",
+                scope="current_strategy_source_evidenced_nodes",
+                usable_by=["PROCESS", "GRAPHWALK", "SHOW", "SELECT"],
+                grain_type="node",
+                grain_keys=["id"],
+                multiplicity_preserved=True,
+                notes=[
+                    "All graph nodes directly evidenced by sources accepted in "
+                    "the current strategy. They are starting points, not a graph "
+                    "scope; the full accumulated graph remains searchable."
+                ],
+            )
+            executor.state_manager.store_variable_data(
+                STRATEGY_SOURCE_NODES_VAR,
+                list(self._gasl_source_seed_nodes),
+                store_in_state=True,
+                store_in_context=True,
+                description=(
+                    "Current-strategy source-evidenced graph nodes. Use them as "
+                    "one possible starting strategy within the full graph."
+                ),
+                contract=contract,
+            )
 
     def _seed_gasl_table_inputs(self, executor: GASLExecutor) -> None:
         self._active_seed_migrations = []
@@ -1572,15 +1527,11 @@ genuinely separate view that is not covered by a listed target."""
                 names.add(table_name)
         return sorted(names)
 
-    def _paper_budget_available(self) -> bool:
+    def _source_budget_available(self) -> bool:
         return not self.source_budget.exhausted
 
     def _search_budget_available(self) -> bool:
-        has_query_source = (
-            self.config.queries_per_round > 0
-            or self.search_frontier.pending_count > 0
-        )
-        return self._paper_budget_available() and has_query_source
+        return self._source_budget_available() and self.search_frontier.pending_count > 0
 
     def _ensure_search_ready(self) -> None:
         if not self._uses_default_search or not self._search_budget_available():
@@ -1591,987 +1542,19 @@ genuinely separate view that is not covered by a listed target."""
             "No Firecrawl API key. Set --firecrawl-api-key or FIRECRAWL_API_KEY."
         )
 
-    def _round_label(self, local_round_idx: int) -> int:
-        return self.round_offset + local_round_idx
-
-    @staticmethod
-    def _artifact_stem(artifact_label: int | str) -> str:
-        if isinstance(artifact_label, int):
-            return f"round_{artifact_label}"
-        return str(artifact_label).strip() or "artifact"
-
-    @staticmethod
-    def _pipeline_round(artifact_label: int | str) -> int | None:
-        return artifact_label if isinstance(artifact_label, int) else None
-
     # ------------------------------------------------------------------ #
     # Fetching
     # ------------------------------------------------------------------ #
     # ================================================================== #
-    # The composition (Phase 4E-c)
+    # The composition facade (Phase 4E-c)
     #
-    # `docs/ACQUISITION_LOOP.md` §"The template". This section declares the
-    # parts; the kernel runs them. There is no loop here that pulls a unit,
-    # calls `scoped.observe`, reads a verdict, or keeps a per-scope list. The
-    # loops that remain iterate over emitted records, declared columns and
-    # extracted fields, and none of them acquires anything.
+    # `acquisition.ProviderBinding` declares the provider Episodes and owns
+    # their hooks, callbacks, leaf work, and records. This facade supplies the
+    # model string callback and its run view; `run()` makes the single
+    # `acquisition.run(...)` invocation, then downstream post-strategy work
+    # remains below.
     # ================================================================== #
 
-    def _build_run_episode(self) -> Episode:
-        """Declare the whole tree. One `Episode`, three grains, one call.
-
-        THE RUN EPISODE SPANS THE WHOLE PROCESS, and the round loop is gone.
-        A stop rule's history is a statement about its own units, so a run
-        episode opened per acquisition span would restart its history before it
-        could ever fire -- "a constant pretending to be a decision" -- and
-        `Context.enter` raises on re-opening a path besides. So there is exactly
-        one run episode per pipeline process, the per-round work became its
-        `on_unit` hook, and **a round is now a completed strategy**.
-        """
-
-        self.proposer = StrategyProposer(
-            declared=self._eligible_families,
-            sample=self._sample_strategies,
-            build=self._build_strategy_episode,
-            catalog=frozenset(QUERY_OPERATORS),
-            declared_target_ids=self._declared_target_ids,
-            budget=self.source_budget,
-            health=self.provider_health,
-            termination=self.run_termination,
-            open_cost_scope=self._acquisition_cost_scope,
-            # The ONE expression, handed over as a callable because the pull
-            # happens before the strategy it will open exists. Never
-            # recomputed from the episode view: see `StrategyProposer.next`.
-            round_index=lambda: self._round_index,
-            run_key=self.out.name,
-            record_proposal=self._record_strategy_proposal,
-        )
-        self.acquisition.proposer = self.proposer
-        bound = (
-            int(self.config.max_rounds) if int(self.config.max_rounds) > 0 else None
-        )
-        return Episode(
-            grain=RUN_GRAIN,
-            key=self.out.name,
-            source=self.proposer,
-            on_unit=self._on_strategy,
-            # A CAP, disclosed as a cap and never presented as a decision. When
-            # `max_rounds <= 0` -- a supported configuration -- the run episode
-            # has NO unit bound and termination rests entirely on the run
-            # source's three typed checks: the run's terminal state, provider
-            # health, and the page budget.
-            bound=bound,
-        )
-
-    def _build_strategy_episode(
-        self,
-        strategy_key: str,
-        family: str,
-        seeds: Sequence[str],
-    ) -> Episode:
-        """One strategy instance, keyed ``family#instance``.
-
-        Instance-scoped because `open_scope` raises on a re-opened path and the
-        deterministic planner routes the same family again by design; the family
-        travels as a field, so every ledger grouping, arm join and curve
-        comparison stays by family.
-        """
-
-        if seeds:
-            self._strategy_seed_queries[strategy_key] = list(seeds)
-        return Episode(
-            grain=STRATEGY_GRAIN,
-            key=strategy_key,
-            source=StrategySearches(
-                strategy_key=strategy_key,
-                family=family,
-                next_task=self.search_frontier.next_for,
-                make_search=lambda task: self._build_search_episode(
-                    task, strategy_key, family
-                ),
-                budget=self.source_budget,
-                health=self.provider_health,
-            ),
-            on_unit=lambda unit, contribution, record: self._on_search(
-                unit, contribution, record, strategy_key, family
-            ),
-        )
-
-    def _build_search_episode(
-        self,
-        task: SearchTask,
-        strategy_key: str,
-        family: str,
-    ) -> Episode:
-        round_index = self._round_index
-        task = self._stamp_round_index(task, round_index)
-        outcome = SearchOutcome.for_task(task)
-        self._open_outcomes[task.id] = outcome
-        source = PageSource(
-            task=task,
-            search_fn=self._search_fn,
-            make_leaf=self._make_page_leaf,
-            budget=self.source_budget,
-            health=self.provider_health,
-            round_index=round_index,
-            open_cost_scope=self._acquisition_cost_scope,
-            on_results=self._note_search_results,
-            on_error=self._note_search_error,
-            is_fatal=is_fatal_search_error,
-        )
-        self._open_sources[task.id] = source
-        return Episode(
-            grain=SEARCH_GRAIN,
-            key=task.id,
-            source=source,
-            on_unit=lambda unit, contribution, record: self._on_page(
-                unit, contribution, record, outcome, strategy_key, family
-            ),
-        )
-
-    def _make_page_leaf(
-        self,
-        task: SearchTask,
-        result: Dict[str, Any],
-        rank: int,
-    ) -> Leaf:
-        """One page, bound to its grain's parts at construction.
-
-        The label is a PULL-TIME identity and never the source id: `Leaf` is
-        frozen before `extract` runs and the source id is minted inside it, so a
-        label taken from the source id would name a value the kernel never sees.
-        It is also the SOURCE cost record's `observation_id`, so every page --
-        including one refused before a source id exists -- has one joinable cost
-        record, where those bytes used to be attributed to the search's meter.
-        """
-
-        unit = PageUnit(
-            task=task,
-            result=result,
-            rank=rank,
-            round_index=self._round_index,
-            label=f"{task.id}#{rank}",
-        )
-        return Leaf(
-            unit=unit,
-            extract=self.fetch_judge_extract,
-            credit=self.crediter,
-            label=unit.label,
-        )
-
-    # ------------------------------------------------------------------ #
-    # extract: the leaf's string work. IT NEVER RAISES.
-    # ------------------------------------------------------------------ #
-    async def fetch_judge_extract(self, unit: PageUnit) -> PageMaterial:
-        """Fetch, gate and extract ONE page, and never raise.
-
-        The driver catches nothing, so one raise here would unwind the whole
-        record tree and the run would emit no record at all. Every expected
-        failure is therefore converted into a typed fate, classified through
-        `costs.classify_error` -- an existing owner, not a second classifier.
-        `BaseException` is deliberately NOT caught: `KeyboardInterrupt` and
-        `SystemExit` legitimately end the process, and swallowing them would be
-        the silent failure in the other direction.
-
-        THIS FUNCTION MINTS NO `active` FLAG AND NO FATE CLASS. It returns facts
-        -- the gate's score, the floor, the rule's outcome, the extraction's
-        chunk failures -- and `acquisition` decides once what they mean.
-        """
-
-        task = unit.task
-        outcome = self._open_outcomes.get(task.id)
-        if outcome is None:
-            outcome = SearchOutcome.for_task(task)
-            self._open_outcomes[task.id] = outcome
-
-        with self._cost_scope(
-            ObservationKind.SOURCE.value,
-            observation_id=unit.label,
-            round_index=unit.round_index,
-        ):
-            return await self._acquire_page(unit, outcome)
-
-    async def _acquire_page(
-        self,
-        unit: PageUnit,
-        outcome: SearchOutcome,
-    ) -> PageMaterial:
-        task = unit.task
-        prepared = self._harvester.prepare_page(
-            task, dict(unit.result), outcome, rank=unit.rank
-        )
-        if prepared.candidate is None:
-            return PageMaterial(
-                fate=page_fate(
-                    mechanical=prepared.fate,
-                    error_class=prepared.error_class,
-                ),
-                text_chars=prepared.text_length,
-            )
-        candidate = prepared.candidate
-
-        # Fates 6 and 7 sit AHEAD of the gate, so a page nothing could credit
-        # never pays for a gate call -- a cost improvement and a correctness one:
-        # paying a model to score a page against a contract that cannot yet be
-        # extracted buys nothing.
-        if self.extractor is None:
-            return PageMaterial(
-                fate=page_fate(mechanical=acq.FATE_NO_EXTRACTOR),
-                text_chars=len(candidate.text),
-            )
-        if not self.crediter.basis.columns:
-            return PageMaterial(
-                fate=page_fate(mechanical=acq.FATE_NO_CREDIT_COLUMNS),
-                text_chars=len(candidate.text),
-            )
-
-        gate, gate_record, relevance = await self._gate_page(task, unit, candidate)
-        cleared, gate_outcome = gate
-        if not cleared:
-            outcome.relevance_decisions.append(relevance)
-            self._harvester.record_candidate_outcome(
-                outcome,
-                dict(unit.result),
-                rank=unit.rank,
-                fate=fate_skip_reason(page_fate(gate=gate_outcome)),
-                reason=gate_record.get("rule", ""),
-                text_length=len(candidate.text),
-            )
-            return PageMaterial(
-                fate=page_fate(
-                    gate=gate_outcome,
-                    extraction=acq.EXTRACT_NOT_RUN,
-                    score_reason=str(gate_record.get("reason_class") or ""),
-                ),
-                gate=gate_record,
-                relevance=relevance,
-                text_chars=len(candidate.text),
-            )
-        outcome.relevance_decisions.append(relevance)
-
-        paper = self._harvester.write_paper(
-            task, candidate, outcome, rank=unit.rank
-        )
-        source_id = str(paper.get("id") or "")
-        ingestion = self._open_ingestion_entry(source_id, paper)
-
-        chunks: List[Dict[str, Any]] = []
-        try:
-            entities, relationships = await extract_from_text(
-                self.extractor,
-                paper["text"],
-                source_id,
-                chunk_size=self.config.chunk_size,
-                overlap=self.config.chunk_overlap,
-                concurrency=self.config.extraction_concurrency,
-                timeout=self.config.extraction_timeout_sec,
-                on_chunk=self._chunk_observer(
-                    chunks, source_id=source_id, page_text=str(paper["text"])
-                ),
-            )
-        except Exception as exc:  # noqa: BLE001 - converted, never raised
-            error_class = classify_error(exc)
-            ingestion.update(
-                {
-                    "extraction_state": "extraction_failed",
-                    "reason": f"{type(exc).__name__}: {exc}",
-                    "error_class": error_class,
-                }
-            )
-            return PageMaterial(
-                source_id=source_id,
-                fate=page_fate(
-                    gate=gate_outcome,
-                    extraction=acq.EXTRACT_RAISED,
-                    error_class=error_class,
-                    score_reason=str(gate_record.get("reason_class") or ""),
-                ),
-                paper=paper,
-                ingestion=ingestion,
-                gate=gate_record,
-                relevance=relevance,
-                reduction=candidate.reduction,
-                chunks=tuple(chunks),
-                text_chars=len(candidate.text),
-            )
-
-        # A PAGE WHOSE EVERY CHUNK FAILED IS NOT A BARREN PAGE.
-        # `extract_from_text` converts a per-chunk timeout or exception into an
-        # empty result, so without this test such a page reaches the "extracted"
-        # row, enters the search grain's stop history with zero credits, and a
-        # stream of them reads as a result list that has stopped yielding.
-        # `docs/ACQUISITION_LOOP.md`: "a stream of zero-credit units that merely
-        # *looks* barren would drive a false stop."
-        failed_chunks = sum(1 for chunk in chunks if chunk.get("failed"))
-        if chunks and failed_chunks == len(chunks):
-            ingestion.update(
-                {
-                    "extraction_state": "extraction_all_chunks_failed",
-                    "reason": (
-                        f"all {failed_chunks} chunk(s) of this page failed to "
-                        f"extract, so zero entities here means 'could not "
-                        f"judge', not 'this page carried nothing'"
-                    ),
-                    "failed_chunks": failed_chunks,
-                }
-            )
-            return PageMaterial(
-                source_id=source_id,
-                fate=page_fate(
-                    gate=gate_outcome,
-                    extraction=acq.EXTRACT_ALL_CHUNKS_FAILED,
-                    score_reason=str(gate_record.get("reason_class") or ""),
-                ),
-                paper=paper,
-                ingestion=ingestion,
-                gate=gate_record,
-                relevance=relevance,
-                reduction=candidate.reduction,
-                chunks=tuple(chunks),
-                text_chars=len(candidate.text),
-            )
-
-        records = self._extracted_records(entities, relationships)
-        try:
-            document, version, source_chunks = self.evidence_registry.source_records(
-                source_id=source_id,
-                canonical_locator=str(
-                    paper.get("url") or paper.get("source_url") or source_id
-                ),
-                title=str(paper.get("title") or ""),
-                content=str(paper.get("text") or ""),
-                chunks=chunks,
-            )
-            spans, assertions = self.crediter.assertion_candidates(
-                records,
-                document=document,
-                version=version,
-                chunks=source_chunks,
-            )
-            source_batch_id = self.evidence_registry.register_source_candidates(
-                document=document,
-                version=version,
-                content=str(paper.get("text") or ""),
-                chunks=source_chunks,
-                spans=spans,
-                candidates=assertions,
-            )
-            evidence_commit = self.evidence_registry.accept_direct(
-                source_batch_id,
-                required_columns_by_table=self.crediter.required_column_ids_by_table,
-            )
-            accepted_by_chunk: Dict[str, set[str]] = {}
-            for cell in evidence_commit.accepted_cells:
-                accepted_by_chunk.setdefault(cell.chunk_id, set()).add(
-                    cell.criterion_id
-                )
-            seen_chunk_credits: set[str] = set()
-            for chunk_record, source_chunk in zip(chunks, source_chunks):
-                identities = accepted_by_chunk.get(source_chunk.id, set())
-                new = identities - seen_chunk_credits
-                chunk_record["registry_chunk_id"] = source_chunk.id
-                chunk_record["credits_minted"] = len(identities)
-                chunk_record["new_within_page"] = len(new)
-                chunk_record["repeats_within_page"] = len(identities) - len(new)
-                seen_chunk_credits.update(identities)
-        except (OSError, ValueError, LookupError) as exc:
-            error_class = classify_error(exc)
-            ingestion.update(
-                {
-                    "extraction_state": "evidence_registry_failed",
-                    "reason": f"{type(exc).__name__}: {exc}",
-                    "error_class": error_class,
-                }
-            )
-            return PageMaterial(
-                source_id=source_id,
-                fate=page_fate(
-                    gate=gate_outcome,
-                    extraction=acq.EXTRACT_RAISED,
-                    error_class=error_class,
-                    score_reason=str(gate_record.get("reason_class") or ""),
-                ),
-                paper=paper,
-                ingestion=ingestion,
-                gate=gate_record,
-                relevance=relevance,
-                reduction=candidate.reduction,
-                chunks=tuple(chunks),
-                text_chars=len(candidate.text),
-            )
-        ingestion.update(
-            {
-                "extraction_state": (
-                    "extracted_entities" if entities else "extracted_no_entities"
-                ),
-                "entity_count": len(entities or {}),
-                "relationship_count": len(relationships or ()),
-                "failed_chunks": failed_chunks,
-                "chunk_count": len(chunks),
-            }
-        )
-        guesses = await self._page_best_guess(
-            records=records,
-            source_id=source_id,
-            page_text=str(paper.get("text") or ""),
-        )
-        return PageMaterial(
-            source_id=source_id,
-            fate=page_fate(
-                gate=gate_outcome,
-                extraction=acq.EXTRACT_OK,
-                score_reason=str(gate_record.get("reason_class") or ""),
-            ),
-            entities=entities or {},
-            relationships=list(relationships or ()),
-            records=records,
-            guesses=guesses,
-            paper=paper,
-            ingestion=ingestion,
-            gate=gate_record,
-            relevance=relevance,
-            reduction=candidate.reduction,
-            chunks=tuple(chunks),
-            text_chars=len(candidate.text),
-            evidence_commit=evidence_commit,
-        )
-
-    async def _gate_page(
-        self,
-        task: SearchTask,
-        unit: PageUnit,
-        candidate: Any,
-    ) -> tuple[tuple[bool, str], Dict[str, Any], Dict[str, Any]]:
-        """Score the page, then apply the RULE. The model is not on the branch.
-
-        Fate 8 (`gate_off`) is a declared rule on a config value and fate 9
-        (`failed_open`) a declared rule on an exception path -- neither is a
-        model verdict -- and both admit the page for extraction, as does fate 10
-        (`unscored`), because a parse failure is not evidence about a page.
-        """
-
-        if not self._should_gate_source(task):
-            record = {
-                "score": None,
-                "floor": RELEVANCE_SCORE_FLOOR,
-                "rule": "gate not run by declared config",
-                "outcome": acq.GATE_NOT_RUN,
-                "reason_class": "gate_off",
-                "window_count": 0,
-                "window_scores": [],
-                "deciding_window_index": -1,
-            }
-            return (True, acq.GATE_NOT_RUN), record, self._relevance_record(
-                unit, candidate, record, accepted=True
-            )
-
-        try:
-            score = await score_page_against_contract(
-                self.llm,
-                question=self.config.question,
-                columns=self._declared_gate_columns(),
-                page_text=candidate.text,
-            )
-        except Exception as exc:  # noqa: BLE001 - the tree's existing fail-open
-            record = {
-                "score": None,
-                "floor": RELEVANCE_SCORE_FLOOR,
-                "rule": "gate call raised",
-                "outcome": acq.GATE_FAILED_OPEN,
-                "reason_class": classify_error(exc),
-                "error": f"{type(exc).__name__}: {exc}",
-                "window_count": 0,
-                "window_scores": [],
-                "deciding_window_index": -1,
-            }
-            return (True, acq.GATE_FAILED_OPEN), record, self._relevance_record(
-                unit, candidate, record, accepted=True
-            )
-
-        cleared, gate_outcome = page_clears_relevance(score.specificity_score)
-        windows = (score.raw.get("gate_windows") or {}).get("windows") or []
-        record = {
-            "score": score.specificity_score,
-            "floor": RELEVANCE_SCORE_FLOOR,
-            "rule": "specificity_score >= RELEVANCE_SCORE_FLOOR",
-            "outcome": gate_outcome,
-            "reason_class": score.score_reason,
-            "window_count": score.window_count,
-            "window_scores": [
-                window.get("specificity_score") for window in windows
-            ],
-            "deciding_window_index": score.window_index,
-            "contract_columns": len(self._declared_gate_columns()),
-            "contract_digest": self._gate_contract_digest(),
-            "spec_digest": self.crediter.spec_digest,
-        }
-        self._record_page_gate_score(task, unit, score, record)
-        return (cleared, gate_outcome), record, self._relevance_record(
-            unit, candidate, record, accepted=cleared, score=score
-        )
-
-    def _relevance_record(
-        self,
-        unit: PageUnit,
-        candidate: Any,
-        gate: Mapping[str, Any],
-        *,
-        accepted: bool,
-        score: Any = None,
-    ) -> Dict[str, Any]:
-        decision = SourceRelevanceDecision(
-            accept=bool(accepted),
-            reason=str(gate.get("rule") or ""),
-            gate_score=gate.get("score"),
-            gate_floor=float(gate.get("floor") or 0.0),
-            gate_outcome=str(gate.get("outcome") or ""),
-            gate_rule=str(gate.get("rule") or ""),
-            metadata={
-                "gate": dict(gate),
-                # String work about this page, carried for `search_memory`'s
-                # counters and briefs. No predicate reads any of it.
-                "matched_needs": list(getattr(score, "matched_needs", ()) or ()),
-                "missing_needs": list(getattr(score, "missing_needs", ()) or ()),
-                "offtopic_axes": list(getattr(score, "offtopic_axes", ()) or ()),
-                "failure_modes": list(getattr(score, "failure_modes", ()) or ()),
-                "better_search_cues": list(
-                    getattr(score, "better_search_cues", ()) or ()
-                ),
-                "avoid_cues": list(getattr(score, "avoid_cues", ()) or ()),
-            },
-        )
-        return {
-            "url": candidate.url,
-            "title": str(unit.result.get("title") or ""),
-            **decision.to_dict(),
-        }
-
-    def _declared_gate_columns(self) -> List[DeclaredColumn]:
-        """What the gate is asked about: EXACTLY the crediter's basis.
-
-        One object, one selection. The columns the model is asked to look for
-        are the columns the crediter can credit, so the two cannot drift, and a
-        column the criteria-owned basis excludes -- `evidence_gap`, the producer
-        grading its own output -- is not merely uncredited but never named to
-        the gate.
-
-        THE BLIND SPOT THIS SHARES WITH THE CREDIT ACCUMULATOR, stated because
-        it is the one class of page whose value the loop cannot see: declared
-        subject-key columns are excluded from the basis by construction (a
-        key-only row warms nothing), so they are excluded from this ask too. A
-        page carrying only declared key values is scored against columns it does
-        not claim to carry, and mints no credit even when extracted -- while
-        being exactly the page a row credit and a criterion's subject identity
-        need. The run emits the count of extracted pages that minted zero
-        credits while supplying a complete declared subject key, so an
-        under-admission of identity-bearing evidence is legible rather than
-        inferred.
-        """
-
-        if self._gate_columns is None:
-            self._gate_columns = [
-                DeclaredColumn(
-                    table=column.table,
-                    column=column.column,
-                    value_type=column.value_type,
-                    unit=column.unit,
-                    aliases=column.aliases,
-                    description=column.description,
-                )
-                for column in self.crediter.basis.columns
-            ]
-        return self._gate_columns
-
-    def _gate_contract_digest(self) -> str:
-        if self._gate_contract_digest_value == "":
-            from .progress_judge import contract_block
-
-            self._gate_contract_digest_value = stable_id(
-                contract_block(self._declared_gate_columns())
-            )
-        return self._gate_contract_digest_value
-
-    def _chunk_observer(
-        self,
-        sink: List[Dict[str, Any]],
-        *,
-        source_id: str,
-        page_text: str,
-    ):
-        """Per-chunk encounters, including FAILURE, for the unbound chunk grain.
-
-        The counters live in this closure and not on the crediter, which is
-        constructed once per run and must stay pure: `extract` now calls the
-        crediter, so a per-page memo on it would make `extract`'s behaviour
-        depend on `credit`'s.
-        """
-
-        declared = {
-            chunk.index: chunk
-            for chunk in chunk_spans(
-                page_text, self.config.chunk_size, self.config.chunk_overlap
-            )
-        }
-
-        def observe(index, chunk_id, entities, relationships, failure) -> None:
-            source_chunk = declared[int(index)]
-            sink.append(
-                {
-                    "chunk_index": int(index),
-                    "chunk_id": str(chunk_id),
-                    "source_id": source_id,
-                    "start_offset": source_chunk.start_offset,
-                    "end_offset": source_chunk.end_offset,
-                    "text": source_chunk.text,
-                    "failed": bool(failure),
-                    "failure_class": str(failure or ""),
-                    "credits_minted": 0,
-                    "new_within_page": 0,
-                    "repeats_within_page": 0,
-                    "row_credits_minted": 0,
-                }
-            )
-
-        return observe
-
-    def _extracted_records(
-        self,
-        entities: Mapping[str, Mapping[str, Any]],
-        relationships: Sequence[Mapping[str, Any]] = (),
-    ) -> List[Dict[str, Any]]:
-        """One record per extracted entity and relationship, per declared table.
-
-        The unit of row completeness is ONE extracted record, so the crediter
-        must see each record's fields together. A flattened stream of every
-        entity's attributes cannot say whether one subject carried six columns
-        or six subjects carried one each, and crediting a row on it would be
-        volume with an identity attached.
-
-        The same record is offered against every declared table: a page does not
-        know which table it fills, and the projection's own column matching
-        decides. That is a property of the contract, not a guess about the page.
-        """
-
-        tables = self.crediter.basis.tables
-        out: List[Dict[str, Any]] = []
-        index = 0
-        for record in list((entities or {}).values()) + list(relationships or ()):
-            if not isinstance(record, Mapping):
-                continue
-            attributes = record.get("attributes")
-            values: Dict[str, Any] = {}
-            if isinstance(attributes, Mapping):
-                values.update(attributes)
-            for key, value in record.items():
-                if key in ("attributes", "source_chunks", "source_chunk"):
-                    continue
-                values.setdefault(str(key), value)
-            chunks = record.get("source_chunks") or (
-                [record.get("source_chunk")] if record.get("source_chunk") else []
-            )
-            for table in tables:
-                out.append(
-                    {
-                        "table": table,
-                        "index": index,
-                        "values": values,
-                        "source_chunks": [str(chunk) for chunk in chunks if chunk],
-                    }
-                )
-            index += 1
-        return out
-
-    async def _page_best_guess(
-        self,
-        *,
-        records: Sequence[Mapping[str, Any]],
-        source_id: str,
-        page_text: str,
-    ) -> List[Dict[str, Any]]:
-        """The page-scoped guess stage, inside `extract` and inside SOURCE cost.
-
-        Its output is an ACQUISITION CONTROL SIGNAL and is written into no
-        exported row: the round-end pass over exported rows remains the only
-        writer of the `judged_best_guess_*` basis and therefore the only input
-        to `criteria`, to reward, and to any datapoint claim. The two counts are
-        not expected to agree -- different evidence scopes, one page against
-        every accepted source -- and their divergence is the measurement.
-        """
-
-        if self.config.page_best_guess_mode == "off" or not records:
-            return []
-        report = await page_best_guess(
-            records=records,
-            columns_by_table=self.crediter.columns_by_table(),
-            source_id=source_id,
-            page_text=page_text,
-            extract_fn=(
-                self._infer_best_guess_candidates
-                if self.config.page_best_guess_mode == "llm"
-                else None
-            ),
-            llm_batch_size=self.config.best_guess_llm_batch_size,
-            llm_timeout_sec=self.config.best_guess_llm_timeout_sec,
-            evidence_chars=self.config.best_guess_evidence_chars,
-        )
-        self._page_guess_reports.append(
-            {
-                "source_id": source_id,
-                "task_count": report.get("task_count"),
-                "llm_calls": report.get("llm_calls"),
-                "resolution_count": len(report.get("resolutions") or []),
-                "errors": report.get("errors") or [],
-            }
-        )
-        return list(report.get("resolutions") or [])
-
-    def _open_ingestion_entry(
-        self,
-        source_id: str,
-        paper: Mapping[str, Any],
-    ) -> Dict[str, Any]:
-        """Recorded BEFORE extraction is called, never after.
-
-        That is the property that makes "extraction ran and found nothing"
-        distinguishable from "extraction never ran": an attempted state that
-        depended on what came back would be a relabelled inference.
-        """
-
-        entry = {
-            "source_id": source_id,
-            "extraction_state": "attempted",
-            "reason": "",
-            "entity_count": 0,
-            "relationship_count": 0,
-            "text_chars": len(str(paper.get("text") or "")),
-            "round_index": _safe_int(paper.get("search_round_index"), 0),
-        }
-        self.source_ingestion_ledger[source_id] = entry
-        return entry
-
-    # ------------------------------------------------------------------ #
-    # hooks -- which hook writes which decision
-    #
-    # A grain's hook runs once per unit of that grain, BEFORE the loop reads
-    # that grain's own verdict, and `c.child` is the unit's record. So a hook
-    # can never see the verdict that ends its own episode -- which is why the
-    # strategy-ending decision is written at the RUN grain's hook, and why the
-    # run-ending decision has no hook at all.
-    #
-    # NO HOOK MAY RAISE: `drive_async` catches nothing around `on_unit`, so one
-    # raise unwinds the whole record tree. Each hook's body is guarded and its
-    # failure recorded as a typed class. `BaseException` is not caught.
-    # ------------------------------------------------------------------ #
-    def _on_page(
-        self,
-        leaf: Leaf,
-        contribution: Contribution,
-        record: UnitRecord,
-        outcome: SearchOutcome,
-        strategy_key: str,
-        family: str,
-    ) -> None:
-        """A page produces NO policy decision. Side effects and the ledger only.
-
-        The kernel hands a hook the unit its SOURCE yielded, which at this grain
-        is the `Leaf`; the `PageUnit` the crediter wrote its breakdown onto is
-        `leaf.unit`.
-        """
-
-        unit = leaf.unit
-        material = contribution.extracted
-        try:
-            self.source_budget.charge(1)
-            self.paper_count = self.source_budget.spent
-            if isinstance(material, PageMaterial):
-                skip = fate_skip_reason(material.fate)
-                if skip:
-                    outcome.skip(skip)
-                if material.paper is not None:
-                    self._accepted_papers.append(dict(material.paper))
-                    self._record_goal_discovery_sources([dict(material.paper)])
-                    self.graph = enrich_graph(
-                        self.graph,
-                        dict(material.entities),
-                        list(material.relationships),
-                        material.source_id,
-                        similarity_threshold=self.config.similarity_threshold,
-                        auto_merge=self.config.auto_merge_entities,
-                    )
-                self._write_page_detail(unit, record, material, strategy_key, family)
-        except Exception as exc:  # noqa: BLE001 - a hook must not unwind the tree
-            self._record_hook_failure("on_page", unit.label, exc)
-
-    def _on_search(
-        self,
-        episode: Episode,
-        contribution: Contribution,
-        record: UnitRecord,
-        strategy_key: str,
-        family: str,
-    ) -> None:
-        """One completed search: write its outcome, and its yield decision."""
-
-        child = contribution.child
-        try:
-            task_id = child.scope_key if child is not None else episode.key
-            outcome = self._open_outcomes.pop(task_id, None)
-            source = self._open_sources.pop(task_id, None)
-            if outcome is None:
-                return
-            if child is not None and child.ended_by == END_YIELD_STOP:
-                remaining = source.remaining if source is not None else 0
-                if remaining > 0:
-                    # A DECISION, NEVER SILENT: every unprocessed buffered
-                    # result is counted under a reason a reader can distinguish
-                    # from a relevance or a budget skip. The provider already
-                    # returned it; no page LLM work ran for it.
-                    outcome.skip("yield_stop", remaining)
-                self._append_control_decision(
-                    self.acquisition.write_decision(
-                        child,
-                        decision_point=acq.DECISION_SEARCH_ITEM_YIELD,
-                        family=family,
-                    )
-                )
-            if source is not None and source.cost is not None:
-                outcome.cost = dict(source.cost)
-            outcome.provider_batch = dict(self.search_provider_batch)
-            if source is not None:
-                outcome.result_buffer = source.result_buffer
-            self.last_search_outcomes.append(outcome)
-            self.search_frontier.record([outcome])
-            self.search_outcomes.append(outcome.to_dict())
-            self.queries_used.append(outcome.query)
-            self._harvester.record_outcome(outcome)
-            self._refresh_search_memory()
-            self._record_prompt_attempt_counts([outcome])
-            self._pending_followup_outcomes.append(outcome)
-        except Exception as exc:  # noqa: BLE001 - a hook must not unwind the tree
-            self._record_hook_failure("on_search", episode.key, exc)
-
-    async def _on_strategy(
-        self,
-        episode: Episode,
-        contribution: Contribution,
-        record: UnitRecord,
-    ) -> None:
-        """One completed strategy: THE ROUND BODY, plus the strategy decision.
-
-        This is the hook that can see a strategy's own verdict; the strategy
-        grain's own hook cannot. Every step of the round body is individually
-        guarded and its failure recorded as a typed class on the round record,
-        so one failing export cannot unwind the record tree.
-        """
-
-        child = contribution.child
-        family = str(episode.key).split("#", 1)[0]
-        round_index = self._round_index
-        try:
-            if child is not None:
-                self._strategy_ends[family] = child.ended_by
-                self._append_control_decision(
-                    self.acquisition.write_decision(
-                        child,
-                        decision_point=acq.DECISION_STRATEGY_YIELD,
-                        family=family,
-                    )
-                )
-                self._write_episode_record(child)
-                # The two readings of the round index agree by construction --
-                # the source saw `units_consumed` before the pull and the unit
-                # record carries `units - 1` after the observe -- so a
-                # divergence is a failure that names itself.
-                observed = int(record.yield_record.unit_index)
-                if observed != int(round_index) - int(self.round_offset):
-                    self._record_hook_failure(
-                        "round_index",
-                        episode.key,
-                        ValueError(
-                            f"round index {round_index} disagrees with the run "
-                            f"episode's unit index {observed}"
-                        ),
-                    )
-            await self._run_round_body(round_index, episode.key, family)
-        except Exception as exc:  # noqa: BLE001 - a hook must not unwind the tree
-            self._record_hook_failure("on_strategy", episode.key, exc)
-        finally:
-            self._advance_round()
-
-    # ------------------------------------------------------------------ #
-    # the sources' typed callbacks
-    # ------------------------------------------------------------------ #
-    def _eligible_families(self) -> List[str]:
-        """Families with pending frontier work that MAY open an instance.
-
-        A written rule over the child records the run already holds, with no
-        model and no threshold -- an `ended_by` comparison against declared
-        constants:
-
-        * ``exhausted``  -> yes, if the frontier holds work for it. The queue
-          was momentarily empty; it was never abandoned.
-        * ``yield_stop`` -> no. Its own verdict abandoned it, and re-running it
-          is the verdict undone.
-        * ``bound_hit``  -> no. A budget is spent; re-running spends more of it.
-        * ``source_failed`` -> no. The stream died, and provider health ends the
-          run anyway.
-
-        THIS IS NOT THE DELETED WITHIN-ROUND DEMOTION GATE. That interleaved
-        searches across strategies inside a round and carried an all-stopped
-        override; this runs one strategy episode at a time and never revives a
-        family its own verdict abandoned. The override is replaced by the run
-        grain's own verdict -- a verdict this build's provider budget cannot
-        reach, so what is deleted is a within-round switch capability and what
-        replaces it is registered inert on these configurations.
-
-        **WHAT BOUNDS THE RE-OPEN CYCLE**, since a barren search enqueues
-        follow-up evolutions and a refilled frontier makes an ``exhausted``
-        family eligible again. Four bounds, and each is a number:
-        ``target_evolution_counts`` caps how many evolutions one deficit may
-        spawn per the configured limit; every PULLED page charges
-        ``SourceBudget``, so a run that pulls pages advances toward
-        ``max_papers``; a run that pulls no page still consumes one run-grain
-        unit per strategy and ends on ``Episode(RUN).bound`` when
-        ``max_rounds > 0``; and when ``max_rounds <= 0`` it ends on
-        ``RunTermination`` or ``budget.exhausted`` at the run source's first
-        two checks. The per-family instance count is emitted on the run record.
-        """
-
-        pending = self.search_frontier.pending_by_family()
-        return [
-            family
-            for family in pending
-            if self._strategy_ends.get(family, END_EXHAUSTED) == END_EXHAUSTED
-        ]
-
-    def _current_strategy_seed_queries(self) -> List[str]:
-        """Seeds proposed for any strategy opened so far, deduped.
-
-        Recorded on the proposal row as a hint and forwarded as context. NO
-        PREDICATE READS THEM: what reaches one is `control.stable_id` over the
-        normalized seed set, which is content-addressing rather than
-        text-steering -- the distinction between this and a prose chain where a
-        generated string reaches a branch.
-        """
-
-        seeds: List[str] = []
-        for values in self._strategy_seed_queries.values():
-            for seed in values:
-                if seed not in seeds:
-                    seeds.append(seed)
-        return seeds
-
-    def _declared_target_ids(self) -> set[str]:
-        ids: set[str] = set()
-        for state in self.goal_states:
-            catalog = state.get("target_catalog") if isinstance(state, dict) else None
-            for key in ("fill_deficits", "unmet_count_targets", "count_targets"):
-                for target in (catalog or {}).get(key) or []:
-                    if isinstance(target, Mapping):
-                        value = str(target.get("id") or target.get("target_id") or "")
-                        if value:
-                            ids.add(value)
-        return ids
 
     async def _sample_strategies(
         self,
@@ -2579,14 +1562,23 @@ genuinely separate view that is not covered by a listed target."""
     ) -> List[Dict[str, Any]]:
         """The switch edge's model call. Strings and one number, nothing else."""
 
-        return await strategy.propose_distant_strategy(
-            self.llm,
-            self.config.question,
-            run_view=self._proposer_run_view(),
-            catalog=QUERY_OPERATORS,
-            tried=list(tried),
-            n=self.config.task_goal_search_tasks or 3,
-        )
+        run_path = ((RUN_GRAIN.name, self.out.name),)
+        with prompt_scope(
+            self.out / "prompts" / self._run_episode_id,
+            episode_id=self._run_episode_id,
+            episode_path=run_path,
+        ):
+            return await strategy.propose_distant_strategy(
+                self.llm,
+                self.config.question,
+                run_view=self._proposer_run_view(),
+                catalog=QUERY_OPERATORS,
+                tried=list(tried),
+                # String breadth for one proposer call -- its own named parameter,
+                # split from `task_goal_search_tasks`, which serves the deficit
+                # planner. One name per concept; neither is a stop rule.
+                n=self.config.strategy_candidates_per_proposal,
+            )
 
     def _proposer_run_view(self) -> Dict[str, Any]:
         """The proposer's payload, DECLARED FIELD BY FIELD.
@@ -2618,7 +1610,7 @@ genuinely separate view that is not covered by a listed target."""
                 else []
             )
             or [],
-            "accepted_source_terms": self._accepted_source_terms(),
+            "accepted_source_terms": self.provider_binding.accepted_source_terms(),
             "pages_pulled": self.source_budget.spent,
             "pages_budget": self.source_budget.limit,
             "completed_strategies": [
@@ -2634,118 +1626,32 @@ genuinely separate view that is not covered by a listed target."""
             ],
         }
 
-    def _accepted_source_terms(self) -> List[str]:
-        terms: List[str] = []
-        for paper in self._accepted_papers[-25:]:
-            title = str(paper.get("title") or "").strip()
-            if title:
-                terms.append(title)
-        return terms
 
-    def _record_strategy_proposal(self, row: Mapping[str, Any]) -> None:
-        """Every candidate, accepted or not, with its reported distance.
+    @staticmethod
+    def _artifact_stem(artifact_label: int | str) -> str:
+        """Filesystem-safe stem for one export pass's artifacts.
 
-        So the live run measures the distance distribution and a later phase can
-        set the floor from data instead of from a constant's docstring; and so
-        route 2 recomputes the accept decision offline from this file alone,
-        which needs the content key, the returned index, the sample number and
-        the opened-key set as it stood at that pull -- all of which are here.
+        The label is Episode identity (a strategy ``episode_id``) or a named
+        non-episode pass (``seed``, ``bootstrap``, ``bootstrap_deficit``,
+        ``predeficit_<label>``). Never a round number, and never parsed back:
+        artifacts join by the ``episode_id`` field on their records, not by
+        filename arithmetic.
         """
 
-        self._strategy_proposals.append(dict(row))
-        try:
-            self.answers_dir.mkdir(parents=True, exist_ok=True)
-            with (self.answers_dir / "strategy_proposals.jsonl").open(
-                "a", encoding="utf-8"
-            ) as handle:
-                handle.write(json.dumps(dict(row), default=str) + "\n")
-        except OSError:  # pragma: no cover - recording never breaks the run
-            pass
+        text = str(artifact_label).strip() or "unlabeled"
+        return re.sub(r"[^A-Za-z0-9_.-]+", "_", text)
 
-    def _note_search_results(
-        self,
-        task: SearchTask,
-        results: Sequence[Mapping[str, Any]],
-    ) -> None:
-        outcome = self._open_outcomes.get(task.id)
-        if outcome is None:
-            return
-        outcome.firecrawl_hits = len(results)
-        for rank, result in enumerate(results, start=1):
-            outcome.search_result_observations.append(
-                search_result_observation(dict(result), rank=rank)
-            )
+    def _remaining_source_budget(self) -> int:
+        """Source units the run may still pull; ``-1`` states unbounded.
 
-    def _note_search_error(
-        self,
-        task: SearchTask,
-        exc: BaseException,
-        fatal: bool,
-    ) -> None:
-        outcome = self._open_outcomes.get(task.id)
-        if outcome is not None:
-            outcome.error = str(exc)
-            outcome.skip("search_failed")
-        if fatal:
-            self.search_provider_error = str(exc)
-            print(f"  Search provider stopped the run: {exc}")
-
-    def _acquisition_cost_scope(
-        self,
-        kind: str,
-        observation_id: str,
-        round_index: int,
-    ):
-        """The cost scope the sources open. ONE OWNER, and it is `costs.py`.
-
-        The episode carries no meter. This forwards to the pipeline's own
-        scope helper, which returns an inert placeholder when cost accounting is
-        off -- so the A/A ablation survives the SEARCH scope's move into the
-        page source and applies identically to the new STRATEGY_PROPOSAL scope.
+        `control.DecisionContext` spells "no declared unit bound" as ``-1``
+        deliberately -- unbounded is stated, never spelled as zero.
         """
 
-        return self._cost_scope(
-            kind,
-            observation_id=observation_id,
-            round_index=int(round_index),
-        )
-
-    # ------------------------------------------------------------------ #
-    # round index: ONE expression, minted once, at strategy-open time
-    # ------------------------------------------------------------------ #
-    @property
-    def _round_index(self) -> int:
-        return self._current_round_index
-
-    def _advance_round(self) -> None:
-        self._last_round_index = self._current_round_index
-        self._current_round_index = self._round_label(self._completed_strategies + 1)
-        self._completed_strategies += 1
-
-    def _stamp_round_index(self, task: SearchTask, round_index: int) -> SearchTask:
-        """Carry the one expression onto the task, and nothing else writes it.
-
-        `_write_paper` copies it to `search_round_index`, `_source_records_by_id`
-        collects it, and `reward.score_criterion_yield`'s first-harvest window
-        reads it from there -- which is what closes the chain the reward's own
-        contract forbids taking from a transition.
-        """
-
-        if task.round_index == round_index:
-            return task
-        return SearchTask(
-            query=task.query,
-            id=task.id,
-            parent_id=task.parent_id,
-            topic=task.topic,
-            expansion_op=task.expansion_op,
-            gap=task.gap,
-            round_index=int(round_index),
-            depth=task.depth,
-            yields_sources=task.yields_sources,
-            producer_class=task.producer_class,
-            metadata=dict(task.metadata),
-        )
+        limit = int(self.source_budget.limit)
+        if limit <= 0:
+            return -1
+        return max(0, limit - int(self.source_budget.spent))
 
     def _record_hook_failure(
         self,
@@ -2766,151 +1672,12 @@ genuinely separate view that is not covered by a listed target."""
     # ------------------------------------------------------------------ #
     # per-page and per-episode records
     # ------------------------------------------------------------------ #
-    def _write_page_detail(
-        self,
-        unit: PageUnit,
-        record: UnitRecord,
-        material: PageMaterial,
-        strategy_key: str,
-        family: str,
-    ) -> None:
-        """The sidecar. NOT a projection of the episode tree.
 
-        `UnitRecord` is a frozen kernel type and the episode file carries
-        `as_record()` verbatim, so the surface facts the kernel cannot hold live
-        here and join by `unit_label`. No number in it is derivable from the
-        episodes file, which is what makes it a second route rather than a
-        second reading of the first.
-        """
-
-        detail = unit.credit_detail
-        row = {
-            "unit_label": unit.label,
-            "source_id": material.source_id,
-            "task_id": str(unit.task.id),
-            "strategy_key": strategy_key,
-            "strategy_family": family,
-            "rank": unit.rank,
-            "round_index": unit.round_index,
-            "fate": material.fate.to_dict(),
-            "credit_note": material.fate.credit_note,
-            "skip_reason": fate_skip_reason(material.fate),
-            "counts_toward_verdict": bool(record.yield_record.counts_toward_verdict),
-            "gate": dict(material.gate),
-            "spec_digest": self.crediter.spec_digest,
-            "crediter_built_at_round": self.round_offset,
-            "credit_semantics": CREDIT_SEMANTICS,
-            "text_chars": material.text_chars,
-            "guess_count": len(material.guesses),
-            "evidence_commit": (
-                material.evidence_commit.to_dict()
-                if material.evidence_commit is not None
-                else None
-            ),
-            **(detail.to_dict() if detail is not None else {}),
-        }
-        self.acquisition_page_details.append(row)
-        try:
-            self.answers_dir.mkdir(parents=True, exist_ok=True)
-            with self._page_detail_path.open("a", encoding="utf-8") as handle:
-                handle.write(json.dumps(row, default=str) + "\n")
-        except OSError:  # pragma: no cover - recording never breaks the run
-            pass
-
-    def _write_episode_record(self, record: EpisodeRecord) -> None:
-        """Durable per completed strategy, not once at the end.
-
-        The precedent and the argument are in this file already: a real 3h run
-        killed in round 11 left no ledger at all, which is why
-        `_append_control_decision` writes on append.
-        """
-
-        if record.scope_level == STRATEGY_GRAIN.name:
-            self._episode_records.append(window_episode_record(record.as_record()))
-        try:
-            self.answers_dir.mkdir(parents=True, exist_ok=True)
-            self._episodes_path.write_text(
-                json.dumps(
-                    {
-                        "policy_name": acq.ACQUISITION_POLICY_NAME,
-                        "credit_semantics": CREDIT_SEMANTICS,
-                        "facet_gate": "crediting_active",
-                        "declared_facets": list(self.crediter.declared_facets),
-                        "spec_digest": self.crediter.spec_digest,
-                        "grains": [
-                            grain_disclosure(grain)
-                            for grain in (RUN_GRAIN, STRATEGY_GRAIN, SEARCH_GRAIN)
-                        ],
-                        "chunk_grain": CHUNK_GRAIN_DISCLOSURE.to_dict(),
-                        "strategies": self._episode_records,
-                        "run": (
-                            window_episode_record(self.acquisition.record.as_record())
-                            if self.acquisition.record is not None
-                            else {}
-                        ),
-                    },
-                    indent=2,
-                    default=str,
-                ),
-                encoding="utf-8",
-            )
-        except OSError:  # pragma: no cover - recording never breaks the run
-            pass
-    def _should_gate_source(self, task: SearchTask) -> bool:
-        mode = self.config.source_relevance_mode
-        if mode == "off":
-            return False
-        if mode == "all":
-            return True
-        if self.config.pipeline_mode == PIPELINE_MODE_TABLE_FILL:
-            return task.topic in {"goal_catalog", "target_deficit", "table_gap"}
-        return task.topic in {"target_deficit", "table_gap"}
-
-    @staticmethod
-    def _compact_search_result(result: Dict[str, Any]) -> Dict[str, Any]:
-        return compact_search_result(result)
 
     def _empty_deliverable_rows(self) -> Dict[str, List[Dict[str, Any]]]:
         if not self.table_spec.is_empty:
             return self.table_spec.empty_rows_by_table()
         return {table_name: [] for table_name in self._table_target_names()}
-
-    def _record_page_gate_score(
-        self,
-        task: SearchTask,
-        unit: "PageUnit",
-        score: Any,
-        gate: Mapping[str, Any],
-    ) -> None:
-        """Every gate call, as recorded facts.
-
-        `progress_judgments.jsonl` CHANGES SHAPE with the narrowed call: it
-        loses `decision`, `fruitfulness_score`, `novelty_score` and
-        `coverage_delta` -- none of which is asked for any more -- and gains the
-        gate block. Nothing joins that file across the change, and the run
-        record says so.
-
-        What it carries is what route 2 needs to recompute the fate offline and
-        what a later phase needs to set the floor from the observed
-        distribution: the reported score, the floor, the rule, its outcome, its
-        reason class, and every window's own score.
-        """
-
-        self.judgments_dir.mkdir(parents=True, exist_ok=True)
-        record = {
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "kind": "page_gate",
-            "unit_label": unit.label,
-            "task": task.to_dict(),
-            "result": self._compact_search_result(dict(unit.result)),
-            "gate": dict(gate),
-            "page_score": score.to_dict() if hasattr(score, "to_dict") else {},
-        }
-        with (self.judgments_dir / "progress_judgments.jsonl").open(
-            "a",
-            encoding="utf-8",
-        ) as handle:
-            handle.write(json.dumps(record, default=str) + "\n")
 
     # ------------------------------------------------------------------ #
     # Schema resolution
@@ -2985,7 +1752,7 @@ genuinely separate view that is not covered by a listed target."""
             relationship_types=relationship_types,
             search_queries=self.queries_used,
             search_sources=["pubmed.ncbi.nlm.nih.gov", "biorxiv.org"],
-            paper_count=self.paper_count,
+            paper_count=self.units_pulled,
             scope_in=[f"{e['name']}: {e['description']}" for e in entity_types],
             scope_out=[],
             notes="Built by question_pipeline iterative loop.",
@@ -2995,19 +1762,21 @@ genuinely separate view that is not covered by a listed target."""
 
     async def _run_gasl(
         self,
-        round_idx: int,
+        episode_id: str,
+        episode_path: tuple[tuple[str, str], ...],
         metadata: Dict[str, Any],
         *,
         graph: Optional[nx.DiGraph] = None,
     ) -> Dict[str, Any]:
-        state_file = str(self.answers_dir / f"round_{round_idx}_gasl_state.json")
+        state_file = str(self.answers_dir / f"{episode_id}_gasl_state.json")
         # GASL is synchronous and chatty; run it off the event loop.
         # `asyncio.to_thread` copies the context, so the meter opened here is
         # the one GASL's own `llm.call` reaches inside that thread.
         with self._cost_scope(
             ObservationKind.GASL.value,
-            observation_id=f"round_{round_idx}_gasl",
-            round_index=round_idx,
+            observation_id=f"{episode_id}_gasl",
+            episode_id=episode_id,
+            episode_path=episode_path,
         ):
             return await asyncio.to_thread(
                 self._gasl_runner,
@@ -3017,7 +1786,7 @@ genuinely separate view that is not covered by a listed target."""
             )
 
     # ------------------------------------------------------------------ #
-    # Graph scoping for one round's traversal
+    # Strategy context for one strategy's traversal
     #
     # The batched ingestion path is gone. `_ingest_papers` looped over a wave's
     # papers after the fact, and `_acquisition_item_sink` was the callback the
@@ -3025,48 +1794,19 @@ genuinely separate view that is not covered by a listed target."""
     # this phase removes. Extraction now happens inline in the leaf's `extract`,
     # once per page, so the per-search verdict exists while that search's
     # provider-returned buffered results are still unprocessed and have not
-    # entered page relevance, extraction, or best-guess work; graph enrichment
+    # entered extraction or best-guess work; graph enrichment
     # rides along in the page hook as the decoupled side effect the charter requires.
     # ------------------------------------------------------------------ #
-    def _gasl_graph_for_round(self, round_papers: List[Dict[str, Any]]) -> nx.DiGraph:
-        scope = self.config.gasl_graph_scope
-        use_new_sources = scope == "new_sources" or (
-            scope == "auto"
-            and self.config.pipeline_mode == PIPELINE_MODE_TABLE_FILL
-            and bool(round_papers)
-        )
-        if not use_new_sources:
-            return self.graph
-
-        source_ids = {
-            str(paper.get("id") or "").strip()
-            for paper in round_papers
-            if str(paper.get("id") or "").strip()
-        }
-        if not source_ids:
-            return self.graph
-
-        graph = self._source_neighborhood_graph(
-            source_ids,
-            hops=self.config.gasl_new_source_hops,
-        )
-        if graph.number_of_nodes() == 0:
-            return self.graph
-        return graph
-
-    def _gasl_source_seed_nodes_for_round(
+    def _gasl_source_seed_nodes_for_strategy(
         self,
-        round_papers: List[Dict[str, Any]],
+        strategy_sources: List[Dict[str, Any]],
         *,
         graph: nx.DiGraph,
     ) -> List[Dict[str, Any]]:
-        if self.config.gasl_source_seed_limit <= 0:
-            return []
-
         source_ids = {
-            str(paper.get("id") or "").strip()
-            for paper in round_papers
-            if str(paper.get("id") or "").strip()
+            str(record.get("id") or "").strip()
+            for record in strategy_sources
+            if str(record.get("id") or "").strip()
         }
         if not source_ids:
             return []
@@ -3098,117 +1838,94 @@ genuinely separate view that is not covered by a listed target."""
                     -scored_ids[node_id][1],
                     scored_ids[node_id][2],
                 ),
-            )[: self.config.gasl_source_seed_limit]
+            )
         ]
 
-    def _source_neighborhood_nodes(
-        self,
-        source_ids: set[str],
-        *,
-        hops: int,
-    ) -> set[Any]:
-        nodes: set[Any] = set()
-        for node_id, data in self.graph.nodes(data=True):
-            if str(node_id) in source_ids or self._mentions_any(data, source_ids):
-                nodes.add(node_id)
-
-        for src, dst, data in self.graph.edges(data=True):
-            if self._mentions_any(data, source_ids):
-                nodes.add(src)
-                nodes.add(dst)
-
-        frontier = set(nodes)
-        for _ in range(hops):
-            expanded: set[Any] = set()
-            for node_id in frontier:
-                if node_id not in self.graph:
-                    continue
-                expanded.update(self.graph.predecessors(node_id))
-                expanded.update(self.graph.successors(node_id))
-            expanded -= nodes
-            if not expanded:
-                break
-            nodes.update(expanded)
-            frontier = expanded
-        return nodes
-
-    def _source_neighborhood_graph(
-        self,
-        source_ids: set[str],
-        *,
-        hops: int,
-    ) -> nx.DiGraph:
-        scoped = self.graph.__class__()
-        scoped.graph.update(self.graph.graph)
-
-        for node_id, data in self.graph.nodes(data=True):
-            if str(node_id) in source_ids or self._mentions_any(data, source_ids):
-                scoped.add_node(node_id, **dict(data))
-
-        for src, dst, key, data in self._iter_graph_edges():
-            if not self._mentions_any(data, source_ids):
-                continue
-            self._copy_node(scoped, src)
-            self._copy_node(scoped, dst)
-            self._copy_edge(scoped, src, dst, key, data)
-
-        seen = set(scoped.nodes)
-        frontier = set(scoped.nodes)
-        for _ in range(max(0, hops)):
-            expanded: set[Any] = set()
-            for node_id in frontier:
-                for src, dst, key, data in self._iter_incident_edges(node_id):
-                    self._copy_node(scoped, src)
-                    self._copy_node(scoped, dst)
-                    self._copy_edge(scoped, src, dst, key, data)
-                    expanded.add(src)
-                    expanded.add(dst)
-            expanded -= seen
-            if not expanded:
-                break
-            seen.update(expanded)
-            frontier = expanded
-
-        return scoped
-
-    def _iter_graph_edges(self):
-        if self.graph.is_multigraph():
-            yield from self.graph.edges(keys=True, data=True)
-            return
-        for src, dst, data in self.graph.edges(data=True):
-            yield src, dst, None, data
-
-    def _iter_incident_edges(self, node_id: Any):
-        if node_id not in self.graph:
-            return
-        if self.graph.is_multigraph():
-            yield from self.graph.out_edges(node_id, keys=True, data=True)
-            if self.graph.is_directed():
-                yield from self.graph.in_edges(node_id, keys=True, data=True)
-            return
-        for src, dst, data in self.graph.out_edges(node_id, data=True):
-            yield src, dst, None, data
-        if self.graph.is_directed():
-            for src, dst, data in self.graph.in_edges(node_id, data=True):
-                yield src, dst, None, data
-
-    def _copy_node(self, graph: nx.DiGraph, node_id: Any) -> None:
-        if node_id in graph or node_id not in self.graph:
-            return
-        graph.add_node(node_id, **dict(self.graph.nodes[node_id]))
-
     @staticmethod
-    def _copy_edge(
+    def _gasl_strategy_source_rows(
+        strategy_sources: Sequence[Mapping[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        """Source-level strategy context, preserving all available metadata.
+
+        A transform over the strategy's accepted source records; the instance
+        attribute ``_gasl_strategy_sources`` holds its output while GASL runs.
+        """
+
+        return [
+            {
+                "source_id": str(record.get("id") or ""),
+                "title": str(record.get("title") or ""),
+                "url": str(record.get("url") or ""),
+                "accepted_at": record.get("accepted_at"),
+                "accepted_episode_id": record.get("search_episode_id"),
+                "source_query": str(record.get("source_query") or ""),
+                "source_metadata": dict(record.get("source_metadata") or {}),
+            }
+            for record in strategy_sources
+            if str(record.get("id") or "")
+        ]
+
+    def _gasl_source_catalog_for_strategy(
+        self,
+        strategy_sources: Sequence[Mapping[str, Any]],
+        *,
         graph: nx.DiGraph,
-        src: Any,
-        dst: Any,
-        key: Any,
-        data: Dict[str, Any],
-    ) -> None:
-        if graph.is_multigraph():
-            graph.add_edge(src, dst, key=key, **dict(data))
-        else:
-            graph.add_edge(src, dst, **dict(data))
+    ) -> List[Dict[str, Any]]:
+        """All known sources, with current-vs-prior acquisition explicit."""
+
+        current_by_id = {
+            str(record.get("id") or "").strip(): dict(record)
+            for record in strategy_sources
+            if str(record.get("id") or "").strip()
+        }
+        records = self._source_records_by_id()
+        records.update(current_by_id)
+
+        graph_reference_counts: Counter[str] = Counter()
+        for _, data in graph.nodes(data=True):
+            graph_reference_counts.update(set(get_source_refs(dict(data))))
+        edge_records = (
+            graph.edges(keys=True, data=True)
+            if graph.is_multigraph()
+            else (
+                (source, target, None, data)
+                for source, target, data in graph.edges(data=True)
+            )
+        )
+        for _, _, _, data in edge_records:
+            graph_reference_counts.update(set(get_source_refs(dict(data))))
+
+        source_ids = set(records) | set(graph_reference_counts)
+        rows: List[Dict[str, Any]] = []
+        for source_id in sorted(source_ids):
+            record = records.get(source_id, {})
+            metadata = record.get("source_metadata")
+            if not isinstance(metadata, Mapping):
+                metadata = record.get("metadata")
+            if not isinstance(metadata, Mapping):
+                metadata = {}
+            rows.append(
+                {
+                    "source_id": source_id,
+                    "title": str(record.get("title") or ""),
+                    "url": str(record.get("url") or ""),
+                    "acquisition_cohort": (
+                        "current_strategy"
+                        if source_id in current_by_id
+                        else "prior_strategy"
+                    ),
+                    "accepted_at": record.get("accepted_at"),
+                    "accepted_episode_id": record.get("search_episode_id"),
+                    "source_query": str(record.get("source_query") or ""),
+                    "source_metadata": dict(metadata),
+                    "metadata_available": bool(record),
+                    "known_to_graph": source_id in graph_reference_counts,
+                    "graph_reference_count": int(
+                        graph_reference_counts.get(source_id, 0)
+                    ),
+                }
+            )
+        return rows
 
     @classmethod
     def _mentions_any(cls, value: Any, needles: set[str]) -> bool:
@@ -3221,6 +1938,15 @@ genuinely separate view that is not covered by a listed target."""
         if isinstance(value, (list, tuple, set)):
             return any(cls._mentions_any(inner, needles) for inner in value)
         return any(needle in str(value) for needle in needles)
+
+    def _iter_graph_edges(self):
+        """Yield graph edges uniformly for directed and multigraph inputs."""
+
+        if self.graph.is_multigraph():
+            yield from self.graph.edges(keys=True, data=True)
+            return
+        for src, dst, data in self.graph.edges(data=True):
+            yield src, dst, None, data
 
     def _ground_field_provenance(
         self,
@@ -3249,14 +1975,14 @@ genuinely separate view that is not covered by a listed target."""
         """
 
         # Reset FIRST, on every entry. Both early returns below previously left
-        # the previous round's ledger in place, so a round that grounded
-        # nothing reported the prior round's coverage as its own -- a stale
-        # number is worse than a missing one, because it looks like a
-        # measurement of this round. A round that cannot compute coverage must
+        # the previous pass's ledger in place, so a grounding pass that
+        # grounded nothing reported the prior pass's coverage as its own -- a
+        # stale number is worse than a missing one, because it looks like a
+        # measurement of this pass. A pass that cannot compute coverage must
         # say so and be excluded, never assumed to have passed.
         self.last_field_provenance_ledger = {
             "computed": False,
-            "reason": "grounding did not run this round",
+            "reason": "grounding did not run this pass",
             "state_counts": {},
             "denominator": "",
             "accepted_source_count": 0,
@@ -3264,15 +1990,15 @@ genuinely separate view that is not covered by a listed target."""
         }
         if not rows_by_table:
             self.last_field_provenance_ledger["reason"] = (
-                "no tables were exported this round, so there were no rows to "
+                "no tables were exported this pass, so there were no rows to "
                 "ground and coverage is not measurable"
             )
             return rows_by_table
 
         # Rows seeded from an earlier run (via --graph-path / --seed-tables-dir)
-        # can cite chunk ids this run's own papers_dir never fetched. Collect
+        # can cite chunk ids this run's own sources_dir never fetched. Collect
         # every chunk id any row claims up front so _chunk_texts_by_id can
-        # resolve the ones papers_dir misses from evidence_corpus_roots before
+        # resolve the ones sources_dir misses from evidence_corpus_roots before
         # grounding starts, rather than silently leaving them unscoped.
         extra_chunk_ids: set[str] = set()
         for rows in rows_by_table.values():
@@ -3289,7 +2015,7 @@ genuinely separate view that is not covered by a listed target."""
                 "  Field provenance: SKIPPED -- no chunk text could be rebuilt "
                 f"for any source ({len(extra_chunk_ids)} cited chunk id(s) "
                 "across the tables, 0 resolvable). No field citations are "
-                "derived this round, so no row can be promoted to "
+                "derived this pass, so no row can be promoted to "
                 "FIELD_REF_ACCEPTED."
             )
             accepted, denominator = _coverage_denominator(self, set())
@@ -3306,7 +2032,7 @@ genuinely separate view that is not covered by a listed target."""
                         {
                             "source_id": source_id,
                             "field_scope_state": "not_examined",
-                            "reason": "no chunk text was resolvable this round",
+                            "reason": "no chunk text was resolvable this pass",
                             "extraction_state": str(
                                 (
                                     _ingestion_ledger(self).get(source_id)
@@ -3439,7 +2165,7 @@ genuinely separate view that is not covered by a listed target."""
         # the case being made visible.
         # The denominator is the ACCEPTED set where one can be enumerated. A
         # caller that supplies rows and chunk texts directly (test harnesses,
-        # and any future caller that owns its own corpus) has no papers_dir to
+        # and any future caller that owns its own corpus) has no sources_dir to
         # enumerate, and the ledger says which denominator it used rather than
         # silently reporting coverage against a different population.
         accepted_sources, denominator = _coverage_denominator(self, 
@@ -3595,7 +2321,7 @@ genuinely separate view that is not covered by a listed target."""
         recoverable from the stored text; nothing extra needs persisting.
 
         ``extra_chunk_ids`` are chunk ids a caller needs resolved that may not
-        belong to any source in this run's own ``papers_dir`` -- typically
+        belong to any source in this run's own ``sources_dir`` -- typically
         citations on rows seeded from an earlier run. For each such id whose
         source is not already covered by the local corpus, this falls back to
         ``self.config.evidence_corpus_roots`` in order. A source id resolvable
@@ -3603,7 +2329,7 @@ genuinely separate view that is not covered by a listed target."""
         no roots, reproduces the original local-only lookup exactly.
         """
 
-        # INVALIDATION. The cache is keyed on the papers_dir source-id set and
+        # INVALIDATION. The cache is keyed on the sources_dir source-id set and
         # the chunking parameters, because both change what the cache should
         # contain and neither is observable from the cached dict itself.
         #
@@ -3618,19 +2344,19 @@ genuinely separate view that is not covered by a listed target."""
         # first and the reward gradient was flat by construction.
         #
         # Keying on the id set rather than a dirty flag means correctness does
-        # not depend on every writer of papers_dir remembering to signal.
-        # `papers_dir` is the corpus the key is computed from, so its absence is
+        # not depend on every writer of sources_dir remembering to signal.
+        # `sources_dir` is the corpus the key is computed from, so its absence is
         # the precondition for keying at all -- a caller that supplies
-        # `_chunk_text_cache` directly and has no papers_dir owns its own corpus
+        # `_chunk_text_cache` directly and has no sources_dir owns its own corpus
         # and has nothing to go stale against. That case must still be loud when
         # it supplies neither, because an empty cache built from no corpus
         # grounds nothing and would look exactly like a corpus with no matches.
-        papers_dir = getattr(self, "papers_dir", None)
+        sources_dir = getattr(self, "sources_dir", None)
         cached = getattr(self, "_chunk_text_cache", None)
-        if papers_dir is None:
+        if sources_dir is None:
             if cached is None:
                 raise AttributeError(
-                    "_chunk_texts_by_id needs either a papers_dir to rebuild "
+                    "_chunk_texts_by_id needs either a sources_dir to rebuild "
                     "chunk texts from or a pre-supplied _chunk_text_cache; "
                     "this object has neither, and returning an empty mapping "
                     "would silently ground nothing"
@@ -3642,14 +2368,14 @@ genuinely separate view that is not covered by a listed target."""
             # Recorded rather than merely skipped. This is the one path where
             # invalidation does not run, so it states itself on the instance
             # instead of being inferable only from the absence of a rebuild.
-            self._chunk_text_cache_invalidation = "caller_supplied_no_papers_dir"
+            self._chunk_text_cache_invalidation = "caller_supplied_no_sources_dir"
         else:
             current_source_ids = frozenset(self._source_records_by_id())
             chunk_params = (self.config.chunk_size, self.config.chunk_overlap)
-            self._chunk_text_cache_invalidation = "keyed_on_papers_dir_source_ids"
+            self._chunk_text_cache_invalidation = "keyed_on_sources_dir_source_ids"
 
         if cached is None or (
-            papers_dir is not None
+            sources_dir is not None
             and (
                 getattr(self, "_chunk_text_cache_source_ids", None)
                 != current_source_ids
@@ -3698,7 +2424,7 @@ genuinely separate view that is not covered by a listed target."""
     ) -> Optional[str]:
         """Text for ``source_id`` from ``evidence_corpus_roots``, first hit wins.
 
-        Only consulted for source ids this run's own ``papers_dir`` could not
+        Only consulted for source ids this run's own ``sources_dir`` could not
         resolve -- see ``_chunk_texts_by_id``. Misses are cached too, so a
         citation no root has costs one filesystem probe per root, once, not
         once per grounding pass.
@@ -3725,7 +2451,7 @@ genuinely separate view that is not covered by a listed target."""
         return text
 
     async def _export_gasl_tables(
-        self, round_idx: int | str, gasl_result: Dict[str, Any]
+        self, artifact_label: int | str, gasl_result: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         if self.config.answer_mode != "table":
             return []
@@ -3754,13 +2480,13 @@ genuinely separate view that is not covered by a listed target."""
             if isinstance(rows, list)
         }
         current_rows = self._ground_field_provenance(current_rows)
-        current_rows = self._apply_path_gate(round_idx, current_rows)
+        current_rows = self._apply_path_gate(artifact_label, current_rows)
         merged_rows = merge_rows_by_table(
             self.seed_tables.rows_by_name,
             current_rows,
         )
         exports = await self._write_table_exports(
-            round_idx,
+            artifact_label,
             merged_rows,
             seed_row_counts={
                 name: len(rows)
@@ -3829,7 +2555,7 @@ genuinely separate view that is not covered by a listed target."""
 
             record = {
                 "artifact_label": artifact_label,
-                "pipeline_round": self._pipeline_round(artifact_label),
+                "episode_id": self._active_strategy_episode_id,
                 "variable": name,
                 "rows": len(items),
                 "seed_rows": seed_row_counts.get(name, 0),
@@ -3896,11 +2622,6 @@ genuinely separate view that is not covered by a listed target."""
         artifact_label: int | str,
         rows_by_name: Dict[str, List[Dict[str, Any]]],
     ) -> Dict[str, Any]:
-        if self.config.best_guess_mode == "off":
-            self.last_best_guess_exports = []
-            self.last_best_guess_state = {}
-            return {}
-
         source_records = self._source_records_with_text_by_id()
         source_texts = {
             source_id: str(record.get("text") or "")
@@ -3927,26 +2648,25 @@ genuinely separate view that is not covered by a listed target."""
             "slot_targets": self.table_spec.best_guess_slot_targets(),
             "source_records": source_metadata,
             "graph_records": graph_records,
-            "max_tasks": self.config.best_guess_max_tasks,
+            # No task ceiling, deliberately: `best_guess_max_tasks` is deleted,
+            # not defaulted off -- a cap here decides in advance which cells
+            # may be filled, cutting a priority-sorted list by position.
+            "max_tasks": None,
         }
         with self._cost_scope(
             ObservationKind.BEST_GUESS.value,
             observation_id=f"{self._artifact_stem(artifact_label)}_best_guess",
-            round_index=_safe_int(self._pipeline_round(artifact_label), 0),
         ):
-            if self.config.best_guess_mode == "llm":
-                state = await run_best_guess_recovery(
-                    rows_by_name,
-                    **kwargs,
-                    source_texts=source_texts,
-                    evidence_chars=self.config.best_guess_evidence_chars,
-                    llm_batch_size=self.config.best_guess_llm_batch_size,
-                    llm_timeout_sec=self.config.best_guess_llm_timeout_sec,
-                    progress_fn=self._best_guess_progress_writer(artifact_label),
-                    extract_fn=self._infer_best_guess_candidates,
-                )
-            else:
-                state = run_best_guess_recovery_local(rows_by_name, **kwargs)
+            state = await run_best_guess_recovery(
+                rows_by_name,
+                **kwargs,
+                source_texts=source_texts,
+                evidence_chars=self.config.best_guess_evidence_chars,
+                llm_batch_size=self.config.best_guess_llm_batch_size,
+                llm_timeout_sec=self.config.best_guess_llm_timeout_sec,
+                progress_fn=self._best_guess_progress_writer(artifact_label),
+                extract_fn=self._infer_best_guess_candidates,
+            )
 
         self.last_best_guess_exports = self._write_best_guess_exports(
             artifact_label,
@@ -3964,7 +2684,7 @@ genuinely separate view that is not covered by a listed target."""
             payload = {
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "artifact_label": artifact_label,
-                "pipeline_round": self._pipeline_round(artifact_label),
+                "episode_id": self._active_strategy_episode_id,
                 **record,
             }
             with path.open("a", encoding="utf-8") as handle:
@@ -4058,7 +2778,7 @@ genuinely separate view that is not covered by a listed target."""
             exports.append(
                 {
                     "artifact_label": artifact_label,
-                    "pipeline_round": self._pipeline_round(artifact_label),
+                    "episode_id": self._active_strategy_episode_id,
                     "variable": variable,
                     "rows": len(rows),
                     "json_path": str(json_path),
@@ -4078,12 +2798,8 @@ genuinely separate view that is not covered by a listed target."""
     ) -> List[Dict[str, Any]]:
         if self.config.answer_mode != "table":
             return []
-        if self.config.numeric_candidate_mode == "off":
-            return []
-
         rows = numeric_candidates_from_tables(
             rows_by_name,
-            mode=self.config.numeric_candidate_mode,
             context_slots=self._derived_context_slots(),
             source_records=self._source_records_by_id(),
             best_guess_context_by_row=best_guess_context_by_row,
@@ -4103,9 +2819,8 @@ genuinely separate view that is not covered by a listed target."""
         )
         record = {
             "artifact_label": artifact_label,
-            "pipeline_round": self._pipeline_round(artifact_label),
+            "episode_id": self._active_strategy_episode_id,
             "variable": "numeric_candidates",
-            "mode": self.config.numeric_candidate_mode,
             "rows": len(rows),
             "json_path": str(json_path),
             "csv_path": str(csv_path),
@@ -4137,23 +2852,18 @@ genuinely separate view that is not covered by a listed target."""
         # so on a run that declared no spec the allowlist named the very tables
         # it existed to exclude. `_declared_table_names` now supplies the
         # missing statement of intent.
-        round_index = self._pipeline_round(artifact_label)
-        if round_index is None:
-            # Pre-existing gap, not a 3B defect: `_pipeline_round` returns
-            # `None` for a non-numeric artifact label (e.g. the "seed"
-            # bootstrap export), and `reward.score_criterion_yield` has no
-            # round to attribute cost or first-harvest credit to -- "round
-            # level is the finest granularity that is honest here" per its
-            # own docstring, and a bootstrap re-export of the seed state is
-            # not a round. Skip scoring rather than crediting against an
-            # undefined round; the first real numbered round scores from here
+        episode_id = self._active_strategy_episode_id
+        if not episode_id:
+            # A non-episode export pass (the "seed" / "bootstrap" re-export of
+            # carried state) has no strategy Episode to attribute cost or
+            # first-harvest credit to -- "Episode level is the finest
+            # granularity that is honest here" per `reward.py`'s own
+            # docstring, and a bootstrap re-export of the seed state is not an
+            # acquisition. Skip scoring rather than crediting against an
+            # undefined Episode; the first completed strategy scores from here
             # forward through the normal path.
             return []
         source_records = self._source_records_by_id()
-        first_accepted_round = {
-            source_id: int(record.get("search_round_index") or 0)
-            for source_id, record in source_records.items()
-        }
         accepted_source_ids = sorted(source_records)
         resolutions = (best_guess_state or {}).get("resolutions") or []
 
@@ -4180,25 +2890,19 @@ genuinely separate view that is not covered by a listed target."""
         # them.
         # THE COST CUT IS RECORDED, NOT LEFT TO BE RECONSTRUCTED.
         #
-        # This runs MID-round, so `self.cost_records` is a prefix that keeps
-        # growing after scoring. The export stated the resulting sum and not the
-        # cut it came from, so re-summing the finished list against the export
-        # over-counts: on the recorded run round 0 the reward saw 21 records
-        # while 57 records ultimately carry `round_index: 0`, a 2.0-2.7x gap.
-        # Recovering the true cut afterwards required finding the unique prefix
-        # that reproduced all fifteen cost fields at once -- sound, but nobody
-        # should have to do it, and a reader who did not realise the list had
-        # grown would simply get a wrong number with nothing to warn them.
-        #
-        # A frozen snapshot is scored, and the ids inside it are emitted, so the
-        # cut is readable from the export rather than inferred from it.
+        # This runs MID-strategy, so `self.cost_records` is a prefix that keeps
+        # growing after scoring. A frozen snapshot is taken, the records in
+        # scope are selected by the strategy Episode's own `episode_id` -- the
+        # selection `reward.aggregate_cost` documents as the caller's business
+        # -- and the ids inside the cut are emitted, so the cut is readable
+        # from the export rather than inferred from it.
         cost_snapshot = [
             record for record in self.cost_records if isinstance(record, Mapping)
         ]
         matched_cost_records = [
             record
             for record in cost_snapshot
-            if _safe_int(record.get("round_index"), -1) == round_index
+            if str(record.get("episode_id") or "") == episode_id
         ]
         cost_observation_ids = [
             str(record.get("observation_id") or "") for record in matched_cost_records
@@ -4226,10 +2930,10 @@ genuinely separate view that is not covered by a listed target."""
         reward = score_criterion_yield(
             before,
             after,
-            round_index=round_index,
-            first_accepted_round=first_accepted_round,
+            episode_id=episode_id,
+            accepted_source_ids=accepted_source_ids,
             ledger=self.reward_credit_ledger,
-            cost_records=cost_snapshot,
+            cost_records=matched_cost_records,
         )
         self.reward_credit_ledger = reward.ledger
         report = reward.to_dict()
@@ -4250,7 +2954,7 @@ genuinely separate view that is not covered by a listed target."""
             evidence_registry=self.evidence_registry,
         )
         report["before_snapshot_source"] = (
-            "previous_round_after" if chained else "projection_of_previous_rows"
+            "previous_pass_after" if chained else "projection_of_previous_rows"
         )
         report["before_snapshot_rebuilt_id"] = rebuilt.id
         report["chain_continuous"] = (not chained) or before.id == rebuilt.id
@@ -4280,7 +2984,7 @@ genuinely separate view that is not covered by a listed target."""
         )
         record = {
             "artifact_label": artifact_label,
-            "pipeline_round": round_index,
+            "episode_id": episode_id,
             "variable": "criterion_yield_reward",
             "score": report.get("score"),
             "credited_datapoints": reward.datapoint_count,
@@ -4293,17 +2997,17 @@ genuinely separate view that is not covered by a listed target."""
             "cost_records_scored": len(matched_cost_records),
             "cost_records_visible_at_scoring": len(cost_snapshot),
             "cost_record_observation_ids": cost_observation_ids,
-            "cost_scored_mid_round": True,
-            # A round that genuinely had no cost records says so, rather than
+            "cost_scored_mid_strategy": True,
+            # A pass that genuinely had no cost records says so, rather than
             # presenting a zero sum that reads the same as free work.
             "cost_absent_reason": (
                 ""
                 if matched_cost_records
                 else (
-                    f"no cost record carried round_index={round_index} at "
+                    f"no cost record carried episode_id={episode_id} at "
                     f"scoring time ({len(cost_snapshot)} record(s) visible); "
                     "the cost block is a sum over nothing, not a measurement "
-                    "that this round was free"
+                    "that this strategy was free"
                 )
             ),
             # The snapshot-chain fields were written into the reward JSON but
@@ -4634,7 +3338,6 @@ genuinely separate view that is not covered by a listed target."""
 
     def _enqueue_table_gap_searches(
         self,
-        round_idx: int,
         exports: List[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
         if self.config.answer_mode != "table":
@@ -4652,7 +3355,6 @@ genuinely separate view that is not covered by a listed target."""
 
         tasks = table_gap_search_tasks(
             gap_rows,
-            round_index=round_idx,
             max_tasks=self.config.table_gap_search_tasks,
         )
         gap_candidates: List[ActionCandidate] = []
@@ -4661,7 +3363,7 @@ genuinely separate view that is not covered by a listed target."""
                 candidate = SearchCandidate.create(
                     surface=ControlSurface.CATALOG_SEARCH,
                     query=task.query,
-                    round_index=round_idx,
+                    episode_id=self._active_strategy_episode_id,
                     origin=ActionOrigin.DERIVED,
                 )
                 gap_candidates.append(candidate)
@@ -4670,34 +3372,32 @@ genuinely separate view that is not covered by a listed target."""
             tasks,
             self._record_policy_decision(
                 ControlSurface.CATALOG_SEARCH,
-                round_idx,
                 gap_candidates,
                 max_actions=self.config.table_gap_search_tasks,
             ),
         )
         accepted = self.search_frontier.enqueue(tasks)
         if accepted:
-            print(
-                f"  Queued {len(accepted)} table-gap searches "
-                f"for round {round_idx}"
-            )
+            print(f"  Queued {len(accepted)} table-gap searches")
         return [task.to_dict() for task in accepted]
 
-    def _record_goal_discovery_sources(self, papers: List[Dict[str, Any]]) -> None:
-        for paper in papers:
-            if paper.get("search_topic") != "goal_catalog":
+    def _record_goal_discovery_sources(
+        self, source_records: List[Dict[str, Any]]
+    ) -> None:
+        for record in source_records:
+            if record.get("search_topic") != "goal_catalog":
                 continue
-            source_id = str(paper.get("id") or "")
+            source_id = str(record.get("id") or "")
             if not source_id or source_id in self._seen_goal_discovery_source_ids:
                 continue
             self._seen_goal_discovery_source_ids.add(source_id)
             self.goal_discovery_sources.append(
                 {
                     "id": source_id,
-                    "title": paper.get("title", ""),
-                    "url": paper.get("url", ""),
-                    "source_query": paper.get("source_query", ""),
-                    "text": str(paper.get("text") or "")[
+                    "title": record.get("title", ""),
+                    "url": record.get("url", ""),
+                    "source_query": record.get("source_query", ""),
+                    "text": str(record.get("text") or "")[
                         : self.config.goal_discovery_text_chars
                     ],
                 }
@@ -4720,8 +3420,8 @@ genuinely separate view that is not covered by a listed target."""
                 if key != "text"
             }
             jsonl_records.append(sidecar)
-            json_path = self.papers_dir / f"{source_id}.json"
-            text_path = self.papers_dir / f"{source_id}.txt"
+            json_path = self.sources_dir / f"{source_id}.json"
+            text_path = self.sources_dir / f"{source_id}.txt"
             if not json_path.exists():
                 json_path.write_text(
                     json.dumps(sidecar, indent=2, default=str),
@@ -4731,7 +3431,7 @@ genuinely separate view that is not covered by a listed target."""
                 text_path.write_text(text, encoding="utf-8")
 
         if jsonl_records:
-            seed_index = self.papers_dir / "seed_sources.jsonl"
+            seed_index = self.sources_dir / "seed_sources.jsonl"
             seed_index.write_text(
                 "".join(
                     json.dumps(record, default=str) + "\n"
@@ -4744,7 +3444,7 @@ genuinely separate view that is not covered by a listed target."""
         if not records:
             return
 
-        path = self.papers_dir / "seed_search_outcomes.jsonl"
+        path = self.sources_dir / "seed_search_outcomes.jsonl"
         path.write_text(
             "".join(json.dumps(record, default=str) + "\n" for record in records),
             encoding="utf-8",
@@ -4775,7 +3475,6 @@ genuinely separate view that is not covered by a listed target."""
                     topic=str(payload.get("topic") or "batch"),
                     expansion_op=str(payload.get("expansion_op") or "direct"),
                     gap=str(payload.get("gap") or ""),
-                    round_index=int(payload.get("round_index") or 0),
                     depth=int(payload.get("depth") or 0),
                     producer_class="seed_source",
                     metadata=(
@@ -4794,7 +3493,7 @@ genuinely separate view that is not covered by a listed target."""
             topic=str(record.get("search_topic") or "batch"),
             expansion_op=str(record.get("search_expansion_op") or "direct"),
             gap=str(record.get("search_gap") or ""),
-            round_index=int(record.get("search_round_index") or 0),
+            episode_id=str(record.get("search_episode_id") or ""),
             producer_class="seed_source",
             metadata=(
                 dict(record.get("search_metadata"))
@@ -4818,7 +3517,7 @@ genuinely separate view that is not covered by a listed target."""
                     "topic": task.topic,
                     "expansion_op": task.expansion_op,
                     "gap": task.gap,
-                    "round_index": task.round_index,
+                    "episode_id": task.episode_id,
                     "firecrawl_hits": 0,
                     "accepted_source_ids": [],
                     "accepted_urls": [],
@@ -4862,7 +3561,7 @@ genuinely separate view that is not covered by a listed target."""
                     topic=str(record.get("topic") or "batch"),
                     expansion_op=str(record.get("expansion_op") or "direct"),
                     gap=str(record.get("gap") or ""),
-                    round_index=int(record.get("round_index") or 0),
+                    episode_id=str(record.get("episode_id") or ""),
                     producer_class="seed_outcome",
                     metadata=metadata,
                 )
@@ -4911,16 +3610,24 @@ genuinely separate view that is not covered by a listed target."""
             "cost": zero_cost(
                 observation_kind=ObservationKind.SEARCH.value,
                 observation_id=str(outcome.get("task_id") or ""),
-                round_index=_safe_int(outcome.get("round_index"), 0),
+                episode_id=str(outcome.get("episode_id") or ""),
             ),
         }
 
     async def _estimate_task_goal_universe(
         self,
         artifact_label: int | str,
+        episode_id: str,
         table_rows: Dict[str, List[Dict[str, Any]]],
         gaps: List[str],
     ) -> Dict[str, Any]:
+        """Run the restored fixed-wave completion probe and persist its state.
+
+        The probe mechanics and configured bounds are unchanged from the
+        pre-remediation path. Phase 1 changes only their attribution: the
+        issuing strategy Episode replaces the deleted round stamp.
+        """
+
         if self.goal_tracker is None:
             return self.goal_universe_estimate
 
@@ -4930,33 +3637,16 @@ genuinely separate view that is not covered by a listed target."""
             self.goal_universe_estimate,
             self.completion_state,
         )
-        # The round the probes actually run in, so their outcome rows carry it.
-        # `_probe_search` builds its own `SearchTask` and had no way to know the
-        # round, so every probe row defaulted to `round_index=0` regardless of
-        # when it ran: on the recorded run all 32 completion probes read as
-        # round 0 against 7 records that genuinely were. Any per-round yield
-        # curve built over `search_outcomes` therefore front-loads 32 records
-        # into round 0 and collapses afterwards -- which is precisely the
-        # "yield dies after round 0" shape such a curve would be used to test.
-        probe_round = self._pipeline_round(artifact_label)
-        previous_probe_round = getattr(self, "_probe_round_index", None)
-        self._probe_round_index = probe_round
+        previous_probe_episode = getattr(self, "_probe_episode_id", "")
+        previous_probe_path = getattr(self, "_probe_episode_path", ())
+        self._probe_episode_id = str(episode_id or artifact_label)
+        self._probe_episode_path = tuple(self._active_strategy_episode_path)
         try:
             result = await estimate_count_expectations(
                 self.llm,
                 self.config.question,
                 goal_context=goal_context,
                 completion_state=scope_probe_context(self.completion_state),
-                # The COMPACTED projection, not the raw stored dict.
-                # `self.goal_universe_estimate` is loaded from disk and handed
-                # straight into the planner prompt, bypassing the typed-field
-                # allowlist that `compact_estimate_for_prompt` applies -- so on
-                # a seeded or resumed run the stored `scope_summary` ("Counts
-                # are Chao1 richness estimates over the observed sample...")
-                # reached a live prompt describing deleted machinery. Fixing it
-                # only inside the projection closed one door of two; this is
-                # the other. The allowlist is the mechanism either way, so no
-                # artifact is rewritten and nothing is matched by name.
                 previous_estimate=compact_estimate_for_prompt(
                     self.goal_universe_estimate,
                     table_rows=table_rows,
@@ -4967,16 +3657,13 @@ genuinely separate view that is not covered by a listed target."""
                 results_per_query=self.config.completion_probe_results,
             )
         finally:
-            self._probe_round_index = previous_probe_round
+            self._probe_episode_id = previous_probe_episode
+            self._probe_episode_path = previous_probe_path
 
-        # `search_space_probes` are built inside the estimator, which has no
-        # round either, so `pipeline_round` came back None on every probe. It is
-        # stamped here rather than there because this is the layer that knows
-        # the round; the estimator stays round-agnostic.
-        probes = []
+        probes: List[Any] = []
         for probe in result.get("search_space_probes") or []:
             if isinstance(probe, Mapping):
-                probes.append({**probe, "pipeline_round": probe_round})
+                probes.append({**probe, "episode_id": str(episode_id or "")})
             else:
                 probes.append(probe)
         result["search_space_probes"] = probes
@@ -5003,13 +3690,11 @@ genuinely separate view that is not covered by a listed target."""
         self._persist_completion_state(artifact_label)
         self.goals_dir.mkdir(parents=True, exist_ok=True)
         artifact_stem = self._artifact_stem(artifact_label)
-        path = self.goals_dir / f"{artifact_stem}_universe_estimate.json"
-        path.write_text(
+        (self.goals_dir / f"{artifact_stem}_universe_estimate.json").write_text(
             json.dumps(self.goal_universe_estimate, indent=2, default=str),
             encoding="utf-8",
         )
-        critique_path = self.goals_dir / f"{artifact_stem}_completion_critique.json"
-        critique_path.write_text(
+        (self.goals_dir / f"{artifact_stem}_completion_critique.json").write_text(
             json.dumps(critique, indent=2, default=str),
             encoding="utf-8",
         )
@@ -5020,11 +3705,6 @@ genuinely separate view that is not covered by a listed target."""
         (self.goals_dir / f"{artifact_stem}_expectation_summary.json").write_text(
             json.dumps(
                 {
-                    # `rarefaction`, `current_row_rarefaction` and
-                    # `evidence_summary` are gone with the Chao1 estimator that
-                    # produced them. What survives is the breadth probes
-                    # themselves, which are observations rather than an
-                    # extrapolation from observations.
                     "search_space_probes": result.get("search_space_probes") or [],
                 },
                 indent=2,
@@ -5041,7 +3721,6 @@ genuinely separate view that is not covered by a listed target."""
 
     async def _enqueue_target_deficit_searches(
         self,
-        round_idx: int,
         table_rows: Dict[str, List[Dict[str, Any]]],
         goal_state: FillGoalState,
     ) -> List[Dict[str, Any]]:
@@ -5055,7 +3734,7 @@ genuinely separate view that is not covered by a listed target."""
                 f"{self.search_provider_error}"
             )
             return []
-        if not self._paper_budget_available():
+        if not self._source_budget_available():
             return []
 
         deficits = self._deficits_with_strategy_history(
@@ -5075,21 +3754,19 @@ genuinely separate view that is not covered by a listed target."""
             return []
 
         return await self._enqueue_target_deficit_tasks(
-            round_idx,
             table_rows,
             deficits,
         )
 
     async def _enqueue_target_deficit_tasks(
         self,
-        round_idx: int,
         table_rows: Dict[str, List[Dict[str, Any]]],
         deficits: List[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
         if not deficits:
             return []
 
-        attempt_contexts = self._target_attempt_contexts(round_idx, deficits)
+        attempt_contexts = self._target_attempt_contexts(deficits)
         planned, window_report = await strategy.target_deficit_queries(
             self.llm,
             self.config.question,
@@ -5112,7 +3789,7 @@ genuinely separate view that is not covered by a listed target."""
             # instantiate byte-identical arms from two different proposals, and
             # leave the proposer's novelty fictional.
             #
-            # THIS IS THE ROUND'S SHARED PLANNER CALL, not a strategy-scoped
+            # THIS IS ONE SHARED PLANNER CALL, not a strategy-scoped
             # one: `target_deficit_queries` runs once over every open deficit,
             # so a proposal's seeds are shared context for every arm of that
             # call, including arms of families the proposal did not name. That
@@ -5120,9 +3797,11 @@ genuinely separate view that is not covered by a listed target."""
             # call either way, so they cannot differentially bias one sibling
             # against another -- but a reader is entitled to know which call
             # carried them, so it is stated here.
-            seed_queries=self._current_strategy_seed_queries(),
+            seed_queries=self.provider_binding.current_strategy_seed_queries(),
         )
-        self._persist_deficit_windows(round_idx, window_report)
+        self._persist_deficit_windows(
+            self._active_strategy_episode_id or "bootstrap", window_report
+        )
         targets_by_name = {}
         for target in deficits:
             if not isinstance(target, dict):
@@ -5159,7 +3838,6 @@ genuinely separate view that is not covered by a listed target."""
             task = self._target_deficit_search_task(
                 query=item["query"],
                 target=target,
-                round_idx=round_idx,
                 rationale=rationale,
                 operator_plan=operator_plan,
                 strategy_origin="llm",
@@ -5173,7 +3851,6 @@ genuinely separate view that is not covered by a listed target."""
                 candidate = self._target_search_candidate(
                     query=item["query"],
                     target=target,
-                    round_idx=round_idx,
                     operator_plan=operator_plan,
                     attempt_context=context,
                     prompt_arm=prompt_arm,
@@ -5189,7 +3866,6 @@ genuinely separate view that is not covered by a listed target."""
             tasks,
             self._record_policy_decision(
                 ControlSurface.TARGET_SEARCH,
-                round_idx,
                 planned_candidates,
                 max_actions=self.config.task_goal_search_tasks,
             ),
@@ -5219,7 +3895,6 @@ genuinely separate view that is not covered by a listed target."""
             task = self._target_deficit_search_task(
                 query=fallback_query,
                 target=target,
-                round_idx=round_idx,
                 rationale=fallback_rationale,
                 operator_plan=fallback_operator_plan,
                 strategy_origin="fallback",
@@ -5233,7 +3908,6 @@ genuinely separate view that is not covered by a listed target."""
                 candidate = self._target_search_candidate(
                     query=fallback_query,
                     target=target,
-                    round_idx=round_idx,
                     operator_plan=fallback_operator_plan,
                     attempt_context=context,
                     prompt_arm=fallback_arm,
@@ -5249,22 +3923,17 @@ genuinely separate view that is not covered by a listed target."""
                 fallback_tasks,
                 self._record_policy_decision(
                     ControlSurface.TARGET_SEARCH,
-                    round_idx,
                     fallback_candidates,
                     max_actions=len(fallback_candidates),
                 ),
             )
             accepted.extend(self.search_frontier.enqueue(fallback_tasks))
         if accepted:
-            print(
-                f"  Queued {len(accepted)} target-deficit searches "
-                f"for round {round_idx}"
-            )
+            print(f"  Queued {len(accepted)} target-deficit searches")
         return [task.to_dict() for task in accepted]
 
     def _target_attempt_contexts(
         self,
-        round_idx: int,
         deficits: List[Dict[str, Any]],
     ) -> Dict[str, Dict[str, Any]]:
         contexts: Dict[str, Dict[str, Any]] = {}
@@ -5274,7 +3943,6 @@ genuinely separate view that is not covered by a listed target."""
                 continue
             evolution_index = self._next_target_evolution_index(target)
             strategy_attempt_id = self._strategy_attempt_id(
-                round_idx,
                 target,
                 evolution_index,
             )
@@ -5286,12 +3954,17 @@ genuinely separate view that is not covered by a listed target."""
 
     @staticmethod
     def _strategy_attempt_id(
-        round_idx: int,
         target: Mapping[str, Any],
         evolution_index: int,
     ) -> str:
+        """Content identity of one (target, evolution) attempt.
+
+        No pass ordinal participates: `evolution_index` continues from the
+        target's own recorded history, so the pair is unique run-wide without
+        any global counter.
+        """
+
         payload = {
-            "round": round_idx,
             "target": target.get("id") or target.get("target_id") or target.get("name"),
             "target_table": target.get("target_table"),
             "evolution_index": evolution_index,
@@ -5357,12 +4030,11 @@ genuinely separate view that is not covered by a listed target."""
                 continue
         return max(evolution_indices, default=-1) + 1
 
-    @staticmethod
     def _target_deficit_search_task(
+        self,
         *,
         query: str,
         target: Dict[str, Any],
-        round_idx: int,
         rationale: str,
         operator_plan: Dict[str, Any],
         strategy_origin: str,
@@ -5378,7 +4050,7 @@ genuinely separate view that is not covered by a listed target."""
             topic="target_deficit",
             expansion_op="llm_target_deficit",
             gap=deficit_id,
-            round_index=round_idx,
+            episode_id=self._active_strategy_episode_id,
             # THE ONE ARM-BEARING PRODUCER. Every other producer declares an
             # empty `prompt_arm_id`, and the invariant is stated over this
             # population alone.
@@ -5432,7 +4104,6 @@ genuinely separate view that is not covered by a listed target."""
     async def _enqueue_followup_target_evolutions(
         self,
         outcomes: Sequence[SearchOutcome],
-        round_idx: int,
         target_evolution_counts: Mapping[str, int],
     ) -> List[Dict[str, Any]]:
         """Plan a follow-up evolution for each attempt that accepted nothing.
@@ -5449,7 +4120,7 @@ genuinely separate view that is not covered by a listed target."""
             return []
         if self.config.task_goal_search_tasks <= 0:
             return []
-        if self.search_provider_error or not self._paper_budget_available():
+        if self.search_provider_error or not self._source_budget_available():
             return []
 
         failed_attempts: Dict[str, List[Any]] = {}
@@ -5476,7 +4147,7 @@ genuinely separate view that is not covered by a listed target."""
             if (
                 deficit_id
                 and int(target_evolution_counts.get(deficit_id) or 0)
-                < self.config.target_deficit_evolutions_per_round
+                < self.config.target_deficit_max_evolutions
             ):
                 targets.setdefault(deficit_id, target)
 
@@ -5488,7 +4159,7 @@ genuinely separate view that is not covered by a listed target."""
                 and target["operator_plan"].get("exhausted")
             )
         ]
-        accepted = await self._enqueue_target_deficit_tasks(round_idx, {}, deficits)
+        accepted = await self._enqueue_target_deficit_tasks({}, deficits)
         if accepted:
             print(
                 f"  Queued {len(accepted)} follow-up target-deficit "
@@ -5568,8 +4239,8 @@ genuinely separate view that is not covered by a listed target."""
             attempts = sorted(
                 attempts,
                 key=lambda attempt: (
-                    int(attempt.get("round") or -1)
-                    if str(attempt.get("round") or "").isdigit()
+                    int(attempt.get("sequence") or -1)
+                    if str(attempt.get("sequence") or "").isdigit()
                     else -1,
                     int(attempt.get("evolution_index") or -1)
                     if str(attempt.get("evolution_index") or "").isdigit()
@@ -5605,24 +4276,8 @@ genuinely separate view that is not covered by a listed target."""
         return enriched
 
     def _route_operator_plan(self, enriched_target: Dict[str, Any]) -> Dict[str, Any]:
-        """The next evolution's mutation family for one target deficit.
-
-        Phase 3B: routes from nested arm contrast under
-        `self.config.arm_routing_mode` (default ``"contrast"``, deterministic
-        -- see `strategy_state.route_next_family`). ``"off"``/``"random"``
-        exist only for 3B's own A/B/C ablation and are never the default a
-        production run picks.
-        """
-        mode = str(self.config.arm_routing_mode or "contrast")
-        try:
-            routing_mode = ArmRoutingMode(mode)
-        except ValueError:
-            routing_mode = ArmRoutingMode.CONTRAST
-        return route_next_family(
-            enriched_target,
-            mode=routing_mode,
-            rng=self._arm_routing_rng if routing_mode is ArmRoutingMode.RANDOM else None,
-        )
+        """Choose the next mutation family from nested arm contrast."""
+        return route_next_family(enriched_target)
 
     @staticmethod
     def _search_outcome_matches_target(
@@ -5665,26 +4320,25 @@ genuinely separate view that is not covered by a listed target."""
         }
         return bool(current_keys & previous_keys)
 
-    def _reward_datapoints_for_round(
+    def _reward_datapoints_for_episode(
         self,
-        artifact_label: int | str,
+        episode_id: str,
     ) -> Optional[List[Dict[str, Any]]]:
-        """This round's `CreditedDatapoint`s, or `None` if not yet scored.
+        """This strategy Episode's `CreditedDatapoint`s, or `None` if unscored.
 
-        `None` -- not `[]` -- means "3A has not scored this round", so a
+        `None` -- not `[]` -- means "3A has not scored this Episode", so a
         consumer can distinguish "no yield" from "yield unknown". Guarded by
-        `round_index` rather than assumed fresh: `last_reward_report` is only
-        overwritten inside `_write_reward_exports`, which the "no new papers"
-        branch and the GASL branch both call before this method runs, but a
+        the report's own `episode_id` rather than assumed fresh:
+        `last_reward_report` is only overwritten inside
+        `_write_reward_exports`, which the "no new sources" branch and the
+        GASL branch both call before this method runs, but an
         `answer_mode != "table"` run never calls it at all and must not read
-        a stale report from a different round as if it were this one's.
+        a stale report from a different Episode as if it were this one's.
         """
         report = self.last_reward_report or {}
-        if not report:
+        if not report or not episode_id:
             return None
-        if int(report.get("round_index") or -1) != int(
-            self._pipeline_round(artifact_label)
-        ):
+        if str(report.get("episode_id") or "") != str(episode_id):
             return None
         datapoints = report.get("datapoints")
         return list(datapoints) if isinstance(datapoints, list) else []
@@ -5774,7 +4428,9 @@ genuinely separate view that is not covered by a listed target."""
         best_guess_source_hits = self._best_guess_source_hit_counts(
             best_guess_state or {},
         )
-        reward_datapoints = self._reward_datapoints_for_round(artifact_label)
+        reward_datapoints = self._reward_datapoints_for_episode(
+            self._active_strategy_episode_id
+        )
         metadata_updates: Dict[str, Dict[str, Any]] = {}
         for outcome in self.last_search_outcomes:
             metadata = outcome.metadata
@@ -5784,30 +4440,30 @@ genuinely separate view that is not covered by a listed target."""
                 continue
             update = {
                 "search_yield": self._search_yield_summary(outcome.to_dict()),
-                "post_round_table_row_hits": sum(
+                "post_episode_table_row_hits": sum(
                     table_source_hits[source_id]
                     for source_id in outcome.accepted_source_ids
                 ),
-                "post_round_best_guess_hits": sum(
+                "post_episode_best_guess_hits": sum(
                     best_guess_source_hits[source_id]
                     for source_id in outcome.accepted_source_ids
                 ),
                 # Phase 3B: real semantic yield, joined by ID from 3A's own
                 # `RewardReport.datapoints` -- never re-derived. `None` when
-                # this round has not been scored (or is not a `table`-mode
+                # this strategy Episode has not been scored (or is not a `table`-mode
                 # run), which `search_memory` reads as "not measured yet",
                 # not as zero.
-                "post_round_credited_criterion_ids": self._credited_criterion_ids(
+                "post_episode_credited_criterion_ids": self._credited_criterion_ids(
                     reward_datapoints,
                     outcome.accepted_source_ids,
                 ),
-                "post_round_credited_datapoint_kinds": self._credited_datapoint_kinds(
+                "post_episode_credited_datapoint_kinds": self._credited_datapoint_kinds(
                     reward_datapoints,
                     outcome.accepted_source_ids,
                 ),
                 # The cost penalty's own join: 1B's per-action records that
                 # this search task opened or nested under it.
-                "post_round_cost_records": self._cost_records_for_task(
+                "post_episode_cost_records": self._cost_records_for_task(
                     outcome.task_id
                 ),
             }
@@ -5843,11 +4499,11 @@ genuinely separate view that is not covered by a listed target."""
                 )
                 update.update(
                     {
-                        "post_round_observed_count": observed_count,
-                        "post_round_observed_delta": observed_delta,
+                        "post_episode_observed_count": observed_count,
+                        "post_episode_observed_delta": observed_delta,
                         # Which endpoint was missing, so a None delta is
                         # diagnosable rather than merely absent.
-                        "post_round_observed_delta_unavailable_reason": (
+                        "post_episode_observed_delta_unavailable_reason": (
                             ""
                             if observed_delta is not None
                             else "; ".join(
@@ -5859,14 +4515,14 @@ genuinely separate view that is not covered by a listed target."""
                                 if missing
                             )
                         ),
-                        "post_round_graph_node_delta": (
+                        "post_episode_graph_node_delta": (
                             self.graph.number_of_nodes() - baseline_nodes
                         ),
-                        "post_round_graph_edge_delta": (
+                        "post_episode_graph_edge_delta": (
                             self.graph.number_of_edges() - baseline_edges
                         ),
-                        "post_round_deficit_count": target.get("deficit_count"),
-                        "post_round_target_status": target.get("status"),
+                        "post_episode_deficit_count": target.get("deficit_count"),
+                        "post_episode_target_status": target.get("status"),
                     }
                 )
             metadata.update(update)
@@ -5956,7 +4612,6 @@ genuinely separate view that is not covered by a listed target."""
             "accepted_source_count": len(outcome.get("accepted_source_ids") or []),
             "duplicate_url_count": len(outcome.get("duplicate_urls") or []),
             "scrape_failed_count": len(outcome.get("scrape_failed_urls") or []),
-            "not_relevant_count": int(skipped.get("not_relevant") or 0),
             "error": str(outcome.get("error") or ""),
         }
 
@@ -6010,7 +4665,7 @@ genuinely separate view that is not covered by a listed target."""
         return None
 
     def _rewrite_search_outcomes(self) -> None:
-        path = self.papers_dir / "search_outcomes.jsonl"
+        path = self.sources_dir / "search_outcomes.jsonl"
         path.write_text(
             "".join(
                 json.dumps(outcome, default=str) + "\n"
@@ -6056,7 +4711,7 @@ genuinely separate view that is not covered by a listed target."""
 
     def _source_records_by_id(self) -> Dict[str, Dict[str, Any]]:
         records: Dict[str, Dict[str, Any]] = {}
-        for path in sorted(self.papers_dir.glob("*.json")):
+        for path in sorted(self.sources_dir.glob("*.json")):
             try:
                 record = json.loads(path.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError):
@@ -6073,7 +4728,7 @@ genuinely separate view that is not covered by a listed target."""
     def _source_records_with_text_by_id(self) -> Dict[str, Dict[str, Any]]:
         records = self._source_records_by_id()
         for source_id, record in records.items():
-            text_path = self.papers_dir / f"{source_id}.txt"
+            text_path = self.sources_dir / f"{source_id}.txt"
             try:
                 record["text"] = text_path.read_text(encoding="utf-8")
             except OSError:
@@ -6445,7 +5100,7 @@ genuinely separate view that is not covered by a listed target."""
 
     def _persist_deficit_windows(
         self,
-        round_idx: int | str,
+        artifact_label: int | str,
         report: Mapping[str, Any],
     ) -> None:
         """Record how the deficit catalog was split across planner calls.
@@ -6460,7 +5115,7 @@ genuinely separate view that is not covered by a listed target."""
         self.goals_dir.mkdir(parents=True, exist_ok=True)
         path = (
             self.goals_dir
-            / f"{self._artifact_stem(round_idx)}_deficit_windows.json"
+            / f"{self._artifact_stem(artifact_label)}_deficit_windows.json"
         )
         path.write_text(
             json.dumps(dict(report), indent=2, default=str),
@@ -6571,9 +5226,9 @@ genuinely separate view that is not covered by a listed target."""
             completion_state=self.completion_state,
             search_frontier=self.search_frontier.to_dict(),
             search_outcomes=self.search_outcomes,
-            paper_count=self.paper_count,
-            max_papers=self.config.max_papers,
-            paper_budget_available=self._paper_budget_available(),
+            units_pulled=self.units_pulled,
+            unit_budget=int(self.config.max_source_units),
+            unit_budget_available=self._source_budget_available(),
             gap_search_tasks=gap_search_tasks,
             goal_search_tasks=goal_search_tasks,
             update_history=update_history,
@@ -6588,7 +5243,7 @@ genuinely separate view that is not covered by a listed target."""
         self.goal_states = [
             previous
             for previous in self.goal_states
-            if previous.get("label", previous.get("round")) != artifact_label
+            if previous.get("label") != artifact_label
         ]
         self.goal_states.append(entry)
         self._print_task_goal_state(state)
@@ -6852,15 +5507,8 @@ genuinely separate view that is not covered by a listed target."""
             return []
 
         seed_exports = await self._export_seed_tables()
-        seed_table_rows = self._table_rows_by_variable(seed_exports)
-        first_round_idx = self._round_label(0)
-        await self._estimate_task_goal_universe(
-            f"bootstrap_{first_round_idx}",
-            seed_table_rows,
-            [],
-        )
         self._record_task_goal(
-            f"bootstrap_{first_round_idx}",
+            "bootstrap",
             seed_exports,
             gap_search_tasks=[],
             goal_search_tasks=[],
@@ -6868,14 +5516,14 @@ genuinely separate view that is not covered by a listed target."""
 
         return seed_exports
 
-    def _drain_bootstrap_papers(self) -> List[Dict[str, Any]]:
-        papers = self._bootstrap_papers
-        self._bootstrap_papers = []
-        return papers
+    def _drain_bootstrap_sources(self) -> List[Dict[str, Any]]:
+        records = self._bootstrap_sources
+        self._bootstrap_sources = []
+        return records
 
     async def _enqueue_deficit_searches(
         self,
-        round_idx: int,
+        artifact_label: int | str,
         table_exports: List[Dict[str, Any]],
         goal_state: Optional[FillGoalState],
     ) -> tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
@@ -6883,18 +5531,8 @@ genuinely separate view that is not covered by a listed target."""
             return [], []
 
         table_rows = self._table_rows_by_variable(table_exports)
-        table_gap_tasks = self._enqueue_table_gap_searches(
-            round_idx,
-            table_exports,
-        )
-        if self._needs_more_expectation_search(goal_state):
-            await self._estimate_task_goal_universe(
-                f"predeficit_{round_idx}",
-                table_rows,
-                [],
-            )
+        table_gap_tasks = self._enqueue_table_gap_searches(table_exports)
         target_deficit_tasks = await self._enqueue_target_deficit_searches(
-            round_idx,
             table_rows,
             goal_state,
         )
@@ -6902,8 +5540,7 @@ genuinely separate view that is not covered by a listed target."""
 
     async def _expand_unfulfilled_table_goal(
         self,
-        current_round_idx: int | str,
-        next_round_idx: int,
+        artifact_label: int | str,
         table_exports: List[Dict[str, Any]],
         goal_state: Optional[FillGoalState],
     ) -> tuple[
@@ -6917,8 +5554,8 @@ genuinely separate view that is not covered by a listed target."""
         expansion = {
             "attempted": False,
             "reason": "",
-            "current_round": current_round_idx,
-            "next_round": next_round_idx,
+            "label": artifact_label,
+            "episode_id": self._active_strategy_episode_id,
             "pending_before": self.search_frontier.pending_count,
             "pending_after": self.search_frontier.pending_count,
             "gap_search_tasks": 0,
@@ -6931,20 +5568,20 @@ genuinely separate view that is not covered by a listed target."""
                 else "task_goal_unavailable"
             )
             return gap_search_tasks, goal_search_tasks, goal_state, expansion
-        if not self._paper_budget_available():
-            expansion["reason"] = "paper_budget_exhausted"
+        if not self._source_budget_available():
+            expansion["reason"] = "source_budget_exhausted"
             return gap_search_tasks, goal_search_tasks, goal_state, expansion
 
         expansion["attempted"] = True
         table_gap_tasks, target_deficit_tasks = await self._enqueue_deficit_searches(
-            next_round_idx,
+            artifact_label,
             table_exports,
             goal_state,
         )
         gap_search_tasks.extend(table_gap_tasks)
         goal_search_tasks.extend(target_deficit_tasks)
         goal_state = self._record_task_goal(
-            current_round_idx,
+            artifact_label,
             table_exports,
             gap_search_tasks=gap_search_tasks,
             goal_search_tasks=goal_search_tasks,
@@ -6962,7 +5599,7 @@ genuinely separate view that is not covered by a listed target."""
             expansion["reason"] = "no_deficit_searches_queued"
         return gap_search_tasks, goal_search_tasks, goal_state, expansion
 
-    def _enqueue_seed_frontier_searches(self, round_idx: int) -> List[Dict[str, Any]]:
+    def _enqueue_seed_frontier_searches(self) -> List[Dict[str, Any]]:
         if not self.seed_frontier_tasks:
             return []
 
@@ -6974,7 +5611,6 @@ genuinely separate view that is not covered by a listed target."""
                 topic=task.topic,
                 expansion_op=task.expansion_op,
                 gap=task.gap,
-                round_index=round_idx,
                 depth=task.depth,
                 producer_class=task.producer_class or "seed_frontier",
                 metadata=dict(task.metadata),
@@ -6985,10 +5621,7 @@ genuinely separate view that is not covered by a listed target."""
         self.seed_frontier_tasks = []
         accepted = self.search_frontier.enqueue(tasks)
         if accepted:
-            print(
-                f"  Requeued {len(accepted)} seed frontier searches "
-                f"for round {round_idx}"
-            )
+            print(f"  Requeued {len(accepted)} seed frontier searches")
         return [task.to_dict() for task in accepted]
 
     def _seed_frontier_task_allowed(self, task: SearchTask) -> bool:
@@ -7011,13 +5644,6 @@ genuinely separate view that is not covered by a listed target."""
         return completion_scope_actionable(
             self.completion_state,
             self.goal_universe_estimate,
-        )
-
-    def _needs_more_expectation_search(self, goal_state: FillGoalState) -> bool:
-        estimate = goal_state.target_estimate
-        return completion_needs_scope_search(
-            self.completion_state,
-            estimate,
         )
 
     def _table_rows_by_variable(
@@ -7103,9 +5729,9 @@ genuinely separate view that is not covered by a listed target."""
         """Prepare the frontier, then run the composition ONCE.
 
         THE ROUND LOOP IS GONE. `pipeline.py` composes episodes; it no longer
-        sequences phases. What was the body of `for local_round_idx in ...` is
-        now `_run_round_body`, called by the run grain's hook once per completed
-        strategy, in its existing order and unreordered.
+        sequences phases. The post-strategy work is `_run_post_strategy_body`,
+        called by the run grain's hook once per completed strategy, in its
+        existing order and unreordered.
         """
 
         cfg = self.config
@@ -7126,27 +5752,43 @@ genuinely separate view that is not covered by a listed target."""
             await self._resolve_schema([])
         else:
             self._ensure_search_ready()
+            # A named schema is already the extractor contract.  Resolve it
+            # before the first acquisition strategy so those pages can be
+            # gated, extracted, and credited.  Only schema synthesis must wait
+            # for probe pages; delaying an explicitly named schema marked every
+            # initial page `no_extractor` and discarded its possible evidence.
+            if cfg.schema_name:
+                await self._resolve_schema([])
             # The seed search is no longer a phase before the loop: it becomes
             # the run episode's FIRST STRATEGY, family `llm_initial`. Its pages
-            # are fetched before the schema exists -- the schema is synthesized
-            # *from* them -- so every one of them is crediting-disabled under
-            # the fate table's `no_extractor` row and the strategy contributes
-            # no credits and does not enter the run's stop history. That is the
-            # correct arithmetic: a strategy that could not judge anything is
-            # not evidence that the run is saturated. The schema is resolved by
-            # that strategy's own hook, from the papers it accepted.
-            print(
-                f"Round {self._round_label(0)}: "
-                "seeding search from the question..."
-            )
+            # supply schema-synthesis evidence only when no schema was named.
+            # In that case they are fetched before an extractor exists and are
+            # crediting-disabled under the fate table's `no_extractor` row; the
+            # strategy hook then resolves the synthesized schema.  With a named
+            # schema, the extractor now exists before this strategy opens.
+            print("Seeding search from the question...")
             schema_hint = cfg.schema_name or ""
-            queries = await strategy.initial_queries(
-                self.llm, cfg.question, n=cfg.queries_per_round, schema_hint=schema_hint
-            )
+            run_path = ((RUN_GRAIN.name, self.out.name),)
+            with prompt_scope(
+                self.out / "prompts" / self._run_episode_id,
+                episode_id=self._run_episode_id,
+                episode_path=run_path,
+            ):
+                with self._cost_scope(
+                    ObservationKind.STRATEGY_PROPOSAL.value,
+                    observation_id=f"{self.out.name}#seed",
+                    episode_id=self._run_episode_id,
+                    episode_path=run_path,
+                ):
+                    queries = await strategy.initial_queries(
+                        self.llm,
+                        cfg.question,
+                        n=cfg.initial_seed_queries,
+                        schema_hint=schema_hint,
+                    )
             print(f"  Initial queries: {queries}")
             self.search_frontier.enqueue_queries(
                 queries,
-                round_index=self._round_label(0),
                 topic="initial",
                 expansion_op="llm_initial",
                 producer_class="seed_query",
@@ -7158,14 +5800,12 @@ genuinely separate view that is not covered by a listed target."""
         if self.goal_tracker is not None:
             print("  Bootstrapping task-level goal from current tables...")
             seed_exports = await self._bootstrap_task_goal()
-            seed_goal_search_tasks = self._enqueue_seed_frontier_searches(
-                self._round_label(0),
-            )
+            seed_goal_search_tasks = self._enqueue_seed_frontier_searches()
             if (
                 not self._universe_estimate_actionable()
                 and not seed_goal_search_tasks
                 and self.search_frontier.pending_count <= 0
-                and not self._bootstrap_papers
+                and not self._bootstrap_sources
             ):
                 # ENGINE-AUTHORED, NOT MODEL-AUTHORED. This assessment is
                 # written by the pipeline when no model was consulted, so
@@ -7179,14 +5819,14 @@ genuinely separate view that is not covered by a listed target."""
                     "gaps": ["Task-level answer universe was not estimated."],
                     "rationale": (
                         "Goal-discovery search exhausted the available search "
-                        "frontier or paper budget before count targets could "
-                        "be estimated."
+                        "frontier or source-unit budget before count targets "
+                        "could be estimated."
                     ),
                 }
                 print("  No task-level universe estimate; stopping before GASL.")
                 return self._finalize(self._last_answer, self._final_assessment)
             bootstrap_goal_state = self._record_task_goal(
-                f"bootstrap_deficit_{self._round_label(0)}",
+                "bootstrap_deficit",
                 seed_exports,
                 gap_search_tasks=[],
                 goal_search_tasks=seed_goal_search_tasks,
@@ -7196,7 +5836,7 @@ genuinely separate view that is not covered by a listed target."""
             if self._universe_estimate_actionable():
                 gap_search_tasks, goal_search_tasks = (
                     await self._enqueue_deficit_searches(
-                        self._round_label(0),
+                        "bootstrap",
                         seed_exports,
                         bootstrap_goal_state,
                     )
@@ -7209,7 +5849,7 @@ genuinely separate view that is not covered by a listed target."""
                 goal_search_tasks = seed_goal_search_tasks
             if gap_search_tasks or goal_search_tasks:
                 self._record_task_goal(
-                    f"bootstrap_deficit_{self._round_label(0)}",
+                    "bootstrap_deficit",
                     seed_exports,
                     gap_search_tasks=gap_search_tasks,
                     goal_search_tasks=goal_search_tasks,
@@ -7220,58 +5860,65 @@ genuinely separate view that is not covered by a listed target."""
         # package. It builds nothing itself: the controller holds the context,
         # the three episode declarations run through the kernel's loop body, and
         # the run-ending decision is written from the record it returns.
-        record = await self.acquisition.run(self._build_run_episode())
+        record = await self.acquisition.run(self.provider_binding.build_run_episode())
         # The run record itself, once, after the tree returns. Its own verdict
         # is read after its hook, so a run that opened no strategy at all still
         # emits a record saying why -- `exhausted` with no units is a fact about
         # the frontier, not an absent artifact.
-        self._write_episode_record(record)
-        self._write_acquisition_yield()
+        self.provider_binding.write_episode_record(record)
+        self.provider_binding.write_acquisition_yield()
         return self._finalize(self._last_answer, self._final_assessment)
 
-    async def _run_round_body(
+    async def _run_post_strategy_body(
         self,
-        round_idx: int,
         strategy_key: str,
         family: str,
+        episode_id: str,
+        *,
+        run_unit_index: int,
     ) -> None:
-        """The per-round work, moved out of the deleted loop and unreordered.
+        """The post-strategy work, owned by the strategy Episode that ran.
 
-        Called once per completed strategy by the run grain's hook. **A ROUND IS
-        NOW A COMPLETED STRATEGY**: `round_index` is the run episode's unit
-        index rather than a wave counter. It appears on `SearchTask.round_index`,
-        every `CostRecord.round_index`, the reward chain's `round_index`,
-        artifact stems, and `seed_tables.next_round_index` for a resumed run;
-        all of those need only a monotone integer stable within the process, so
-        all of them keep working -- but the NUMBER differs from what a wave-based
-        run would have written, and nothing compares one against the other.
+        Called once per completed strategy by the run grain's hook. Every
+        artifact it writes is named by Episode identity (`episode_id` and its
+        stem), never by a round number; `run_unit_index` is the run Episode's
+        own zero-based unit index, carried as local data on the strategy
+        record and never used as a continuation offset or artifact identity.
 
         Each named step is guarded individually. `drive_async` catches nothing
         around a hook, so a failing export must not unwind the whole record
         tree; its failure is recorded as a typed class instead.
         """
 
-        cfg = self.config
-        self._open_round_ledger_window()
-        self._open_prompt_log(round_idx)
-        print(f"\n{'#'*70}\nROUND {round_idx}  [strategy {strategy_key}]\n{'#'*70}")
+        label = episode_id or f"strategy_{strategy_key}"
+        stem = self._artifact_stem(label)
+        self._open_strategy_ledger_window()
+        self._open_prompt_log(episode_id or stem, self._active_strategy_episode_path)
+        print(
+            f"\n{'#'*70}\nSTRATEGY {strategy_key} "
+            f"[run unit {run_unit_index}]\n{'#'*70}"
+        )
 
-        round_papers = self._drain_round_papers()
+        accepted_sources = self._drain_strategy_sources()
         if self.extractor is None:
             # The schema is synthesized FROM these pages, so this is the first
             # moment it can exist. Every page of this strategy was
             # crediting-disabled under the `no_extractor` fate.
-            await self._guarded("resolve_schema", self._resolve_schema, round_papers[:2])
-        if round_papers:
-            print(f"  Accepted {len(round_papers)} page(s) -> {self._graph_summary()}")
+            await self._guarded(
+                "resolve_schema", self._resolve_schema, accepted_sources[:2]
+            )
+        if accepted_sources:
+            print(
+                f"  Accepted {len(accepted_sources)} page(s) -> "
+                f"{self._graph_summary()}"
+            )
         else:
-            print("  No new papers accepted by this strategy.")
+            print("  No new sources accepted by this strategy.")
 
         followups = await self._guarded(
             "followup_target_evolutions",
             self._enqueue_followup_target_evolutions,
             self._drain_followup_outcomes(),
-            round_idx,
             self._target_evolution_counts,
         )
         if followups:
@@ -7279,37 +5926,38 @@ genuinely separate view that is not covered by a listed target."""
 
         if self.graph.number_of_nodes() == 0:
             print("  Graph is still empty; cannot answer yet.")
-            self.rounds.append(
+            self.strategy_records.append(
                 {
-                    "round": round_idx,
+                    "episode_id": episode_id,
+                    "run_unit_index": run_unit_index,
                     "strategy_key": strategy_key,
                     "strategy_family": family,
-                    "papers_ingested": len(round_papers),
+                    "sources_ingested": len(accepted_sources),
                     "answer": None,
                     "hook_failures": list(self.hook_failures),
                 }
             )
-            self._record_stop_decision(self._stop_context_for(round_idx, None))
+            self._record_stop_decision(self._stop_context_for(None))
             self._write_control_ledger()
             self._close_prompt_log()
             return
 
-        no_new_papers_path = (
+        no_new_sources_path = (
             self.goal_tracker is not None
-            and not round_papers
+            and not accepted_sources
             and self.seed_tables.row_count
             and not self._seed_table_migrations_available()
         )
         gasl_result: Dict[str, Any] = {}
-        if no_new_papers_path:
+        if no_new_sources_path:
             print(
-                "  No new papers accepted; recording current tables "
+                "  No new sources accepted; recording current tables "
                 "without rerunning GASL."
             )
             table_exports = await self._guarded(
                 "table_exports",
                 self._write_table_exports,
-                round_idx,
+                label,
                 self.seed_tables.rows_by_name,
                 seed_row_counts={
                     name: len(rows)
@@ -7318,32 +5966,35 @@ genuinely separate view that is not covered by a listed target."""
                 new_row_counts={},
             ) or []
         else:
-            await self._guarded("save_graph", self._save_graph_sync, round_idx)
+            await self._guarded("save_graph", self._save_graph_sync, stem)
             metadata = await self._guarded("write_metadata", self._write_metadata_sync)
             print("  Running GASL traversal...")
-            gasl_graph = self._gasl_graph_for_round(round_papers)
-            if gasl_graph is not self.graph:
-                print(
-                    "  GASL graph scope: "
-                    f"{gasl_graph.number_of_nodes()} nodes, "
-                    f"{gasl_graph.number_of_edges()} edges"
-                )
-            self._gasl_source_seed_nodes = self._gasl_source_seed_nodes_for_round(
-                round_papers,
-                graph=gasl_graph,
+            self._gasl_source_seed_nodes = self._gasl_source_seed_nodes_for_strategy(
+                accepted_sources,
+                graph=self.graph,
+            )
+            self._gasl_strategy_sources = self._gasl_strategy_source_rows(
+                accepted_sources
+            )
+            self._gasl_source_catalog = self._gasl_source_catalog_for_strategy(
+                accepted_sources,
+                graph=self.graph,
             )
             try:
                 gasl_result = await self._guarded(
                     "gasl",
                     self._run_gasl,
-                    round_idx,
+                    episode_id or stem,
+                    self._active_strategy_episode_path,
                     metadata or {},
-                    graph=gasl_graph,
+                    graph=self.graph,
                 ) or {}
             finally:
                 self._gasl_source_seed_nodes = []
+                self._gasl_strategy_sources = []
+                self._gasl_source_catalog = []
             table_exports = await self._guarded(
-                "table_exports", self._export_gasl_tables, round_idx, gasl_result
+                "table_exports", self._export_gasl_tables, label, gasl_result
             ) or []
             self._last_answer = gasl_result.get("final_answer", "") or ""
 
@@ -7381,12 +6032,13 @@ genuinely separate view that is not covered by a listed target."""
         await self._guarded(
             "universe_estimate",
             self._estimate_task_goal_universe,
-            round_idx,
+            label,
+            episode_id,
             self._table_rows_by_variable(table_exports),
             self._gaps,
         )
         goal_state = self._record_task_goal(
-            round_idx,
+            label,
             table_exports,
             gap_search_tasks=gap_search_tasks,
             goal_search_tasks=goal_search_tasks,
@@ -7394,7 +6046,7 @@ genuinely separate view that is not covered by a listed target."""
         await self._guarded(
             "annotate_target_outcomes",
             self._annotate_recent_target_outcomes_async,
-            round_idx,
+            label,
             goal_state,
             self._table_rows_by_variable(table_exports),
             self.last_best_guess_state,
@@ -7403,8 +6055,8 @@ genuinely separate view that is not covered by a listed target."""
         deficit_expansion: Dict[str, Any] = {
             "attempted": False,
             "reason": "not_needed",
-            "current_round": round_idx,
-            "next_round": self._round_label(self._completed_strategies + 1),
+            "label": label,
+            "episode_id": episode_id,
             "pending_before": self.search_frontier.pending_count,
             "pending_after": self.search_frontier.pending_count,
             "gap_search_tasks": 0,
@@ -7414,8 +6066,7 @@ genuinely separate view that is not covered by a listed target."""
             expanded = await self._guarded(
                 "expand_goal",
                 self._expand_unfulfilled_table_goal,
-                round_idx,
-                self._round_label(self._completed_strategies + 1),
+                label,
                 table_exports,
                 goal_state,
             )
@@ -7423,11 +6074,11 @@ genuinely separate view that is not covered by a listed target."""
                 gap_search_tasks, goal_search_tasks, goal_state, deficit_expansion = (
                     expanded
                 )
-        elif goal_state is None and self._paper_budget_available():
+        elif goal_state is None and self._source_budget_available():
             expanded = await self._guarded(
                 "enqueue_deficit_searches",
                 self._enqueue_deficit_searches,
-                self._round_label(self._completed_strategies + 1),
+                label,
                 table_exports,
                 goal_state,
             )
@@ -7441,7 +6092,7 @@ genuinely separate view that is not covered by a listed target."""
         # composition would have one decision edge, "does this run continue",
         # with no rule at all.
         stop_decision = self._record_stop_decision(
-            self._stop_context_for(round_idx, goal_state)
+            self._stop_context_for(goal_state)
         )
         if stop_decision is not None and stop_decision.stop:
             self.run_termination.stopped = True
@@ -7454,12 +6105,13 @@ genuinely separate view that is not covered by a listed target."""
                 f"{stop_decision.context.source_budget_available})"
             )
 
-        round_record = {
-            "round": round_idx,
+        strategy_record = {
+            "episode_id": episode_id,
+            "run_unit_index": run_unit_index,
             "strategy_key": strategy_key,
             "strategy_family": family,
             "queries": [outcome.query for outcome in self.last_search_outcomes],
-            "papers_ingested": len(round_papers),
+            "sources_ingested": len(accepted_sources),
             "pages_pulled": self.source_budget.spent,
             "graph_nodes": self.graph.number_of_nodes(),
             "graph_edges": self.graph.number_of_edges(),
@@ -7475,32 +6127,32 @@ genuinely separate view that is not covered by a listed target."""
             "goal_search_tasks": goal_search_tasks,
             "deficit_expansion": deficit_expansion,
             "task_goal": goal_state.to_dict() if goal_state else None,
-            "skipped_gasl": no_new_papers_path,
-            "control_decisions": self._round_control_decisions(),
-            "cost_records": self._round_cost_records(round_idx),
+            "skipped_gasl": no_new_sources_path,
+            "control_decisions": self._strategy_control_decisions(),
+            "cost_records": self._episode_cost_records(episode_id),
             "table_schema_disclosure": self.table_schema_disclosure,
             "field_provenance_coverage": self.last_field_provenance_ledger,
             "criteria_projection_version": CRITERIA_PROJECTION_VERSION,
             "evidence_registry": self.evidence_registry.summary(),
             "hook_failures": list(self.hook_failures),
-            "page_best_guess": list(self._page_guess_reports),
+            "page_best_guess": list(self.provider_binding.page_guess_reports),
         }
-        self.rounds.append(round_record)
-        (self.answers_dir / f"round_{round_idx}.json").write_text(
-            json.dumps(round_record, indent=2, default=str), encoding="utf-8"
+        self.strategy_records.append(strategy_record)
+        (self.answers_dir / f"strategy_{stem}.json").write_text(
+            json.dumps(strategy_record, indent=2, default=str), encoding="utf-8"
         )
         self._write_control_ledger()
-        self._write_acquisition_yield()
-        self._record_strategy_residual_cost(round_idx)
-        self._reset_round_state()
+        self.provider_binding.write_acquisition_yield()
+        self._record_strategy_residual_cost(episode_id, stem)
+        self._reset_strategy_state()
         self._close_prompt_log()
 
     async def _guarded(self, step: str, fn, *args, **kwargs):
-        """Run one round-body step; record a failure rather than raising.
+        """Run one post-strategy step; record a failure rather than raising.
 
         A hook may not raise. Each named step is guarded individually so one
         failing export cannot unwind the record tree, and its failure lands on
-        the round record as a typed class instead of vanishing.
+        the strategy record as a typed class instead of vanishing.
         """
 
         try:
@@ -7509,80 +6161,72 @@ genuinely separate view that is not covered by a listed target."""
                 result = await result
             return result
         except Exception as exc:  # noqa: BLE001 - recorded, never raised at a hook
-            self._record_hook_failure(f"round:{step}", step, exc)
+            self._record_hook_failure(f"strategy_body:{step}", step, exc)
             return None
 
-    def _save_graph_sync(self, round_idx: int) -> None:
-        self._save_graph(round_idx)
+    def _save_graph_sync(self, stem: str) -> None:
+        self._save_graph(stem)
 
     def _write_metadata_sync(self) -> Dict[str, Any]:
         return self._write_metadata()
 
     def _annotate_recent_target_outcomes_async(
         self,
-        round_idx: int,
+        artifact_label: int | str,
         goal_state,
         table_rows,
         best_guess_state,
     ) -> None:
         self._annotate_recent_target_outcomes(
-            round_idx,
+            artifact_label,
             goal_state,
             table_rows=table_rows,
             best_guess_state=best_guess_state,
         )
 
-    def _stop_context_for(self, round_idx: int, goal_state) -> StopContext:
+    def _stop_context_for(self, goal_state) -> StopContext:
         """The stop inputs, with the frontier required at exactly one site.
 
         The composition tests the frontier where a strategy's source runs out of
         tasks, so an empty frontier is terminal for the run only once every
         eligible family is drained -- which is what `_eligible_families` reports.
+        There is no round budget: continuation belongs to the Episode verdicts,
+        the declared source-unit bound, and the typed terminal conditions here.
         """
 
         return StopContext(
-            round_index=round_idx,
+            episode_id=self._active_strategy_episode_id,
             goal_mode=self.goal_tracker is not None,
             goal_fulfilled=bool(goal_state is not None and goal_state.fulfilled),
-            source_budget_available=self._paper_budget_available(),
+            source_budget_available=self._source_budget_available(),
             frontier_pending=self.search_frontier.pending_count,
-            frontier_required=not self._eligible_families(),
-            round_budget_available=(
-                int(self.config.max_rounds) <= 0
-                or (self._completed_strategies + 1) < int(self.config.max_rounds)
-            ),
+            frontier_required=not self.provider_binding.eligible_families(),
             criteria_snapshot_id=self.criteria_snapshot.id,
         )
 
-    def _drain_round_papers(self) -> List[Dict[str, Any]]:
-        papers = [*self._drain_bootstrap_papers(), *self._accepted_papers]
-        self._accepted_papers = []
-        return papers
+    def _drain_strategy_sources(self) -> List[Dict[str, Any]]:
+        return self.provider_binding.drain_strategy_sources(
+            self._drain_bootstrap_sources()
+        )
 
     def _drain_followup_outcomes(self) -> List[SearchOutcome]:
-        outcomes = self._pending_followup_outcomes
-        self._pending_followup_outcomes = []
-        return outcomes
+        return self.provider_binding.drain_followup_outcomes()
 
-    def _reset_round_state(self) -> None:
-        self.last_prompt_arm_summaries = summarize_prompt_arms(
-            self.last_search_outcomes
-        )
-        self._harvester.record_prompt_arm_summaries(self.last_prompt_arm_summaries)
-        self.last_search_outcomes = []
-        self._page_guess_reports = []
+    def _reset_strategy_state(self) -> None:
+        self.last_prompt_arm_summaries = self.provider_binding.reset_strategy_state()
 
-    def _record_strategy_residual_cost(self, round_idx: int) -> None:
+    def _record_strategy_residual_cost(self, episode_id: str, stem: str) -> None:
         """Unattributed spend for THIS strategy's interval, stamped and rebased.
 
-        Two things are needed and only one is obvious. The stamp: the ORPHAN
-        meter's own snapshot carries `round_index=0` by construction, and
-        `reward.aggregate_round_cost` filters on that field, so an unstamped
-        residual lands in round 0 whatever round paid for it. The REBASE:
-        `_orphan_cost_delta` measures against the baseline taken when the
-        pipeline was constructed, so it is cumulative over the run -- taking it
-        per strategy without rebasing hands every strategy the whole run's
-        residual to date, and summing them multiply-counts the same spend.
+        Two things are needed and only one is obvious. The STAMP: the ORPHAN
+        meter's own snapshot carries no Episode identity by construction, and
+        the reward selects cost records by ``episode_id``, so an unstamped
+        residual would belong to no strategy whatever strategy paid for it.
+        The REBASE: `_orphan_cost_delta` measured against the baseline taken
+        when the pipeline was constructed, so it was cumulative over the run
+        -- taking it per strategy without rebasing hands every strategy the
+        whole run's residual to date, and summing them multiply-counts the
+        same spend.
 
         ONE SNAPSHOT SERVES BOTH READS. `CostMeter` is explicitly shared across
         threads and `snapshot()` reads its fields without the lock, so taking a
@@ -7600,9 +6244,9 @@ genuinely separate view that is not covered by a listed target."""
         residual.update(
             {
                 "observation_kind": ObservationKind.RUN_RESIDUAL.value,
-                "observation_id": f"{self.out.name}#r{round_idx}",
+                "observation_id": f"{stem}#residual",
+                "episode_id": str(episode_id or self._run_episode_id),
                 "nested_in": "",
-                "round_index": int(round_idx),
             }
         )
         self.cost_records.append(residual)
@@ -7614,77 +6258,7 @@ genuinely separate view that is not covered by a listed target."""
     # every criteria identifier comes from `criteria.py`; this section moves
     # typed records between them and the run's artifacts, and decides nothing.
     # ------------------------------------------------------------------ #
-    def _write_acquisition_yield(self) -> None:
-        """The summary view, written durably per completed strategy.
 
-        A PROJECTION of `acquisition_episodes.json`, and it says so in its own
-        payload along with the keys it does not carry -- so a reader who checks
-        only the summary is told, in the summary, that it is one. That is the
-        4E-b lesson: a disposable runner projected the emitted record through a
-        summary that silently dropped a field the registration predicted about,
-        and both confirmation routes read that same projection.
-        """
-
-        path = self.answers_dir / "acquisition_yield.json"
-        payload = self.acquisition.export()
-        payload["stranded_frontier_work"] = self._stranded_frontier_work()
-        payload["pages_pulled"] = self.source_budget.spent
-        payload["pages_accepted"] = len(self.source_ingestion_ledger)
-        payload["orphan_meter"] = orphan_meter().snapshot().to_dict()
-        payload["missing_token_owner"] = {
-            "module": "criteria",
-            "tokens": len(criteria_missing_tokens()),
-        }
-        payload["hook_failures"] = list(self.hook_failures)
-        payload["page_best_guess_mode"] = self.config.page_best_guess_mode
-        payload["criteria_projection_version"] = CRITERIA_PROJECTION_VERSION
-        try:
-            path.write_text(
-                json.dumps(payload, indent=2, default=str),
-                encoding="utf-8",
-            )
-        except Exception as exc:  # noqa: BLE001 - disclosed, never silent
-            print(f"  [acquisition] yield export failed: {exc}")
-
-    def _stranded_frontier_work(self) -> List[Dict[str, Any]]:
-        """Pending frontier tasks nobody will run, BY FAMILY AND BY REASON.
-
-        "The frontier still carries that strategy's unpulled tasks at run end"
-        is the expected observable for a family its own verdict abandoned, and a
-        DIFFERENT FACT for one that merely ran out of queued work at the instant
-        it was pulled, or one stranded because the budget went. Reporting all
-        three the same way would read a silent failure as a success, so each row
-        carries the class that produced it.
-        """
-
-        classes: List[Dict[str, Any]] = []
-        for family, tasks in self.search_frontier.pending_by_family().items():
-            ended = self._strategy_ends.get(family, "")
-            if ended == END_YIELD_STOP:
-                reason = "abandoned_by_verdict"
-            elif self.source_budget.exhausted:
-                reason = "budget_spent"
-            elif self.run_termination.stopped:
-                reason = "run_terminated"
-            elif ended == "":
-                reason = "never_opened"
-            else:
-                reason = "frontier_exhausted"
-            classes.append(
-                {
-                    "strategy_family": family,
-                    "pending_tasks": len(tasks),
-                    "class": reason,
-                    "last_instance_ended_by": ended,
-                    "run_termination_reason": self.run_termination.reason,
-                    "instances_opened": (
-                        self.proposer.instances_opened().get(family, 0)
-                        if self.proposer is not None
-                        else 0
-                    ),
-                }
-            )
-        return classes
 
     def _append_control_decision(
         self,
@@ -7727,11 +6301,6 @@ genuinely separate view that is not covered by a listed target."""
         if not self.control_ledger_enabled:
             return rows_by_table
 
-        # ``-1`` for an artifact label that is not a numbered round (``seed``
-        # and friends).  It is in every candidate ID on this surface, so it
-        # must be deterministic and must not collide with round 0.
-        pipeline_round = self._pipeline_round(artifact_label)
-        round_index = int(pipeline_round) if pipeline_round is not None else -1
         accepted = sorted(self._source_records_by_id())
         gated: Dict[str, List[Any]] = {}
         for name in sorted(rows_by_table):
@@ -7750,7 +6319,7 @@ genuinely separate view that is not covered by a listed target."""
             result = gate_rows(
                 candidates,
                 policy=self.control_policy,
-                round_index=round_index,
+                episode_id=self._active_strategy_episode_id,
                 table=name,
                 context=self._path_scoring_context(name, accepted),
                 # The projection of *these* rows: the exemption asks whether a
@@ -7771,9 +6340,7 @@ genuinely separate view that is not covered by a listed target."""
                 settings=self.path_gate_settings,
                 criteria_snapshot_id=self.criteria_snapshot.id,
                 pending_actions=self.search_frontier.pending_count,
-                remaining_source_budget=max(
-                    0, int(self.config.max_papers) - int(self.paper_count)
-                ),
+                remaining_source_budget=self._remaining_source_budget(),
             )
             self._append_control_decision(
                 result.to_ledger_record(
@@ -7851,26 +6418,21 @@ genuinely separate view that is not covered by a listed target."""
     def _control_decision_context(
         self,
         surface: ControlSurface,
-        round_index: int,
         *,
         max_actions: int,
     ) -> DecisionContext:
         return DecisionContext(
             surface=surface,
-            round_index=int(round_index),
+            episode_id=self._active_strategy_episode_id,
             max_actions=int(max_actions),
             pending_actions=self.search_frontier.pending_count,
-            remaining_source_budget=max(
-                0,
-                int(self.config.max_papers) - int(self.paper_count),
-            ),
+            remaining_source_budget=self._remaining_source_budget(),
             criteria_snapshot_id=self.criteria_snapshot.id,
         )
 
     def _record_policy_decision(
         self,
         surface: ControlSurface,
-        round_index: int,
         candidates: List[ActionCandidate],
         *,
         max_actions: int,
@@ -7882,7 +6444,6 @@ genuinely separate view that is not covered by a listed target."""
             return None
         context = self._control_decision_context(
             surface,
-            round_index,
             max_actions=max_actions,
         )
         decision = self.control_policy.rank_actions(context, list(candidates))
@@ -7903,42 +6464,6 @@ genuinely separate view that is not covered by a listed target."""
         )
         return decision
 
-    def _stop_context(
-        self,
-        *,
-        round_index: int,
-        local_round_idx: int,
-        goal_state: Optional[FillGoalState],
-        assessment: Mapping[str, Any] | None,
-        frontier_required: bool,
-    ) -> StopContext:
-        """Project the loop's own continuation inputs onto 1A's stop vocabulary.
-
-        ``frontier_required`` is per-site rather than global because the loop
-        is: an empty frontier is terminal where the loop tests it and not
-        where it does not.
-        """
-
-        # `assessment` is no longer read here. It still carries `sufficient`
-        # and `confidence`, both model-emitted, and both are now REPORTED
-        # rather than gating: `gaps` and `rationale` from the same payload are
-        # genuinely semantic and stay. What the model says is missing is a
-        # model's job; whether that is enough is arithmetic, and the arithmetic
-        # reads the two counts below instead.
-        return StopContext(
-            round_index=round_index,
-            goal_mode=self.goal_tracker is not None,
-            goal_fulfilled=bool(goal_state is not None and goal_state.fulfilled),
-            source_budget_available=self._paper_budget_available(),
-            frontier_pending=self.search_frontier.pending_count,
-            frontier_required=bool(frontier_required),
-            round_budget_available=(
-                int(self.config.max_rounds) <= 0
-                or (local_round_idx + 1) < int(self.config.max_rounds)
-            ),
-            criteria_snapshot_id=self.criteria_snapshot.id,
-        )
-
     def _stamp_control_action(
         self,
         task: SearchTask,
@@ -7953,8 +6478,7 @@ genuinely separate view that is not covered by a listed target."""
         written *beside* baseline's ``strategy_origin`` -- `control.py:515`
         emits the origin under `action_origin` while `search_memory.py:251`
         reads `strategy_origin` through a ``.get(..., "")`` that cannot
-        raise.  ``tests/test_decision_ledger.py`` pins the two to the same
-        value so that mismatch cannot reappear silently.
+        raise, so the two are deliberately written to the same value here.
         """
 
         task.metadata["control_action_id"] = candidate.id
@@ -7978,7 +6502,6 @@ genuinely separate view that is not covered by a listed target."""
         *,
         query: str,
         target: Mapping[str, Any],
-        round_idx: int,
         operator_plan: Mapping[str, Any],
         attempt_context: Mapping[str, Any],
         prompt_arm: Mapping[str, Any],
@@ -7989,7 +6512,7 @@ genuinely separate view that is not covered by a listed target."""
         return SearchCandidate.create(
             surface=ControlSurface.TARGET_SEARCH,
             query=query,
-            round_index=round_idx,
+            episode_id=self._active_strategy_episode_id,
             operator=OperatorRef.from_mapping(operator_plan),
             attempt=AttemptRef.from_mapping(attempt_context),
             prompt_arm=PromptArmRef.from_mapping(prompt_arm),
@@ -8004,11 +6527,11 @@ genuinely separate view that is not covered by a listed target."""
             ),
         )
 
-    def _open_round_ledger_window(self) -> None:
-        self._round_ledger_mark = len(self.control_decisions)
+    def _open_strategy_ledger_window(self) -> None:
+        self._strategy_ledger_mark = len(self.control_decisions)
 
-    def _round_control_decisions(self) -> List[Dict[str, Any]]:
-        return self.control_decisions[self._round_ledger_mark :]
+    def _strategy_control_decisions(self) -> List[Dict[str, Any]]:
+        return self.control_decisions[self._strategy_ledger_mark :]
 
     def _write_control_ledger(self) -> None:
         if not self.control_ledger_enabled:
@@ -8033,20 +6556,17 @@ genuinely separate view that is not covered by a listed target."""
     # ------------------------------------------------------------------ #
     # Persistence
     # ------------------------------------------------------------------ #
-    def _save_graph(self, round_idx: int) -> None:
-        save_graph(self.graphs_dir / f"round_{round_idx}.graphml", self.graph)
+    def _save_graph(self, stem: str) -> None:
+        save_graph(self.graphs_dir / f"{stem}.graphml", self.graph)
         save_graph(self.graphs_dir / "current_graph.graphml", self.graph)
 
     def _record_run_residual_cost(self) -> None:
         """The TAIL residual: spend since the last strategy closed.
 
-        Unattributed spend is a number here, not silence. It used to be one
-        record for the whole run, carrying `round_index=0` by construction --
-        which `reward.aggregate_round_cost` filters on, so every unattributed
-        call in the run was counted in round 0 whatever round paid for it. It is
-        now taken per completed strategy (`_record_strategy_residual_cost`),
-        rebased each time, and this closes the last interval carrying the LAST
-        round index rather than 0.
+        Unattributed spend is a number here, not silence. It is taken per
+        completed strategy (`_record_strategy_residual_cost`), rebased each
+        time, and this closes the last interval, attributed to the run Episode
+        by its `episode_id`.
 
         The identity that makes this checkable: the sum of every `RUN_RESIDUAL`
         record's counters equals the run's whole orphan delta, emitted on the
@@ -8062,229 +6582,12 @@ genuinely separate view that is not covered by a listed target."""
             {
                 "observation_kind": ObservationKind.RUN_RESIDUAL.value,
                 "observation_id": f"{self.out.name}#tail",
+                "episode_id": self._run_episode_id,
                 "nested_in": "",
-                "round_index": int(self._last_round_index),
             }
         )
         self.cost_records.append(residual)
 
-    def _acquisition_run_summary(self) -> Dict[str, Any]:
-        """The run's own acquisition observables, every one of them two-sided.
-
-        Each is emitted whether it is zero or not, because a zero is a finding
-        here rather than an absence: a floor nothing fell below was decorative
-        on this configuration, an empty counterfactual means the exclusion had
-        nothing to remove, and a chunk grain no page reached is inert rather
-        than unnecessary.
-        """
-
-        details = self.acquisition_page_details
-        gate_outcomes: Counter = Counter()
-        deciles: Counter = Counter()
-        clearance_by_windows: Dict[int, Dict[str, int]] = {}
-        chunk_counts: Counter = Counter()
-        chunk_would_fire = 0
-        rule_counts: Counter = Counter()
-        triviality_counts: Counter = Counter()
-        source_kind_counts: Counter = Counter()
-        counterfactual = 0
-        row_guess_split: Counter = Counter()
-        key_only_pages = 0
-        subject_identities: set[str] = set()
-        for row in details:
-            gate = row.get("gate") or {}
-            gate_outcomes[str(gate.get("outcome") or "")] += 1
-            score = gate.get("score")
-            if isinstance(score, (int, float)):
-                deciles[min(9, int(float(score) * 10))] += 1
-            windows = int(gate.get("window_count") or 0)
-            bucket = clearance_by_windows.setdefault(
-                windows, {"pages": 0, "cleared": 0}
-            )
-            bucket["pages"] += 1
-            if gate.get("outcome") == acq.GATE_CLEARED:
-                bucket["cleared"] += 1
-            chunks = row.get("chunk_encounters") or []
-            chunk_counts[len(chunks)] += 1
-            if len(chunks) >= _CHUNK_GRAIN_CROSSING and not any(
-                chunk.get("new_within_page") for chunk in chunks
-            ):
-                chunk_would_fire += 1
-            for attribution in row.get("attributions") or []:
-                rule_counts[str(attribution.get("rule") or "")] += 1
-                triviality_counts[str(attribution.get("triviality_rule") or "")] += 1
-                source_kind_counts[str(attribution.get("source_kind") or "")] += 1
-            counterfactual += len(row.get("counterfactual_credits") or [])
-            for credit in row.get("row_credits") or []:
-                row_guess_split[len(credit.get("columns_best_guess") or [])] += 1
-                subject_identities.add(str(credit.get("identity") or ""))
-            if (
-                row.get("counts_toward_verdict")
-                and not (row.get("attributions") or [])
-                and row.get("row_credit_max_columns_covered") == 0
-                and row.get("skip_reason") == ""
-            ):
-                key_only_pages += 1
-
-        exported_subjects = 0
-        for table, columns in self.crediter.basis.subject_key_columns.items():
-            rows = self.seed_tables.rows_by_name.get(table) or []
-            if columns:
-                exported_subjects += len(
-                    {
-                        tuple(str(row.get(column, "")) for column in columns)
-                        for row in rows
-                        if isinstance(row, Mapping)
-                    }
-                )
-        return {
-            "credit_semantics": CREDIT_SEMANTICS,
-            "criteria_projection_version": CRITERIA_PROJECTION_VERSION,
-            "pages_pulled": self.source_budget.spent,
-            "pages_with_detail": len(details),
-            "gate_outcomes": dict(gate_outcomes),
-            # P4E-c-11: a COUNT says whether the floor fired; the DISTRIBUTION
-            # says whether it could have fired at a nearby value, and the two
-            # configurations that produce the same count license opposite next
-            # moves. Zero below the floor means the floor was decorative on this
-            # configuration -- reported as the finding, never as "the gate
-            # worked".
-            "gate_score_deciles": {str(k): v for k, v in sorted(deciles.items())},
-            "gate_floor": RELEVANCE_SCORE_FLOOR,
-            # C48, second clause: WHY THIS ARTIFACT CARRIES NO AGREEMENT RATE
-            # BETWEEN THE RULE AND A LABEL. Its absence is a design consequence
-            # and must never read as an oversight, and the label must never be
-            # reintroduced to "restore" the number.
-            "no_rule_label_agreement_rate": (
-                "the page gate's prompt emits a specificity score and NO accept "
-                "or reject word, so no label exists to agree with and no "
-                "agreement rate is computable from any emitted field. This is "
-                "deliberate: a label the same model emitted alongside the score "
-                "would measure the model against itself, and re-adding one to "
-                "compute this number would re-create the decision edge 4E-c "
-                "removed. The deciles above are a DISTRIBUTION, not a ground "
-                "truth -- moving `gate_floor` until the below-floor count looks "
-                "right is fitting to a number with no referent. The floor moves "
-                "only on a blind re-derivation from the source chunk "
-                "(`evidence-verifier`), never on this histogram alone."
-            ),
-            # P4E-c-11b: max-over-windows is an order statistic whose
-            # expectation rises with N, and here N is document length. The
-            # change does not introduce that exposure; it makes it a number.
-            "clearance_by_window_count": {
-                str(k): v for k, v in sorted(clearance_by_windows.items())
-            },
-            # NOT A COUNTERFACTUAL OF THE FLOOR, and this says so. A page below
-            # the floor was never extracted, so its credits exist in no record
-            # and no counterfactual over this floor is computable from emitted
-            # data. Recomputing verdicts with below-floor pages treated as
-            # barren bounds the influence; it does not measure what the rule
-            # cost.
-            "gate_influence_is_a_bound_not_a_counterfactual": True,
-            "credit_rule_counts": dict(rule_counts),
-            "triviality_rule_counts": dict(triviality_counts),
-            "credit_source_kind_counts": dict(source_kind_counts),
-            "counterfactual_credit_count": counterfactual,
-            "counterfactual_reading": (
-                "the excluded columns could never have become datapoints, so an "
-                "empty counterfactual means the exclusion had nothing to remove "
-                "on this configuration and NEVER that it was unnecessary"
-            ),
-            # RC8: the second curve's height as a property of the sources or of
-            # the guesser. No rule reads this split.
-            "row_credit_guessed_column_counts": {
-                str(k): v for k, v in sorted(row_guess_split.items())
-            },
-            # RC9: construct-once freezes the subject-key COLUMN list, not the
-            # VALUES, and a kind-2 identity is over normalized values extracted
-            # per page. Identity churn at the outermost decision edge is legible
-            # here rather than inferred.
-            "distinct_row_credit_identities": len(subject_identities),
-            "distinct_exported_subject_keys": exported_subjects,
-            "subject_key_columns": {
-                table: list(columns)
-                for table, columns in self.crediter.basis.subject_key_columns.items()
-            },
-            # RC10: the one class of page the loop cannot see.
-            "extracted_pages_with_no_credit": key_only_pages,
-            # The gate's prose reaches the next query's literal text through
-            # `strategy_state._memory_terms`, and that chain is pre-existing and
-            # not this phase's to close. What this phase owes is that its
-            # narrowing does not WIDEN it, measured BY KIND rather than only by
-            # count: a term count that falls while column identifiers replace
-            # subject vocabulary would read as the safe direction while the
-            # query surface degrades. Two-sided -- zero declared-column-name
-            # terms means the narrowing did not change the kind of vocabulary in
-            # the chain, and that is the finding.
-            "memory_term_kinds": self._memory_term_kinds(),
-            # P4E-c-3: the chunk grain is UNBOUND and its verdict is replayed
-            # offline. If no page reaches the crossing the grain is inert on
-            # this configuration and that is the finding.
-            "chunk_counts": {str(k): v for k, v in sorted(chunk_counts.items())},
-            "chunk_grain_crossing": _CHUNK_GRAIN_CROSSING,
-            "pages_where_a_chunk_verdict_would_have_fired": chunk_would_fire,
-            "typed_credit_columns": sum(
-                1
-                for column in self.crediter.basis.columns
-                if column.value_type or column.unit
-            ),
-            "page_best_guess": {
-                "mode": self.config.page_best_guess_mode,
-                "reports": list(self._page_guess_reports),
-            },
-            "proposer": dict(self.proposer.ledger) if self.proposer else {},
-            # C37: the whole per-family map. `stranded_frontier_work` reports
-            # instances only for families that still hold pending tasks, so a
-            # family that opened and drained its queue appears nowhere in that
-            # list -- which is precisely the case the re-open bound is about.
-            "strategy_instances_opened": (
-                self.proposer.instances_opened() if self.proposer else {}
-            ),
-            "strategy_proposals": list(self._strategy_proposals),
-            "stranded_frontier_work": self._stranded_frontier_work(),
-            "hook_failures": list(self.hook_failures),
-            "search_provider_batch": dict(self.search_provider_batch),
-        }
-
-    def _memory_term_kinds(self) -> Dict[str, Any]:
-        """Terms entering the query-text chain, split by kind, per round.
-
-        A set test over data the run already holds: the two fields
-        `strategy_state._memory_terms` reads, against the declared column
-        vocabulary. It measures the chain; it does not gate it, and nothing
-        branches on the result.
-        """
-
-        declared = {
-            column.column.lower()
-            for column in self.crediter.basis.columns
-        } | {
-            str(name).lower()
-            for names in self.crediter.basis.subject_key_columns.values()
-            for name in names
-        }
-        by_round: Dict[int, Dict[str, int]] = {}
-        for outcome in self.search_outcomes:
-            if not isinstance(outcome, Mapping):
-                continue
-            round_index = _safe_int(outcome.get("round_index"), 0)
-            bucket = by_round.setdefault(
-                round_index, {"terms": 0, "declared_column_names": 0}
-            )
-            for decision in outcome.get("relevance_decisions") or []:
-                if not isinstance(decision, Mapping):
-                    continue
-                metadata = decision.get("metadata")
-                metadata = metadata if isinstance(metadata, Mapping) else {}
-                for key in ("matched_needs", "missing_needs"):
-                    for term in metadata.get(key) or []:
-                        bucket["terms"] += 1
-                        if str(term).strip().lower() in declared:
-                            bucket["declared_column_names"] += 1
-        return {
-            "declared_column_vocabulary": sorted(declared),
-            "by_round": {str(k): v for k, v in sorted(by_round.items())},
-        }
 
     def _orphan_partition(self) -> Dict[str, Any]:
         """P4E-c-10: the residual records partition the run's orphan delta.
@@ -8320,12 +6623,13 @@ genuinely separate view that is not covered by a listed target."""
             "question": self.config.question,
             "final_answer": answer,
             "assessment": assessment,
-            "rounds": len(self.rounds),
-            # PAGES PULLED, accepted or not. The budget charges every pulled
-            # page, so this is what `max_papers` bounds; `pages_accepted` is the
-            # other half and both are emitted so nothing is ambiguous. No figure
-            # here is compared against one from before the composition.
-            "papers_fetched": self.paper_count,
+            "strategies_completed": len(self.strategy_records),
+            # SOURCE UNITS PULLED, accepted or not. The budget charges every
+            # pulled page, so this is what `max_source_units` bounds;
+            # `pages_accepted` is the other half and both are emitted so
+            # nothing is ambiguous. No figure here is compared against one
+            # from before the composition.
+            "source_units_pulled": self.units_pulled,
             "pages_pulled": self.source_budget.spent,
             "pages_accepted": len(self.source_ingestion_ledger),
             "graph_nodes": self.graph.number_of_nodes(),
@@ -8357,7 +6661,7 @@ genuinely separate view that is not covered by a listed target."""
                 "tokens": len(criteria_missing_tokens()),
             },
             "acquisition": self.acquisition.export(),
-            "acquisition_summary": self._acquisition_run_summary(),
+            "acquisition_summary": self.provider_binding.run_summary(),
             "cost_accounting_version": COST_ACCOUNTING_VERSION,
             "cost_accounting_enabled": self.cost_accounting_enabled,
             "cost_records": self.cost_records,

@@ -18,6 +18,7 @@ import re
 import uuid
 from collections import Counter, OrderedDict
 from dataclasses import asdict, dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping, Optional, Sequence
 
@@ -65,7 +66,12 @@ class SearchTask:
     topic: str = "batch"
     expansion_op: str = "direct"
     gap: str = ""
-    round_index: int = 0
+    #: The Episode this task was minted under, when the producer knows it
+    #: (a completion probe, a task built inside a strategy's planning pass).
+    #: Attribution context only: it is excluded from :meth:`stable_id`, so the
+    #: same query minted under two episodes stays one task, and it is never a
+    #: continuation offset or an artifact identity.
+    episode_id: str = ""
     depth: int = 0
     #: Whether this task can produce accepted sources at all.
     #:
@@ -154,7 +160,8 @@ class SearchOutcome:
     topic: str = "batch"
     expansion_op: str = "direct"
     gap: str = ""
-    round_index: int = 0
+    #: Carried through from the task. Attribution context, never an ordinal.
+    episode_id: str = ""
     #: Carried through from the task, so a consumer reading outcomes never has
     #: to reach back to the task or match on `expansion_op` to know whether a
     #: zero acceptance count means "found nothing" or "cannot find anything".
@@ -168,7 +175,6 @@ class SearchOutcome:
     search_result_observations: list[dict[str, Any]] = field(default_factory=list)
     candidate_source_outcomes: list[dict[str, Any]] = field(default_factory=list)
     text_reductions: list[dict[str, Any]] = field(default_factory=list)
-    relevance_decisions: list[dict[str, Any]] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
     #: The provider/request limit that filled this search's result buffer.
     #: Provider-specific and observational: no stop rule reads it.
@@ -188,13 +194,13 @@ class SearchOutcome:
             topic=task.topic,
             expansion_op=task.expansion_op,
             gap=task.gap,
-            round_index=task.round_index,
+            episode_id=task.episode_id,
             yields_sources=task.yields_sources,
             metadata=dict(task.metadata),
             cost=zero_cost(
                 observation_kind=ObservationKind.SEARCH.value,
                 observation_id=task.id,
-                round_index=task.round_index,
+                episode_id=task.episode_id,
             ),
         )
 
@@ -202,43 +208,6 @@ class SearchOutcome:
         skipped = Counter(self.skipped_by_reason)
         skipped[reason] += count
         self.skipped_by_reason = dict(skipped)
-
-    def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
-
-
-@dataclass
-class SourceRelevanceDecision:
-    """The page gate's outcome, as a record. Nothing here is a model's verdict.
-
-    ``accept`` is written from ``acquisition.page_clears_relevance``'s returned
-    boolean -- the rule's outcome, not a label. **NO MODEL-EMITTED FIELD MAY
-    EVER BE WRITTEN INTO IT AGAIN**: this field used to be
-    ``bool(assessment["accept"])`` over a model's own accept/defer/reject word,
-    which put a model on the switch that decides whether a page is extracted,
-    hence on the numerator of the rule that decides whether to keep fetching.
-
-    The gate fields are carried so route 2 recomputes the decision from the
-    record without the pipeline, and so a later phase can set the floor from the
-    observed distribution rather than from the constant's docstring.
-
-    ``confidence`` IS RETIRED, NOT BACKFILLED. It was
-    ``judgment.fruitfulness_score``, and that score is no longer asked for --
-    its declared meaning was a progress estimate over the run's state rather
-    than a property of this page. It is deliberately NOT filled from
-    ``gate_score``: one number wearing two names, one of them "confidence", is
-    how a gate score acquires a second meaning nobody registered. No predicate
-    read it, and that is what must stay true.
-    """
-
-    accept: bool
-    reason: str = ""
-    #: The reported score the rule compared. ``None`` when none arrived.
-    gate_score: float | None = None
-    gate_floor: float = 0.0
-    gate_outcome: str = ""
-    gate_rule: str = ""
-    metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -253,20 +222,12 @@ class HarvestCandidate:
 
 
 class SearchFrontier:
-    """Queue search tasks while optionally deduplicating across waves."""
+    """Persistent queue of search tasks, deduplicated across strategies."""
 
-    def __init__(self, *, mode: str = "batch"):
-        if mode not in {"batch", "persistent"}:
-            raise ValueError("search frontier mode must be 'batch' or 'persistent'")
-        self.mode = mode
+    def __init__(self):
         self._pending: OrderedDict[str, SearchTask] = OrderedDict()
-        self._sequence = 0
         self._seen_task_ids: set[str] = set()
         self.outcomes: list[SearchOutcome] = []
-
-    @property
-    def persistent(self) -> bool:
-        return self.mode == "persistent"
 
     @property
     def pending_count(self) -> int:
@@ -276,7 +237,6 @@ class SearchFrontier:
         self,
         queries: Iterable[str],
         *,
-        round_index: int,
         topic: str,
         expansion_op: str,
         parent_id: Optional[str] = None,
@@ -297,7 +257,6 @@ class SearchFrontier:
                 parent_id=parent_id,
                 topic=topic,
                 expansion_op=expansion_op,
-                round_index=round_index,
                 producer_class=producer_class or topic,
             )
             for query in queries
@@ -309,10 +268,9 @@ class SearchFrontier:
         for task in tasks:
             if not task.query:
                 continue
-            if self.persistent and task.id in self._seen_task_ids:
+            if task.id in self._seen_task_ids:
                 continue
-            pending_key = task.id if self.persistent else f"{self._sequence}:{task.id}"
-            self._sequence += 1
+            pending_key = task.id
             self._pending[pending_key] = task
             self._seen_task_ids.add(task.id)
             accepted.append(task)
@@ -358,7 +316,6 @@ class SearchFrontier:
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "mode": self.mode,
             "pending_tasks": len(self._pending),
             "pending_task_records": [
                 task.to_dict()
@@ -373,8 +330,8 @@ class SearchFrontier:
 class PreparedPage:
     """One page's mechanical preparation: the candidate, or why there is none.
 
-    ``fate`` is one of ``acquisition``'s declared pre-gate fate labels, or
-    ``""`` when the page is ready to be gated. THIS MODULE REPORTS THE FACT AND
+    ``fate`` is one of ``acquisition``'s declared pre-extraction fate labels, or
+    ``""`` when the page is ready for extraction. THIS MODULE REPORTS THE FACT AND
     MINTS NO FATE CLASS: what a fate means for ``(active,
     counts_toward_verdict)`` is decided once, in ``acquisition``, because two
     modules holding opinions about that is how a model's boolean ended up on the
@@ -399,20 +356,20 @@ class SearchHarvester:
     def __init__(
         self,
         *,
-        papers_dir: Path,
+        sources_dir: Path,
         seen_urls: set[str],
         scrape_fn: Optional[ScrapeFn] = None,
-        min_paper_length: int = 500,
-        max_paper_length: Optional[int] = None,
-        max_extraction_chars_per_paper: Optional[int] = None,
+        min_source_length: int = 500,
+        max_source_length: Optional[int] = None,
+        max_extraction_chars_per_source: Optional[int] = None,
         extract_text_fn: Callable[[dict[str, Any]], str] = extract_text_from_result,
     ):
         self.scrape_fn = scrape_fn
-        self.papers_dir = papers_dir
+        self.sources_dir = sources_dir
         self.seen_urls = seen_urls
-        self.min_paper_length = min_paper_length
-        self.max_paper_length = max_paper_length
-        self.max_extraction_chars_per_paper = max_extraction_chars_per_paper
+        self.min_source_length = min_source_length
+        self.max_source_length = max_source_length
+        self.max_extraction_chars_per_source = max_extraction_chars_per_source
         self.extract_text_fn = extract_text_fn
 
     def prepare_page(
@@ -458,12 +415,12 @@ class SearchHarvester:
                 outcome, result, rank=rank, fate="blocked_page", text_length=len(text)
             )
             return PreparedPage(fate="blocked_page", text_length=len(text))
-        if len(text) < self.min_paper_length:
+        if len(text) < self.min_source_length:
             self.record_candidate_outcome(
                 outcome, result, rank=rank, fate="too_short", text_length=len(text)
             )
             return PreparedPage(fate="too_short", text_length=len(text))
-        if self.max_paper_length is not None and len(text) > self.max_paper_length:
+        if self.max_source_length is not None and len(text) > self.max_source_length:
             self.record_candidate_outcome(
                 outcome, result, rank=rank, fate="too_large", text_length=len(text)
             )
@@ -472,7 +429,7 @@ class SearchHarvester:
         text, reduction = reduce_text_to_relevant_windows(
             text,
             task.query,
-            max_chars=self.max_extraction_chars_per_paper,
+            max_chars=self.max_extraction_chars_per_source,
         )
         return PreparedPage(
             candidate=HarvestCandidate(
@@ -484,14 +441,22 @@ class SearchHarvester:
             text_length=len(text),
         )
 
-    def write_paper(
+    def write_source(
         self,
         task: SearchTask,
         candidate: HarvestCandidate,
         outcome: SearchOutcome,
         *,
         rank: int | None = None,
+        episode_id: str = "",
     ) -> dict[str, Any]:
+        """Persist one accepted source unit.
+
+        ``episode_id`` is the search Episode that acquired it — the acceptance
+        identity a later credit joins on, replacing the round stamp the record
+        used to carry.
+        """
+
         result = candidate.result
         url = candidate.url
         text = candidate.text
@@ -499,17 +464,17 @@ class SearchHarvester:
 
         if url:
             self.seen_urls.add(url)
-        paper_id = str(uuid.uuid4())
-        (self.papers_dir / f"{paper_id}.txt").write_text(text, encoding="utf-8")
-        outcome.accepted_source_ids.append(paper_id)
+        source_id = str(uuid.uuid4())
+        (self.sources_dir / f"{source_id}.txt").write_text(text, encoding="utf-8")
+        outcome.accepted_source_ids.append(source_id)
         if url:
             outcome.accepted_urls.append(url)
         if reduction:
-            reduction["source_id"] = paper_id
+            reduction["source_id"] = source_id
             reduction["url"] = url
             outcome.text_reductions.append(reduction)
-        paper = {
-            "id": paper_id,
+        record = {
+            "id": source_id,
             "text": text,
             "url": url,
             "title": result.get("title", ""),
@@ -520,35 +485,36 @@ class SearchHarvester:
             "source_query": task.query,
             "search_task_id": task.id,
             "search_topic": task.topic,
-            "search_round_index": task.round_index,
+            "search_episode_id": str(episode_id or task.episode_id or ""),
             "search_expansion_op": task.expansion_op,
             "search_gap": task.gap,
             "search_metadata": dict(task.metadata),
             "search_task": task.to_dict(),
+            "accepted_at": datetime.now(timezone.utc).isoformat(),
         }
-        source_record = {
+        sidecar = {
             key: value
-            for key, value in paper.items()
+            for key, value in record.items()
             if key != "text"
         }
-        (self.papers_dir / f"{paper_id}.json").write_text(
-            json.dumps(source_record, indent=2, default=str),
+        (self.sources_dir / f"{source_id}.json").write_text(
+            json.dumps(sidecar, indent=2, default=str),
             encoding="utf-8",
         )
-        with (self.papers_dir / "sources.jsonl").open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(source_record, default=str) + "\n")
+        with (self.sources_dir / "sources.jsonl").open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(sidecar, default=str) + "\n")
         self.record_candidate_outcome(
             outcome,
             result,
             rank=rank,
             fate="accepted",
-            source_id=paper_id,
+            source_id=source_id,
             text_length=len(text),
         )
-        return paper
+        return record
 
     def record_outcome(self, outcome: SearchOutcome) -> None:
-        with (self.papers_dir / "search_outcomes.jsonl").open(
+        with (self.sources_dir / "search_outcomes.jsonl").open(
             "a",
             encoding="utf-8",
         ) as handle:
@@ -560,7 +526,7 @@ class SearchHarvester:
     ) -> None:
         if not summaries:
             return
-        with (self.papers_dir / "prompt_arm_summaries.jsonl").open(
+        with (self.sources_dir / "prompt_arm_summaries.jsonl").open(
             "a",
             encoding="utf-8",
         ) as handle:
@@ -755,7 +721,6 @@ def _new_prompt_arm_summary(
     metadata: Mapping[str, Any],
 ) -> dict[str, Any]:
     return {
-        "round_index": outcome.round_index,
         "target_id": metadata.get("target_id", ""),
         "target_table": metadata.get("target_table", ""),
         "strategy_attempt_id": (
@@ -794,7 +759,6 @@ def _new_prompt_arm_summary(
 
 def _finalize_prompt_arm_summary(group: Mapping[str, Any]) -> dict[str, Any]:
     return {
-        "round_index": group.get("round_index"),
         "target_id": group.get("target_id", ""),
         "target_table": group.get("target_table", ""),
         "strategy_attempt_id": group.get("strategy_attempt_id", ""),
@@ -899,7 +863,6 @@ def reduce_text_to_relevant_windows(
 def table_gap_search_tasks(
     rows: Iterable[dict[str, Any]],
     *,
-    round_index: int,
     max_tasks: int,
 ) -> list[SearchTask]:
     """Build deterministic search tasks from table gap rows."""
@@ -934,7 +897,6 @@ def table_gap_search_tasks(
                     topic=topic,
                     gap=str(evidence_gap or gap_type or missing),
                     expansion_op="table_gap",
-                    round_index=round_index,
                     # NO PROMPT ARM, BY DECLARATION. A gap task is derived from
                     # a row's own reported gap and has no delta, no hypothesis
                     # and no sibling; minting a synthetic arm id for it would
@@ -1109,13 +1071,22 @@ def _seed_search_outcome_files(root: Path) -> list[Path]:
 
 
 def _seed_frontier_files(root: Path) -> list[Path]:
+    """Frontier-bearing artifacts under a run directory.
+
+    Named artifact families only: per-strategy Episode records
+    (``strategy_*.json``) and the goal layer's ``*_stop_criteria.json``, both
+    of which carry pending-task lists. Nothing here infers continuation from
+    numbered round files; that loader family is deleted with the round concept.
+    """
+
     if root.is_file():
         return [root]
 
     candidates: list[Path] = []
     for directory in (root, root / "answers", root / "answers" / "goals"):
         if directory.exists():
-            candidates.extend(directory.glob("round_*.json"))
+            candidates.extend(directory.glob("strategy_*.json"))
+            candidates.extend(directory.glob("*_stop_criteria.json"))
     return sorted(set(candidates))
 
 
@@ -1166,7 +1137,6 @@ def _search_task_from_record(payload: Any) -> Optional[SearchTask]:
         topic=str(payload.get("topic") or "batch"),
         expansion_op=str(payload.get("expansion_op") or "direct"),
         gap=str(payload.get("gap") or ""),
-        round_index=int(payload.get("round_index") or 0),
         depth=int(payload.get("depth") or 0),
         metadata=dict(metadata),
     )

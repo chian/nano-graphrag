@@ -13,6 +13,17 @@
 > `IncidenceEstimate`; its rarefied role is required, and bias-corrected
 > incidence Chao2 internally fills the expected and remaining roles. Read
 > mutation ideas from here and the method from the charter.
+>
+> Historical sequences below that ingest provider results into a graph, invoke
+> GASL afterward, or place table materialization inside one round are not
+> implementation instructions. In the current method, Firecrawl and GASL are
+> peer search types; graph addition is a separate human-mediated completed-run
+> merge boundary; table compilation is a versioned state transformation, not
+> an Episode.
+>
+> Round removal (2026-08-31): the round concept is deleted from the live tree.
+> Where this file speaks of rounds or per-round artifacts, the live semantics
+> are Episode identity and Episode-owned attribution per the charter.
 
 ## Purpose
 
@@ -410,7 +421,7 @@ One round includes:
 1. completion assessment
 2. deficit selection
 3. search planning
-4. search execution and source gating
+4. search execution and source acquisition
 5. source ingestion into the graph
 6. graph traversal and operational table materialization
 7. best-guess action and candidate diagnostics; typed derived evidence remains
@@ -468,9 +479,9 @@ The pseudo-gradient is contrastive inference-time evidence over prompt arms.
 
 It is not training and it is not reinforcement learning. It is the compact
 comparison that tells the next planner prompt which prompt deltas found
-non-overlapping useful evidence, which deltas returned only duplicates, which
-deltas drifted off axis, and which deltas found promising sources that failed
-to support the target criteria.
+non-overlapping useful evidence, which deltas returned only duplicates, and
+which deltas found promising sources that failed to support the target
+criteria.
 
 ## Durable Identifiers
 
@@ -522,7 +533,7 @@ The harvester must not infer prompt-arm provenance from query text.
    action, decision-snapshot, target-basis-snapshot, criterion, experiment,
    target-deficit, evolution, arm, and query-index provenance.
 6. Extend `SearchOutcome` so zero-hit counts, result observations, candidate
-   fates, accepted sources, duplicate URLs, and gate costs are grouped under
+   fates, accepted sources, duplicate URLs, and acquisition costs are grouped under
    the originating arm.
 7. Persist per-query raw outcomes for replay without losing arm grouping.
 8. Persist per-arm summaries under the current outer round artifact directory.
@@ -543,10 +554,9 @@ The harvester must not infer prompt-arm provenance from query text.
     immediate arm contrast is available.
 16. Thread prompt-arm metadata through `SearchFrontier` enqueueing so the
     harvester does not need to infer provenance from query text.
-17. Run prompt-arm searches through the existing external-search harvester and
-    source relevance gate.
+17. Run prompt-arm searches through the external-search harvester.
 18. Record candidate URL fates including duplicate, blocked, too short, too
-    large, off-axis by gate, and accepted.
+    large, extraction failure, and accepted.
 19. Keep accepted source IDs linked to the arm that found them through paper
     writing and graph ingestion.
 20. Attribute graph node and edge deltas back to accepted sources and therefore
@@ -559,8 +569,8 @@ The harvester must not infer prompt-arm provenance from query text.
     unless a future typed derived-analysis assertion passes the ordinary
     criteria transition after projection.
 23. Score each prompt arm from reward-v7 supported/resolved semantic-claim yield
-    and bounded semantic-claim/canonical-source yield, with duplicate, off-axis,
-    and cost penalties. Do not score operational record, accepted-source,
+    and bounded semantic-claim/canonical-source yield, with duplicate and cost
+    penalties. Do not score operational record, accepted-source,
     graph-delta, source-local-only, or best-guess counts as goodness.
 24. Write arm scores into durable target search memory for the next evolution
     step in the same outer round.
@@ -593,7 +603,7 @@ The harvester must not infer prompt-arm provenance from query text.
 | 19 | Coded | Accepted source IDs are recorded on the originating concrete query outcome and preserved in arm summaries. |
 | 20 | Partial | The current diagnostic still stores graph node and edge deltas at target-outcome granularity; exact source-to-graph attribution is still a follow-up. |
 | 21-22 | Partial: reported-assertion attribution and PROCESS preservation are coded; semantic best guess is not | After GASL, newly supported criteria can be attributed only through registered reported assertions and exact assertion/evidence/versioned-source support units. `static_best_guess_v2`, `best_guess_binding_v4`, `in_process_v1`, and `persisted_action_join_v1` preserve operational decisions, candidates, and ledger joins, but no typed derived analysis or derived assertion is registered, so these artifacts do not currently enter semantic support. PROCESS preserves only an already registered exact field/value/anchor binding; it does not create one. Transformations, best-guess rekey, and derived supersession remain fail-closed and unimplemented. |
-| 23 | Partial; not reward-v7 aligned | Prompt arms are currently scored from target-bound source-local criterion and canonical-source-pair hits. The reward-v7 semantic transition is not yet joined to each arm, so unprojected local support can affect this heuristic. Duplicate, off-axis, and action-cost penalties are also absent. |
+| 23 | Partial; not reward-v7 aligned | Prompt arms are currently scored from target-bound source-local criterion and canonical-source-pair hits. The reward-v7 semantic transition is not yet joined to each arm, so unprojected local support can affect this heuristic. Duplicate and action-cost penalties are also absent. |
 | 24 | Coded | Prompt-arm scores and contrasts are persisted in target search memory for the next evolution. |
 | 25 | Coded | Search memory is refreshed after immediate search and again after delayed criteria-transition attribution. |
 | 26 | Partial | Target-operator routing consumes aggregate source-local criterion/pair yield for the latest attempt. It does not consume reward-v7 semantic yield or choose a mutation family from nested arm contrast. |
@@ -676,7 +686,7 @@ Implementation status and evidence of effectiveness are separate:
 
 - `coded` means only that an implementation exists;
 - real-artifact replay can inspect an actual prior trajectory;
-- a real external run can observe current search, gating, ingestion, and
+- a real external run can observe current search, acquisition, ingestion, and
   criterion transitions;
 - effectiveness requires the intended supported/unresolved criterion outcomes
   with exact decision/action attribution.

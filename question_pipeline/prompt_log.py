@@ -15,7 +15,7 @@ instruction survived a cleanup for exactly that reason, sitting in the system
 prompt while the user prompt said the opposite. Recording one and not the other
 would rebuild that blind spot in the artifact.
 
-NO TRUNCATION. Prompts are large and there are many per round, so the volume is
+NO TRUNCATION. Prompts are large and there are many per Episode, so the volume is
 real. It is answered with one file per call rather than with a slice: a clipped
 prompt record is worse than no record, because it looks complete and a reader
 comparing two arms would be comparing two prefixes. The manifest carries a
@@ -33,15 +33,16 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterator, Mapping, Optional
 
-PROMPT_LOG_VERSION = "prompt_log_v1"
+PROMPT_LOG_VERSION = "prompt_log_v2"
 
 
 @dataclass
 class PromptScope:
-    """Where prompt records go, and what round they belong to."""
+    """Where prompt records go, and which Episode owns them."""
 
     directory: Path
-    round_index: int | str | None = None
+    episode_id: str
+    episode_path: tuple[tuple[str, str], ...] = ()
     prompt_arm: Mapping[str, Any] | None = None
     sequence: int = 0
     records: list[dict[str, Any]] = field(default_factory=list)
@@ -73,14 +74,16 @@ def _caller_site(depth: int = 3) -> str:
 def prompt_scope(
     directory: Path | str,
     *,
-    round_index: int | str | None = None,
+    episode_id: str,
+    episode_path: tuple[tuple[str, str], ...] = (),
     prompt_arm: Mapping[str, Any] | None = None,
 ) -> Iterator[PromptScope]:
     """Record every prompt sent inside this block into ``directory``."""
 
     scope = PromptScope(
         directory=Path(directory),
-        round_index=round_index,
+        episode_id=str(episode_id),
+        episode_path=tuple((str(grain), str(key)) for grain, key in episode_path),
         prompt_arm=dict(prompt_arm) if prompt_arm else None,
     )
     token = _ACTIVE.set(scope)
@@ -94,20 +97,20 @@ def prompt_scope(
 def open_scope(
     directory: Path | str,
     *,
-    round_index: int | str | None = None,
+    episode_id: str,
+    episode_path: tuple[tuple[str, str], ...] = (),
     prompt_arm: Mapping[str, Any] | None = None,
 ) -> Any:
     """Open a scope without a `with` block, returning a token to close it.
 
-    The round loop's body is long and already deeply indented; wrapping it in a
-    context manager would mean re-indenting it, which is a large diff for no
-    behavioural gain and a real chance of moving a line into or out of the
-    block by accident. `close_scope` writes the manifest.
+    This lower-level form exists for callers whose Episode lifecycle already
+    owns the surrounding control flow. `close_scope` writes the manifest.
     """
 
     scope = PromptScope(
         directory=Path(directory),
-        round_index=round_index,
+        episode_id=str(episode_id),
+        episode_path=tuple((str(grain), str(key)) for grain, key in episode_path),
         prompt_arm=dict(prompt_arm) if prompt_arm else None,
     )
     return _ACTIVE.set(scope)
@@ -161,7 +164,8 @@ def record_prompt(
     payload = {
         "prompt_log_version": PROMPT_LOG_VERSION,
         "sequence": scope.sequence,
-        "round_index": scope.round_index,
+        "episode_id": scope.episode_id,
+        "episode_path": [list(segment) for segment in scope.episode_path],
         "call_site": site,
         "attempt": attempt,
         "tier": tier,
@@ -177,7 +181,8 @@ def record_prompt(
 
     entry = {
         "sequence": scope.sequence,
-        "round_index": scope.round_index,
+        "episode_id": scope.episode_id,
+        "episode_path": [list(segment) for segment in scope.episode_path],
         "call_site": site,
         "attempt": attempt,
         "tier": tier,
@@ -202,7 +207,8 @@ def _write_manifest(scope: PromptScope) -> None:
     scope.directory.mkdir(parents=True, exist_ok=True)
     manifest = {
         "prompt_log_version": PROMPT_LOG_VERSION,
-        "round_index": scope.round_index,
+        "episode_id": scope.episode_id,
+        "episode_path": [list(segment) for segment in scope.episode_path],
         "recorded_calls": len(scope.records),
         "total_prompt_chars": sum(r["prompt_chars"] for r in scope.records),
         "storage": "one file per provider call; prompts recorded in full",

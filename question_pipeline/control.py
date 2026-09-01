@@ -77,7 +77,6 @@ __all__ = [
     "StaticTableFillPolicy",
     "execution_error_stop_decision",
     "terminal_no_action_stop_decision",
-    "round_budget_stop_decision",
     "orchestration_stop_override",
     "resolve_stop_decision",
     "normalize_query",
@@ -131,10 +130,18 @@ def canonical_subject_identity(columns) -> tuple[str, ...]:
     return ()
 
 
-CONTROL_VOCABULARY_VERSION = "control_v1"
-POLICY_STATE_VERSION = "policy_state_v1"
-STOP_CONTEXT_VERSION = "stop_context_v1"
-STOP_POLICY_STATE_VERSION = "stop_policy_state_v1"
+#: ``v1`` -> ``v2``: the round vocabulary is gone. Candidates, decision
+#: contexts, and stop contexts carry ``episode_id`` -- the Episode whose
+#: planning pass minted or consulted them -- where ``round_index`` used to sit,
+#: and the round-budget stop concept (``ROUND_BUDGET_EXHAUSTED``,
+#: ``round_budget_available``) is deleted rather than renamed: there is no
+#: round budget, only the Episode compositions' own verdicts and the declared
+#: unit bound. Every stable ID minted under ``v1`` is incomparable with a
+#: ``v2`` ID, which is the intended way a cross-version join fails.
+CONTROL_VOCABULARY_VERSION = "control_v2"
+POLICY_STATE_VERSION = "policy_state_v2"
+STOP_CONTEXT_VERSION = "stop_context_v2"
+STOP_POLICY_STATE_VERSION = "stop_policy_state_v2"
 
 #: Length of the hex prefix :func:`_stable_id` returns.
 STABLE_ID_LENGTH = 16
@@ -173,14 +180,13 @@ class ActionOrigin(str, Enum):
 
 
 class StopReason(str, Enum):
-    """The closed set of reasons the round loop continues or halts."""
+    """The closed set of reasons run continuation continues or halts."""
 
     CONTINUE = "continue"
     GOAL_FULFILLED = "task_goal_fulfilled"
 
     SOURCE_BUDGET_EXHAUSTED = "source_budget_exhausted"
     FRONTIER_EXHAUSTED = "search_frontier_exhausted"
-    ROUND_BUDGET_EXHAUSTED = "round_budget_exhausted"
     EXECUTION_ERROR = "execution_error"
 
 
@@ -239,7 +245,6 @@ _EXECUTION_STATUS = {
     StopReason.GOAL_FULFILLED: "finished",
     StopReason.SOURCE_BUDGET_EXHAUSTED: "halted_source_budget",
     StopReason.FRONTIER_EXHAUSTED: "halted_frontier",
-    StopReason.ROUND_BUDGET_EXHAUSTED: "halted_round_budget",
     StopReason.EXECUTION_ERROR: "halted_execution_error",
 }
 
@@ -572,7 +577,9 @@ class ActionCandidate:
 
     id: str
     surface: ControlSurface
-    round_index: int
+    #: The Episode whose planning pass minted this candidate ("" at bootstrap,
+    #: before any Episode has opened). Attribution, never an ordinal.
+    episode_id: str
     operator: OperatorRef = field(default_factory=OperatorRef)
     attempt: AttemptRef = field(default_factory=AttemptRef)
     prompt_arm: PromptArmRef = field(default_factory=PromptArmRef)
@@ -606,7 +613,7 @@ class ActionCandidate:
         return {
             "control_action_id": self.id,
             "control_surface": self.surface.value,
-            "round_index": self.round_index,
+            "episode_id": self.episode_id,
             "action_origin": self.origin.value,
             **self.operator.to_metadata(),
             **self.attempt.to_metadata(),
@@ -617,7 +624,7 @@ class ActionCandidate:
         return {
             "id": self.id,
             "surface": self.surface.value,
-            "round_index": self.round_index,
+            "episode_id": self.episode_id,
             "operator": self.operator.to_dict(),
             "attempt": self.attempt.to_dict(),
             "prompt_arm": self.prompt_arm.to_dict(),
@@ -640,7 +647,7 @@ class SearchCandidate(ActionCandidate):
         *,
         surface: ControlSurface,
         query: str,
-        round_index: int,
+        episode_id: str = "",
         operator: OperatorRef | None = None,
         attempt: AttemptRef | None = None,
         prompt_arm: PromptArmRef | None = None,
@@ -654,14 +661,14 @@ class SearchCandidate(ActionCandidate):
         prompt_arm = prompt_arm or PromptArmRef()
         collapsed = " ".join(str(query or "").split())
         identity = {
-            **_base_identity(surface, round_index, operator, attempt, prompt_arm),
+            **_base_identity(surface, episode_id, operator, attempt, prompt_arm),
             "query": normalize_query(collapsed),
             "target": target.key if target is not None else "",
         }
         return cls(
             id=_stable_id(identity),
             surface=surface,
-            round_index=_int(round_index),
+            episode_id=_text(episode_id),
             operator=operator,
             attempt=attempt,
             prompt_arm=prompt_arm,
@@ -747,7 +754,7 @@ class PathCandidate(ActionCandidate):
     def create(
         cls,
         *,
-        round_index: int,
+        episode_id: str = "",
         route: Sequence[RouteStep] = (),
         terminal: TerminalRef | None = None,
         target: TargetRef | None = None,
@@ -768,7 +775,7 @@ class PathCandidate(ActionCandidate):
         prompt_arm = prompt_arm or PromptArmRef()
         steps = tuple(route)
         identity = {
-            **_base_identity(surface, round_index, operator, attempt, prompt_arm),
+            **_base_identity(surface, episode_id, operator, attempt, prompt_arm),
             "route": [list(step.identity) for step in steps],
             "terminal": (terminal.id or terminal.name) if terminal else "",
             "target": target.key if target is not None else "",
@@ -777,7 +784,7 @@ class PathCandidate(ActionCandidate):
         return cls(
             id=_stable_id(identity),
             surface=surface,
-            round_index=_int(round_index),
+            episode_id=_text(episode_id),
             operator=operator,
             attempt=attempt,
             prompt_arm=prompt_arm,
@@ -879,16 +886,20 @@ class DecisionContext:
     """Everything a ranking policy is allowed to see at one surface."""
 
     surface: ControlSurface
-    round_index: int
+    #: The Episode whose planning pass this decision belongs to ("" at
+    #: bootstrap). Attribution, never an ordinal.
+    episode_id: str
     max_actions: int
     pending_actions: int = 0
+    #: Source units the run may still pull. ``-1`` means the run declared no
+    #: unit bound at all -- unbounded is stated, never spelled as zero.
     remaining_source_budget: int = 0
     criteria_snapshot_id: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "surface": self.surface.value,
-            "round_index": self.round_index,
+            "episode_id": self.episode_id,
             "max_actions": self.max_actions,
             "pending_actions": self.pending_actions,
             "remaining_source_budget": self.remaining_source_budget,
@@ -1016,13 +1027,14 @@ class PolicyDecision:
 class StopContext:
     """The inputs a stop decision is entitled to read."""
 
-    round_index: int | str | None = None
+    #: The Episode whose completion this stop decision follows ("" when the
+    #: run stops before any Episode opened).
+    episode_id: str = ""
     goal_mode: bool = False
     goal_fulfilled: bool = False
     source_budget_available: bool = True
     frontier_pending: int = 0
     frontier_required: bool = False
-    round_budget_available: bool = True
     criteria_snapshot_id: str = ""
     criteria_transition_id: str = ""
     required_unresolved_criterion_ids: tuple[str, ...] = ()
@@ -1048,8 +1060,6 @@ class StopContext:
         fulfilled goal is a policy judgement; an empty budget is not.
         """
 
-        if not self.round_budget_available:
-            return True
         if not self.source_budget_available:
             return True
         if self.frontier_required and self.frontier_pending <= 0:
@@ -1059,14 +1069,13 @@ class StopContext:
     def to_dict(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
             "stop_context_version": STOP_CONTEXT_VERSION,
-            "round_index": self.round_index,
+            "episode_id": self.episode_id,
             "goal_mode": self.goal_mode,
             "goal_fulfilled": self.goal_fulfilled,
 
             "source_budget_available": self.source_budget_available,
             "frontier_pending": self.frontier_pending,
             "frontier_required": self.frontier_required,
-            "round_budget_available": self.round_budget_available,
             "criteria_snapshot_id": self.criteria_snapshot_id,
             "criteria_transition_id": self.criteria_transition_id,
             "required_unresolved_criterion_ids": list(
@@ -1188,28 +1197,15 @@ def terminal_no_action_stop_decision(context: StopContext) -> StopDecision:
     elif context.frontier_required and context.frontier_pending <= 0:
         reason = StopReason.FRONTIER_EXHAUSTED
     else:
-        reason = StopReason.ROUND_BUDGET_EXHAUSTED
+        # ``is_terminal`` is defined by exactly the two conditions above, so
+        # reaching here means the context lied about being terminal.  Loud,
+        # never a default reason.
+        raise ValueError("terminal stop context carries no terminal condition")
     return _stop_decision(
         context,
         stop=True,
         reason=reason,
         policy_name="terminal_execution_guard_v1",
-        orchestration_owned=True,
-    )
-
-
-def round_budget_stop_decision(context: StopContext) -> StopDecision:
-    """Orchestration-owned stop at the physical outer-round cap."""
-
-    if context.has_execution_error or context.round_budget_available:
-        raise ValueError(
-            "the round-budget stop guard requires an error-free exhausted cap"
-        )
-    return _stop_decision(
-        context,
-        stop=True,
-        reason=StopReason.ROUND_BUDGET_EXHAUSTED,
-        policy_name="round_budget_guard_v1",
         orchestration_owned=True,
     )
 
@@ -1228,11 +1224,11 @@ def resolve_stop_decision(
     context: StopContext,
     policy: "TableFillControlPolicy",
 ) -> StopDecision:
-    """Resolve the stop for one round, guards outranking the policy.
+    """Resolve run continuation after one completed Episode, guards first.
 
     This is the only entry point orchestration should call.  Calling
     ``policy.decide_stop`` directly would let a custom policy record
-    ``continue`` on a round the loop is about to exit, which makes the ledger
+    ``continue`` on a run the composition is about to exit, which makes the ledger
     disagree with what happened -- and a ledger that disagrees with the run is
     worse than no ledger.
     """
@@ -1360,11 +1356,6 @@ class StaticTableFillPolicy:
         ):
             return self._decision(context, True, StopReason.FRONTIER_EXHAUSTED)
 
-        if not context.round_budget_available:
-            return self._decision(
-                context, True, StopReason.ROUND_BUDGET_EXHAUSTED
-            )
-
         return self._decision(context, False, StopReason.CONTINUE)
 
     def _decision(
@@ -1437,7 +1428,7 @@ def normalize_query(value: str) -> str:
 
 def _base_identity(
     surface: ControlSurface,
-    round_index: int,
+    episode_id: str,
     operator: OperatorRef,
     attempt: AttemptRef,
     prompt_arm: PromptArmRef,
@@ -1446,7 +1437,7 @@ def _base_identity(
 
     return {
         "surface": surface.value,
-        "round_index": _int(round_index),
+        "episode_id": _text(episode_id),
         "operator": operator.name,
         "attempt": attempt.id,
         "prompt_arm": prompt_arm.id,

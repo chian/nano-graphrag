@@ -52,24 +52,30 @@ These are the operator's instructions, and each agent definition under
 
 ## Question pipeline runs
 
-> **Runs at this commit — re-verified 2026-08-17.** The previous banner here
-> said `run_question_pipeline.py` raised `TypeError` before any search ran,
-> because it passed four keys `PipelineConfig` did not accept. That is no longer
-> true and has not been for some time: `evidence_corpus_roots` is now a real
-> `PipelineConfig` field that the runner passes correctly, and the other three
-> (`goal_catalog_search_tasks`, `goal_catalog_evolutions_per_round`,
-> `evidence_replay_source_ids`) are no longer passed at all.
+> **Runs at this commit — re-verified 2026-08-31, after the round removal.**
+> There is no round concept in the runner or the pipeline: `--max-rounds`,
+> `--queries-per-round`, `--answer-mode`, and `--best-guess-max-tasks` are
+> gone (a run that passes them fails at the parser), and the one
+> operator-declared run-wide bound is `--max-source-units` — source units
+> PULLED from result lists, default `0` meaning UNBOUNDED; a declared bound
+> that cuts a run reports `bound_hit`, never convergence. The medium-neutral
+> length flags are `--min-source-length`, `--max-source-length`, and
+> `--max-extraction-chars-per-source`. Continuation is the Episode verdicts
+> plus the typed stop conditions, and artifacts are named by Episode identity
+> (`answers/strategy_<episode_id>.json`, `graphs/<episode_id>.graphml`).
 >
 > Re-verified by building a config through the runner's own `main()` argument
 > parser and stopping at `build_config`:
-> `--question probe --pipeline-mode table-fill --max-rounds 5` yields
-> `max_rounds=5, pipeline_mode=table_fill, answer_mode=table`. The examples
-> below execute as written.
+> `--question probe --pipeline-mode table-fill` yields
+> `pipeline_mode=table_fill, answer_mode=table, max_source_units=0,
+> episode_unit_safety_cap=1000000`, and `PipelineConfig` no longer carries
+> `max_rounds`, `max_papers`, or `best_guess_max_tasks`. The examples below
+> execute as written.
 >
-> Recorded because the stale banner was actively harmful rather than merely
-> out of date: it told every agent that live runs were impossible, which is a
-> false blocker on exactly the work that needs authorizing. A doc that says
-> "you cannot run" is worse than no doc.
+> Recorded because a stale banner here was actively harmful once before: it
+> told every agent that live runs were impossible, which is a false blocker on
+> exactly the work that needs authorizing. A doc that says "you cannot run"
+> is worse than no doc.
 
 `run_question_pipeline.py` drives the question-driven search/extract/answer loop
 in `question_pipeline/`. Its module docstring carries current, working examples;
@@ -83,7 +89,12 @@ prefer those over reconstructing flags.
 - `--pipeline-mode table-fill` is the aggregation loop. Continue prior work with
   `--graph-path`, `--seed-tables-dir`, and `--seed-sources-dir` pointed at an
   earlier run rather than starting over.
-- Search requires `FIRECRAWL_API_KEY`.
+- The documented Firecrawl binding and its foundational live experiment
+  require `FIRECRAWL_API_KEY`. This is not a restriction on the method:
+  Firecrawl and GASL remain peer search types, each composed from `Episode` and
+  each owning its own rarefaction state. GASL reads one explicitly supplied
+  immutable graph revision and never implies that provider results were added
+  to it.
 
 ### Module boundaries
 
@@ -96,7 +107,7 @@ directory before relying on either list.
 
 | Module | Lines | Owns |
 | --- | --- | --- |
-| `pipeline.py` | 4437 | Episode composition only. The round loop is **gone** (phase 4E-c): it declares the run/strategy/search parts, hosts the leaf's `extract` and the three hooks, and calls `Episode.run_async` once. A round is a completed strategy. Changes that reintroduce phase-batched round structure are rejected |
+| `pipeline.py` | 4437 | Episode composition only. The round loop is **gone** (phase 4E-c): it declares the run/strategy/search parts, hosts the leaf's `extract` and telemetry/learning hooks, and calls `Episode.run_async` once. Hooks cannot mutate or propose graph changes. Changes that reintroduce phase-batched round structure are rejected |
 | `goals.py` | 1838 | Fill targets, deficits, goal-completion state |
 | `best_guess.py` | 1359 | Derived candidate values |
 | `search.py` | 1308 | Task, frontier, and page-acquisition mechanics. Holds **no loop over units**: the harvest loops and `SearchBatch` are deleted, the frontier gained `next_for(family)` and lost `next_wave`/`requeue_front`, and a search episode is the frontier's consumer |
@@ -111,14 +122,13 @@ directory before relying on either list.
 | `derived_context.py` | 442 | Assessment inputs |
 | `schema_synthesis.py` | 378 | Schema generation |
 | `tables.py` | 247 | Table materialization |
-| `progress_judge.py` | 200 | The page gate's one model call: score a page against the declared contract. It no longer judges the run's progress — the payload is (question, declared columns, page text) and the response carries one score and six prose lists, with no decision field. The module name is a disclosed residual |
 | `extraction.py` | 166 | Text to typed records |
 | `__init__.py` | 113 | Package surface |
 | `llm_utils.py` | 65 | The provider boundary |
 
-`llm_utils.py` is the only module holding provider access. Four modules consume
-it through `ask_json`: `schema_synthesis.py`, `strategy.py`, `estimator.py`,
-`progress_judge.py`. (`pipeline.py` imports it too, for tiering and client
+`llm_utils.py` is the only module holding provider access. Three modules consume
+it through `ask_json`: `schema_synthesis.py`, `strategy.py`, and `estimator.py`.
+(`pipeline.py` imports it too, for tiering and client
 construction — `for_tier`, `instrument_client`, `register_call_site_tier` — and
 not as a fifth `ask_json` site.) Any further consumer needs a stated reason why
 the work is not a pure function over data another module already produced.

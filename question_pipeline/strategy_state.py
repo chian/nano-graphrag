@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 from collections import Counter
-from enum import Enum
 from typing import Any, Mapping, Sequence
 
 from .search_memory import PathOutcome
@@ -95,7 +94,7 @@ QUERY_OPERATORS: dict[str, dict[str, Any]] = {
         ),
         "constraints": [
             "Avoid repeating failed query terms when a substitute is available.",
-            "Use accepted-source or relevance-gate wording when it describes the missing need.",
+            "Use terms learned from accepted evidence and prior query outcomes.",
         ],
     },
     "target_source_shift": {
@@ -182,11 +181,6 @@ _FAILURE_ROUTES = {
         "target_source_shift",
         "target_terminology_swap",
         "target_batch_family",
-    ),
-    "not_relevant": (
-        "target_terminology_swap",
-        "target_exact_anchor",
-        "target_source_shift",
     ),
     "source_unusable": (
         "target_source_shift",
@@ -285,14 +279,14 @@ def next_operators_for_path_outcome(outcome: PathOutcome) -> tuple[str, ...]:
 # ---------------------------------------------------------------------------
 #
 # `plan_target_operator` above routes on `classify_attempt_failure`, which
-# reads post-round row/best-guess *counts* -- operational volume.  The
+# reads post-Episode row/best-guess *counts* -- operational volume.  The
 # functions below route the same decision (which named family the next
 # evolution step should instantiate) from real per-arm semantic yield
 # instead: `search_memory._finalize_prompt_arm`'s `arm_contrast`, itself
 # joined by ID from 3A's `reward.score_criterion_yield`.  Everything here is a
 # pure function over that typed contrast -- no query string is assumed to
 # exist, and nothing is inferred from prose.  Surface-agnostic by
-# construction: the same shape (named arms, a score, a duplicate/off-axis/cost
+# construction: the same shape (named arms, a score, a duplicate/cost
 # breakdown, an outcome class) would serve a catalog probe or a schema-
 # synthesis arm exactly as it serves search.
 
@@ -302,8 +296,8 @@ def next_operators_for_path_outcome(outcome: PathOutcome) -> tuple[str, ...]:
 #: ``arm_routing_v1`` keyed "was this family productive?" on
 #: :data:`_TARGET_PRODUCTIVE_FAILURES`, i.e. on
 #: ``classify_attempt_failure``'s ``useful_table_delta`` -- which fires on
-#: ``post_round_table_row_hits``, ``post_round_best_guess_hits``, or
-#: ``post_round_observed_delta``.  All three are operational volume; none is
+#: ``post_episode_table_row_hits``, ``post_episode_best_guess_hits``, or
+#: ``post_episode_observed_delta``.  All three are operational volume; none is
 #: a credited criterion transition.  The consequence was that a family which
 #: credited real criteria but materialized no rows was classed
 #: non-productive, counted toward exhaustion, and routed away from, while a
@@ -324,7 +318,7 @@ def _credited_yield_productive(attempt: Mapping[str, Any]) -> bool:
 
     Real semantic yield only: did this attempt's sources credit a criterion
     transition, per 3A's ``reward.score_criterion_yield`` joined back by ID
-    (``post_round_credited_criterion_ids``).  Rows materialized, best-guess
+    (``post_episode_credited_criterion_ids``).  Rows materialized, best-guess
     hits, and observed-count deltas are operational volume and are ignored
     here however large they are.
 
@@ -335,35 +329,16 @@ def _credited_yield_productive(attempt: Mapping[str, Any]) -> bool:
     one whose value is unknown.
     """
 
-    credited = attempt.get("post_round_credited_criterion_ids")
+    credited = attempt.get("post_episode_credited_criterion_ids")
     if credited is None:
         return False
     return len(credited) > 0
 
 
-class ArmRoutingMode(str, Enum):
-    """How the next mutation family is chosen.
-
-    `CONTRAST` is the shipped mechanism and the only one that is
-    deterministic in the sense the standing constraints require: identical
-    contrast selects the same family every time, no sampling, no learned
-    weights, no bandit.  `OFF` and `RANDOM` exist only as 3B's ablation
-    conditions -- the fixed baseline and the load-bearing randomized-routing
-    control -- and must never be a production default.
-    """
-
-    OFF = "off"
-    RANDOM = "random"
-    CONTRAST = "contrast"
-
-
 def route_next_family(
     target: Mapping[str, Any],
     *,
-    mode: "ArmRoutingMode | str" = ArmRoutingMode.CONTRAST,
     catalog: Mapping[str, Mapping[str, Any]] = QUERY_OPERATORS,
-    fixed_family: str = "target_batch_family",
-    rng: Any = None,
 ) -> dict[str, Any]:
     """Choose the next mutation family for one target deficit.
 
@@ -372,25 +347,12 @@ def route_next_family(
     attempts, each carrying ``arm_contrast`` and ``strategy_operator``; see
     ``search_memory._finalize_strategy_attempt``).
 
-    ``mode`` selects the routing policy:
-
-    * ``CONTRAST`` -- the next family is read off the most recent evolution
-      step's nested arm contrast (see :func:`_route_from_contrast`).
-    * ``RANDOM`` -- the contrast is still computed and returned for the
-      record, but the family is drawn uniformly from the candidate order by
-      ``rng`` (required). This is the ablation that isolates whether contrast
-      routing does anything, not a production mode.
-    * ``OFF`` -- always ``fixed_family``. Mutation off: the same family every
-      evolution step regardless of what happened last time.
-
     Returns the same shape :func:`plan_target_operator` does (``operator``,
     ``phase``, ``source_family``, ``description``, ``constraints``, attempt
-    bookkeeping) plus ``routing_reason``, ``routing_mode``, and the
+    bookkeeping) plus ``routing_reason`` and the
     ``arm_contrast`` the decision was read from, so a reader can verify the
     decision without re-deriving it.
     """
-
-    mode = ArmRoutingMode(mode)
     attempts = _target_attempts(target)
     # The default order is a *preference over the catalog*, not a source of
     # operator names. Its built-in entries are the shipped QUERY_OPERATORS
@@ -405,22 +367,12 @@ def route_next_family(
     contrast = list((latest_attempt or {}).get("arm_contrast") or [])
     previous_operator = str((latest_attempt or {}).get("strategy_operator") or "")
 
-    if mode is ArmRoutingMode.OFF:
-        chosen, reason = fixed_family, "mutation_off"
-    elif mode is ArmRoutingMode.RANDOM:
-        if rng is None:
-            raise ValueError("ArmRoutingMode.RANDOM requires an explicit rng")
-        candidates = [name for name in default_order if name in catalog] or [
-            fixed_family
-        ]
-        chosen, reason = rng.choice(candidates), "randomized_routing"
-    else:
-        chosen, reason = _route_from_contrast(
-            contrast,
-            default_order,
-            previous_operator=previous_operator,
-            catalog=catalog,
-        )
+    chosen, reason = _route_from_contrast(
+        contrast,
+        default_order,
+        previous_operator=previous_operator,
+        catalog=catalog,
+    )
 
     if chosen not in catalog or _operator_exhausted(
         chosen,
@@ -453,7 +405,6 @@ def route_next_family(
     )
     plan["arm_routing_rule_version"] = ARM_ROUTING_RULE_VERSION
     plan["routing_reason"] = reason
-    plan["routing_mode"] = mode.value
     plan["arm_contrast"] = contrast
     return plan
 
@@ -465,13 +416,13 @@ def _route_from_contrast(
     previous_operator: str,
     catalog: Mapping[str, Mapping[str, Any]] = QUERY_OPERATORS,
 ) -> tuple[str, str]:
-    """The deterministic decision `ArmRoutingMode.CONTRAST` makes.
+    """The deterministic decision made from nested arm contrast.
 
     Reads the nested per-arm rows directly -- never an aggregate over them.
     Each branch below corresponds to one of the pseudo-gradient's named
     classes (`search_memory._prompt_arm_outcome`): a real winner is exploited
-    by repeating its family; duplicate- or off-axis-dominant contrast routes
-    away from the family that produced it; sources found but nothing
+    by repeating its family; duplicate-dominant contrast routes away from the
+    family that produced it; sources found but nothing
     supported routes to a narrower, provenance-preserving family rather than
     a broader one; unmeasured contrast (mid-round, yield not landed yet)
     holds the current family rather than switching blind.
@@ -500,12 +451,6 @@ def _route_from_contrast(
             "duplicate_dominant",
         )
 
-    if outcomes.get("off_axis", 0) > n / 2:
-        return (
-            _named_family("target_terminology_swap", default_order, catalog),
-            "off_axis_dominant",
-        )
-
     if outcomes.get("no_hits", 0) > n / 2:
         return (
             _named_family("target_anchor_drop", default_order, catalog),
@@ -532,15 +477,15 @@ def _named_family(
 
     **This is the routing decision.**  Each branch of
     :func:`_route_from_contrast` names one destination -- broaden the source
-    shape when siblings duplicated, swap terminology when arms drifted off
-    axis, drop anchors when nothing was found, pivot context when sources
+    shape when siblings duplicated, drop anchors when nothing was found, pivot
+    context when sources
     landed but supported nothing -- and that named family is what gets
     returned whenever the catalog has it.
 
     The predecessor of this function took the named family as a *last-resort*
     third argument, after a loop over ``order`` that always returned early on
     any non-degenerate order.  The named family was therefore unreachable and
-    all four contrast classes collapsed onto one operator, which made contrast
+    all contrast classes collapsed onto one operator, which made contrast
     condition ``routing_reason`` and nothing else.  Found by review after the
     run; see ``experiments/log/3B.md`` -- Route 1's original result is void.
 
@@ -574,13 +519,18 @@ def _latest_strategy_attempt(target: Mapping[str, Any]) -> Mapping[str, Any] | N
                 attempts.append(attempt)
     if not attempts:
         return None
+    # ``sequence`` is the memory build's own arrival order; ``evolution_index``
+    # is monotone per target. Between them the newest attempt is identified
+    # without any global round number, and the enumerate index keeps the max
+    # stable when both are absent on legacy records.
     return max(
-        attempts,
-        key=lambda attempt: (
-            _as_int(attempt.get("round")),
-            _as_int(attempt.get("evolution_index")),
+        enumerate(attempts),
+        key=lambda item: (
+            _as_int(item[1].get("sequence")),
+            _as_int(item[1].get("evolution_index")),
+            item[0],
         ),
-    )
+    )[1]
 
 
 def plan_catalog_operator(outcomes: list[Mapping[str, Any]]) -> dict[str, Any]:
@@ -699,15 +649,15 @@ def fallback_query_for_operator(target: Mapping[str, Any]) -> str:
 
 
 def classify_attempt_failure(attempt: Mapping[str, Any]) -> str:
-    """Classify one attempt using search yield and post-round table delta."""
+    """Classify one attempt using search yield and post-Episode table delta."""
     if not attempt:
         return "new_target"
     if (
-        _as_int(attempt.get("post_round_table_row_hits")) > 0
-        or _as_int(attempt.get("post_round_best_guess_hits")) > 0
+        _as_int(attempt.get("post_episode_table_row_hits")) > 0
+        or _as_int(attempt.get("post_episode_best_guess_hits")) > 0
     ):
         return "useful_table_delta"
-    table_delta = _as_int(attempt.get("post_round_observed_delta"))
+    table_delta = _as_int(attempt.get("post_episode_observed_delta"))
     if table_delta > 0:
         return "useful_table_delta"
 
@@ -723,8 +673,8 @@ def classify_attempt_failure(attempt: Mapping[str, Any]) -> str:
             return "accepted_no_catalog_delta"
 
     if accepted > 0:
-        graph_delta = _as_int(attempt.get("post_round_graph_node_delta"))
-        graph_delta += _as_int(attempt.get("post_round_graph_edge_delta"))
+        graph_delta = _as_int(attempt.get("post_episode_graph_node_delta"))
+        graph_delta += _as_int(attempt.get("post_episode_graph_edge_delta"))
         if graph_delta <= 0:
             return "accepted_no_graph_delta"
         return "graph_delta_no_table_delta"
@@ -739,8 +689,6 @@ def classify_attempt_failure(attempt: Mapping[str, Any]) -> str:
     )
     if duplicate_count >= firecrawl_hits:
         return "all_duplicates"
-    if _as_int(skipped.get("not_relevant")) > 0:
-        return "not_relevant"
     if any(
         _as_int(skipped.get(reason)) > 0
         for reason in (
@@ -956,7 +904,6 @@ def _catalog_attempts_from_outcomes(
                 "strategy_family": attempt.get("strategy_family", ""),
                 "source_family": attempt.get("source_family", ""),
                 "operator_attempt": operator_attempt,
-                "round": attempt.get("round"),
                 "queries": [],
                 "firecrawl_hits": 0,
                 "accepted_source_count": 0,
@@ -983,7 +930,6 @@ def _merge_catalog_attempt(
     if query:
         aggregate["queries"].append(query)
         aggregate["query"] = query
-    aggregate["round"] = attempt.get("round")
     aggregate["firecrawl_hits"] += _as_int(attempt.get("firecrawl_hits"))
     aggregate["accepted_source_count"] += _as_int(
         attempt.get("accepted_source_count")
@@ -1039,7 +985,7 @@ def _target_attempts(target: Mapping[str, Any]) -> list[dict[str, Any]]:
     return sorted(
         attempts,
         key=lambda attempt: (
-            _as_int(attempt.get("round")),
+            _as_int(attempt.get("sequence")),
             _as_int(attempt.get("evolution_index")),
             _as_int(attempt.get("prompt_arm_index")),
             _as_int(attempt.get("operator_attempt")),
@@ -1051,7 +997,7 @@ def _target_attempts(target: Mapping[str, Any]) -> list[dict[str, Any]]:
 def _attempt_from_outcome(outcome: Mapping[str, Any]) -> dict[str, Any]:
     metadata = _mapping(outcome.get("metadata"))
     return {
-        "round": outcome.get("round_index"),
+        "episode_id": outcome.get("episode_id"),
         "query": outcome.get("query"),
         "strategy_operator": metadata.get("strategy_operator", ""),
         "strategy_family": metadata.get("strategy_family", ""),
@@ -1061,11 +1007,11 @@ def _attempt_from_outcome(outcome: Mapping[str, Any]) -> dict[str, Any]:
         "accepted_source_count": len(outcome.get("accepted_source_ids") or []),
         "duplicate_url_count": len(outcome.get("duplicate_urls") or []),
         "skipped_by_reason": dict(outcome.get("skipped_by_reason") or {}),
-        "post_round_observed_delta": metadata.get("post_round_observed_delta"),
-        "post_round_graph_node_delta": metadata.get("post_round_graph_node_delta"),
-        "post_round_graph_edge_delta": metadata.get("post_round_graph_edge_delta"),
-        "post_round_table_row_hits": metadata.get("post_round_table_row_hits"),
-        "post_round_best_guess_hits": metadata.get("post_round_best_guess_hits"),
+        "post_episode_observed_delta": metadata.get("post_episode_observed_delta"),
+        "post_episode_graph_node_delta": metadata.get("post_episode_graph_node_delta"),
+        "post_episode_graph_edge_delta": metadata.get("post_episode_graph_edge_delta"),
+        "post_episode_table_row_hits": metadata.get("post_episode_table_row_hits"),
+        "post_episode_best_guess_hits": metadata.get("post_episode_best_guess_hits"),
         "baseline_catalog_status": metadata.get("baseline_catalog_status"),
         "baseline_catalog_count_target_count": metadata.get(
             "baseline_catalog_count_target_count",
@@ -1115,11 +1061,7 @@ def _memory_terms(target: Mapping[str, Any]) -> list[str]:
     for memory in target.get("strategy_memory") or []:
         if not isinstance(memory, Mapping):
             continue
-        for field_name in (
-            "matched_needs",
-            "missing_needs",
-            "successful_query_terms",
-        ):
+        for field_name in ("successful_query_terms",):
             for value in memory.get(field_name) or []:
                 text = _search_text(value)
                 if text:

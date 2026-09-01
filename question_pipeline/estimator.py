@@ -137,7 +137,7 @@ def search_space_probes_from_attempts(
             {
                 "id": str(attempt.get("id") or ""),
                 "artifact_label": attempt.get("artifact_label"),
-                "pipeline_round": attempt.get("pipeline_round"),
+                "episode_id": str(attempt.get("episode_id") or ""),
                 "query": str(attempt.get("query") or ""),
                 "purpose": str(attempt.get("purpose") or ""),
                 "axis_bindings": {

@@ -37,7 +37,7 @@ from typing import Any, Callable, Iterator, Optional
 #: Folded into every record. A change to what a field means is a version bump,
 #: so a later phase joining across runs sees incomparability as a mismatch
 #: rather than as a comparable number.
-COST_ACCOUNTING_VERSION = "cost_accounting_v1"
+COST_ACCOUNTING_VERSION = "cost_accounting_v2"
 
 
 class CostErrorClass(str, Enum):
@@ -109,7 +109,8 @@ class CostRecord:
 
     observation_kind: str = ""
     observation_id: str = ""
-    round_index: int = 0
+    episode_id: str = ""
+    episode_path: tuple[tuple[str, str], ...] = ()
     nested_in: str = ""
 
     # search / fetch provider
@@ -138,6 +139,7 @@ class CostRecord:
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
         payload["llm_models"] = list(self.llm_models)
+        payload["episode_path"] = [list(segment) for segment in self.episode_path]
         return payload
 
 
@@ -164,12 +166,16 @@ class CostMeter:
         kind: str,
         *,
         observation_id: str = "",
-        round_index: int = 0,
+        episode_id: str = "",
+        episode_path: tuple[tuple[str, str], ...] = (),
         nested_in: str = "",
     ):
         self.kind = str(kind)
         self.observation_id = str(observation_id)
-        self.round_index = int(round_index)
+        self.episode_id = str(episode_id)
+        self.episode_path = tuple(
+            (str(grain), str(key)) for grain, key in episode_path
+        )
         self.nested_in = str(nested_in)
         self._lock = threading.Lock()
         self.provider_calls = 0
@@ -280,7 +286,8 @@ class CostMeter:
         return CostRecord(
             observation_kind=self.kind,
             observation_id=self.observation_id,
-            round_index=self.round_index,
+            episode_id=self.episode_id,
+            episode_path=self.episode_path,
             nested_in=self.nested_in,
             provider_calls=self.provider_calls,
             provider_credits=self.provider_credits,
@@ -364,7 +371,8 @@ def cost_scope(
     kind: str,
     *,
     observation_id: str = "",
-    round_index: int = 0,
+    episode_id: str = "",
+    episode_path: tuple[tuple[str, str], ...] = (),
     sink: Optional[CostSink] = None,
 ) -> Iterator[CostMeter]:
     """Open one action's meter, and hand the finished record to `sink`.
@@ -382,7 +390,8 @@ def cost_scope(
     meter = CostMeter(
         kind,
         observation_id=observation_id,
-        round_index=round_index,
+        episode_id=episode_id,
+        episode_path=episode_path,
         nested_in=parent.kind if parent is not None else "",
     )
     token = _ACTIVE.set(meter)

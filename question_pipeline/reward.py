@@ -71,29 +71,35 @@ argument that does not hold.
 Delayed credit
 --------------
 
-A source accepted at round N may not yield a criterion until round N+2 --
-traversal and extraction lag ingest. Crediting only same-round yield would
+Scoring runs once per completed strategy Episode, and a source accepted under
+one Episode may not yield a criterion until a later Episode's traversal --
+traversal and extraction lag ingest. Crediting only same-pass yield would
 discard that, and crediting any yield that touches any accepted source would
-credit re-traversal of papers the run has held for ten rounds, which is where
+credit re-traversal of sources the run has held all along, which is where
 nearly all of the raw ``SUPPORT_GAINED`` volume actually comes from.
 
-The rule that does neither is the **first-harvest credit window**: a source is
-creditable from the round it is first accepted until the first round in which it
-credits something, and is retired after that. An acquisition is credited for one
-harvest, whenever that harvest lands. It reduces exactly to the round-scoped
-rule when yield is immediate, it never pays twice for one paper, and it has no
-tunable parameter. The window and the set of already-credited criteria live in
-:class:`CreditLedger`, which the caller carries across rounds.
+The rule that does neither is the **first-harvest credit window**, and it is
+identity-based rather than ordinal: a source is creditable from the moment
+this run durably accepts it until the first scoring pass in which it credits
+something, and it is retired after that. An acquisition is credited for one
+harvest, whenever that harvest lands. Membership in the run's accepted-source
+set is the acceptance side; ``harvested_source_ids`` is the retirement side;
+no round number or pass ordinal participates. The window and the set of
+already-credited criteria live in :class:`CreditLedger`, which the caller
+carries across scoring passes. Attribution back to the acquisition that bought
+a source goes through the source record's own ``search_episode_id``, joined by
+source ID -- Episode ancestry, never a round window.
 
 Cost
 ----
 
-Costs are 1B's :class:`~question_pipeline.costs.CostRecord`, summed over one
-round. **Round level is the finest granularity that is honest here.**
+Costs are 1B's :class:`~question_pipeline.costs.CostRecord`, summed by the
+caller over the Episode being scored (cost records carry ``episode_id``).
+**Episode level is the finest granularity that is honest here.**
 ``CriterionTransition`` carries no action, decision, or task ID. A
 source-attributable transition has an exact path through ``gained_source_ids``,
 but searches that returned nothing, traversal, extraction, and best-guess
-operators join only through the snapshot ID, which every action in the round
+operators join only through the snapshot ID, which every action in the pass
 shares -- that is attribution by timing coincidence. Dividing one transition by
 one action's cost would produce a precise number about nothing.
 
@@ -133,7 +139,7 @@ __all__ = [
     "CostVector",
     "RewardReport",
     "score_criterion_yield",
-    "aggregate_round_cost",
+    "aggregate_cost",
     "load_seed_best_guess_rows",
     "merge_best_guess_rows",
 ]
@@ -223,14 +229,14 @@ class CreditedDatapoint:
     field: str
     subject_id: str
     #: The sources whose first harvest this datapoint is. The exact ID path
-    #: from a datapoint back to the acquisition that bought it.
+    #: from a datapoint back to the acquisition that bought it: each source
+    #: record carries its own ``search_episode_id``, so attribution to the
+    #: acquiring Episode is a join on these IDs, never a round window.
     crediting_source_ids: tuple[str, ...]
-    #: The round those sources were first accepted -- which is what the cost of
-    #: this datapoint is measured against, not the round it surfaced in.
-    attributed_round: int
-    #: The round the transition was actually observed. Equal to
-    #: ``attributed_round`` when yield is immediate, later when it is delayed.
-    realized_round: int
+    #: The Episode whose scoring pass observed the transition. Attribution of
+    #: the *acquisition* goes through ``crediting_source_ids``; this names
+    #: where the yield was realized.
+    realized_episode_id: str
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -242,14 +248,13 @@ class CreditedDatapoint:
             "field": self.field,
             "subject_id": self.subject_id,
             "crediting_source_ids": list(self.crediting_source_ids),
-            "attributed_round_index": self.attributed_round,
-            "realized_round_index": self.realized_round,
+            "realized_episode_id": self.realized_episode_id,
         }
 
 
 @dataclass(frozen=True)
 class CreditLedger:
-    """What credit has already been paid. Carried across rounds by the caller.
+    """What credit has already been paid. Carried across scoring passes by the caller.
 
     Two sets, both of IDs:
 
@@ -288,7 +293,7 @@ class CreditLedger:
 
 @dataclass(frozen=True)
 class CostVector:
-    """What one round paid, summed from 1B's per-action records.
+    """What one scoring pass paid, summed from 1B's per-action records.
 
     A vector rather than a scalar because the units are different money and no
     exchange rate between them is measurable here. ``billable_calls`` is the one
@@ -324,7 +329,7 @@ class CostVector:
     def available(self) -> bool:
         """Whether any cost was recorded at all.
 
-        A round with records but zero calls really was free. A round with no
+        A pass with records but zero calls really was free. A pass with no
         records at all has unknown cost, and the two must not compare equal.
         """
 
@@ -352,11 +357,12 @@ class CostVector:
 
 @dataclass(frozen=True)
 class RewardReport:
-    """One round's yield, its cost, and the ledger the next round starts from."""
+    """One scoring pass's yield, its cost, and the ledger the next pass starts from."""
 
     reward_version: str
     criteria_projection_version: str
-    round_index: int
+    #: The strategy Episode this scoring pass belongs to.
+    episode_id: str
     before_snapshot_id: str
     after_snapshot_id: str
     datapoints: tuple[CreditedDatapoint, ...]
@@ -457,7 +463,7 @@ class RewardReport:
         return {
             "reward_version": self.reward_version,
             "criteria_projection_version": self.criteria_projection_version,
-            "round_index": self.round_index,
+            "episode_id": self.episode_id,
             "before_criteria_snapshot_id": self.before_snapshot_id,
             "after_criteria_snapshot_id": self.after_snapshot_id,
             "score": self.score,
@@ -485,11 +491,13 @@ class RewardReport:
         }
 
 
-def aggregate_round_cost(
+def aggregate_cost(
     cost_records: Iterable[Mapping[str, Any]] | None,
-    round_index: int | None = None,
 ) -> CostVector:
-    """Sum 1B cost records, optionally restricted to one round.
+    """Sum 1B cost records. The caller decides which records are in scope.
+
+    Selection is the caller's business and is done by ``episode_id`` on the
+    records themselves -- never by a round window, which no record carries.
 
     1B's scopes do not nest their spend -- an inner meter takes the calls and
     records ``nested_in``; the outer does not also count them -- so a plain sum
@@ -506,8 +514,6 @@ def aggregate_round_cost(
 
     for record in cost_records or ():
         if not isinstance(record, Mapping):
-            continue
-        if round_index is not None and _int(record.get("round_index")) != int(round_index):
             continue
         records += 1
         provider_calls += _int(record.get("provider_calls"))
@@ -544,28 +550,34 @@ def score_criterion_yield(
     before: CriteriaSnapshot | None,
     after: CriteriaSnapshot | None,
     *,
-    round_index: int,
-    first_accepted_round: Mapping[str, int] | None = None,
+    episode_id: str,
+    accepted_source_ids: Iterable[str] | None = None,
     ledger: CreditLedger | None = None,
     cost_records: Iterable[Mapping[str, Any]] | None = None,
     cost: CostVector | None = None,
 ) -> RewardReport:
-    """Score one round: real datapoints added, over what the round paid.
+    """Score one pass: real datapoints added, over what the pass paid.
 
-    ``first_accepted_round`` maps a source ID to the round it was first
-    accepted. It comes from the run's own source records or 1C's ledger --
-    **never from the transition**. ``gained_source_ids`` is new *to the
-    criterion*, not new to the run: ``_transition_kind`` emits
-    ``SUPPORT_GAINED`` when the criterion did not exist before, so for a
-    criterion minted this round it lists every source cited however old.
-    Crediting on its non-emptiness would credit nearly all re-traversal.
+    ``episode_id`` names the strategy Episode this scoring pass belongs to.
 
-    ``ledger`` carries credit state across rounds; pass the previous round's
-    :attr:`RewardReport.ledger` back in. Omitting it re-opens every source's
-    credit window and re-credits every criterion, which is why the returned
-    report carries the next ledger rather than leaving the caller to rebuild it.
+    ``accepted_source_ids`` is the set of sources this run has durably
+    accepted, from the run's own source records -- **never from the
+    transition**. ``gained_source_ids`` is new *to the criterion*, not new to
+    the run: ``_transition_kind`` emits ``SUPPORT_GAINED`` when the criterion
+    did not exist before, so for a freshly minted criterion it lists every
+    source cited however old. Crediting on its non-emptiness would credit
+    nearly all re-traversal. Intersecting with the run's own accepted set,
+    minus the sources the ledger has already retired, is the identity-based
+    first-harvest window.
 
-    Costs come from ``cost_records`` (filtered to ``round_index``) or from an
+    ``ledger`` carries credit state across scoring passes; pass the previous
+    pass's :attr:`RewardReport.ledger` back in. Omitting it re-opens every
+    source's credit window and re-credits every criterion, which is why the
+    returned report carries the next ledger rather than leaving the caller to
+    rebuild it.
+
+    Costs come from ``cost_records`` -- the caller supplies exactly the
+    records in scope, selected by ``episode_id`` on the records -- or from an
     already-summed ``cost``. Supplying neither is legitimate -- runs recorded
     before cost accounting have none -- and yields a report whose ratios are
     ``None``.
@@ -573,10 +585,8 @@ def score_criterion_yield(
 
     before = before if before is not None else None
     transitions = diff_snapshots(before, after)
-    first_accepted = {
-        str(source): _int(value)
-        for source, value in (first_accepted_round or {}).items()
-        if str(source)
+    accepted = {
+        str(source) for source in (accepted_source_ids or ()) if str(source)
     }
     ledger = ledger if ledger is not None else CreditLedger()
 
@@ -638,8 +648,7 @@ def score_criterion_yield(
 
         crediting = _crediting_sources(
             transition,
-            round_index=round_index,
-            first_accepted=first_accepted,
+            accepted=accepted,
             harvested=ledger.harvested_source_ids,
         )
         if not crediting:
@@ -656,21 +665,18 @@ def score_criterion_yield(
                 field=transition.field,
                 subject_id=transition.subject_id,
                 crediting_source_ids=crediting,
-                attributed_round=min(
-                    first_accepted.get(source, round_index) for source in crediting
-                ),
-                realized_round=int(round_index),
+                realized_episode_id=str(episode_id),
             )
         )
         newly_credited.add(transition.criterion_id)
         newly_harvested.update(crediting)
 
-    resolved_cost = cost if cost is not None else aggregate_round_cost(cost_records, round_index)
+    resolved_cost = cost if cost is not None else aggregate_cost(cost_records)
 
     return RewardReport(
         reward_version=REWARD_VERSION,
         criteria_projection_version=CRITERIA_PROJECTION_VERSION,
-        round_index=int(round_index),
+        episode_id=str(episode_id),
         before_snapshot_id=before.id if before is not None else "",
         after_snapshot_id=after.id if after is not None else "",
         datapoints=tuple(credited),
@@ -689,27 +695,25 @@ def score_criterion_yield(
 def _crediting_sources(
     transition: CriterionTransition,
     *,
-    round_index: int,
-    first_accepted: Mapping[str, int],
+    accepted: frozenset[str] | set[str],
     harvested: frozenset[str],
 ) -> tuple[str, ...]:
     """The sources whose first harvest this transition is, if any.
 
-    A source qualifies when it was first accepted at or before this round, has
-    not yet credited anything, and this transition's criterion gained it. The
-    "at or before" is what carries delayed credit; the "has not yet credited
-    anything" is what stops re-traversal from being paid for. A source with no
-    recorded acceptance round is not creditable -- an unknown acquisition cannot
-    be the acquisition that bought this.
+    A source qualifies when this run has durably accepted it, it has not yet
+    credited anything, and this transition's criterion gained it. Membership
+    in the accepted set carries delayed credit -- a source stays creditable
+    across later scoring passes until it credits; ``harvested`` is what stops
+    re-traversal from being paid for. A source with no recorded acceptance is
+    not creditable -- an unknown acquisition cannot be the acquisition that
+    bought this.
     """
 
     return tuple(
         sorted(
             source
             for source in transition.gained_source_ids
-            if source in first_accepted
-            and first_accepted[source] <= int(round_index)
-            and source not in harvested
+            if source in accepted and source not in harvested
         )
     )
 
@@ -769,7 +773,10 @@ def load_seed_best_guess_rows(path: str | Path | None) -> list[dict[str, Any]]:
     for directory in candidates:
         if not directory.is_dir():
             continue
-        for json_path in sorted(directory.glob("round_*_best_guess_context.json")):
+        # Any artifact stem: matches both this tree's Episode-labelled exports
+        # and legacy round-numbered ones without inferring anything from the
+        # number.
+        for json_path in sorted(directory.glob("*_best_guess_context.json")):
             if json_path in seen_paths:
                 continue
             seen_paths.add(json_path)

@@ -1,8 +1,8 @@
 """Compact search-strategy memory for iterative table aggregation.
 
 Phase 2C adds a second, typed memory beside the free-text one: **where the
-chain broke** for each accepted source, per target criterion family.  A round
-that learns "no criteria delta" knows nothing actionable; a round that learns
+chain broke** for each accepted source, per target criterion family.  A pass
+that learns "no criteria delta" knows nothing actionable; a pass that learns
 *which* of five stages the source stopped at knows what to change next --
 broader source families, more direct terminology, narrower subject anchors, or
 provenance repair.
@@ -28,7 +28,7 @@ from enum import Enum
 from typing import Any, Iterable, Mapping, Sequence
 
 from .control import stable_id
-from .reward import CostVector, aggregate_round_cost
+from .reward import CostVector, aggregate_cost
 
 
 _WORD_RE = re.compile(r"[a-z0-9][a-z0-9_.+-]*")
@@ -65,7 +65,12 @@ class SearchMemory:
     @classmethod
     def from_outcomes(cls, outcomes: Iterable[Mapping[str, Any]]) -> "SearchMemory":
         records: "OrderedDict[str, dict[str, Any]]" = OrderedDict()
-        for outcome in outcomes:
+        # ``sequence`` is the outcome's position in the stream this memory was
+        # built from -- arrival order, which is chronology because outcomes are
+        # appended as searches complete. It is an ORDERING KEY for recency
+        # comparisons inside this build only: never a continuation offset,
+        # never an artifact identity, and never emitted as a global counter.
+        for sequence, outcome in enumerate(outcomes):
             if outcome.get("topic") != "target_deficit":
                 continue
             metadata = outcome.get("metadata")
@@ -76,7 +81,7 @@ class SearchMemory:
                 continue
             record = records.setdefault(key, _new_record(key, metadata))
             _merge_target(record, metadata)
-            _merge_outcome(record, outcome)
+            _merge_outcome(record, outcome, sequence=sequence)
 
         return cls(records=[_finalize_record(record) for record in records.values()])
 
@@ -97,7 +102,7 @@ class SearchMemory:
         for record in self.records:
             score = _match_score(target, record)
             if score > 0:
-                scored.append((score, _latest_round(record), record))
+                scored.append((score, _latest_sequence(record), record))
         scored.sort(key=lambda item: (item[0], item[1]), reverse=True)
         return [
             _compact_record(record, score=score)
@@ -145,18 +150,11 @@ def _new_record(key: str, metadata: Mapping[str, Any]) -> dict[str, Any]:
         "attempt_count": 0,
         "accepted_source_ids": [],
         "accepted_urls": [],
-        "rejected_urls": [],
         "skipped_by_reason": Counter(),
         "strategy_families": Counter(),
         "strategy_operators": Counter(),
         "successful_query_terms": Counter(),
         "failed_query_terms": Counter(),
-        "matched_needs": Counter(),
-        "missing_needs": Counter(),
-        "offtopic_axes": Counter(),
-        "failure_modes": Counter(),
-        "better_search_cues": Counter(),
-        "avoid_cues": Counter(),
         "attempts": [],
     }
 
@@ -181,7 +179,12 @@ def _merge_target(record: dict[str, Any], metadata: Mapping[str, Any]) -> None:
         )
 
 
-def _merge_outcome(record: dict[str, Any], outcome: Mapping[str, Any]) -> None:
+def _merge_outcome(
+    record: dict[str, Any],
+    outcome: Mapping[str, Any],
+    *,
+    sequence: int = 0,
+) -> None:
     metadata = outcome.get("metadata")
     if not isinstance(metadata, Mapping):
         metadata = {}
@@ -194,16 +197,6 @@ def _merge_outcome(record: dict[str, Any], outcome: Mapping[str, Any]) -> None:
     ]
     duplicate_urls = [
         str(value) for value in outcome.get("duplicate_urls") or [] if value
-    ]
-    relevance = [
-        decision
-        for decision in outcome.get("relevance_decisions") or []
-        if isinstance(decision, Mapping)
-    ]
-    rejected_urls = [
-        str(decision.get("url") or "")
-        for decision in relevance
-        if not decision.get("accept") and decision.get("url")
     ]
     skipped = Counter(
         {
@@ -226,24 +219,14 @@ def _merge_outcome(record: dict[str, Any], outcome: Mapping[str, Any]) -> None:
     elif not outcome.get("error"):
         record["failed_query_terms"].update(terms)
 
-    for decision in relevance:
-        record["matched_needs"].update(_decision_values(decision, "matched_needs"))
-        record["missing_needs"].update(_decision_values(decision, "missing_needs"))
-        record["offtopic_axes"].update(_decision_values(decision, "offtopic_axes"))
-        record["failure_modes"].update(_decision_values(decision, "failure_modes"))
-        record["better_search_cues"].update(
-            _decision_values(decision, "better_search_cues")
-        )
-        record["avoid_cues"].update(_decision_values(decision, "avoid_cues"))
-
     record["attempt_count"] += 1
     record["accepted_source_ids"].extend(accepted_source_ids)
     record["accepted_urls"].extend(accepted_urls)
-    record["rejected_urls"].extend(rejected_urls)
     record["skipped_by_reason"].update(skipped)
     record["attempts"].append(
         {
-            "round": outcome.get("round_index"),
+            "sequence": int(sequence),
+            "episode_id": str(outcome.get("episode_id") or ""),
             "query": query,
             "strategy_attempt_id": (
                 metadata.get("strategy_attempt_id")
@@ -300,54 +283,30 @@ def _merge_outcome(record: dict[str, Any], outcome: Mapping[str, Any]) -> None:
                 )[:5]
                 if isinstance(observation, Mapping)
             ],
-            "matched_needs": _top_counter(
-                _counter_from_decisions(relevance, "matched_needs"),
-                8,
+            "post_episode_observed_delta": metadata.get("post_episode_observed_delta"),
+            "post_episode_graph_node_delta": metadata.get(
+                "post_episode_graph_node_delta",
             ),
-            "missing_needs": _top_counter(
-                _counter_from_decisions(relevance, "missing_needs"),
-                8,
+            "post_episode_graph_edge_delta": metadata.get(
+                "post_episode_graph_edge_delta",
             ),
-            "offtopic_axes": _top_counter(
-                _counter_from_decisions(relevance, "offtopic_axes"),
-                8,
-            ),
-            "failure_modes": _top_counter(
-                _counter_from_decisions(relevance, "failure_modes"),
-                8,
-            ),
-            "better_search_cues": _top_counter(
-                _counter_from_decisions(relevance, "better_search_cues"),
-                8,
-            ),
-            "avoid_cues": _top_counter(
-                _counter_from_decisions(relevance, "avoid_cues"),
-                8,
-            ),
-            "post_round_observed_delta": metadata.get("post_round_observed_delta"),
-            "post_round_graph_node_delta": metadata.get(
-                "post_round_graph_node_delta",
-            ),
-            "post_round_graph_edge_delta": metadata.get(
-                "post_round_graph_edge_delta",
-            ),
-            "post_round_deficit_count": metadata.get("post_round_deficit_count"),
-            "post_round_table_row_hits": metadata.get("post_round_table_row_hits"),
-            "post_round_best_guess_hits": metadata.get("post_round_best_guess_hits"),
+            "post_episode_deficit_count": metadata.get("post_episode_deficit_count"),
+            "post_episode_table_row_hits": metadata.get("post_episode_table_row_hits"),
+            "post_episode_best_guess_hits": metadata.get("post_episode_best_guess_hits"),
             # Real semantic yield, joined by ID from 3A's own instrument
-            # (`reward.score_criterion_yield`) once the round that ran this
-            # query has materialized and been scored -- never a row, source,
-            # or graph-delta count.  Absent (``None``) until that join has
-            # happened; ``[]`` once it has and found nothing.  See
+            # (`reward.score_criterion_yield`) once the strategy Episode that
+            # ran this query has materialized and been scored -- never a row,
+            # source, or graph-delta count.  Absent (``None``) until that join
+            # has happened; ``[]`` once it has and found nothing.  See
             # ``pipeline.py:_annotate_recent_target_outcomes``, which is the
             # only writer of these two keys.
-            "post_round_credited_criterion_ids": metadata.get(
-                "post_round_credited_criterion_ids"
+            "post_episode_credited_criterion_ids": metadata.get(
+                "post_episode_credited_criterion_ids"
             ),
-            "post_round_credited_datapoint_kinds": metadata.get(
-                "post_round_credited_datapoint_kinds"
+            "post_episode_credited_datapoint_kinds": metadata.get(
+                "post_episode_credited_datapoint_kinds"
             ),
-            "post_round_cost_records": metadata.get("post_round_cost_records") or [],
+            "post_episode_cost_records": metadata.get("post_episode_cost_records") or [],
             "error": str(outcome.get("error") or "")[:500],
         }
     )
@@ -357,7 +316,7 @@ def _finalize_record(record: dict[str, Any]) -> dict[str, Any]:
     attempts = sorted(
         record["attempts"],
         key=lambda attempt: (
-            _round_sort_value(attempt.get("round")),
+            _as_int(attempt.get("sequence")),
             _as_int(attempt.get("evolution_index")),
             _as_int(attempt.get("prompt_arm_index")),
             _as_int(attempt.get("query_index")),
@@ -372,18 +331,11 @@ def _finalize_record(record: dict[str, Any]) -> dict[str, Any]:
         "accepted_source_count": len(set(record["accepted_source_ids"])),
         "accepted_source_ids": _unique(record["accepted_source_ids"])[:20],
         "accepted_urls": _unique(record["accepted_urls"])[:20],
-        "rejected_urls": _unique(record["rejected_urls"])[:20],
         "skipped_by_reason": dict(record["skipped_by_reason"]),
         "strategy_families": dict(record["strategy_families"]),
         "strategy_operators": dict(record["strategy_operators"]),
         "successful_query_terms": _top_counter(record["successful_query_terms"], 12),
         "failed_query_terms": _top_counter(record["failed_query_terms"], 12),
-        "matched_needs": _top_counter(record["matched_needs"], 12),
-        "missing_needs": _top_counter(record["missing_needs"], 12),
-        "offtopic_axes": _top_counter(record["offtopic_axes"], 12),
-        "failure_modes": _top_counter(record["failure_modes"], 12),
-        "better_search_cues": _top_counter(record["better_search_cues"], 12),
-        "avoid_cues": _top_counter(record["avoid_cues"], 12),
         # Unclipped, for the same reason as `strategy_history` in
         # `pipeline._deficits_with_strategy_history`: this is the memory the
         # next planner call uses to avoid reissuing a query, and a tail bounds
@@ -407,12 +359,6 @@ def _compact_record(record: Mapping[str, Any], *, score: int) -> dict[str, Any]:
         "strategy_operators": record.get("strategy_operators", {}),
         "successful_query_terms": record.get("successful_query_terms", []),
         "failed_query_terms": record.get("failed_query_terms", []),
-        "matched_needs": record.get("matched_needs", []),
-        "missing_needs": record.get("missing_needs", []),
-        "offtopic_axes": record.get("offtopic_axes", []),
-        "failure_modes": record.get("failure_modes", []),
-        "better_search_cues": record.get("better_search_cues", []),
-        "avoid_cues": record.get("avoid_cues", []),
         "attempts": (
             record.get("strategy_attempts")
             or record.get("search_waves")
@@ -434,7 +380,7 @@ def _summarize_strategy_attempts(
                 "strategy_attempt_id": str(
                     attempt.get("strategy_attempt_id") or key
                 ),
-                "round": attempt.get("round"),
+                "sequence": attempt.get("sequence"),
                 "evolution_index": attempt.get("evolution_index"),
                 "strategy_family": attempt.get("strategy_family", ""),
                 "strategy_operator": attempt.get("strategy_operator", ""),
@@ -451,12 +397,6 @@ def _summarize_strategy_attempts(
                 "duplicate_url_count": 0,
                 "skipped_by_reason": Counter(),
                 "candidate_fates": Counter(),
-                "matched_needs": Counter(),
-                "missing_needs": Counter(),
-                "offtopic_axes": Counter(),
-                "failure_modes": Counter(),
-                "better_search_cues": Counter(),
-                "avoid_cues": Counter(),
                 "search_results": [],
                 "accepted_urls": [],
                 "prompt_arms": OrderedDict(),
@@ -467,8 +407,8 @@ def _summarize_strategy_attempts(
                 # (`strategy_state._credited_yield_productive`), so
                 # collapsing the two would make "not known" indistinguishable
                 # from "known to be nothing".
-                "post_round_credited_criterion_ids": None,
-                "post_round_credited_datapoint_kinds": None,
+                "post_episode_credited_criterion_ids": None,
+                "post_episode_credited_datapoint_kinds": None,
                 "outcome_count": 0,
                 "error_count": 0,
                 "errors": [],
@@ -478,7 +418,7 @@ def _summarize_strategy_attempts(
         if query:
             strategy_attempt["queries"].append(query)
             strategy_attempt["query"] = query
-        strategy_attempt["round"] = attempt.get("round")
+        strategy_attempt["sequence"] = attempt.get("sequence")
         strategy_attempt["firecrawl_hits"] += _as_int(attempt.get("firecrawl_hits"))
         strategy_attempt["search_result_count"] += _as_int(
             attempt.get("search_result_count")
@@ -495,14 +435,6 @@ def _summarize_strategy_attempts(
         strategy_attempt["candidate_fates"].update(
             _mapping(attempt.get("candidate_fates"))
         )
-        strategy_attempt["matched_needs"].update(attempt.get("matched_needs") or [])
-        strategy_attempt["missing_needs"].update(attempt.get("missing_needs") or [])
-        strategy_attempt["offtopic_axes"].update(attempt.get("offtopic_axes") or [])
-        strategy_attempt["failure_modes"].update(attempt.get("failure_modes") or [])
-        strategy_attempt["better_search_cues"].update(
-            attempt.get("better_search_cues") or []
-        )
-        strategy_attempt["avoid_cues"].update(attempt.get("avoid_cues") or [])
         strategy_attempt["accepted_urls"].extend(attempt.get("accepted_urls") or [])
         if len(strategy_attempt["search_results"]) < 12:
             strategy_attempt["search_results"].extend(
@@ -513,12 +445,12 @@ def _summarize_strategy_attempts(
         _merge_prompt_arm(strategy_attempt, attempt)
         strategy_attempt["outcome_count"] += 1
         for field_name in (
-            "post_round_observed_delta",
-            "post_round_graph_node_delta",
-            "post_round_graph_edge_delta",
-            "post_round_deficit_count",
-            "post_round_table_row_hits",
-            "post_round_best_guess_hits",
+            "post_episode_observed_delta",
+            "post_episode_graph_node_delta",
+            "post_episode_graph_edge_delta",
+            "post_episode_deficit_count",
+            "post_episode_table_row_hits",
+            "post_episode_best_guess_hits",
         ):
             value = attempt.get(field_name)
             if value is not None:
@@ -532,18 +464,18 @@ def _summarize_strategy_attempts(
         # first. Union, never a count -- a criterion credited twice is one
         # criterion, and turning this into a tally would put volume back on
         # the routing path that cycles 1 and 2 removed it from.
-        credited_ids = attempt.get("post_round_credited_criterion_ids")
+        credited_ids = attempt.get("post_episode_credited_criterion_ids")
         if credited_ids is not None:
-            merged_ids = strategy_attempt["post_round_credited_criterion_ids"] or []
-            strategy_attempt["post_round_credited_criterion_ids"] = _unique(
+            merged_ids = strategy_attempt["post_episode_credited_criterion_ids"] or []
+            strategy_attempt["post_episode_credited_criterion_ids"] = _unique(
                 [*merged_ids, *credited_ids]
             )
-        credited_kinds = attempt.get("post_round_credited_datapoint_kinds")
+        credited_kinds = attempt.get("post_episode_credited_datapoint_kinds")
         if credited_kinds is not None:
-            merged_kinds = strategy_attempt["post_round_credited_datapoint_kinds"] or []
+            merged_kinds = strategy_attempt["post_episode_credited_datapoint_kinds"] or []
             # Distinct kinds observed, not one entry per datapoint: the
             # membership is diagnostic, the multiplicity would be volume.
-            strategy_attempt["post_round_credited_datapoint_kinds"] = sorted(
+            strategy_attempt["post_episode_credited_datapoint_kinds"] = sorted(
                 set(merged_kinds) | set(credited_kinds)
             )
         error = str(attempt.get("error") or "")
@@ -618,17 +550,17 @@ def _merge_prompt_arm(
     arm["accepted_source_count"] += _as_int(attempt.get("accepted_source_count"))
     arm["accepted_source_ids"].extend(attempt.get("accepted_source_ids") or [])
     arm["duplicate_url_count"] += _as_int(attempt.get("duplicate_url_count"))
-    arm["table_row_hits"] += _as_int(attempt.get("post_round_table_row_hits"))
-    arm["best_guess_hits"] += _as_int(attempt.get("post_round_best_guess_hits"))
-    if attempt.get("post_round_credited_criterion_ids") is not None:
+    arm["table_row_hits"] += _as_int(attempt.get("post_episode_table_row_hits"))
+    arm["best_guess_hits"] += _as_int(attempt.get("post_episode_best_guess_hits"))
+    if attempt.get("post_episode_credited_criterion_ids") is not None:
         arm["_yield_known"] = True
         arm["credited_criterion_ids"].update(
-            attempt.get("post_round_credited_criterion_ids") or []
+            attempt.get("post_episode_credited_criterion_ids") or []
         )
         arm["credited_datapoint_kinds"].update(
-            attempt.get("post_round_credited_datapoint_kinds") or []
+            attempt.get("post_episode_credited_datapoint_kinds") or []
         )
-    arm["cost_records"].extend(attempt.get("post_round_cost_records") or [])
+    arm["cost_records"].extend(attempt.get("post_episode_cost_records") or [])
     arm["skipped_by_reason"].update(_mapping(attempt.get("skipped_by_reason")))
     arm["candidate_fates"].update(_mapping(attempt.get("candidate_fates")))
     arm["accepted_urls"].extend(attempt.get("accepted_urls") or [])
@@ -670,7 +602,7 @@ def _finalize_strategy_attempt(wave: Mapping[str, Any]) -> dict[str, Any]:
         )
     return {
         "strategy_attempt_id": wave.get("strategy_attempt_id", ""),
-        "round": wave.get("round"),
+        "sequence": wave.get("sequence"),
         "evolution_index": wave.get("evolution_index"),
         "strategy_family": wave.get("strategy_family", ""),
         "strategy_operator": wave.get("strategy_operator", ""),
@@ -687,22 +619,13 @@ def _finalize_strategy_attempt(wave: Mapping[str, Any]) -> dict[str, Any]:
         "duplicate_url_count": _as_int(wave.get("duplicate_url_count")),
         "skipped_by_reason": dict(wave.get("skipped_by_reason") or {}),
         "candidate_fates": dict(wave.get("candidate_fates") or {}),
-        "matched_needs": _top_counter(wave.get("matched_needs") or Counter(), 8),
-        "missing_needs": _top_counter(wave.get("missing_needs") or Counter(), 8),
-        "offtopic_axes": _top_counter(wave.get("offtopic_axes") or Counter(), 8),
-        "failure_modes": _top_counter(wave.get("failure_modes") or Counter(), 8),
-        "better_search_cues": _top_counter(
-            wave.get("better_search_cues") or Counter(),
-            8,
-        ),
-        "avoid_cues": _top_counter(wave.get("avoid_cues") or Counter(), 8),
         "search_results": list(wave.get("search_results") or [])[:12],
-        "post_round_observed_delta": wave.get("post_round_observed_delta"),
-        "post_round_graph_node_delta": wave.get("post_round_graph_node_delta"),
-        "post_round_graph_edge_delta": wave.get("post_round_graph_edge_delta"),
-        "post_round_deficit_count": wave.get("post_round_deficit_count"),
-        "post_round_table_row_hits": wave.get("post_round_table_row_hits"),
-        "post_round_best_guess_hits": wave.get("post_round_best_guess_hits"),
+        "post_episode_observed_delta": wave.get("post_episode_observed_delta"),
+        "post_episode_graph_node_delta": wave.get("post_episode_graph_node_delta"),
+        "post_episode_graph_edge_delta": wave.get("post_episode_graph_edge_delta"),
+        "post_episode_deficit_count": wave.get("post_episode_deficit_count"),
+        "post_episode_table_row_hits": wave.get("post_episode_table_row_hits"),
+        "post_episode_best_guess_hits": wave.get("post_episode_best_guess_hits"),
         # Carried onto the finalized attempt because this is the shape
         # `pipeline._deficits_with_strategy_history` puts into
         # `strategy_history`, which is what `strategy_state._target_attempts`
@@ -710,11 +633,11 @@ def _finalize_strategy_attempt(wave: Mapping[str, Any]) -> dict[str, Any]:
         # `_credited_yield_productive` of the only input it reads, so every
         # attempt read unmeasured and routing collapsed onto
         # `_default_target_order`.
-        "post_round_credited_criterion_ids": wave.get(
-            "post_round_credited_criterion_ids"
+        "post_episode_credited_criterion_ids": wave.get(
+            "post_episode_credited_criterion_ids"
         ),
-        "post_round_credited_datapoint_kinds": wave.get(
-            "post_round_credited_datapoint_kinds"
+        "post_episode_credited_datapoint_kinds": wave.get(
+            "post_episode_credited_datapoint_kinds"
         ),
         "prompt_arms": prompt_arms,
         "arm_contrast": _arm_contrast(prompt_arms),
@@ -736,8 +659,7 @@ def _finalize_prompt_arm(
     credited_criterion_ids = (
         sorted(arm.get("credited_criterion_ids") or set()) if yield_known else None
     )
-    off_axis_count = _as_int(_mapping(arm.get("skipped_by_reason")).get("not_relevant"))
-    cost_vector = aggregate_round_cost(arm.get("cost_records") or [])
+    cost_vector = aggregate_cost(arm.get("cost_records") or [])
     outcome = _prompt_arm_outcome(
         arm,
         duplicate_with_sibling_count=len(duplicate_with_sibling_ids),
@@ -763,9 +685,6 @@ def _finalize_prompt_arm(
         # accepted -- non-overlapping evidence contributed nothing new.
         "duplicate_with_sibling_source_ids": duplicate_with_sibling_ids,
         "duplicate_with_sibling_count": len(duplicate_with_sibling_ids),
-        # The off-axis penalty, individually observable: relevance-gate
-        # rejections classed not-relevant to the target criterion.
-        "off_axis_count": off_axis_count,
         # Operational volume. Recorded for diagnostics, never scored -- see
         # `_prompt_arm_score`. Rows materialized and best-guess candidates
         # are not goodness; an arm that produced a hundred of either and
@@ -799,7 +718,6 @@ def _finalize_prompt_arm(
         "score": _prompt_arm_score(
             credited_criterion_ids=credited_criterion_ids,
             duplicate_with_sibling_count=len(duplicate_with_sibling_ids),
-            off_axis_count=off_axis_count,
             cost_vector=cost_vector,
         ),
         "outcome": outcome,
@@ -812,7 +730,7 @@ def _strategy_attempt_key(attempt: Mapping[str, Any]) -> str:
     if attempt_id:
         return attempt_id
     payload = {
-        "round": attempt.get("round"),
+        "episode_id": attempt.get("episode_id"),
         "evolution_index": attempt.get("evolution_index"),
         "operator": _operator_name(attempt),
         "operator_attempt": attempt.get("operator_attempt"),
@@ -852,7 +770,6 @@ def _arm_contrast(prompt_arms: Sequence[Mapping[str, Any]]) -> list[dict[str, An
             "yield_known": arm.get("yield_known", False),
             "credited_criterion_count": arm.get("credited_criterion_count"),
             "duplicate_with_sibling_count": arm.get("duplicate_with_sibling_count", 0),
-            "off_axis_count": arm.get("off_axis_count", 0),
             "cost": arm.get("cost", {}),
             "cost_known": arm.get("cost_known", False),
             "accepted_source_count": arm.get("accepted_source_count", 0),
@@ -878,17 +795,15 @@ def _arm_contrast(prompt_arms: Sequence[Mapping[str, Any]]) -> list[dict[str, An
 #: boundary.  Changing one changes which arm wins a tie; none of them can
 #: change whether a crediting arm outranks a non-crediting one.
 _DUPLICATE_PENALTY_WEIGHT = 1.0
-_OFF_AXIS_PENALTY_WEIGHT = 0.25
 _COST_PENALTY_WEIGHT = 0.01
 
 
 def _penalty(
     *,
     duplicate_with_sibling_count: int,
-    off_axis_count: int,
     cost_vector: CostVector,
 ) -> float:
-    """The three penalty axes, squashed strictly below one credited datapoint.
+    """Duplicate and cost penalties, squashed below one credited datapoint.
 
     ``raw / (1 + raw)`` maps ``[0, inf)`` onto ``[0, 1)``: strictly
     increasing, so ordering among arms that tied on yield is preserved
@@ -911,10 +826,7 @@ def _penalty(
     real yield, and can never outrank one that credited more.*
     """
 
-    raw = (
-        _DUPLICATE_PENALTY_WEIGHT * max(0, duplicate_with_sibling_count)
-        + _OFF_AXIS_PENALTY_WEIGHT * max(0, off_axis_count)
-    )
+    raw = _DUPLICATE_PENALTY_WEIGHT * max(0, duplicate_with_sibling_count)
     if cost_vector.available:
         raw += _COST_PENALTY_WEIGHT * max(0, cost_vector.billable_calls)
     return raw / (1.0 + raw)
@@ -924,10 +836,9 @@ def _prompt_arm_score(
     *,
     credited_criterion_ids: list[str] | None,
     duplicate_with_sibling_count: int,
-    off_axis_count: int,
     cost_vector: CostVector,
 ) -> float | None:
-    """Real yield, with duplicate/off-axis/cost as a strict tie-break.
+    """Real yield, with duplicate and cost as strict tie-breaks.
 
     ``None`` -- not zero -- until the round this arm's queries ran in has
     been scored by `reward.score_criterion_yield` and joined back by ID.
@@ -962,7 +873,6 @@ def _prompt_arm_score(
         len(credited_criterion_ids)
         - _penalty(
             duplicate_with_sibling_count=duplicate_with_sibling_count,
-            off_axis_count=off_axis_count,
             cost_vector=cost_vector,
         ),
         6,
@@ -980,9 +890,8 @@ def _prompt_arm_outcome(
     Matches `docs/TABLE_FILL_PROMPT_MUTATION_EXPERIMENTS.md`'s definition of
     the pseudo-gradient directly: which arms found non-overlapping useful
     evidence (`credited_yield`), which returned only duplicates
-    (`all_duplicates` / `sibling_duplicate`), which drifted off axis
-    (`off_axis`), and which found promising sources that failed to support
-    the target criteria (`accepted_no_yield`).
+    (`all_duplicates` / `sibling_duplicate`), and which found promising
+    sources that failed to support the target criteria (`accepted_no_yield`).
     """
     if credited_criterion_ids:
         return "credited_yield"
@@ -997,17 +906,8 @@ def _prompt_arm_outcome(
         arm.get("accepted_source_count")
     ):
         return "sibling_duplicate"
-    # The pending/measured distinction is checked *before* `off_axis`.  An arm
-    # that accepted sources whose yield has not landed yet is
-    # `accepted_pending_yield` even when the relevance gate also rejected
-    # something -- previously a single `not_relevant` skip returned `off_axis`
-    # and erased that distinction.  Routing branches on `outcome`, so losing
-    # it there sent an arm whose yield was merely unmeasured down the
-    # off-axis branch as though it had been measured and found wanting.
     if _as_int(arm.get("accepted_source_count")) > 0 and credited_criterion_ids is None:
         return "accepted_pending_yield"
-    if _as_int(skipped.get("not_relevant")) > 0:
-        return "off_axis"
     if _as_int(arm.get("accepted_source_count")) > 0:
         return "accepted_no_yield"
     return "no_accepted_sources"
@@ -1053,46 +953,24 @@ def _match_score(target: Mapping[str, Any], record: Mapping[str, Any]) -> int:
     return score
 
 
-def _counter_from_decisions(
-    decisions: Sequence[Mapping[str, Any]],
-    field_name: str,
-) -> Counter:
-    values: Counter = Counter()
-    for decision in decisions:
-        values.update(_decision_values(decision, field_name))
-    return values
-
-
-def _decision_values(decision: Mapping[str, Any], field_name: str) -> list[str]:
-    values = _clean_list(decision.get(field_name))
-    metadata = decision.get("metadata")
-    if isinstance(metadata, Mapping):
-        values.extend(_clean_list(metadata.get(field_name)))
-        progress = metadata.get("progress_judgment")
-        if isinstance(progress, Mapping):
-            values.extend(_clean_list(progress.get(field_name)))
-    return _unique(values)
-
-
 def _top_counter(counter: Counter, limit: int) -> list[str]:
     return [value for value, _ in counter.most_common(limit) if value]
 
 
-def _latest_round(record: Mapping[str, Any]) -> int:
+def _latest_sequence(record: Mapping[str, Any]) -> int:
+    """Recency of a record's newest attempt within THIS memory build.
+
+    An ordering key over the build's own outcome stream and nothing more --
+    see :meth:`SearchMemory.from_outcomes`.
+    """
+
     attempts = record.get("attempts")
     if not isinstance(attempts, list):
         return -1
     return max(
-        (_round_sort_value(attempt.get("round")) for attempt in attempts),
+        (_as_int(attempt.get("sequence")) for attempt in attempts),
         default=-1,
     )
-
-
-def _round_sort_value(value: Any) -> int:
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return -1
 
 
 def _as_int(value: Any) -> int:
@@ -1342,7 +1220,7 @@ class SemanticClaimPair:
 
 @dataclass(frozen=True)
 class PathOutcomeEvidence:
-    """What one accepted source produced for one target family in one round.
+    """What one accepted source produced for one target family in one scoring pass.
 
     Every field is an ID or a set of IDs.  There is no count anywhere, and no
     text: the classifier reads emptiness and membership, so a busy round and a
@@ -1365,8 +1243,10 @@ class PathOutcomeEvidence:
     claim_pairs: tuple[SemanticClaimPair, ...] = ()
     before_snapshot_id: str = ""
     after_snapshot_id: str = ""
-    first_accepted_round: int | None = None
-    round_index: int | None = None
+    #: The strategy Episode whose scoring pass produced this evidence bundle.
+    #: Attribution of the source's own acquisition lives on the source record
+    #: (``search_episode_id``), joined by ``source_id``.
+    episode_id: str = ""
     decision_id: str = ""
     action_id: str = ""
     task_id: str = ""
@@ -1443,13 +1323,14 @@ def attributable_claim_pairs(
     criteria and there can be hundreds of thousands of those.
 
     The third condition is the load-bearing one.  ``gained_source_ids`` means
-    new *to the criterion*, not new to the run, and a criterion minted this
-    round has no "before", so its gained set is every source it cites however
+    new *to the criterion*, not new to the run, and a freshly minted criterion
+    has no "before", so its gained set is every source it cites however
     old.  Classifying outcome 5 on a non-empty gained set would therefore
     report re-traversal of an already-held graph as discovery -- which is what
-    this corpus mostly does.  Intersecting with the sources first accepted this
-    round is what separates the two, and it is an ID join, so it survives the
-    gap when credit arrives rounds after the ingest that earned it.
+    this corpus mostly does.  Intersecting with the sources newly accepted in
+    the pass being classified is what separates the two, and it is an ID join,
+    so it survives the gap when credit arrives passes after the ingest that
+    earned it.
     """
 
     new_ids = {str(value) for value in new_source_ids if value}
@@ -1531,8 +1412,7 @@ class PathOutcomeRecord:
             "path_outcome_stage": self.stage,
             "source_id": self.source_id,
             **self.family.to_dict(),
-            "first_accepted_round": self.evidence.first_accepted_round,
-            "round_index": self.evidence.round_index,
+            "episode_id": self.evidence.episode_id,
             "before_criteria_snapshot_id": self.evidence.before_snapshot_id,
             "after_criteria_snapshot_id": self.evidence.after_snapshot_id,
             "control_decision_id": self.evidence.decision_id,
@@ -1547,13 +1427,13 @@ class PathOutcomeRecord:
 
 
 class PathOutcomeMemory:
-    """Path outcomes across rounds, keyed by (source, family).
+    """Path outcomes across scoring passes, keyed by (source, family).
 
     The key is two IDs, so the record survives the gap between a source being
-    accepted and a criterion it supports two rounds later.  What is kept per
+    accepted and a criterion it supports passes later.  What is kept per
     key is the **furthest stage** that pair ever reached, and the union of its
-    attributable claim pairs; a later round that reaches no further does not
-    erase what an earlier one established, and no round's contribution is a
+    attributable claim pairs; a later pass that reaches no further does not
+    erase what an earlier one established, and no pass's contribution is a
     count.
     """
 
@@ -1562,7 +1442,7 @@ class PathOutcomeMemory:
         self._pairs: dict[tuple[str, str], dict[tuple[str, str], SemanticClaimPair]] = {}
 
     def observe(self, record: PathOutcomeRecord) -> PathOutcomeRecord:
-        """Fold one round's record in, and return what is now held for its key."""
+        """Fold one pass's record in, and return what is now held for its key."""
 
         key = (record.source_id, record.family.id)
         seen = self._pairs.setdefault(key, {})

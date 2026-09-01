@@ -2,17 +2,16 @@
 """
 Question-driven GraphRAG pipeline.
 
-The default `answer` pipeline mode starts from a single question and runs one
-iterative loop:
+The default `answer` pipeline mode starts from a single question and runs the
+acquisition Episode composition:
   search (Firecrawl) -> build/expand a typed knowledge graph ->
-  answer with GASL -> assess gaps -> search again until the answer is
-  well-supported or budgets are exhausted.
+  answer with GASL -> assess gaps -> search again until the numerical
+  Episode verdicts, the typed stop conditions, or a declared bound end it.
 
 The `table-fill` pipeline mode is for aggregation tasks. It materializes GASL
 answer tables, estimates the answer universe, keeps a persistent search
 frontier, and searches to resolve unsupported criteria and aggregate criterion
-shortfalls until the searched universe is covered or budget/frontier limits
-stop the run.
+shortfalls until its own stop criteria and Episode verdicts end the run.
 
 If no --schema is given, a domain schema is synthesized for the question
 (generate -> judge -> test on real search results -> refine) before the loop.
@@ -25,7 +24,7 @@ Examples:
 
   # Reuse an existing domain schema
   python run_question_pipeline.py \\
-      --question "..." --schema engineering_control --max-rounds 3
+      --question "..." --schema engineering_control
 
   # Fill table answers from a saved graph and prior tables/sources
   python run_question_pipeline.py \\
@@ -53,14 +52,9 @@ from question_pipeline import PipelineConfig, QuestionPipeline
 def build_config(args: argparse.Namespace) -> PipelineConfig:
     pipeline_mode = args.pipeline_mode.replace("-", "_")
     table_fill = pipeline_mode == "table_fill"
-    answer_mode = args.answer_mode or ("table" if table_fill else "natural")
-    task_goal_mode = args.task_goal_mode or ("table_fill" if table_fill else "off")
-    task_goal_mode = task_goal_mode.replace("-", "_")
-    if task_goal_mode == "table_coverage":
-        task_goal_mode = "table_fill"
-    search_frontier_mode = args.search_frontier_mode or (
-        "persistent" if table_fill else "batch"
-    )
+    # Answer mode is DERIVED from the pipeline mode -- table-fill forces
+    # table output and answer mode stays natural. There is no flag for it.
+    answer_mode = "table" if table_fill else "natural"
     task_goal_search_tasks = (
         args.task_goal_search_tasks
         if args.task_goal_search_tasks is not None
@@ -76,21 +70,14 @@ def build_config(args: argparse.Namespace) -> PipelineConfig:
         schema_review_passes=args.schema_review_passes,
         schema_expectations=args.expectations or "",
         firecrawl_api_key=args.firecrawl_api_key,
-        max_rounds=args.max_rounds,
-        max_papers=args.max_papers,
-        queries_per_round=args.queries_per_round,
-        min_paper_length=args.min_paper_length,
-        max_paper_length=args.max_paper_length,
-        max_extraction_chars_per_paper=args.max_extraction_chars_per_paper,
-        search_frontier_mode=search_frontier_mode,
+        max_source_units=args.max_source_units,
+        min_source_length=args.min_source_length,
+        max_source_length=args.max_source_length,
+        max_extraction_chars_per_source=args.max_extraction_chars_per_source,
         scrape_search_results=args.scrape_search_results,
         goal_discovery_text_chars=args.goal_discovery_text_chars,
-        source_relevance_mode=args.source_relevance_mode,
-        task_goal_mode=task_goal_mode,
         task_goal_search_tasks=task_goal_search_tasks,
-        target_deficit_evolutions_per_round=(
-            args.target_deficit_evolutions_per_round
-        ),
+        target_deficit_max_evolutions=args.target_deficit_max_evolutions,
         target_prompt_arms_per_evolution=args.target_prompt_arms_per_evolution,
         target_queries_per_prompt_arm=args.target_queries_per_prompt_arm,
         chunk_size=args.chunk_size,
@@ -100,20 +87,12 @@ def build_config(args: argparse.Namespace) -> PipelineConfig:
         similarity_threshold=args.similarity_threshold,
         self_refine=args.self_refine,
         max_gasl_iterations=args.max_gasl_iterations,
-        gasl_graph_scope=args.gasl_graph_scope,
-        gasl_new_source_hops=args.gasl_new_source_hops,
-        gasl_source_seed_limit=args.gasl_source_seed_limit,
         answer_mode=answer_mode,
         table_spec_path=args.table_spec_path,
         seed_tables_dir=args.seed_tables_dir,
         seed_sources_dir=args.seed_sources_dir,
         evidence_corpus_roots=tuple(args.evidence_corpus_root or ()),
         seed_frontier_path=args.seed_frontier_path,
-        round_offset=args.round_offset,
-        numeric_candidate_mode=args.numeric_candidate_mode,
-        best_guess_mode=args.best_guess_mode,
-        page_best_guess_mode=args.page_best_guess_mode,
-        best_guess_max_tasks=args.best_guess_max_tasks,
         best_guess_evidence_chars=args.best_guess_evidence_chars,
         best_guess_llm_batch_size=args.best_guess_llm_batch_size,
         best_guess_llm_timeout_sec=args.best_guess_llm_timeout_sec,
@@ -154,35 +133,16 @@ def main() -> None:
     parser.add_argument("--schema-review-passes", type=int, default=2, help="Generate<->judge passes for schema synthesis.")
 
     parser.add_argument(
-        "--max-rounds",
+        "--max-source-units",
         type=int,
-        default=4,
+        default=0,
         help=(
-            "Max strategy episodes; 0 removes the cap. A ROUND IS A COMPLETED "
-            "STRATEGY: the acquisition composition's run grain consumes one "
-            "strategy per unit, so this caps strategies rather than waves."
-        ),
-    )
-    parser.add_argument(
-        "--max-papers",
-        type=int,
-        default=40,
-        help=(
-            "Pages PULLED from result lists, accepted or not. A page the gate "
-            "refused still cost a fetch and a gate call and is still a unit of "
-            "its search, so charging only acceptances would leave the stop "
-            "rule's denominator unbounded."
-        ),
-    )
-    parser.add_argument("--queries-per-round", type=int, default=6, help="Search queries generated per round.")
-    parser.add_argument(
-        "--search-frontier-mode",
-        choices=("batch", "persistent"),
-        default=None,
-        help=(
-            "Use batch for one-wave query execution or persistent for "
-            "deduplicated task-frontier search. Defaults to persistent in "
-            "table-fill mode and batch in answer mode."
+            "The ONE operator-declared run-wide bound: source units (pages or "
+            "documents) PULLED from result lists, accepted or not -- "
+            "mechanical and extraction failures still consume acquisition "
+            "work. 0 (the default) means UNBOUNDED: the numerical Episode "
+            "verdicts decide continuation, and a declared bound that cuts a "
+            "run is reported as bound_hit, never convergence."
         ),
     )
     parser.add_argument(
@@ -197,25 +157,19 @@ def main() -> None:
         help="Characters to retain from each accepted goal-discovery source for universe estimation.",
     )
     parser.add_argument(
-        "--source-relevance-mode",
-        choices=("off", "focused", "all"),
-        default="focused",
-        help=(
-            "Gate scraped sources with a task-aware LLM relevance check: "
-            "off disables it, focused gates table-fill source-discovery "
-            "searches and answer-mode target/table gap searches, and all "
-            "gates every search task."
-        ),
+        "--min-source-length",
+        type=int,
+        default=500,
+        help="Minimum characters for a usable source unit.",
     )
-    parser.add_argument("--min-paper-length", type=int, default=500, help="Minimum characters for a usable paper.")
     parser.add_argument(
-        "--max-paper-length",
+        "--max-source-length",
         type=int,
         default=None,
-        help="Maximum characters for a usable paper; oversized Firecrawl scrapes are skipped.",
+        help="Maximum characters for a usable source unit; oversized Firecrawl scrapes are skipped.",
     )
     parser.add_argument(
-        "--max-extraction-chars-per-paper",
+        "--max-extraction-chars-per-source",
         type=int,
         default=None,
         help="Reduce long accepted search/scrape text to the most query-relevant characters before extraction.",
@@ -227,7 +181,7 @@ def main() -> None:
         "--extraction-concurrency",
         type=int,
         default=1,
-        help="Maximum concurrent typed-extraction LLM calls per paper.",
+        help="Maximum concurrent typed-extraction LLM calls per source unit.",
     )
     parser.add_argument(
         "--extraction-timeout-sec",
@@ -238,33 +192,11 @@ def main() -> None:
     parser.add_argument("--similarity-threshold", type=float, default=0.85)
     parser.add_argument("--self-refine", action="store_true", help="Enable extractor self-refinement (slower).")
 
-    parser.add_argument("--max-gasl-iterations", type=int, default=8, help="Max GASL traversal iterations per round.")
     parser.add_argument(
-        "--gasl-graph-scope",
-        choices=("auto", "full", "new-sources"),
-        default="auto",
-        help=(
-            "Graph handed to GASL each round. auto uses the full graph for "
-            "normal answering and scopes table-fill rounds with newly fetched "
-            "sources to the new-source neighborhood; full always uses the "
-            "whole graph; new-sources always uses only new-source neighborhoods."
-        ),
-    )
-    parser.add_argument(
-        "--gasl-new-source-hops",
+        "--max-gasl-iterations",
         type=int,
-        default=1,
-        help="Neighbor hops to include when --gasl-graph-scope selects new-source scope.",
-    )
-    parser.add_argument(
-        "--gasl-source-seed-limit",
-        type=int,
-        default=100,
-        help=(
-            "Max current-round source-evidenced nodes to seed directly into "
-            "GASL state for continuation rounds. Set 0 to disable source "
-            "anchoring."
-        ),
+        default=8,
+        help="Emergency GASL traversal safety cap per invocation.",
     )
     parser.add_argument(
         "--seed-tables-dir",
@@ -312,74 +244,6 @@ def main() -> None:
         ),
     )
     parser.add_argument(
-        "--round-offset",
-        type=int,
-        default=None,
-        help=(
-            "Global round number for the first round in this run. Defaults to "
-            "one greater than the highest numeric round found in "
-            "--seed-tables-dir, or 0 without seed table manifests."
-        ),
-    )
-    parser.add_argument(
-        "--answer-mode",
-        choices=("natural", "table"),
-        default=None,
-        help=(
-            "Ask GASL for a natural answer or row-shaped CSV/JSON table "
-            "variables. Defaults to table in table-fill mode and natural in "
-            "answer mode."
-        ),
-    )
-    parser.add_argument(
-        "--numeric-candidate-mode",
-        choices=("off", "parsed", "all"),
-        default="parsed",
-        help=(
-            "Write auxiliary derived numeric-candidate tables next to table-fill "
-            "exports. parsed keeps exact, range, approximate, and bound values; "
-            "all also keeps relative and ordinal textual candidates."
-        ),
-    )
-    parser.add_argument(
-        "--best-guess-mode",
-        choices=("off", "local", "llm"),
-        default="llm",
-        help=(
-            "Write derived evidence bindings for unresolved declared criteria. "
-            "local uses deterministic same-record evidence; llm also "
-            "extracts from existing source metadata, chunks, and KG records."
-        ),
-    )
-    parser.add_argument(
-        "--page-best-guess-mode",
-        choices=("off", "local", "llm"),
-        default="llm",
-        help=(
-            "The PAGE-SCOPED best-guess stage, inside acquisition. It makes "
-            "the chartered row-completeness credit reachable -- a conjunction "
-            "over every declared column from one page's verbatim extraction "
-            "essentially never fires -- and it moves best-guess spend from one "
-            "call per round to one call per extracted page. Its output is an "
-            "acquisition control signal and is written into no exported row; "
-            "--best-guess-mode still owns the round-end pass that is the only "
-            "writer of the judged-best-guess datapoint basis."
-        ),
-    )
-    parser.add_argument(
-        "--best-guess-max-tasks",
-        type=int,
-        default=None,
-        help=(
-            "Opt-in ceiling on derived criteria attempted per export. Default "
-            "is no ceiling: best_guess builds a task for every derivable slot, "
-            "because a cap here decides in advance which cells are allowed to "
-            "be filled. Setting this re-imposes a bound the library "
-            "deliberately removed, and it cuts a priority-sorted list, so the "
-            "cells that lose are the ones that sorted last."
-        ),
-    )
-    parser.add_argument(
         "--best-guess-evidence-chars",
         type=int,
         default=5000,
@@ -401,30 +265,22 @@ def main() -> None:
         ),
     )
     parser.add_argument(
-        "--task-goal-mode",
-        choices=("off", "table-fill", "table_coverage"),
-        default=None,
-        help=(
-            "Low-level fill stop rule. Prefer --pipeline-mode table-fill; "
-            "table_coverage is accepted as a legacy alias."
-        ),
-    )
-    parser.add_argument(
         "--task-goal-search-tasks",
         type=int,
         default=None,
         help=(
-            "Fill/search tasks to enqueue for each table-fill step. Defaults "
-            "to 4 in table-fill mode and 0 in answer mode."
+            "Deficit-search tasks one planner call may emit per table-fill "
+            "planning pass -- planner string breadth, never a stop rule. "
+            "Defaults to 4 in table-fill mode and 0 in answer mode."
         ),
     )
     parser.add_argument(
-        "--target-deficit-evolutions-per-round",
+        "--target-deficit-max-evolutions",
         type=int,
         default=1,
         help=(
             "Maximum prompt-mutation evolutions to try for target-deficit "
-            "search inside one outer table-fill round. Values above 1 let a "
+            "search within one prompt-mutation attempt. Values above 1 let a "
             "zero-accepted-source prompt-arm experiment mutate and search "
             "again before graph ingestion."
         ),

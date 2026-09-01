@@ -422,7 +422,7 @@ def gate_rows(
     rows: Sequence[Mapping[str, Any]],
     *,
     policy: TableFillControlPolicy,
-    round_index: int,
+    episode_id: str = "",
     table: str = "",
     target: TargetRef | None = None,
     context: PathScoringContext | None = None,
@@ -456,7 +456,7 @@ def gate_rows(
             row=row,
             score=score,
             index=index,
-            round_index=round_index,
+            episode_id=episode_id,
             target=target,
             key_columns=context.key_columns,
         )
@@ -484,7 +484,7 @@ def gate_rows(
 
     decision_context = DecisionContext(
         surface=ControlSurface.PATH_SELECTION,
-        round_index=int(round_index),
+        episode_id=str(episode_id or ""),
         # Every candidate is inside the policy's budget: the gate is not a
         # budget, and this surface rejects nothing by ranking.
         max_actions=len(candidates),
@@ -601,7 +601,7 @@ def _candidate(
     row: Mapping[str, Any],
     score: PathScore,
     index: int,
-    round_index: int,
+    episode_id: str,
     target: TargetRef | None,
     key_columns: Sequence[str],
 ) -> PathCandidate:
@@ -611,7 +611,7 @@ def _candidate(
         else PathRow.from_mapping(row, key_columns=key_columns)
     )
     return PathCandidate.create(
-        round_index=round_index,
+        episode_id=episode_id,
         route=path_row.route,
         terminal=path_row.terminal,
         target=target,

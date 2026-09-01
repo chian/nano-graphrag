@@ -11,7 +11,7 @@ Given a single question, this package runs one iterative loop that:
 4. Runs a GASL hypothesis-driven traversal to answer the question against the
    current graph.
 5. In answer mode, assesses the answer for gaps and feeds the gaps back into
-   the next round of search.
+   later search strategies.
 6. In table-fill mode, estimates final-table count targets, tracks incomplete
    rows, and keeps a persistent search frontier aimed at filling missing
    answer-table facts.
@@ -31,7 +31,6 @@ from .search import (
     SearchFrontier,
     SearchHarvester,
     SearchOutcome,
-    SourceRelevanceDecision,
     SearchTask,
     load_seed_search_outcomes,
     load_seed_source_records,
@@ -50,7 +49,7 @@ from .reward import (
     CreditLedger,
     CreditedDatapoint,
     RewardReport,
-    aggregate_round_cost,
+    aggregate_cost,
     load_seed_best_guess_rows,
     merge_best_guess_rows,
     score_criterion_yield,
@@ -75,20 +74,20 @@ from .table_specs import (
     table_spec_paths_with_seed_tables,
 )
 from .evidence_registry import (
+    AcceptanceOccurrence,
     AcceptedCell,
+    AcceptedBestGuessCell,
+    AcquisitionOccurrence,
+    BestGuessDerivation,
     BestGuessCellRef,
     DirectAssertionCandidate,
     EvidenceCommit,
     EvidenceRegistry,
+    RowCompletionOccurrence,
     SourceChunk,
     SourceDocument,
     SourceVersion,
     TextSpan,
-)
-from .progress_judge import (
-    DeclaredColumn,
-    PageScore,
-    score_page_against_contract,
 )
 
 __all__ = [
@@ -106,7 +105,6 @@ __all__ = [
     "DERIVED_CONTEXT_COLUMNS",
     "BEST_GUESS_CANDIDATE_COLUMNS",
     "BEST_GUESS_CONTEXT_COLUMNS",
-    "SourceRelevanceDecision",
     "SearchTask",
     "TableCoverageGoalTracker",
     "TableFillGoalTracker",
@@ -118,7 +116,7 @@ __all__ = [
     "load_seed_best_guess_rows",
     "merge_best_guess_rows",
     "score_criterion_yield",
-    "aggregate_round_cost",
+    "aggregate_cost",
     "CreditLedger",
     "CreditedDatapoint",
     "RewardReport",
@@ -131,19 +129,21 @@ __all__ = [
     "ColumnRef",
     "EvidenceRegistry",
     "EvidenceCommit",
+    "AcquisitionOccurrence",
+    "AcceptanceOccurrence",
+    "RowCompletionOccurrence",
     "SourceDocument",
     "SourceVersion",
     "SourceChunk",
     "TextSpan",
     "DirectAssertionCandidate",
     "AcceptedCell",
+    "AcceptedBestGuessCell",
+    "BestGuessDerivation",
     "BestGuessCellRef",
     "load_table_spec",
     "load_table_spec_with_seed_tables",
     "merge_table_specs",
     "observed_table_spec_paths_for_seed",
     "table_spec_paths_with_seed_tables",
-    "DeclaredColumn",
-    "PageScore",
-    "score_page_against_contract",
 ]

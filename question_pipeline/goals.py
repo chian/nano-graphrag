@@ -103,7 +103,6 @@ class FillDeficit:
 @dataclass
 class FillGoalState:
     label: int | str
-    round: int | None
     mode: str
     fulfilled: bool
     stop_rule: str
@@ -236,9 +235,9 @@ class TableFillGoalTracker:
         universe_estimate: Mapping[str, Any] | None,
         search_frontier: Mapping[str, Any],
         search_outcomes: list[dict[str, Any]],
-        paper_count: int,
-        max_papers: int,
-        paper_budget_available: bool,
+        units_pulled: int,
+        unit_budget: int,
+        unit_budget_available: bool,
         gap_search_tasks: list[dict[str, Any]],
         goal_search_tasks: list[dict[str, Any]],
         completion_state: Mapping[str, Any] | None = None,
@@ -268,11 +267,6 @@ class TableFillGoalTracker:
             self.new_slot_history.append(
                 {
                     "label": artifact_label,
-                    "round": (
-                        artifact_label
-                        if isinstance(artifact_label, int)
-                        else None
-                    ),
                     "new_count": len(new_slots),
                     "new_slots": sorted(new_slots),
                 }
@@ -391,12 +385,13 @@ class TableFillGoalTracker:
             "goal_discovery_sources_accepted": len(universe_sources),
             "gap_search_tasks_enqueued": len(gap_search_tasks),
             "goal_search_tasks_enqueued": len(goal_search_tasks),
-            "papers_fetched": paper_count,
-            "max_papers": max_papers,
+            "units_pulled": units_pulled,
+            # 0 means the run declared no unit bound; a bound is a positive int.
+            "unit_budget": unit_budget,
         }
         search_state = {
             **search_frontier,
-            "paper_budget_available": paper_budget_available,
+            "unit_budget_available": unit_budget_available,
         }
         analysis = _analysis_rows(
             criteria=criteria,
@@ -406,16 +401,19 @@ class TableFillGoalTracker:
             coverage=coverage,
             search_state=search_state,
         )
-        if not paper_budget_available and not fulfilled:
+        if not unit_budget_available and not fulfilled:
             analysis.append(
                 {
                     "scope": "out_of_scope",
-                    "outcome": f"paper budget exhausted at {paper_count}/{max_papers}",
+                    "outcome": (
+                        f"source-unit bound reached at {units_pulled}/{unit_budget}"
+                    ),
                     "what_it_means": (
-                        "the runtime cannot search further without a larger paper budget"
+                        "the operator's declared unit bound cut acquisition; "
+                        "this is a bound_hit, never convergence"
                     ),
                     "interpretation": (
-                        "budget exhaustion explains an incomplete run; it is not "
+                        "a bound hit explains an incomplete run; it is not "
                         "evidence that the task-level stop rule was satisfied"
                     ),
                 }
@@ -423,7 +421,6 @@ class TableFillGoalTracker:
 
         return FillGoalState(
             label=artifact_label,
-            round=artifact_label if isinstance(artifact_label, int) else None,
             mode="table_fill",
             fulfilled=fulfilled,
             stop_rule=(
@@ -1005,7 +1002,7 @@ def build_fill_deficits(
     max_row_gaps_per_table: int = 4,
     max_total: int = 32,
 ) -> list[FillDeficit]:
-    """Build concrete, generic search deficits for the next fill round."""
+    """Build concrete, generic search deficits for the next fill pass."""
     estimate = normalize_universe_estimate(
         universe_estimate,
         table_rows=table_rows,
@@ -1657,7 +1654,7 @@ _FILL_COLUMN_SKIP = {
 
 
 def _fill_candidate_columns(rows: list[dict[str, Any]]) -> list[str]:
-    """Columns a round could plausibly fill by searching for something.
+    """Columns a fill pass could plausibly fill by searching for something.
 
     Provenance columns are excluded by naming convention rather than by an
     enumerated list. `_FILL_COLUMN_SKIP` catches exact spellings only, so a
