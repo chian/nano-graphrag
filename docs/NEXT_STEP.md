@@ -15,6 +15,46 @@ string work, no test suite ever, no replay — verification is a live run design
 as an experiment, work serially, dispatched steward verdicts only (a self-review
 does not satisfy a gate).
 
+## OPERATOR RULING — the Episode code hierarchy is never changed (2026-09-01)
+
+This replaces the earlier "stop and report if a change appears necessary"
+escalation: there is no escalation path. `method_loop/` — `Episode`, `Leaf`,
+`Grain`, `Context`, `ScopedYield`, `NumericalController`, the identities, the
+grain-order enforcement, the fan-up and bound-leak rules, the record shapes —
+is fixed, as is `rarefaction/`'s estimator math. No agent edits, extends,
+subclasses-to-override, monkeypatches, or wraps-to-alter any of it, ever, for
+any reason. A surface phase binds by COMPOSING the exported API exactly as it
+stands at HEAD `9a3955b`. If a design cannot be expressed through composition
+of the existing hierarchy, the design is wrong — redesign the surface side
+until it composes; a genuinely uncomposable requirement is recorded in the
+final report as a finding about the design, and the phase proceeds with what
+does compose. "Report the need" is documentation, never a request for a
+change. This ruling is restated in every phase-agent and steward dispatch.
+
+## OPERATOR RULING — Phase G is binding layers to Episodes; that is all (2026-09-01)
+
+The operator's words: "you should only have to bind layers. that's it. you
+have gasl function and planning function and all function you need already.
+if this gets complicated more than just binding layers to episodes, then come
+back and discuss with me."
+
+Concretely: the parts already exist — the two-phase planner (the query
+grain's source), the command handlers (the extract work), `GraphWalkBinding`
+(the walk child), the adapter, the state/trace machinery. Phase G WIRES these
+existing functions into Episode grain declarations and one composition. It
+does NOT build new modules, new input contracts, new runners, new fate
+machinery, or rewrites of existing functions beyond what wiring strictly
+requires. No new graph-revision contract module and no rewiring of
+`gasl_main`'s loading path: use the graph the existing loader already
+supplies, and RECORD the graph file's path and content digest in the emitted
+records as disclosure — that is wiring, not building. The charter amendment
+shrinks to the grain-table row the new binding factually declares. If any
+step in design or implementation requires more than binding existing
+functions to Episodes — a new module, a changed function signature outside
+the binding file, machinery that doesn't exist — the phase STOPS THERE and
+reports back for operator discussion; nothing beyond binding is built or
+worked around. Small is the success condition.
+
 ## OPERATOR RULING — estimator mathematics remain frozen (2026-09-01)
 
 The operator subsequently authorized the ownership correction explicitly:
