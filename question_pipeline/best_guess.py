@@ -294,8 +294,9 @@ async def page_best_guess(
     *,
     records: Sequence[Mapping[str, Any]],
     columns_by_table: Mapping[str, Sequence[str]],
+    subject_key_columns_by_table: Mapping[str, Sequence[str]],
     source_id: str,
-    page_text: str = "",
+    evidence_chunks: Sequence[Mapping[str, Any]] = (),
     extract_fn: ExtractFn | None = None,
     llm_batch_size: int = 8,
     llm_timeout_sec: float | None = None,
@@ -349,6 +350,11 @@ async def page_best_guess(
         values = record.get("values")
         if not table or not isinstance(values, Mapping):
             continue
+        subject_keys = tuple(subject_key_columns_by_table.get(table) or ())
+        if not subject_keys or any(
+            is_missing_value(values.get(column)) for column in subject_keys
+        ):
+            continue
         position = len(rows_by_name[table])
         rows_by_name[table].append(dict(values))
         chunks_by_row[(table, position)] = tuple(
@@ -395,26 +401,10 @@ async def page_best_guess(
     if not tasks:
         return report
 
-    slot_by_key = {
-        (slot.target_table, slot.canonical_column): slot for slot in plan
-    }
+    # At page grain, best guesses are LLM-reasoned evidence only. Deterministic
+    # same-row propagation belongs to downstream table recovery and cannot
+    # manufacture a page-level best-guess evidence type.
     candidates: list[BestGuessCandidate] = []
-    for task in tasks:
-        slot = slot_by_key.get((task.target_table, task.canonical_column))
-        if slot is None:
-            continue
-        hit = _best_mapping_hit(task.row_values, slot)
-        if hit is None:
-            continue
-        candidates.append(
-            _candidate(
-                task,
-                operator="same_row_scan",
-                value=hit["value"],
-                confidence=float(hit["confidence"]),
-                basis=f"same extracted record field {hit['field']}",
-            )
-        )
 
     # `sibling_row_scan` is deliberately not run at this grain. Its ceiling is
     # 0.78 and `_accepted` requires 0.8 for it, so it can produce no accepted
@@ -422,7 +412,7 @@ async def page_best_guess(
     # trivially true within one page, which is the least independent evidence
     # there is. Repeats within one source are propagation of that source.
 
-    if extract_fn is not None and page_text:
+    if extract_fn is not None and evidence_chunks:
         open_slots = {candidate.row_slot_id for candidate in candidates}
         open_tasks = [task for task in tasks if task.row_slot_id not in open_slots]
         pairs = [
@@ -433,12 +423,10 @@ async def page_best_guess(
                 "source_text",
                 "sources",
                 [
-                    {"source_id": str(source_id), "text": window}
-                    for window in _source_windows(
-                        page_text,
-                        task,
-                        max_chars=max(500, evidence_chars),
-                    )
+                    dict(item)
+                    for item in evidence_chunks
+                    if str(item.get("source_chunk") or "")
+                    in set(task.source_chunks)
                 ],
                 budget=max(500, evidence_chars),
             )

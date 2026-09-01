@@ -6,6 +6,7 @@ import json
 import os
 import re
 from dataclasses import dataclass, field, replace
+from enum import Enum
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
@@ -18,6 +19,25 @@ from .llm_utils import ModelTier, ask_json, register_call_site_tier
 
 TABLE_IDENTITY_VERSION = "table_identity_v1"
 COLUMN_IDENTITY_VERSION = "column_identity_v1"
+
+
+class ColumnEvidenceRole(str, Enum):
+    """The only two evidence routes a result column may accept."""
+
+    REPORTED = "reported"
+    BEST_GUESS = "best_guess"
+
+    @classmethod
+    def coerce(cls, value: Any) -> "ColumnEvidenceRole":
+        if isinstance(value, cls):
+            return value
+        text = str(value or cls.REPORTED.value).strip().lower().replace("-", "_")
+        try:
+            return cls(text)
+        except ValueError as exc:
+            raise ValueError(
+                f"column role must be one of {[item.value for item in cls]}, got {value!r}"
+            ) from exc
 
 # Table-contract synthesis is model string work: the model names the tables,
 # grains, and columns implied by the question. Coercion and the usable-schema
@@ -83,7 +103,7 @@ class ColumnRef:
 @dataclass(frozen=True)
 class TableColumnSpec:
     name: str
-    role: str = "reported"
+    role: ColumnEvidenceRole = ColumnEvidenceRole.REPORTED
     nullable: bool = True
     description: str = ""
     aliases: tuple[str, ...] = ()
@@ -98,9 +118,12 @@ class TableColumnSpec:
     #: A declared unit or scale token, e.g. ``km``, ``USD``, ``per_100k``.
     unit: str = ""
 
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "role", ColumnEvidenceRole.coerce(self.role))
+
     def to_dict(self) -> dict[str, Any]:
         out: dict[str, Any] = {
-            "role": self.role,
+            "role": self.role.value,
             "nullable": self.nullable,
         }
         if self.description:
@@ -208,7 +231,7 @@ class TableTargetSpec:
         return tuple(
             column
             for column in self.all_columns()
-            if column.role.lower().replace("-", "_") == "best_guess"
+            if column.role is ColumnEvidenceRole.BEST_GUESS
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -1177,7 +1200,7 @@ def _coerce_column(fallback_name: Any, raw: Any) -> TableColumnSpec | None:
         return None
     return TableColumnSpec(
         name=name,
-        role=str(raw.get("role") or "reported").strip() or "reported",
+        role=ColumnEvidenceRole.coerce(raw.get("role")),
         nullable=not bool(raw.get("required", False))
         if "nullable" not in raw
         else bool(raw.get("nullable")),

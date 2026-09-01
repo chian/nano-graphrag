@@ -99,6 +99,7 @@ from .estimator import estimate_count_expectations
 from .derived_context import context_slots_from_count_targets
 from .derived_context import source_ids_from_row
 from .evidence_registry import EvidenceRegistry
+from .evidence_acceptance import TypedEvidenceAcceptor
 from .extraction import chunk_spans, chunk_text, enrich_graph, extract_from_text
 from .goals import (
     FillGoalState,
@@ -693,6 +694,7 @@ class QuestionPipeline:
         self.evidence_registry = EvidenceRegistry(
             self.answers_dir / "evidence_registry"
         )
+        self.evidence_acceptor = TypedEvidenceAcceptor()
 
         self.graph = nx.DiGraph()
         self.schema: Optional[DomainSchema] = None
@@ -977,6 +979,7 @@ class QuestionPipeline:
             chunk_spans=chunk_spans,
             page_best_guess_fn=page_best_guess,
             infer_best_guess_candidates=self._infer_best_guess_candidates,
+            evidence_acceptor=self.evidence_acceptor,
             evidence_registry=self.evidence_registry,
             get_graph=lambda: self.graph,
             set_graph=lambda graph: setattr(self, "graph", graph),

@@ -59,7 +59,8 @@ from __future__ import annotations
 import json
 import re
 from collections import Counter
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import (
     Any,
@@ -93,6 +94,8 @@ from . import criteria
 from .control import select_first_clearing, stable_id
 from .costs import CostErrorClass, ObservationKind, classify_error
 from .evidence_registry import (
+    AcceptedBestGuessCell,
+    BestGuessAssertionCandidate,
     DirectAssertionCandidate,
     EvidenceCommit,
     SourceChunk,
@@ -100,7 +103,8 @@ from .evidence_registry import (
     SourceVersion,
     TextSpan,
 )
-from .table_specs import ColumnRef, TableRef
+from .evidence_acceptance import EvidenceAcceptor
+from .table_specs import ColumnEvidenceRole, ColumnRef, TableRef
 from .search import (
     SearchFrontier,
     SearchHarvester,
@@ -676,12 +680,53 @@ class PageMaterial:
 
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
 _NAME_NORMALIZE_RE = re.compile(r"[^a-z0-9]+")
+_REPORTED_NUMBER_RE = re.compile(
+    r"[-+]?\d[\d,]*(?:\.\d+)?(?:[eE][-+]?\d+)?"
+)
 
 RULE_DECLARED_NAME = "declared_name"
 RULE_DECLARED_ALIAS = "declared_alias"
 RULE_TOKEN_OVERLAP = "token_overlap"
 
 SOURCE_KIND_VERBATIM = "verbatim"
+
+
+def _reported_number(value: Any) -> Optional[Decimal]:
+    if isinstance(value, bool):
+        return None
+    match = _REPORTED_NUMBER_RE.fullmatch(str(value).strip())
+    if match is None:
+        return None
+    try:
+        return Decimal(match.group(0).replace(",", ""))
+    except InvalidOperation:
+        return None
+
+
+def _locate_reported_value(
+    value: Any,
+    chunks: Sequence[SourceChunk],
+) -> Optional[tuple[SourceChunk, int, int, str]]:
+    """Find a literal value, allowing only numeric-format normalization."""
+
+    literal = str(value)
+    for chunk in chunks:
+        offset = chunk.text.find(literal)
+        if offset >= 0:
+            return chunk, offset, offset + len(literal), "exact_text"
+    numeric = _reported_number(value)
+    if numeric is None:
+        return None
+    for chunk in chunks:
+        for match in _REPORTED_NUMBER_RE.finditer(chunk.text):
+            if _reported_number(match.group(0)) == numeric:
+                return (
+                    chunk,
+                    match.start(),
+                    match.end(),
+                    "numeric_format",
+                )
+    return None
 
 
 def _tokens(name: Any) -> frozenset[str]:
@@ -706,6 +751,7 @@ class CreditColumn:
     table_id: str
     column_id: str
     required: bool
+    role: ColumnEvidenceRole
     token_keys: tuple[frozenset[str], ...]
     normalized_names: tuple[str, ...] = ()
     normalized_aliases: tuple[str, ...] = ()
@@ -742,6 +788,7 @@ class CreditBasis:
                     "column": column.column,
                     "column_id": column.column_id,
                     "required": column.required,
+                    "role": column.role.value,
                     "value_type": column.value_type,
                     "unit": column.unit,
                 }
@@ -864,6 +911,7 @@ def _credit_column(
         table_id=TableRef.create(table).id,
         column_id=ColumnRef.create(table, name).id,
         required=bool(required),
+        role=ColumnEvidenceRole.coerce(getattr(column, "role", None)),
         token_keys=token_keys,
         normalized_names=(_normalize_name(name),),
         normalized_aliases=tuple(
@@ -1040,6 +1088,16 @@ class ColumnProjection:
             for table, columns in self._by_table.items()
         }
 
+    def best_guess_columns_by_table(self) -> dict[str, list[str]]:
+        return {
+            table: [
+                column.column
+                for column in columns
+                if column.role is ColumnEvidenceRole.BEST_GUESS
+            ]
+            for table, columns in self._by_table.items()
+        }
+
     @property
     def required_column_ids_by_table(self) -> dict[str, tuple[str, ...]]:
         out: dict[str, tuple[str, ...]] = {}
@@ -1078,24 +1136,25 @@ class ColumnProjection:
             if subject is None:
                 continue
             for field_name, value in _iter_fields(values):
-                match = self._match(field_name, self._by_table.get(table) or ())
+                match = self._match(
+                    field_name,
+                    [
+                        column
+                        for column in self._by_table.get(table) or ()
+                        if column.role is ColumnEvidenceRole.REPORTED
+                    ],
+                )
                 if match is None or isinstance(value, (Mapping, list, tuple, set, bool)):
                     continue
                 column, match_rule = match
                 admitted = self._non_trivial(value, column)
                 if admitted is None:
                     continue
-                verbatim = str(value)
-                located: tuple[SourceChunk, int] | None = None
-                for chunk in chunks:
-                    offset = chunk.text.find(verbatim)
-                    if offset >= 0:
-                        located = (chunk, offset)
-                        break
+                located = _locate_reported_value(value, chunks)
                 if located is None:
                     continue
-                chunk, offset = located
-                span = TextSpan.create(chunk, offset, offset + len(verbatim))
+                chunk, offset, end, source_match_rule = located
+                span = TextSpan.create(chunk, offset, end)
                 spans.setdefault(span.id, span)
                 ref = criteria.CriterionRef.create(
                     table=table,
@@ -1119,16 +1178,115 @@ class ColumnProjection:
                         source_version_id=version.id,
                         chunk_id=chunk.id,
                         span_id=span.id,
-                        verbatim_text=verbatim,
+                        verbatim_text=span.text,
                         value_json=json.dumps(value, ensure_ascii=False),
                         normalized_value=admitted[0],
                         value_type=column.value_type,
                         unit=column.unit,
                         field_name=str(field_name),
                         match_rule=match_rule,
+                        column_role=column.role.value,
+                        source_match_rule=source_match_rule,
                     )
                 )
         return tuple(spans.values()), tuple(candidates)
+
+    def best_guess_candidates(
+        self,
+        records: Sequence[Mapping[str, Any]],
+        resolutions: Sequence[Mapping[str, Any]],
+        *,
+        document: SourceDocument,
+        version: SourceVersion,
+        chunks: Sequence[SourceChunk],
+    ) -> tuple[BestGuessAssertionCandidate, ...]:
+        """Convert accepted-shape LLM resolutions into typed candidates."""
+
+        rows: dict[str, list[Mapping[str, Any]]] = {}
+        for record in records:
+            if not isinstance(record, Mapping):
+                continue
+            table = str(record.get("table") or "")
+            values = record.get("values")
+            if table and isinstance(values, Mapping):
+                rows.setdefault(table, []).append(values)
+        chunk_ids = {chunk.id for chunk in chunks}
+        out: list[BestGuessAssertionCandidate] = []
+        for resolution in resolutions:
+            if not isinstance(resolution, Mapping):
+                continue
+            table = str(resolution.get("target_table") or "")
+            column_name = str(resolution.get("canonical_column") or "")
+            table_rows = rows.get(table) or []
+            try:
+                values = table_rows[int(resolution.get("source_row_index"))]
+            except (IndexError, TypeError, ValueError):
+                continue
+            column = next(
+                (
+                    item
+                    for item in self._by_table.get(table) or ()
+                    if item.column == column_name
+                    and item.role is ColumnEvidenceRole.BEST_GUESS
+                ),
+                None,
+            )
+            if column is None:
+                continue
+            subject_refs = criteria.row_subject_refs(table, [values], self._table_spec)
+            subject = subject_refs[0] if subject_refs else None
+            if subject is None or not subject.bound:
+                continue
+            value = resolution.get("best_guess_value")
+            admitted = self._non_trivial(value, column)
+            if admitted is None:
+                continue
+            cited = tuple(
+                chunk_id
+                for chunk_id in (
+                    str(item) for item in resolution.get("source_chunks") or ()
+                )
+                if chunk_id in chunk_ids
+            )
+            if not cited:
+                continue
+            operators = tuple(
+                str(item) for item in resolution.get("operators") or ()
+            )
+            if "source_chunk_extract" not in operators:
+                continue
+            ref = criteria.CriterionRef.create(
+                table=table,
+                field=column.column,
+                subject_id=subject.id,
+                subject_key=subject.key,
+                identity_fields=subject.identity_fields,
+                subject_bound=subject.bound,
+            )
+            out.append(
+                BestGuessAssertionCandidate.create(
+                    table_id=column.table_id,
+                    table=table,
+                    column_id=column.column_id,
+                    column=column.column,
+                    subject_id=subject.id,
+                    subject_bound=subject.bound,
+                    criterion_id=ref.id,
+                    source_id=document.source_id,
+                    source_document_id=document.id,
+                    source_version_id=version.id,
+                    supporting_chunk_ids=cited,
+                    value_json=json.dumps(value, ensure_ascii=False),
+                    normalized_value=admitted[0],
+                    value_type=column.value_type,
+                    unit=column.unit,
+                    reasoning_basis=str(resolution.get("basis") or ""),
+                    confidence=float(resolution.get("confidence") or 0.0),
+                    reasoning_operator="source_chunk_extract",
+                    column_role=column.role.value,
+                )
+            )
+        return tuple(out)
 
     def __call__(self, unit: PageUnit, material: PageMaterial) -> CreditResult:
         """The Leaf's ``credit`` slot. Writes the breakdown onto the unit once."""
@@ -1164,6 +1322,10 @@ class ColumnProjection:
     ) -> _AcceptedProjection:
         if commit is None:
             return _AcceptedProjection()
+        cells = [
+            *commit.accepted_cells,
+            *commit.accepted_best_guess_cells,
+        ]
         attributions = tuple(
             CreditAttribution(
                 identity=cell.criterion_id,
@@ -1172,9 +1334,13 @@ class ColumnProjection:
                 field=cell.column,
                 rule=cell.acceptance_rule_version,
                 triviality_rule="accepted_registry_chain",
-                source_kind=SOURCE_KIND_VERBATIM,
+                source_kind=(
+                    "best_guess"
+                    if isinstance(cell, AcceptedBestGuessCell)
+                    else SOURCE_KIND_VERBATIM
+                ),
             )
-            for cell in commit.accepted_cells
+            for cell in cells
         )
         rows = tuple(
             RowCreditDetail(
@@ -1272,10 +1438,11 @@ class ColumnProjection:
     ) -> Optional[tuple[str, str]]:
         """The normalized value and the clause that admitted it, or ``None``.
 
-        Four clauses, all of which must hold: the value normalizes to something
-        non-empty; ``criteria`` does not call it missing; it parses as the
-        column's declared ``value_type`` where one is declared; and it carries
-        the column's declared ``unit`` where one is declared.
+        Three clauses must hold: the value normalizes to something non-empty;
+        ``criteria`` does not call it missing; and it parses as the column's
+        declared ``value_type`` where one is declared. ``unit`` is typed column
+        metadata, not text that the scalar must repeat: a reported value of
+        ``1,000`` in a deaths column is still a value in people.
 
         THE MISSING-TOKEN SET AND THE NORMALIZED FORM HAVE ONE OWNER, and it is
         ``criteria``. This module kept its own eight-token set and its own
@@ -1296,8 +1463,6 @@ class ColumnProjection:
             return None
         normalized = criteria.normalize_key_value(value)
         if not normalized:
-            return None
-        if column.unit and not _carries_unit(normalized, column.unit):
             return None
         if not column.value_type:
             return normalized, ("untyped" if not column.unit else f"unit:{column.unit}")
@@ -1320,10 +1485,6 @@ _NUMBER_RE = re.compile(r"[-+]?\d[\d,]*\.?\d*(?:[eE][-+]?\d+)?")
 _RANGE_SPLIT_RE = re.compile(r"\s*(?:-|–|—|to)\s*", re.IGNORECASE)
 _ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}(?:-\d{2})?$")
 _YEAR_RE = re.compile(r"^\d{4}$")
-
-
-def _carries_unit(text: str, unit: str) -> bool:
-    return unit.lower() in text.lower()
 
 
 def _strip_unit(text: str, unit: str) -> str:
@@ -2369,6 +2530,7 @@ class ProviderBinding:
         chunk_spans: Callable[..., Iterable[Any]],
         page_best_guess_fn: Callable[..., Awaitable[Mapping[str, Any]]],
         infer_best_guess_candidates: Callable[..., Awaitable[Sequence[Mapping[str, Any]]]],
+        evidence_acceptor: EvidenceAcceptor,
         evidence_registry: Any,
         get_graph: Callable[[], Any],
         set_graph: Callable[[Any], None],
@@ -2432,6 +2594,9 @@ class ProviderBinding:
         self.chunk_spans = chunk_spans
         self.page_best_guess_fn = page_best_guess_fn
         self.infer_best_guess_candidates = infer_best_guess_candidates
+        if not isinstance(evidence_acceptor, EvidenceAcceptor):
+            raise TypeError("evidence_acceptor must implement EvidenceAcceptor")
+        self.evidence_acceptor = evidence_acceptor
         self.evidence_registry = evidence_registry
         self.get_graph = get_graph
         self.set_graph = set_graph
@@ -2607,6 +2772,7 @@ class ProviderBinding:
         return Leaf(
             unit=unit,
             extract=self.fetch_extract,
+            accept=self.accept_evidence,
             credit=self.crediter,
             label=unit.label,
         )
@@ -2728,72 +2894,6 @@ class ProviderBinding:
             )
 
         records = self._extracted_records(entities, relationships)
-        try:
-            document, version, source_chunks = self.evidence_registry.source_records(
-                source_id=source_id,
-                canonical_locator=str(
-                    source_record.get("url")
-                    or source_record.get("source_url")
-                    or source_id
-                ),
-                title=str(source_record.get("title") or ""),
-                content=str(source_record.get("text") or ""),
-                chunks=chunks,
-            )
-            spans, assertions = self.crediter.assertion_candidates(
-                records,
-                document=document,
-                version=version,
-                chunks=source_chunks,
-            )
-            source_batch_id = self.evidence_registry.register_source_candidates(
-                document=document,
-                version=version,
-                content=str(source_record.get("text") or ""),
-                chunks=source_chunks,
-                spans=spans,
-                candidates=assertions,
-            )
-            evidence_commit = self.evidence_registry.accept_direct(
-                source_batch_id,
-                required_columns_by_table=self.crediter.required_column_ids_by_table,
-            )
-            accepted_by_chunk: dict[str, set[str]] = {}
-            for cell in evidence_commit.accepted_cells:
-                accepted_by_chunk.setdefault(cell.chunk_id, set()).add(
-                    cell.criterion_id
-                )
-            seen_chunk_credits: set[str] = set()
-            for chunk_record, source_chunk in zip(chunks, source_chunks):
-                identities = accepted_by_chunk.get(source_chunk.id, set())
-                new = identities - seen_chunk_credits
-                chunk_record["registry_chunk_id"] = source_chunk.id
-                chunk_record["credits_minted"] = len(identities)
-                chunk_record["new_within_page"] = len(new)
-                chunk_record["repeats_within_page"] = len(identities) - len(new)
-                seen_chunk_credits.update(identities)
-        except (OSError, ValueError, LookupError) as exc:
-            error_class = classify_error(exc)
-            ingestion.update(
-                {
-                    "extraction_state": "evidence_registry_failed",
-                    "reason": f"{type(exc).__name__}: {exc}",
-                    "error_class": error_class,
-                }
-            )
-            return PageMaterial(
-                source_id=source_id,
-                fate=page_fate(
-                    extraction=EXTRACT_RAISED,
-                    error_class=error_class,
-                ),
-                source_record=source_record,
-                ingestion=ingestion,
-                reduction=candidate.reduction,
-                chunks=tuple(chunks),
-                text_chars=len(candidate.text),
-            )
-
         ingestion.update(
             {
                 "extraction_state": (
@@ -2805,25 +2905,147 @@ class ProviderBinding:
                 "chunk_count": len(chunks),
             }
         )
-        guesses = await self._page_best_guess(
-            records=records,
-            source_id=source_id,
-            page_text=str(source_record.get("text") or ""),
-        )
         return PageMaterial(
             source_id=source_id,
             fate=page_fate(extraction=EXTRACT_OK),
             entities=entities or {},
             relationships=list(relationships or ()),
             records=records,
-            guesses=guesses,
             source_record=source_record,
             ingestion=ingestion,
             reduction=candidate.reduction,
             chunks=tuple(chunks),
             text_chars=len(candidate.text),
-            evidence_commit=evidence_commit,
         )
+
+    async def accept_evidence(
+        self,
+        unit: PageUnit,
+        material: PageMaterial,
+    ) -> PageMaterial:
+        """Run the bound acceptor, then persist exactly its typed decision."""
+
+        if not material.fate.judged or material.source_record is None:
+            return material
+        source_record = material.source_record
+        ingestion = dict(material.ingestion)
+        chunks = [dict(item) for item in material.chunks]
+        try:
+            document, version, source_chunks = self.evidence_registry.source_records(
+                source_id=material.source_id,
+                canonical_locator=str(
+                    source_record.get("url")
+                    or source_record.get("source_url")
+                    or material.source_id
+                ),
+                title=str(source_record.get("title") or ""),
+                content=str(source_record.get("text") or ""),
+                chunks=chunks,
+            )
+            runtime_to_registry = {
+                str(chunk_record.get("chunk_id") or ""): source_chunk.id
+                for chunk_record, source_chunk in zip(chunks, source_chunks)
+            }
+            records = [
+                {
+                    **dict(record),
+                    "source_chunks": [
+                        runtime_to_registry[chunk_id]
+                        for chunk_id in (
+                            str(item)
+                            for item in record.get("source_chunks") or ()
+                        )
+                        if chunk_id in runtime_to_registry
+                    ],
+                }
+                for record in material.records
+                if isinstance(record, Mapping)
+            ]
+            spans, direct_candidates = self.crediter.assertion_candidates(
+                records,
+                document=document,
+                version=version,
+                chunks=source_chunks,
+            )
+            guesses = await self._page_best_guess(
+                records=records,
+                source_id=material.source_id,
+                source_chunks=source_chunks,
+            )
+            best_guess_candidates = self.crediter.best_guess_candidates(
+                records,
+                guesses,
+                document=document,
+                version=version,
+                chunks=source_chunks,
+            )
+            source_batch_id = self.evidence_registry.register_source_candidates(
+                document=document,
+                version=version,
+                content=str(source_record.get("text") or ""),
+                chunks=source_chunks,
+                spans=spans,
+                candidates=direct_candidates,
+                best_guess_candidates=best_guess_candidates,
+            )
+            decision = self.evidence_acceptor.evaluate(
+                direct_candidates=direct_candidates,
+                best_guess_candidates=best_guess_candidates,
+                spans=spans,
+                chunks=source_chunks,
+            )
+            evidence_commit = self.evidence_registry.commit_acceptance(
+                source_batch_id,
+                decision,
+                required_columns_by_table=(
+                    self.crediter.required_column_ids_by_table
+                ),
+            )
+            accepted_by_chunk: dict[str, set[str]] = {}
+            for cell in evidence_commit.accepted_cells:
+                accepted_by_chunk.setdefault(cell.chunk_id, set()).add(
+                    cell.criterion_id
+                )
+            for cell in evidence_commit.accepted_best_guess_cells:
+                for chunk_id in cell.supporting_chunk_ids:
+                    accepted_by_chunk.setdefault(chunk_id, set()).add(
+                        cell.criterion_id
+                    )
+            seen_chunk_credits: set[str] = set()
+            for chunk_record, source_chunk in zip(chunks, source_chunks):
+                identities = accepted_by_chunk.get(source_chunk.id, set())
+                new = identities - seen_chunk_credits
+                chunk_record["registry_chunk_id"] = source_chunk.id
+                chunk_record["credits_minted"] = len(identities)
+                chunk_record["new_within_page"] = len(new)
+                chunk_record["repeats_within_page"] = len(identities) - len(new)
+                seen_chunk_credits.update(identities)
+            return replace(
+                material,
+                records=tuple(records),
+                guesses=tuple(guesses),
+                chunks=tuple(chunks),
+                evidence_commit=evidence_commit,
+            )
+        except (OSError, ValueError, LookupError, TypeError) as exc:
+            error_class = classify_error(exc)
+            ingestion.update(
+                {
+                    "extraction_state": "evidence_acceptance_failed",
+                    "reason": f"{type(exc).__name__}: {exc}",
+                    "error_class": error_class,
+                }
+            )
+            return replace(
+                material,
+                fate=page_fate(
+                    extraction=EXTRACT_RAISED,
+                    error_class=error_class,
+                ),
+                ingestion=ingestion,
+                chunks=tuple(chunks),
+                evidence_commit=None,
+            )
 
     def _chunk_observer(
         self,
@@ -2899,15 +3121,26 @@ class ProviderBinding:
         *,
         records: Sequence[Mapping[str, Any]],
         source_id: str,
-        page_text: str,
+        source_chunks: Sequence[SourceChunk],
     ) -> list[dict[str, Any]]:
-        if not records:
+        columns = self.crediter.best_guess_columns_by_table()
+        if not records or not any(columns.values()):
             return []
         report = await self.page_best_guess_fn(
             records=records,
-            columns_by_table=self.crediter.columns_by_table(),
+            columns_by_table=columns,
+            subject_key_columns_by_table=(
+                self.crediter.basis.subject_key_columns
+            ),
             source_id=source_id,
-            page_text=page_text,
+            evidence_chunks=[
+                {
+                    "source_id": source_id,
+                    "source_chunk": chunk.id,
+                    "text": chunk.text,
+                }
+                for chunk in source_chunks
+            ],
             extract_fn=self.infer_best_guess_candidates,
             llm_batch_size=self.best_guess_llm_batch_size,
             llm_timeout_sec=self.best_guess_llm_timeout_sec,

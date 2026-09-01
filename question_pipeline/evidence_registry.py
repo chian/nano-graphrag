@@ -1,16 +1,15 @@
-"""Durable exact-span evidence acceptance for acquisition and criteria.
+"""Typed persistence for staged evidence and external acceptance decisions.
 
-The registry is the authority boundary between extracted candidates and
-incidence.  One page is committed in two ordered durable records:
+The registry stores the authority chain between evidence candidates and
+incidence. One page is committed in two ordered durable records:
 
-1. its exact source blob, source/version/chunk/span anchors, and assertion
-   candidates are persisted and fsynced;
-2. deterministic direct-assertion acceptances are appended and fsynced.
+1. its source blob, typed candidates, and exact provenance anchors;
+2. the immutable decision returned by the separately bound evidence acceptor.
 
-Only an :class:`AcceptedCell` returned from the second commit may become an
-incidence credit.  A crash between the commits leaves auditable candidates and
-no creditable acceptance.  The module performs no model call and contains no
-semantic fallback over graph edges, source references, or populated cells.
+Only a typed accepted cell returned from the second commit may become an
+incidence credit. A crash between commits leaves auditable candidates and no
+creditable acceptance. This module validates that stored objects satisfy their
+runtime type contracts, but it never chooses which candidate is accepted.
 """
 
 from __future__ import annotations
@@ -20,15 +19,20 @@ import json
 import os
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Optional
+from typing import TYPE_CHECKING, Any, Iterable, Mapping, Optional
 
 from .control import stable_id
+from .table_specs import ColumnEvidenceRole
 
-EVIDENCE_REGISTRY_VERSION = "evidence_registry_v1"
+if TYPE_CHECKING:
+    from .evidence_acceptance import AcceptanceDecision
+
+EVIDENCE_REGISTRY_VERSION = "evidence_registry_v2"
 DIRECT_ACCEPTANCE_RULE_VERSION = "direct_exact_span_acceptance_v1"
-BEST_GUESS_CELL_VERSION = "best_guess_cell_v1"
-SOURCE_BATCH_VERSION = "source_assertion_batch_v1"
-ACCEPTANCE_BATCH_VERSION = "acceptance_batch_v1"
+BEST_GUESS_ACCEPTANCE_RULE_VERSION = "best_guess_anchored_reasoning_v1"
+ROW_COMPLETION_RULE_VERSION = "typed_accepted_row_completion_v1"
+SOURCE_BATCH_VERSION = "source_assertion_batch_v2"
+ACCEPTANCE_BATCH_VERSION = "acceptance_batch_v2"
 
 
 def _sha256(text: str) -> str:
@@ -44,28 +48,6 @@ def _required(name: str, value: Any) -> str:
     if not text:
         raise ValueError(f"{name} must be non-empty")
     return text
-
-
-@dataclass(frozen=True)
-class BestGuessCellRef:
-    """Stable address reserved for a future accepted derived cell.
-
-    This phase creates the address only.  It deliberately defines no
-    derivation, acceptance, or incidence route.
-    """
-
-    id: str
-    criterion_id: str
-
-    @classmethod
-    def create(cls, criterion_id: str) -> "BestGuessCellRef":
-        criterion = _required("criterion_id", criterion_id)
-        return cls(
-            id=stable_id(
-                {"version": BEST_GUESS_CELL_VERSION, "criterion_id": criterion}
-            ),
-            criterion_id=criterion,
-        )
 
 
 @dataclass(frozen=True)
@@ -231,9 +213,19 @@ class DirectAssertionCandidate:
     unit: str
     field_name: str
     match_rule: str
+    column_role: str = ColumnEvidenceRole.REPORTED.value
+    source_match_rule: str = "exact_text"
 
     @classmethod
     def create(cls, **values: Any) -> "DirectAssertionCandidate":
+        role = ColumnEvidenceRole.coerce(values.get("column_role"))
+        if role is not ColumnEvidenceRole.REPORTED:
+            raise ValueError("DirectAssertionCandidate requires a reported column")
+        values["column_role"] = role.value
+        source_match_rule = str(values.get("source_match_rule") or "").strip()
+        if source_match_rule not in {"exact_text", "numeric_format"}:
+            raise ValueError("direct source_match_rule must be exact_text or numeric_format")
+        values["source_match_rule"] = source_match_rule
         payload = {
             key: values[key]
             for key in (
@@ -250,11 +242,88 @@ class DirectAssertionCandidate:
                 "unit",
                 "field_name",
                 "match_rule",
+                "column_role",
+                "source_match_rule",
             )
         }
         return cls(
             id=stable_id(
                 {"version": EVIDENCE_REGISTRY_VERSION, "assertion": payload}
+            ),
+            **values,
+        )
+
+
+@dataclass(frozen=True)
+class BestGuessAssertionCandidate:
+    """One numeric LLM-reasoned value anchored to stored source chunks."""
+
+    id: str
+    table_id: str
+    table: str
+    column_id: str
+    column: str
+    subject_id: str
+    subject_bound: bool
+    criterion_id: str
+    source_id: str
+    source_document_id: str
+    source_version_id: str
+    supporting_chunk_ids: tuple[str, ...]
+    value_json: str
+    normalized_value: str
+    value_type: str
+    unit: str
+    reasoning_basis: str
+    confidence: float
+    reasoning_operator: str
+    column_role: str = ColumnEvidenceRole.BEST_GUESS.value
+
+    @classmethod
+    def create(cls, **values: Any) -> "BestGuessAssertionCandidate":
+        role = ColumnEvidenceRole.coerce(values.get("column_role"))
+        if role is not ColumnEvidenceRole.BEST_GUESS:
+            raise ValueError("BestGuessAssertionCandidate requires a best_guess column")
+        values["column_role"] = role.value
+        if str(values.get("value_type") or "") not in {"number", "integer"}:
+            raise ValueError("best-guess evidence requires a numeric column type")
+        chunks = tuple(dict.fromkeys(str(item) for item in values.get("supporting_chunk_ids") or ()))
+        if not chunks:
+            raise ValueError("best-guess evidence requires supporting source chunks")
+        values["supporting_chunk_ids"] = chunks
+        values["reasoning_basis"] = _required(
+            "reasoning_basis", values.get("reasoning_basis")
+        )
+        operator = _required("reasoning_operator", values.get("reasoning_operator"))
+        if operator != "source_chunk_extract":
+            raise ValueError("page best guesses must come from LLM source-chunk reasoning")
+        values["reasoning_operator"] = operator
+        confidence = float(values.get("confidence"))
+        if not 0.0 <= confidence <= 1.0:
+            raise ValueError("best-guess confidence must be between 0 and 1")
+        values["confidence"] = confidence
+        payload = {
+            key: values[key]
+            for key in (
+                "table_id",
+                "column_id",
+                "subject_id",
+                "criterion_id",
+                "source_version_id",
+                "supporting_chunk_ids",
+                "value_json",
+                "normalized_value",
+                "value_type",
+                "unit",
+                "reasoning_basis",
+                "confidence",
+                "reasoning_operator",
+                "column_role",
+            )
+        }
+        return cls(
+            id=stable_id(
+                {"version": EVIDENCE_REGISTRY_VERSION, "best_guess": payload}
             ),
             **values,
         )
@@ -271,6 +340,19 @@ class AcceptanceRecord:
     span_id: str
     supporting_text_sha256: str
     rule_version: str = DIRECT_ACCEPTANCE_RULE_VERSION
+
+
+@dataclass(frozen=True)
+class BestGuessAcceptanceRecord:
+    id: str
+    assertion_id: str
+    criterion_id: str
+    source_document_id: str
+    source_version_id: str
+    supporting_chunk_ids: tuple[str, ...]
+    reasoning_basis: str
+    confidence: float
+    rule_version: str = BEST_GUESS_ACCEPTANCE_RULE_VERSION
 
 
 @dataclass(frozen=True)
@@ -300,6 +382,33 @@ class AcceptedCell:
 
 
 @dataclass(frozen=True)
+class AcceptedBestGuessCell:
+    """A committed numeric best guess with its complete reasoning chain."""
+
+    id: str
+    table_id: str
+    table: str
+    column_id: str
+    column: str
+    subject_id: str
+    criterion_id: str
+    value_json: str
+    normalized_value: str
+    value_type: str
+    unit: str
+    assertion_id: str
+    acceptance_id: str
+    source_id: str
+    source_document_id: str
+    source_version_id: str
+    supporting_chunk_ids: tuple[str, ...]
+    reasoning_basis: str
+    confidence: float
+    reasoning_operator: str
+    acceptance_rule_version: str = BEST_GUESS_ACCEPTANCE_RULE_VERSION
+
+
+@dataclass(frozen=True)
 class RowCompletionAcceptance:
     id: str
     table_id: str
@@ -307,13 +416,14 @@ class RowCompletionAcceptance:
     subject_id: str
     required_column_ids: tuple[str, ...]
     accepted_cell_ids: tuple[str, ...]
-    acceptance_rule_version: str = DIRECT_ACCEPTANCE_RULE_VERSION
+    acceptance_rule_version: str = ROW_COMPLETION_RULE_VERSION
 
 
 @dataclass(frozen=True)
 class EvidenceCommit:
     source_batch_id: str
     accepted_cells: tuple[AcceptedCell, ...] = ()
+    accepted_best_guess_cells: tuple[AcceptedBestGuessCell, ...] = ()
     completed_rows: tuple[RowCompletionAcceptance, ...] = ()
     rejected_assertion_ids: tuple[str, ...] = ()
 
@@ -321,6 +431,9 @@ class EvidenceCommit:
         return {
             "source_batch_id": self.source_batch_id,
             "accepted_cells": [asdict(item) for item in self.accepted_cells],
+            "accepted_best_guess_cells": [
+                asdict(item) for item in self.accepted_best_guess_cells
+            ],
             "completed_rows": [asdict(item) for item in self.completed_rows],
             "rejected_assertion_ids": list(self.rejected_assertion_ids),
         }
@@ -375,6 +488,7 @@ class EvidenceRegistry:
         chunks: Iterable[SourceChunk],
         spans: Iterable[TextSpan],
         candidates: Iterable[DirectAssertionCandidate],
+        best_guess_candidates: Iterable[BestGuessAssertionCandidate] = (),
     ) -> str:
         """Durably commit the source blob and all candidate anchors first."""
 
@@ -383,6 +497,7 @@ class EvidenceRegistry:
         chunk_tuple = tuple(chunks)
         span_tuple = tuple(spans)
         candidate_tuple = tuple(candidates)
+        best_guess_tuple = tuple(best_guess_candidates)
         chunks_by_id = {item.id: item for item in chunk_tuple}
         spans_by_id = {item.id: item for item in span_tuple}
         for span in span_tuple:
@@ -401,6 +516,16 @@ class EvidenceRegistry:
                 or candidate.chunk_id != span.chunk_id
             ):
                 raise ValueError("assertion candidate does not resolve its source chain")
+        for candidate in best_guess_tuple:
+            if (
+                candidate.source_id != document.source_id
+                or candidate.source_document_id != document.id
+                or candidate.source_version_id != version.id
+                or any(chunk_id not in chunks_by_id for chunk_id in candidate.supporting_chunk_ids)
+            ):
+                raise ValueError(
+                    "best-guess candidate does not resolve its typed source chain"
+                )
 
         blob_path = self.blobs_dir / f"{version.content_sha256}.txt"
         self._write_blob(blob_path, content)
@@ -413,6 +538,7 @@ class EvidenceRegistry:
             "chunks": [asdict(item) for item in chunk_tuple],
             "spans": [asdict(item) for item in span_tuple],
             "assertion_candidates": [asdict(item) for item in candidate_tuple],
+            "best_guess_candidates": [asdict(item) for item in best_guess_tuple],
         }
         batch_id = stable_id({"version": SOURCE_BATCH_VERSION, "payload": payload})
         existing = self._source_batches().get(batch_id)
@@ -423,13 +549,19 @@ class EvidenceRegistry:
         self._append_fsync(self.source_ledger, {"source_batch_id": batch_id, **payload})
         return batch_id
 
-    def accept_direct(
+    def commit_acceptance(
         self,
         source_batch_id: str,
+        decision: "AcceptanceDecision",
         *,
         required_columns_by_table: Mapping[str, Iterable[str]],
     ) -> EvidenceCommit:
-        """Validate, append, and fsync direct acceptances as the second commit."""
+        """Persist an acceptor's complete typed decision without replacing it."""
+
+        from .evidence_acceptance import AcceptanceDecision
+
+        if not isinstance(decision, AcceptanceDecision):
+            raise TypeError("decision must be an AcceptanceDecision")
 
         required_contract = {
             str(table_id): list(dict.fromkeys(str(item) for item in columns))
@@ -445,6 +577,11 @@ class EvidenceRegistry:
                     "accepted source batch cannot be retried under a different "
                     "required-column contract"
                 )
+            if existing.get("acceptance_decision") != decision.to_dict():
+                raise ValueError(
+                    "accepted source batch cannot be retried under a different "
+                    "acceptor decision"
+                )
             for durable_batch, durable_commit in self._validated_commits():
                 if str(durable_batch.get("source_batch_id") or "") == source_batch_id:
                     return durable_commit
@@ -458,22 +595,39 @@ class EvidenceRegistry:
             for item in batch.get("assertion_candidates") or ()
             if isinstance(item, Mapping)
         ]
+        best_guess_candidates = [
+            BestGuessAssertionCandidate(
+                **{
+                    **dict(item),
+                    "supporting_chunk_ids": tuple(
+                        item.get("supporting_chunk_ids") or ()
+                    ),
+                }
+            )
+            for item in batch.get("best_guess_candidates") or ()
+            if isinstance(item, Mapping)
+        ]
+        candidate_ids = {
+            *(candidate.id for candidate in candidates),
+            *(candidate.id for candidate in best_guess_candidates),
+        }
+        decided_ids = {item.candidate_id for item in decision.candidates}
+        if decided_ids != candidate_ids:
+            raise ValueError(
+                "acceptance decision must resolve every staged candidate exactly once"
+            )
+        accepted_direct_ids = decision.accepted_ids("reported")
+        accepted_best_guess_ids = decision.accepted_ids("best_guess")
         accepted_cells: list[AcceptedCell] = []
-        rejected: list[str] = []
+        accepted_best_guess_cells: list[AcceptedBestGuessCell] = []
+        rejected = sorted(candidate_ids - accepted_direct_ids - accepted_best_guess_ids)
         acceptance_rows: list[dict[str, Any]] = []
         for candidate in candidates:
             span = spans.get(candidate.span_id)
-            exact = bool(
-                span
-                and str(span.get("text") or "")
-                == candidate.verbatim_text
-                and _sha256(str(span.get("text") or ""))
-                == str(span.get("text_sha256") or "")
-                and candidate.subject_bound
-            )
-            if not exact:
-                rejected.append(candidate.id)
+            if candidate.id not in accepted_direct_ids:
                 continue
+            if not span or not candidate.subject_bound:
+                raise ValueError("acceptor accepted an invalid reported evidence type")
             acceptance = AcceptanceRecord(
                 id=stable_id(
                     {
@@ -521,15 +675,77 @@ class EvidenceRegistry:
                 {"acceptance": asdict(acceptance), "accepted_cell": asdict(cell)}
             )
 
+        chunks = {
+            str(item["id"]): item
+            for item in batch.get("chunks") or ()
+            if isinstance(item, Mapping)
+        }
+        best_guess_rows: list[dict[str, Any]] = []
+        for candidate in best_guess_candidates:
+            if candidate.id not in accepted_best_guess_ids:
+                continue
+            if (
+                not candidate.subject_bound
+                or any(chunk_id not in chunks for chunk_id in candidate.supporting_chunk_ids)
+            ):
+                raise ValueError("acceptor accepted an invalid best-guess evidence type")
+            acceptance = BestGuessAcceptanceRecord(
+                id=stable_id(
+                    {
+                        "version": BEST_GUESS_ACCEPTANCE_RULE_VERSION,
+                        "assertion_id": candidate.id,
+                    }
+                ),
+                assertion_id=candidate.id,
+                criterion_id=candidate.criterion_id,
+                source_document_id=candidate.source_document_id,
+                source_version_id=candidate.source_version_id,
+                supporting_chunk_ids=candidate.supporting_chunk_ids,
+                reasoning_basis=candidate.reasoning_basis,
+                confidence=candidate.confidence,
+            )
+            cell = AcceptedBestGuessCell(
+                id=stable_id(
+                    {
+                        "version": EVIDENCE_REGISTRY_VERSION,
+                        "criterion_id": candidate.criterion_id,
+                        "kind": "best_guess_cell",
+                    }
+                ),
+                table_id=candidate.table_id,
+                table=candidate.table,
+                column_id=candidate.column_id,
+                column=candidate.column,
+                subject_id=candidate.subject_id,
+                criterion_id=candidate.criterion_id,
+                value_json=candidate.value_json,
+                normalized_value=candidate.normalized_value,
+                value_type=candidate.value_type,
+                unit=candidate.unit,
+                assertion_id=candidate.id,
+                acceptance_id=acceptance.id,
+                source_id=candidate.source_id,
+                source_document_id=candidate.source_document_id,
+                source_version_id=candidate.source_version_id,
+                supporting_chunk_ids=candidate.supporting_chunk_ids,
+                reasoning_basis=candidate.reasoning_basis,
+                confidence=candidate.confidence,
+                reasoning_operator=candidate.reasoning_operator,
+            )
+            accepted_best_guess_cells.append(cell)
+            best_guess_rows.append(
+                {"acceptance": asdict(acceptance), "accepted_cell": asdict(cell)}
+            )
+
         prior_cells = self.accepted_cells()
-        all_cells = [*prior_cells, *accepted_cells]
+        all_cells = [*prior_cells, *accepted_cells, *accepted_best_guess_cells]
         completed_subjects = {
             (item.table_id, item.subject_id) for item in self.completed_rows()
         }
         completed_rows: list[RowCompletionAcceptance] = []
         subjects = {
             (cell.table_id, cell.table, cell.subject_id)
-            for cell in accepted_cells
+            for cell in [*accepted_cells, *accepted_best_guess_cells]
             if (cell.table_id, cell.subject_id) not in completed_subjects
         }
         for table_id, table, subject_id in sorted(subjects):
@@ -556,7 +772,7 @@ class EvidenceRegistry:
                 RowCompletionAcceptance(
                     id=stable_id(
                         {
-                            "version": DIRECT_ACCEPTANCE_RULE_VERSION,
+                            "version": ROW_COMPLETION_RULE_VERSION,
                             "table_id": table_id,
                             "subject_id": subject_id,
                             "required_column_ids": list(required),
@@ -575,7 +791,9 @@ class EvidenceRegistry:
             "batch_version": ACCEPTANCE_BATCH_VERSION,
             "source_batch_id": source_batch_id,
             "required_columns_by_table": required_contract,
+            "acceptance_decision": decision.to_dict(),
             "accepted": acceptance_rows,
+            "accepted_best_guesses": best_guess_rows,
             "completed_rows": [asdict(item) for item in completed_rows],
             "rejected_assertion_ids": rejected,
         }
@@ -589,6 +807,7 @@ class EvidenceRegistry:
         return EvidenceCommit(
             source_batch_id=source_batch_id,
             accepted_cells=tuple(accepted_cells),
+            accepted_best_guess_cells=tuple(accepted_best_guess_cells),
             completed_rows=tuple(completed_rows),
             rejected_assertion_ids=tuple(rejected),
         )
@@ -608,6 +827,19 @@ class EvidenceRegistry:
             if isinstance(row, Mapping)
             and isinstance(row.get("accepted_cell"), Mapping)
         )
+        best_guess_cells = tuple(
+            AcceptedBestGuessCell(
+                **{
+                    **dict(row["accepted_cell"]),
+                    "supporting_chunk_ids": tuple(
+                        row["accepted_cell"].get("supporting_chunk_ids") or ()
+                    ),
+                }
+            )
+            for row in batch.get("accepted_best_guesses") or ()
+            if isinstance(row, Mapping)
+            and isinstance(row.get("accepted_cell"), Mapping)
+        )
         rows: list[RowCompletionAcceptance] = []
         for row in batch.get("completed_rows") or ():
             if not isinstance(row, Mapping):
@@ -623,17 +855,23 @@ class EvidenceRegistry:
         return EvidenceCommit(
             source_batch_id=str(batch.get("source_batch_id") or ""),
             accepted_cells=cells,
+            accepted_best_guess_cells=best_guess_cells,
             completed_rows=tuple(rows),
             rejected_assertion_ids=tuple(
                 str(item) for item in batch.get("rejected_assertion_ids") or ()
             ),
         )
 
-    def accepted_cells(self) -> tuple[AcceptedCell, ...]:
+    def accepted_cells(
+        self,
+    ) -> tuple[AcceptedCell | AcceptedBestGuessCell, ...]:
         return tuple(
             cell
             for _batch, commit in self._validated_commits()
-            for cell in commit.accepted_cells
+            for cell in [
+                *commit.accepted_cells,
+                *commit.accepted_best_guess_cells,
+            ]
         )
 
     def completed_rows(self) -> tuple[RowCompletionAcceptance, ...]:
@@ -649,7 +887,7 @@ class EvidenceRegistry:
         """Resolve every acceptance through its durable source chain."""
 
         source_batches = self._source_batches()
-        known_cells: dict[str, AcceptedCell] = {}
+        known_cells: dict[str, AcceptedCell | AcceptedBestGuessCell] = {}
         completed_subjects: set[tuple[str, str]] = set()
         out: list[tuple[dict[str, Any], EvidenceCommit]] = []
         for batch in self._read_jsonl(self.acceptance_ledger):
@@ -665,7 +903,10 @@ class EvidenceRegistry:
                 known_cells=known_cells,
                 completed_subjects=completed_subjects,
             )
-            for cell in commit.accepted_cells:
+            for cell in [
+                *commit.accepted_cells,
+                *commit.accepted_best_guess_cells,
+            ]:
                 known_cells[cell.id] = cell
             completed_subjects.update(
                 (row.table_id, row.subject_id) for row in commit.completed_rows
@@ -678,7 +919,7 @@ class EvidenceRegistry:
         batch: Mapping[str, Any],
         source_batch: Mapping[str, Any],
         *,
-        known_cells: Mapping[str, AcceptedCell],
+        known_cells: Mapping[str, AcceptedCell | AcceptedBestGuessCell],
         completed_subjects: set[tuple[str, str]],
     ) -> EvidenceCommit:
         source_payload = dict(source_batch)
@@ -751,6 +992,29 @@ class EvidenceRegistry:
                 raise ValueError("assertion candidate source chain is inconsistent")
             candidates[candidate.id] = candidate
 
+        best_guess_candidates: dict[str, BestGuessAssertionCandidate] = {}
+        for raw in source_batch.get("best_guess_candidates") or ():
+            values = dict(raw)
+            candidate_id = str(values.pop("id", "") or "")
+            values["supporting_chunk_ids"] = tuple(
+                values.get("supporting_chunk_ids") or ()
+            )
+            candidate = BestGuessAssertionCandidate.create(**values)
+            if candidate.id != candidate_id:
+                raise ValueError("best-guess candidate does not match its stable identity")
+            if (
+                not candidate.subject_bound
+                or candidate.source_id != document.source_id
+                or candidate.source_document_id != document.id
+                or candidate.source_version_id != version.id
+                or any(
+                    chunk_id not in chunks
+                    for chunk_id in candidate.supporting_chunk_ids
+                )
+            ):
+                raise ValueError("best-guess candidate source chain is inconsistent")
+            best_guess_candidates[candidate.id] = candidate
+
         acceptance_payload = dict(batch)
         acceptance_batch_id = str(
             acceptance_payload.pop("acceptance_batch_id", "") or ""
@@ -760,11 +1024,27 @@ class EvidenceRegistry:
         ) != acceptance_batch_id:
             raise ValueError("acceptance batch content does not match its stable id")
 
+        from .evidence_acceptance import AcceptanceDecision, CandidateDecision
+
+        raw_decision = dict(batch.get("acceptance_decision") or {})
+        decision = AcceptanceDecision.create(
+            CandidateDecision(**dict(item))
+            for item in raw_decision.get("candidates") or ()
+            if isinstance(item, Mapping)
+        )
+        if raw_decision != decision.to_dict():
+            raise ValueError("acceptance decision does not match its typed identity")
+        if {item.candidate_id for item in decision.candidates} != {
+            *candidates,
+            *best_guess_candidates,
+        }:
+            raise ValueError("acceptance decision does not resolve the staged candidates")
+
         commit = self._commit_from_acceptance_batch(batch)
         accepted_rows = list(batch.get("accepted") or ())
         if len(accepted_rows) != len(commit.accepted_cells):
             raise ValueError("acceptance rows do not match accepted cells")
-        current_cells: dict[str, AcceptedCell] = {}
+        current_cells: dict[str, AcceptedCell | AcceptedBestGuessCell] = {}
         accepted_assertion_ids: set[str] = set()
         for raw, cell in zip(accepted_rows, commit.accepted_cells):
             if not isinstance(raw, Mapping):
@@ -821,10 +1101,75 @@ class EvidenceRegistry:
             current_cells[cell.id] = cell
             accepted_assertion_ids.add(cell.assertion_id)
 
+        accepted_best_guess_rows = list(batch.get("accepted_best_guesses") or ())
+        if len(accepted_best_guess_rows) != len(commit.accepted_best_guess_cells):
+            raise ValueError("best-guess acceptance rows do not match accepted cells")
+        for raw, cell in zip(
+            accepted_best_guess_rows, commit.accepted_best_guess_cells
+        ):
+            if not isinstance(raw, Mapping):
+                raise ValueError("best-guess acceptance row is not a mapping")
+            acceptance_payload = dict(raw.get("acceptance") or {})
+            acceptance_payload["supporting_chunk_ids"] = tuple(
+                acceptance_payload.get("supporting_chunk_ids") or ()
+            )
+            acceptance = BestGuessAcceptanceRecord(**acceptance_payload)
+            candidate = best_guess_candidates.get(cell.assertion_id)
+            if candidate is None:
+                raise ValueError("accepted best guess does not resolve its candidate")
+            expected_acceptance = BestGuessAcceptanceRecord(
+                id=stable_id(
+                    {
+                        "version": BEST_GUESS_ACCEPTANCE_RULE_VERSION,
+                        "assertion_id": candidate.id,
+                    }
+                ),
+                assertion_id=candidate.id,
+                criterion_id=candidate.criterion_id,
+                source_document_id=candidate.source_document_id,
+                source_version_id=candidate.source_version_id,
+                supporting_chunk_ids=candidate.supporting_chunk_ids,
+                reasoning_basis=candidate.reasoning_basis,
+                confidence=candidate.confidence,
+            )
+            expected_cell = AcceptedBestGuessCell(
+                id=stable_id(
+                    {
+                        "version": EVIDENCE_REGISTRY_VERSION,
+                        "criterion_id": candidate.criterion_id,
+                        "kind": "best_guess_cell",
+                    }
+                ),
+                table_id=candidate.table_id,
+                table=candidate.table,
+                column_id=candidate.column_id,
+                column=candidate.column,
+                subject_id=candidate.subject_id,
+                criterion_id=candidate.criterion_id,
+                value_json=candidate.value_json,
+                normalized_value=candidate.normalized_value,
+                value_type=candidate.value_type,
+                unit=candidate.unit,
+                assertion_id=candidate.id,
+                acceptance_id=expected_acceptance.id,
+                source_id=candidate.source_id,
+                source_document_id=candidate.source_document_id,
+                source_version_id=candidate.source_version_id,
+                supporting_chunk_ids=candidate.supporting_chunk_ids,
+                reasoning_basis=candidate.reasoning_basis,
+                confidence=candidate.confidence,
+                reasoning_operator=candidate.reasoning_operator,
+            )
+            if acceptance != expected_acceptance or cell != expected_cell:
+                raise ValueError("accepted best guess does not match its typed chain")
+            current_cells[cell.id] = cell
+            accepted_assertion_ids.add(cell.assertion_id)
+
         rejected_ids = set(commit.rejected_assertion_ids)
         if accepted_assertion_ids & rejected_ids:
             raise ValueError("an assertion cannot be both accepted and rejected")
-        if accepted_assertion_ids | rejected_ids != set(candidates):
+        all_candidate_ids = {*candidates, *best_guess_candidates}
+        if accepted_assertion_ids | rejected_ids != all_candidate_ids:
             raise ValueError("acceptance batch does not resolve every assertion candidate")
 
         all_cells = {**known_cells, **current_cells}
@@ -857,7 +1202,7 @@ class EvidenceRegistry:
                 raise ValueError("row completion lacks a required accepted column")
             expected_id = stable_id(
                 {
-                    "version": DIRECT_ACCEPTANCE_RULE_VERSION,
+                    "version": ROW_COMPLETION_RULE_VERSION,
                     "table_id": row.table_id,
                     "subject_id": row.subject_id,
                     "required_column_ids": list(row.required_column_ids),
@@ -869,7 +1214,7 @@ class EvidenceRegistry:
 
     def accepted_bindings(
         self, criterion_id: str, normalized_value: str
-    ) -> tuple[AcceptedCell, ...]:
+    ) -> tuple[AcceptedCell | AcceptedBestGuessCell, ...]:
         return tuple(
             cell
             for cell in self.accepted_cells()
@@ -887,6 +1232,9 @@ class EvidenceRegistry:
             "accepted_criteria": len({cell.criterion_id for cell in cells}),
             "completed_rows": len(rows),
             "direct_acceptance_rule_version": DIRECT_ACCEPTANCE_RULE_VERSION,
+            "best_guess_acceptance_rule_version": (
+                BEST_GUESS_ACCEPTANCE_RULE_VERSION
+            ),
         }
 
     def _source_batches(self) -> dict[str, dict[str, Any]]:

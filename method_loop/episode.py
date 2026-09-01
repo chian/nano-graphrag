@@ -24,9 +24,10 @@ Iterator-with-feedback. Design and steward verdicts:
   before the first view or observation.
 
 This module calls no model and does no I/O; it calls only the injected
-``source``, ``extract``, ``credit`` and hook. A model may live inside a
-``source`` or an ``extract`` (charter rule 3) -- never in a credit, a controller,
-or anything that reads a curve.
+``source``, ``extract``, ``accept``, ``credit`` and hook. A model may live
+inside a ``source``, an ``extract``, or an evidence-candidate producer called
+by ``accept`` -- never in a credit, a controller, or anything that reads a
+curve.
 """
 
 from __future__ import annotations
@@ -209,24 +210,38 @@ class Contribution:
             raise ValueError("an inactive credit cannot count toward a verdict")
 
 
-def _leaf_contribution(unit: Any, extract: Callable[[Any], Any], credit: Callable[[Any, Any], Any]) -> Contribution:
+def _leaf_contribution(
+    unit: Any,
+    extract: Callable[[Any], Any],
+    accept: Optional[Callable[[Any, Any], Any]],
+    credit: Callable[[Any, Any], Any],
+) -> Contribution:
     extracted = extract(unit)
-    result = credit(unit, extracted)
+    accepted = accept(unit, extracted) if accept is not None else extracted
+    result = credit(unit, accepted)
     if not isinstance(result, CreditResult):
         raise TypeError("credit() must return CreditResult")
-    return Contribution(result, result.active, extracted)
+    return Contribution(result, result.active, accepted)
 
 
-async def _leaf_contribution_async(unit: Any, extract: Callable[[Any], Any], credit: Callable[[Any, Any], Any]) -> Contribution:
+async def _leaf_contribution_async(
+    unit: Any,
+    extract: Callable[[Any], Any],
+    accept: Optional[Callable[[Any, Any], Any]],
+    credit: Callable[[Any, Any], Any],
+) -> Contribution:
     extracted = extract(unit)
     if inspect.isawaitable(extracted):
         extracted = await extracted
-    result = credit(unit, extracted)
+    accepted = accept(unit, extracted) if accept is not None else extracted
+    if inspect.isawaitable(accepted):
+        accepted = await accepted
+    result = credit(unit, accepted)
     if inspect.isawaitable(result):
         result = await result
     if not isinstance(result, CreditResult):
         raise TypeError("credit() must return CreditResult")
-    return Contribution(result, result.active, extracted)
+    return Contribution(result, result.active, accepted)
 
 
 # --------------------------------------------------------------------------
@@ -321,21 +336,26 @@ class Acquirable(Protocol):
 class Leaf:
     """A page, a seed -- a raw unit bound to its grain's parts at construction.
 
-    ``extract`` may do string work (fetch, judge, extract; charter rule 3);
-    ``credit`` is a deterministic projection onto declared targets. A leaf
-    counts toward the verdict exactly when its crediter was active.
+    ``extract`` produces observations; ``accept`` applies the bound evidence
+    policy and may persist its decision; ``credit`` is a deterministic
+    projection of accepted material onto declared targets. A leaf counts
+    toward the verdict exactly when its crediter was active. ``accept=None``
+    is the identity handoff for surfaces with no evidence boundary.
     """
 
     unit: Any
     extract: Callable[[Any], Any]
     credit: Callable[[Any, Any], CreditResult]
     label: str
+    accept: Optional[Callable[[Any, Any], Any]] = None
 
     def acquire(self, ctx: "Context") -> Contribution:
-        return _leaf_contribution(self.unit, self.extract, self.credit)
+        return _leaf_contribution(self.unit, self.extract, self.accept, self.credit)
 
     async def acquire_async(self, ctx: "Context") -> Contribution:
-        return await _leaf_contribution_async(self.unit, self.extract, self.credit)
+        return await _leaf_contribution_async(
+            self.unit, self.extract, self.accept, self.credit
+        )
 
 
 @dataclass(frozen=True)
@@ -581,6 +601,7 @@ class _LeafSource:
         extract: Callable[[Any], Any],
         credit: Callable[[Any, Any], CreditResult],
         label: Optional[Callable[[Any], str]],
+        accept: Optional[Callable[[Any, Any], Any]],
     ) -> None:
         self._pull: Callable[[EpisodeView], Any]
         if hasattr(inner, "next"):
@@ -591,6 +612,7 @@ class _LeafSource:
         self._extract = extract
         self._credit = credit
         self._label = label
+        self._accept = accept
         self._index = 0
 
     def _wrap(self, unit: Any) -> Any:
@@ -604,7 +626,13 @@ class _LeafSource:
             )
         label = str(self._label(unit)) if self._label is not None else f"unit-{self._index}"
         self._index += 1
-        return Leaf(unit=unit, extract=self._extract, credit=self._credit, label=label)
+        return Leaf(
+            unit=unit,
+            extract=self._extract,
+            accept=self._accept,
+            credit=self._credit,
+            label=label,
+        )
 
     def next(self, view: EpisodeView) -> Any:
         unit = self._pull(view)
@@ -621,6 +649,7 @@ def leaves(
     extract: Callable[[Any], Any],
     credit: Callable[[Any, Any], CreditResult],
     label: Optional[Callable[[Any], str]] = None,
+    accept: Optional[Callable[[Any, Any], Any]] = None,
 ) -> UnitSource:
     """A source of :class:`Leaf` over raw units.
 
@@ -632,7 +661,7 @@ def leaves(
     fails by name here rather than being silently double-wrapped.
     """
 
-    return _LeafSource(units, extract, credit, label)
+    return _LeafSource(units, extract, credit, label, accept)
 
 
 # --------------------------------------------------------------------------

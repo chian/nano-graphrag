@@ -64,6 +64,7 @@ from .derived_context import (
     infer_best_guess_context,
 )
 from .table_specs import (
+    ColumnEvidenceRole,
     ColumnRef,
     TableSpec,
     TableRef,
@@ -73,15 +74,10 @@ from .table_specs import (
     observed_table_spec_paths_for_seed,
     table_spec_paths_with_seed_tables,
 )
-# Only names evidence_registry defines at this commit. Five phantom exports
-# (AcceptanceOccurrence, AcceptedBestGuessCell, AcquisitionOccurrence,
-# BestGuessDerivation, RowCompletionOccurrence) were removed 2026-09-01: the
-# 7c22ab6 closure commit exported them while the evidence_registry version
-# defining them stayed uncommitted and was later reverted, so a clean checkout
-# could not import this package at all.
 from .evidence_registry import (
+    AcceptedBestGuessCell,
     AcceptedCell,
-    BestGuessCellRef,
+    BestGuessAssertionCandidate,
     DirectAssertionCandidate,
     EvidenceCommit,
     EvidenceRegistry,
@@ -89,6 +85,12 @@ from .evidence_registry import (
     SourceDocument,
     SourceVersion,
     TextSpan,
+)
+from .evidence_acceptance import (
+    AcceptanceDecision,
+    CandidateDecision,
+    EvidenceAcceptor,
+    TypedEvidenceAcceptor,
 )
 
 __all__ = [
@@ -128,6 +130,7 @@ __all__ = [
     "TableSpec",
     "TableRef",
     "ColumnRef",
+    "ColumnEvidenceRole",
     "EvidenceRegistry",
     "EvidenceCommit",
     "SourceDocument",
@@ -135,8 +138,13 @@ __all__ = [
     "SourceChunk",
     "TextSpan",
     "DirectAssertionCandidate",
+    "BestGuessAssertionCandidate",
     "AcceptedCell",
-    "BestGuessCellRef",
+    "AcceptedBestGuessCell",
+    "AcceptanceDecision",
+    "CandidateDecision",
+    "EvidenceAcceptor",
+    "TypedEvidenceAcceptor",
     "load_table_spec",
     "load_table_spec_with_seed_tables",
     "merge_table_specs",
