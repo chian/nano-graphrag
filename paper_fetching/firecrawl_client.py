@@ -20,6 +20,12 @@ FIRECRAWL_SEARCH_ENDPOINT = (
 # this provider constraint beside the request payload it governs: acquisition
 # consumes the provider default and never turns it into a processing budget.
 FIRECRAWL_SEARCH_MAX_BATCH_SIZE = 100
+# A 100-result search with inline scraping can legitimately take longer than
+# the requests library's former 30-second read window. Connection failure is
+# still detected promptly; the longer read window lets the provider finish the
+# batch that the Episode will subsequently process one result at a time.
+FIRECRAWL_SEARCH_CONNECT_TIMEOUT_SECONDS = 10
+FIRECRAWL_SEARCH_READ_TIMEOUT_SECONDS = 300
 
 
 def firecrawl_search_batch_metadata(
@@ -39,6 +45,8 @@ def firecrawl_search_batch_metadata(
         "batch_size_owner": "paper_fetching.firecrawl_client",
         "requested_batch_size": requested,
         "provider_max_batch_size": FIRECRAWL_SEARCH_MAX_BATCH_SIZE,
+        "connect_timeout_seconds": FIRECRAWL_SEARCH_CONNECT_TIMEOUT_SECONDS,
+        "read_timeout_seconds": FIRECRAWL_SEARCH_READ_TIMEOUT_SECONDS,
     }
 
 
@@ -101,7 +109,10 @@ def search_papers(
             FIRECRAWL_SEARCH_ENDPOINT,
             headers=headers,
             json=payload,
-            timeout=30,
+            timeout=(
+                FIRECRAWL_SEARCH_CONNECT_TIMEOUT_SECONDS,
+                FIRECRAWL_SEARCH_READ_TIMEOUT_SECONDS,
+            ),
         )
         response.raise_for_status()
 
