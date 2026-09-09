@@ -87,10 +87,9 @@ from method_loop import (
     Grain,
     Leaf,
     ResumeUnit,
-    ScopedYield,
     SourceEnd,
 )
-from rarefaction import ChannelSchema, ControllerConfig, IncidenceReport
+from rarefaction import ChannelSchema, ControllerConfig
 
 from . import criteria
 from .control import select_first_clearing, stable_id
@@ -133,7 +132,6 @@ __all__ = [
     "DEFAULT_RUN_CONTROL",
     "DEFAULT_STRATEGY_CONTROL",
     "LEXICAL_PROBE_GRAIN",
-    "LEXICAL_EMPTY_PREFIX_GAMMA",
     "MAX_PROPOSAL_SAMPLES",
     "PAGE_CREDIT_WINDOW",
     "REJECT_OPERATOR_NOT_IN_CATALOG",
@@ -159,7 +157,6 @@ __all__ = [
     "StrategySearches",
     "declared_credit_columns",
     "join_costs",
-    "lexical_threshold_adapter",
     "page_fate",
     "window_episode_record",
 ]
@@ -183,14 +180,13 @@ DEFAULT_ITEM_CONTROL = ControllerConfig.uniform(
     ("overall",), gamma=0.0, rho=0.0, streak_length=4
 )
 
-#: Chunk policy inside one lexical probe. Its base threshold remains
-#: conservative; the binding adapter below relaxes it only for an initial
-#: successfully evaluated prefix that has produced no accepted identity.
+#: Chunk policy inside one lexical probe. Replay calibration against 190
+#: complete probe episodes places the expected-next-credit cutoff above the
+#: zero-yield uncertainty floor while leaving the parent page Episode in
+#: charge of proposing another probe over every unprocessed chunk.
 DEFAULT_CHUNK_CONTROL = ControllerConfig.uniform(
-    ("overall",), gamma=0.0, rho=0.0, streak_length=4
+    ("overall",), gamma=0.06, rho=0.0, streak_length=4
 )
-
-LEXICAL_EMPTY_PREFIX_GAMMA = 0.06
 
 #: Lexical-probe policy inside one page.  Its unit is a completed ranking, so
 #: it can be calibrated independently from both chunks and Firecrawl pages.
@@ -245,27 +241,6 @@ LEXICAL_PROBE_GRAIN = Grain(
     ),
     control=DEFAULT_CHUNK_CONTROL,
 )
-
-
-def lexical_threshold_adapter(
-    report: IncidenceReport,
-    current: Mapping[str, object],
-) -> Mapping[str, object]:
-    """Relax lexical stopping only while its accepted prefix is empty."""
-
-    if report.primary.scope_path[-1][0] != LEXICAL_PROBE_GRAIN.name:
-        return current
-    rho = current.get("rho")
-    if not isinstance(rho, Mapping):
-        raise TypeError("lexical threshold adapter requires channel rho values")
-    return {
-        "gamma": (
-            LEXICAL_EMPTY_PREFIX_GAMMA
-            if report.primary.observed_results.value == 0.0
-            else DEFAULT_CHUNK_CONTROL.gamma
-        ),
-        "rho": dict(rho),
-    }
 
 STRATEGY_GRAIN = Grain(
     name="strategy",
@@ -2676,7 +2651,6 @@ class AcquisitionController:
     def __post_init__(self) -> None:
         schema = self.crediter.channel_schema
         self.context = Context(
-            scoped=ScopedYield(threshold_adapter=lexical_threshold_adapter),
             order=GRAIN_ORDER,
             channel_schemas={grain.name: schema for grain in GRAIN_ORDER},
         )
