@@ -31,12 +31,18 @@ _LEXICAL_PROBE_TIER = register_call_site_tier(
 
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
 _HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+(.+?)\s*$", re.MULTILINE)
+_CONTEXT_RADII = (0, 1, 4)
+_CONTEXT_WEIGHTS = (3.0, 1.0, 1.0)
+_RANK_FUSION_OFFSET = 60.0
 
 _SYSTEM_PROMPT = """You propose one lexical retrieval query for a document.
 Return one valid JSON object and no prose. Choose words and phrases that are
 likely to occur verbatim in an unprocessed chunk and that could reveal values
-for the declared table contract. You select a string only. You never decide
-whether retrieval should continue or stop."""
+for the declared table contract. Prefer the surface forms likely to appear in
+data-bearing rows: abbreviations, units, codes, field labels, and compact value
+formats. Do not rely only on conceptual names from the table contract when the
+document is likely to express them differently. You select a string only. You
+never decide whether retrieval should continue or stop."""
 
 
 @dataclass(frozen=True)
@@ -91,9 +97,11 @@ PREVIOUS PROBES ON THIS DOCUMENT:
 
 Propose exactly one lexical query for ranking the document's remaining chunks.
 Use the previous probe outcomes to avoid repeating an unproductive vocabulary
-and to refine vocabulary that found accepted table values. The query may
-contain several mutually supporting words or one exact phrase, but it is one
-retrieval probe, not a list of alternatives.
+and to refine vocabulary that found accepted table values. Choose literal
+surface forms likely to occur inside the values or rows themselves, including
+document-native abbreviations, units, codes, labels, and formatting tokens.
+The query may contain several mutually supporting terms or one exact phrase,
+but it is one retrieval probe, not a list of alternatives.
 
 Return exactly:
 {{"query": "one lexical query", "rationale": "why this query follows from the contract and prior outcomes"}}"""
@@ -116,10 +124,12 @@ def rank_chunks(
     chunks: Sequence[Any],
     query: str,
 ) -> list[Any]:
-    """Order every supplied chunk by BM25 score, preserving stable ties.
+    """Order chunks by fused direct and local-context BM25 ranks.
 
+    Direct matches receive the strongest vote. Immediate and wider context
+    let a matching header or explanation lift adjacent data-bearing chunks.
     Ranking never removes a chunk and uses no score threshold. The numerical
-    nested Episode decides when processing the ranked sequence ends.
+    nested Episode alone decides when processing the ranked sequence ends.
     """
 
     if not chunks:
@@ -128,10 +138,64 @@ def rank_chunks(
     if not query_terms:
         return list(chunks)
 
-    documents = [_tokens(str(chunk.text)) for chunk in chunks]
+    chunk_tokens = [_tokens(str(chunk.text)) for chunk in chunks]
+    scale_scores = [
+        _bm25_scores(
+            _context_documents(chunk_tokens, radius=radius),
+            query_terms,
+        )
+        for radius in _CONTEXT_RADII
+    ]
+    positive_ranks = [_positive_ranks(scores) for scores in scale_scores]
+
+    def fused_score(index: int) -> float:
+        return sum(
+            weight / (_RANK_FUSION_OFFSET + ranks[index])
+            for weight, ranks in zip(_CONTEXT_WEIGHTS, positive_ranks)
+            if index in ranks
+        )
+
+    ranked = sorted(
+        enumerate(chunks),
+        key=lambda item: (
+            -fused_score(item[0]),
+            -scale_scores[0][item[0]],
+            item[0],
+        ),
+    )
+    return [chunk for _, chunk in ranked]
+
+
+def _context_documents(
+    chunk_tokens: Sequence[tuple[str, ...]],
+    *,
+    radius: int,
+) -> list[tuple[str, ...]]:
+    """Represent each chunk at one local context scale."""
+
+    documents: list[tuple[str, ...]] = []
+    for index in range(len(chunk_tokens)):
+        first = max(0, index - radius)
+        last = min(len(chunk_tokens), index + radius + 1)
+        documents.append(
+            tuple(
+                token
+                for neighboring_chunk in chunk_tokens[first:last]
+                for token in neighboring_chunk
+            )
+        )
+    return documents
+
+
+def _bm25_scores(
+    documents: Sequence[tuple[str, ...]],
+    query_terms: Sequence[str],
+) -> list[float]:
+    """Return a BM25 score for each document at one context scale."""
+
     average_length = sum(len(document) for document in documents) / len(documents)
     if average_length <= 0:
-        return list(chunks)
+        return [0.0 for _ in documents]
 
     frequencies = [Counter(document) for document in documents]
     document_frequency = Counter(
@@ -163,11 +227,18 @@ def rank_chunks(
             )
         return total
 
-    ranked = sorted(
-        enumerate(chunks),
-        key=lambda item: (-score(item[0]), item[0]),
-    )
-    return [chunk for _, chunk in ranked]
+    return [score(index) for index in range(len(documents))]
+
+
+def _positive_ranks(scores: Sequence[float]) -> dict[int, int]:
+    """Rank actual matches while leaving zero-match chunks unvoted."""
+
+    ordered = sorted(range(len(scores)), key=lambda index: (-scores[index], index))
+    return {
+        index: rank
+        for rank, index in enumerate(ordered, start=1)
+        if scores[index] > 0.0
+    }
 
 
 def _tokens(text: str) -> tuple[str, ...]:
