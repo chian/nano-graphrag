@@ -31,6 +31,7 @@ from rarefaction import (
     ChannelSchema,
     ControllerConfig,
     EstimatorController,
+    ThresholdAdapter,
 )
 from rarefaction.method import (
     DEFAULT_ALPHA,
@@ -43,7 +44,7 @@ from .acquisition import CREDIT_SEMANTICS
 from .pipeline import PIPELINE_MODE_TABLE_FILL, PipelineConfig, QuestionPipeline
 from .search import SearchTask
 
-NUMERICAL_REPLAY_VERSION = "numerical_shadow_replay_v1"
+NUMERICAL_REPLAY_VERSION = "numerical_shadow_replay_v2"
 SOURCE_REPLAY_VERSION = "saved_source_replay_v1"
 REPLAY_VERSION = SOURCE_REPLAY_VERSION
 
@@ -307,6 +308,9 @@ def replay_numerical_control(
     episodes_path: str | Path,
     output_dir: str | Path,
     episode_ids: Sequence[str] = (),
+    gamma_overrides: Mapping[str, float] | None = None,
+    threshold_adapter: ThresholdAdapter | None = None,
+    threshold_adapter_name: str = "",
 ) -> dict[str, Any]:
     """Replay frozen observations through current numerical code in shadow.
 
@@ -325,6 +329,14 @@ def replay_numerical_control(
         raise ValueError("episode artifact must be a JSON object")
 
     selected = set(str(value) for value in episode_ids)
+    overrides = {
+        str(grain): float(value)
+        for grain, value in (gamma_overrides or {}).items()
+    }
+    if threshold_adapter is None and threshold_adapter_name:
+        raise ValueError("threshold_adapter_name requires a threshold_adapter")
+    if threshold_adapter is not None and not threshold_adapter_name:
+        raise ValueError("threshold_adapter requires a stable threshold_adapter_name")
     seen: set[str] = set()
     records: list[Mapping[str, Any]] = []
     for root in _episode_roots(payload):
@@ -344,6 +356,16 @@ def replay_numerical_control(
             raise ValueError(f"episode ids not found in artifact: {sorted(missing)}")
     if not records:
         raise ValueError("episode artifact contains no selected Episode records")
+    available_grains = {
+        str(record.get("scope_level") or "")
+        for record in records
+    }
+    unknown_overrides = set(overrides) - available_grains
+    if unknown_overrides:
+        raise ValueError(
+            "gamma overrides name grains absent from the selected episodes: "
+            f"{sorted(unknown_overrides)}"
+        )
 
     for record in records:
         units = record.get("units") or ()
@@ -377,8 +399,17 @@ def replay_numerical_control(
             )
             if not path:
                 raise ValueError("episode has no recorded scope path")
+            grain = str(record.get("scope_level") or path[-1][0])
             schema = _channel_schema(record)
             config = _controller_config(record)
+            if grain in overrides:
+                config = ControllerConfig(
+                    required_channels=config.required_channels,
+                    gamma=overrides[grain],
+                    rho=config.rho,
+                    streak_length=config.streak_length,
+                    version=config.version,
+                )
             window_size, subsample_size, alpha, initial_epoch = _estimator_parameters(record)
             units = record.get("units") or ()
             if units and str(units[0].get("epoch") or ""):
@@ -391,6 +422,7 @@ def replay_numerical_control(
                 window_size=window_size,
                 subsample_size=subsample_size,
                 alpha=alpha,
+                threshold_adapter=threshold_adapter,
             )
             shadow_stops: list[dict[str, Any]] = []
             for position, unit in enumerate(units, start=1):
@@ -450,7 +482,6 @@ def replay_numerical_control(
             recorded_stop = _recorded_first_stop(record)
             shadow_stop = shadow_stops[0] if shadow_stops else None
             comparison = _comparison(recorded_stop, shadow_stop)
-            grain = str(record.get("scope_level") or path[-1][0])
             grains[grain] += 1
             comparisons[comparison] += 1
             final_report = component.report()
@@ -482,6 +513,7 @@ def replay_numerical_control(
                             "subsample_size": subsample_size,
                             "alpha": alpha,
                         },
+                        "controller": component.config.as_record(),
                     },
                     "comparison": comparison,
                 }
@@ -500,6 +532,8 @@ def replay_numerical_control(
             "sha256": artifact_sha256,
             "criteria": criteria,
             "selected_episode_ids": sorted(selected),
+            "gamma_overrides": dict(sorted(overrides.items())),
+            "threshold_adapter": threshold_adapter_name,
         },
         "execution": {
             "provider_calls": 0,

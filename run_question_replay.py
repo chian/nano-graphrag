@@ -8,11 +8,34 @@ import asyncio
 import json
 from pathlib import Path
 
+from question_pipeline.acquisition import lexical_threshold_adapter
 from question_pipeline.replay import (
     load_saved_source,
     replay_numerical_control,
     replay_saved_source,
 )
+
+
+def _gamma_overrides(values: list[str]) -> dict[str, float]:
+    overrides: dict[str, float] = {}
+    for value in values:
+        grain, separator, raw_gamma = value.partition("=")
+        if not separator or not grain.strip() or not raw_gamma.strip():
+            raise argparse.ArgumentTypeError(
+                "--gamma-override must have the form GRAIN=VALUE"
+            )
+        grain = grain.strip()
+        if grain in overrides:
+            raise argparse.ArgumentTypeError(
+                f"duplicate --gamma-override for grain {grain!r}"
+            )
+        try:
+            overrides[grain] = float(raw_gamma)
+        except ValueError as exc:
+            raise argparse.ArgumentTypeError(
+                f"gamma for grain {grain!r} must be numeric"
+            ) from exc
+    return overrides
 
 
 def _require_new_output(parser: argparse.ArgumentParser, raw_path: str) -> Path:
@@ -40,12 +63,27 @@ def main() -> None:
         required=True,
         help="acquisition_episodes.json or one completed_episode.json artifact.",
     )
+    numerical.add_argument(
+        "--current-binding-thresholds",
+        action="store_true",
+        help="Apply the current question-pipeline threshold adapter in shadow.",
+    )
     numerical.add_argument("--output-dir", required=True)
     numerical.add_argument(
         "--episode-id",
         action="append",
         default=[],
         help="Restrict recalculation to an exact Episode id; may be repeated.",
+    )
+    numerical.add_argument(
+        "--gamma-override",
+        action="append",
+        default=[],
+        metavar="GRAIN=VALUE",
+        help=(
+            "Use an explicit shadow gamma for one grain while preserving the "
+            "recorded observations and all other controller settings; may be repeated."
+        ),
     )
 
     source_parser = commands.add_parser(
@@ -71,10 +109,29 @@ def main() -> None:
 
     output_dir = _require_new_output(parser, args.output_dir)
     if args.command == "numerical":
+        try:
+            gamma_overrides = _gamma_overrides(args.gamma_override)
+        except argparse.ArgumentTypeError as exc:
+            parser.error(str(exc))
+        if gamma_overrides and args.current_binding_thresholds:
+            parser.error(
+                "--gamma-override and --current-binding-thresholds are mutually exclusive"
+            )
         summary = replay_numerical_control(
             episodes_path=args.episodes,
             output_dir=output_dir,
             episode_ids=args.episode_id,
+            gamma_overrides=gamma_overrides,
+            threshold_adapter=(
+                lexical_threshold_adapter
+                if args.current_binding_thresholds
+                else None
+            ),
+            threshold_adapter_name=(
+                "question_pipeline.lexical_initial_empty_prefix_v1"
+                if args.current_binding_thresholds
+                else ""
+            ),
         )
         print(
             json.dumps(
