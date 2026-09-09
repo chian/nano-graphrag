@@ -41,26 +41,29 @@ ONE TURN OF ANY EPISODE
             pull exactly one unit
                     |
                     v
-      acquire -> extract -> accept evidence
+      acquire through the bound leaf parts
+        extract -> accept -> project credit
                     |
                     v
-              typed result state
+       opaque stable identities grouped by
+          the binding's declared channels
                     |
                     v
-     project stable logical-slot identities
-           separately by result column
+         attached numerical component
+      estimate -> scalar statistic -> verdict
                     |
                     v
-        incidence estimator + controller
-       estimate -> hypervolume -> verdict
+       freeze and publish the unit record
+       (the hook cannot change the verdict)
                     |
           +---------+----------+
           |                    |
        continue          end this Episode
+          |                    |
+          |                    v
+          |              Episode record
           |
-          v
-  publish the immutable outcome for the
-  source that proposes a future unit
+          +-----> source.next(updated history)
 ```
 
 The numerical component is attached to the method; it does not contain the
@@ -74,12 +77,13 @@ anchored best-guess values for the same slot share one identity, so they cannot
 double count. Row completion is an export and learning diagnostic, not another
 credit.
 
-The estimator retains a vector of distinct identities by result column. The
-controller normalizes those axes by their respective reachable-result
-estimates and reduces their progress to one marginal relaxed-geometric
-hypervolume credit. Its predicted next marginal credit is the sole stop
-statistic. Per-column estimates remain visible for interpretation and future
-search planning, but they are not independent stop rules.
+In the current table-fill numerical binding, the estimator retains a vector of
+distinct identities by result column. Its controller normalizes those axes by
+their respective reachable-result estimates and reduces their progress to one
+marginal relaxed-geometric hypervolume credit. The predicted next marginal
+credit is that binding's sole stop statistic. Per-column estimates remain
+visible for interpretation and future search planning, but they are not
+independent stop rules.
 
 Every attempted unit is explicitly recorded as successfully observed, failed,
 or excluded. A successfully evaluated unit with no findings is a real zero; a
@@ -135,8 +139,9 @@ Each level answers a different question with the same method:
 The child passes its distinct accepted identities upward by column, once per
 identity. A parent never sums child hypervolumes. It treats the completed child
 as one incidence sample, deduplicates on the parent's scale, and recomputes its
-own hypervolume and verdict. The full child record remains nested beneath the
-parent's unit record for audit.
+own attached numerical statistic and verdict. In the current table-fill
+binding, that statistic is marginal hypervolume. The full child record remains
+nested beneath the parent's unit record for audit.
 
 ```text
 chunk identities
