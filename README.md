@@ -33,37 +33,36 @@ units, leaf extraction and acceptance functions, post-verdict hooks, and an
 optional safety boundary. The Episode owns the order of operations.
 
 ```text
-ONE TURN OF ANY EPISODE
+ONE EPISODE: ITS LOCAL LOOP
 
-  source.next(read-only Episode history)
-                    |
-                    v
-            pull exactly one unit
-                    |
-                    v
-      acquire through the bound leaf parts
-        extract -> accept -> project credit
-                    |
-                    v
-       opaque stable identities grouped by
-          the binding's declared channels
-                    |
-                    v
-         attached numerical component
-      estimate -> scalar statistic -> verdict
-                    |
-                    v
-       freeze and publish the unit record
-       (the hook cannot change the verdict)
-                    |
-          +---------+----------+
-          |                    |
-       continue          end this Episode
-          |                    |
-          |                    v
-          |              Episode record
-          |
-          +-----> source.next(updated history)
+       +------------------------------------------------------------+
+       |                                                            |
+       v                                                            |
+  check declared safety bound -- hit ----------------> EpisodeRecord|
+       | not hit                                                    |
+       v                                                            |
+  source.next(this Episode's read-only EpisodeView)                 |
+       |                                                            |
+       +-- exhausted or source failure -------------> EpisodeRecord|
+       | one unit                                                   |
+       v                                                            |
+  acquire through the bound leaf parts                              |
+  extract -> accept -> project credit                               |
+       |                                                            |
+       v                                                            |
+  opaque stable identities grouped by declared channels            |
+       |                                                            |
+       v                                                            |
+  attached numerical component                                     |
+  estimate -> scalar statistic -> fixed verdict                     |
+       |                                                            |
+       v                                                            |
+  append UnitRecord -> run post-verdict hook                        |
+  (the hook can inform future units but cannot change this verdict) |
+       |                                                            |
+       +-- numerical stop --------------------------> EpisodeRecord|
+       | continue: build updated EpisodeView                         |
+       +------------------------------------------------------------+
 ```
 
 The numerical component is attached to the method; it does not contain the
@@ -144,19 +143,50 @@ binding, that statistic is marginal hypervolume. The full child record remains
 nested beneath the parent's unit record for audit.
 
 ```text
-chunk identities
-      |
-      v  deduplicate within one probe
-lexical-probe contribution
-      |
-      v  deduplicate across probes on this page
-page contribution
-      |
-      v  deduplicate across pages in this search
-search contribution
-      |
-      v  recompute at every parent scale
-strategy contribution -> run contribution
+WHEN A CHILD EPISODE CLOSES INTO ITS PARENT
+
+  child runs its own local loop, possibly for many units
+       |
+       |  parent receives no ordinary fan-up sample yet
+       v
+  child EpisodeRecord
+       |
+       +---------------- full record ---------------------+
+       |                                                  |
+       v                                                  v
+  child contribution                               nested under the
+  - distinct identities by channel                 parent's UnitRecord
+  - child eligibility                              for context and audit
+       |
+       v
+  one unit in the immediate parent Episode
+       |
+       v
+  parent deduplicates on its own scale
+  -> parent numerical transition
+  -> parent UnitRecord
+  -> parent post-verdict hook
+       |
+       +-- parent continues
+       |      |
+       |      v
+       |   parent.source.next(updated parent EpisodeView)
+       |
+       +-- parent closes
+              |
+              v
+           the same handoff repeats to the grandparent
+```
+
+Applied to the Firecrawl composition, propagation is therefore staged rather
+than broadcast through the whole tree:
+
+```text
+chunk completes          -> lexical-probe view updates locally
+lexical probe closes     -> page receives one probe contribution
+page closes              -> search receives one page contribution
+search closes            -> strategy receives one search contribution
+strategy closes          -> run receives one strategy contribution
 ```
 
 This architecture combines recursive decomposition with scoped in-context
