@@ -36,19 +36,229 @@
 \maketitle
 
 \begin{quote}
-\textbf{Status amendment (2026-08-28).} This paper is retained as historical
+\textbf{Status amendment (2026-09-06).} This paper is retained as historical
 mechanism-design context, not as the active acquisition-loop specification.
 \code{docs/ACQUISITION_LOOP.md} governs. The active target is one composed
 \code{Episode} method with fixed \code{ChannelSchema} declarations and an
 \code{IncidenceEstimator} that produces the generic role-based
-\code{IncidenceEstimate}. Exact rolling incidence rarefaction is a required
-role; bias-corrected incidence Chao2 internally fills the expected and remaining
-roles. The controller remains arithmetic and per-channel, accepted identities
-remain evidence-first, and enabled best-guess columns remain anchored and
-deterministic. A future \code{IncidenceEstimator} version may replace the
-internal total calculation while preserving the same estimate roles, including
-the rarefaction role consumed by the controller.
+\code{IncidenceEstimate}. Accepted identities remain evidence-first and
+separated by result column. Those one-dimensional contributions form a
+normalized vector; marginal dominated hypervolume is the sole method credit,
+and predicted future hypervolume credit is the controller's sole stop
+statistic. Per-column estimates and uncertainty remain available for
+interpretation and search targeting. A future \code{IncidenceEstimator}
+version may replace the internal calculation while preserving the same numeric
+roles and scalar control boundary.
 \end{quote}
+
+\subsection*{Active numerical amendment: joint preferential observation and incidence}
+
+The active acquisition method treats ranking, observability, and discovery as
+one joint statistical process.  This amendment records the mathematical basis
+in plain text because the historical policy-learning discussion below predates
+the composed \code{Episode} method.  It is not a spatial assumption.  It
+borrows the shared-latent construction from preferential-sampling statistics:
+the mechanism deciding which attempted units become evaluable observations may
+depend on the same unobserved information potential that controls their yield.
+
+For attempted unit $t$, declared result channel $c$, and reachable identity
+$j$, let
+
+\begin{align*}
+r_t & = \text{the unit's position in its Episode's declared ordering},\\
+A_t & = 1 \text{ when evaluation succeeds, and }0\text{ when it fails},\\
+S_{tc} & = \text{the unit's latent information potential for channel }c,\\
+z_{cj} & = 1 \text{ when identity }j\text{ belongs to the reachable population},\\
+x_{tcj} & = 1 \text{ when an evaluable unit reports identity }j.
+\end{align*}
+
+An excluded unit is outside this model.  The distinction between operational
+failure and information failure is structural.  $A_t=0$ means compute,
+provider, decoding, or evaluation service failure: no channel received an
+incidence observation, and the $x_{tcj}$ are unobserved rather than set to
+zero.  $A_t=1$ means the unit was evaluated.  For any channel $c$ it may then
+have $\sum_j x_{tcj}=0$, a genuine observed information failure (no accepted
+information for that channel).  That empty set enters channel $c$'s incidence
+history.  Other channels from the same unit may be nonempty.  Thus column
+sparsity, saturation, and inability to fill are estimated independently; they
+are never converted into unit-wide service failure.
+
+The ordering model separates systematic rank concentration from residual
+unit-level variation:
+
+\[
+S_{tc}=m_c(r_t;\delta_c)+u_{tc}.
+\]
+
+For the initial monotone parameterization, $m_c$ decreases with rank when
+$\delta_c>0$.  Large $\delta_c$ means early units concentrate information;
+$\delta_c$ near zero means that the declared ordering has little demonstrated
+power to distinguish high- from low-yield units.  The observation mechanism is
+unit-wide.  Writing $S_t=(S_{t1},\ldots,S_{tC})$ for the vector of channel
+potentials, it is
+
+\[
+A_t\mid S_t\sim\operatorname{Bernoulli}(q_t),\qquad
+\operatorname{logit}(q_t)=a+\boldsymbol{\lambda}^{\mathsf T}S_t.
+\]
+
+The incidence mechanism, conditional on successful evaluation, is
+
+\[
+x_{tcj}\mid A_t=1,z_{cj},S_{tc}
+\sim\operatorname{Bernoulli}(z_{cj}p_{tcj}),\qquad
+\operatorname{logit}(p_{tcj})=b_{cj}+S_{tc}.
+\]
+
+Here $\delta_c$ and the corresponding component $\lambda_c$ have different
+meanings.  The former measures
+whether rank predicts information potential.  The latter measures whether
+observability is associated with that potential.  A failure at an early rank
+is therefore strongly informative only when the accumulated observations
+support both useful rank concentration and nonzero coupling.  If yield is
+effectively unordered, $m_c(r)$ changes little across ranks and rank supplies
+little basis for declaring one failure more informative than another.  The
+implementation must never use rank alone as evidence of information or use a
+failure alone as a successful zero.
+
+Writing $S$ for the latent potentials and $Z$ for reachable-population
+membership, the joint likelihood has the preferential-sampling form
+
+\[
+L(\Theta)=\int p(S\mid\Theta)
+\prod_t p(A_t\mid S_t,\Theta)
+\prod_{c,j:A_t=1}p(x_{tcj}\mid z_{cj},S_{tc},\Theta)
+\prod_{c,j}p(z_{cj}\mid\Theta)\,dS\,dZ.
+\]
+
+The first computable implementation uses the new-incidence-count projection of
+this model.  Let $Y_{tc}$ be the number of identities first observed in
+channel $c$ at attempted unit $t$.  Repeated identities do not increase
+$Y_{tc}$; a successfully evaluated unit with no new identity has $Y_{tc}=0$.
+For each channel, the operational latent model is
+
+\begin{align*}
+u_{tc} &\sim N(0,1),\\
+S_{tc} &= \beta_c-\delta_c(r_t-1)+u_{tc},\qquad \delta_c>0,\\
+q_{tc} &= \operatorname{logit}^{-1}(a_c+\lambda_cS_{tc}),\\
+Y_{tc}\mid A_t=1,S_{tc} &\sim
+  \operatorname{Poisson}(\exp(S_{tc})).
+\end{align*}
+
+The unit-wide $A_t$ is supplied once by the Episode transition and the same
+status is used by every channel model.  The channel likelihood contribution is
+
+\[
+L_{tc}=\begin{cases}
+\displaystyle\int \phi(u)q_{tc}(u)
+  \operatorname{Pois}(Y_{tc};\exp(S_{tc}(u)))\,du,&A_t=1,\\[6pt]
+\displaystyle\int \phi(u)(1-q_{tc}(u))\,du,&A_t=0.
+\end{cases}
+\]
+
+Thus an observed zero updates the incidence rate, while a service failure
+updates the observation mechanism without fabricating $Y_{tc}=0$.  The
+integrals use fixed Gauss--Hermite quadrature.  After every attempted unit, the
+parameters are refit against the complete accumulated Episode history by a
+warm-started, bounded BFGS MAP optimizer implemented with the Python standard
+library.  The weak normal priors are
+$\beta_c\sim N(0,6^2)$, $\log\delta_c\sim
+N(\log 0.05,2^2)$, $a_c\sim N(0,6^2)$, and
+$\lambda_c\sim N(0,3^2)$.  Until both an evaluated unit and a service failure
+have occurred, $\lambda_c$ is fixed at zero because the preferential coupling
+is not identified.  The BFGS inverse-Hessian approximation supplies the
+covariance used for numeric Laplace uncertainty.
+
+For the next attempted rank $r$, the controller-facing quantity is
+
+\[
+g_{rc}=\int \phi(u)q_{tc}(u)\exp(S_{tc}(u))\,du.
+\]
+
+The current reachable-total projection uses the locally implied geometric
+continuation.  With $h_c=g_{r+1,c}/g_{rc}$,
+
+\[
+R_{rc}=\begin{cases}
+g_{rc}/(1-h_c),&0\le h_c<1,\\
+-2,&h_c\ge 1\text{ or the ratio is not finite}.
+\end{cases}
+\]
+
+Expected reachable richness is the already observed distinct richness plus
+$R_{rc}$.  The $-2$ case says that the current fitted ordering does not yet
+identify a finite remaining total; it does not erase the finite next-attempt
+discovery estimate.
+
+The next-attempt discovery quantity for channel $c$ is
+
+\[
+g_{t+1,c}=E\!\left[
+q_{t+1}(S)\sum_{j\ \mathrm{unseen}}z_{cj}p_{t+1,cj}(S)
+\,\middle|\,\mathcal H_t\right].
+\]
+
+This expectation integrates the product over the shared latent state.  In
+general it is not equal to the product of a marginal success rate and a
+separately estimated conditional yield.  Consequently failure information is
+inside the decision-facing discovery estimate; it is not a second stop rule.
+For each channel the same posterior supplies observed richness $D_{tc}$,
+expected reachable richness $E[N_c\mid\mathcal H_t]$, remaining richness
+$E[N_c-D_{tc}\mid\mathcal H_t]$, and numeric uncertainty. Every observed or
+failed attempt updates the joint state; excluded attempts do not. The Episode
+sees only the resulting generic numeric report, sole method credit, and
+arithmetic verdict.
+
+The required-channel vector becomes one scalar method credit without
+discarding the estimator state. Let
+$\widehat N^-_c$ be channel $c$'s reachable-total point estimate immediately
+before a unit, and let $D^-_c$ and $D^+_c$ be cumulative observed richness
+before and after it.  On the fixed pre-unit scale,
+
+\[
+p^-_c=\min\!\left(1,\frac{D^-_c}{\widehat N^-_c}\right),\qquad
+p^+_c=\min\!\left(1,\frac{D^+_c}{\widehat N^-_c}\right),
+\]
+
+and the unit receives marginal dominated hypervolume
+
+\[
+\Delta HV_t=\prod_{c\in C_{\mathrm{required}}}p^+_c
+            -\prod_{c\in C_{\mathrm{required}}}p^-_c.
+\]
+
+The pre-unit denominator and both progress coordinates are recorded for every
+axis. If a required pre-unit total is unavailable, the credit is numeric
+insufficient-information status; no fallback denominator is substituted. A
+zero predicted population with zero observations is a completed axis with
+coordinate one, while a subsequent positive observation against that zero
+denominator is unidentifiable for that transition.
+
+For control after unit $t$, the current vector and predicted next vector are
+
+\[
+p_{tc}=\min\!\left(1,\frac{D_{tc}}{\widehat N_{tc}}\right),\qquad
+\widetilde p_{t+1,c}=\min\!\left(
+1,\frac{D_{tc}+g_{t+1,c}}{\widehat N_{tc}}\right).
+\]
+
+The controller-facing prediction is
+
+\[
+\widehat{\Delta HV}_{t+1}
+=\prod_{c\in C_{\mathrm{required}}}\widetilde p_{t+1,c}
+-\prod_{c\in C_{\mathrm{required}}}p_{tc}.
+\]
+
+The numeric bands on reachable totals and next discoveries are propagated to a
+conservative numeric band on $\widehat{\Delta HV}_{t+1}$. The numerical stop
+edge compares only that scalar upper band with one declared threshold $\gamma$
+over the declared streak. Per-column remaining bands label and explain a
+stopped scope; they are not additional stop gates. The scalar hypervolume is
+also the success signal supplied to parent learning, while the full column
+vector accompanies it as explanatory context. A parent receives distinct
+identities by column and recomputes its own hypervolume on its own scale; child
+hypervolumes are not summed.
 
 \begin{abstract}
 The table-fill pipeline has evolved from a single question-answering pass into

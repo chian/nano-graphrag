@@ -85,6 +85,8 @@ from .plan_iteration_agent import PlanIterationAgent, PlanIterationRequest
 from .command_repair_agent import LLMCommandRepairAgent, CommandFailureEnvelope, GenericCommandRepairRequest
 from .two_phase_planner import TwoPhasePlanner
 from .step_compiler import GASLStepCompiler
+from .query_binding import GaslQueryBinding, QueryBindingServices
+from method_loop import COUNTING_ENDS
 
 
 class GASLExecutor:
@@ -179,141 +181,25 @@ class GASLExecutor:
             self.state_store.set_query(plan_json.get("query", ""))
             self.state_store.set_config(plan_json.get("config", {}))
             
-            # Execute commands
+            # Execute commands — one call to the per-command track body per
+            # command. The body lives in `_run_command_track` so the query
+            # binding's source can run one operation track at a time (phase G);
+            # this loop's behavior is unchanged.
             results = []
             previous_result: Optional[ExecutionResult] = None
             for i, command in enumerate(commands):
-                step_id = f"{plan.plan_id}-step-{i+1}"
-                command_inputs = self._capture_command_inputs(command)
-                if command.command_type == "ON":
-                    on_result, nested_result = self._execute_on(command, step_id, previous_result)
-                    results.append(on_result)
-                    self.state_store.add_history_entry(HistoryEntry(
-                        step_id=step_id,
-                        command=command.raw_text,
-                        status=on_result.status,
-                        result_count=on_result.count,
-                        duration_ms=on_result.duration_ms,
-                        timestamp=on_result.timestamp,
-                        error_message=on_result.error_message,
-                        provenance=on_result.provenance,
-                    ))
-                    if nested_result is not None:
-                        results.append(nested_result)
-                        nested_step_id = f"{step_id}.action"
-                        self.state_store.add_history_entry(HistoryEntry(
-                            step_id=nested_step_id,
-                            command=nested_result.command,
-                            status=nested_result.status,
-                            result_count=nested_result.count,
-                            duration_ms=nested_result.duration_ms,
-                            timestamp=nested_result.timestamp,
-                            error_message=nested_result.error_message,
-                            provenance=nested_result.provenance,
-                        ))
-                        previous_result = nested_result
-                        if nested_result.status == "error" and plan.config.get("stop_on_error", True):
-                            break
-                        elif nested_result.status == "empty" and not plan.config.get("continue_on_empty", False):
-                            break
-                    else:
-                        previous_result = on_result
-                    continue
-
-                previous_plan_command = commands[i - 1] if i > 0 else None
-                next_plan_command = commands[i + 1] if i + 1 < len(commands) else None
-                compiled_commands, compile_failure = self._compile_command_before_execution(
+                previous_result, break_plan = self._run_command_track(
+                    plan=plan,
+                    plan_json=plan_json,
+                    commands=commands,
+                    index=i,
                     command=command,
-                    step_id=step_id,
-                    query=plan_json.get("query", self.state_store.get_state().get("query", "")),
-                    previous_command=previous_plan_command,
-                    next_command=next_plan_command,
+                    previous_result=previous_result,
+                    results=results,
                 )
-                if compile_failure is not None:
-                    result = compile_failure
-                    results.append(result)
-                    history_entry = HistoryEntry(
-                        step_id=step_id,
-                        command=command.raw_text,
-                        status=result.status,
-                        result_count=result.count,
-                        duration_ms=result.duration_ms,
-                        timestamp=result.timestamp,
-                        error_message=result.error_message,
-                        provenance=result.provenance,
-                        produced_artifact=None,
-                    )
-                    self.state_store.add_history_entry(history_entry)
-                    previous_result = result
-                    if result.status == "error" and plan.config.get("stop_on_error", True):
-                        break
-                    elif result.status == "empty" and not plan.config.get("continue_on_empty", False):
-                        break
-                    continue
-
-                break_plan = False
-                for patch_index, compiled_command in enumerate(compiled_commands):
-                    patch_step_id = (
-                        step_id
-                        if len(compiled_commands) == 1
-                        else f"{step_id}.patch{patch_index + 1}"
-                    )
-                    command_inputs = self._capture_command_inputs(compiled_command)
-                    result = self._execute_command(compiled_command, patch_step_id)
-                    results.append(result)
-
-                    artifact = self._build_produced_artifact(compiled_command, result)
-                    history_entry = HistoryEntry(
-                        step_id=patch_step_id,
-                        command=compiled_command.raw_text,
-                        status=result.status,
-                        result_count=result.count,
-                        duration_ms=result.duration_ms,
-                        timestamp=result.timestamp,
-                        error_message=result.error_message,
-                        provenance=result.provenance,
-                        produced_artifact=artifact,
-                    )
-                    self.state_store.add_history_entry(history_entry)
-                    if artifact:
-                        self.state_store.append_produced_artifact(artifact)
-                    previous_result = result
-
-                    repaired_result = self._attempt_command_repair(
-                        command=compiled_command,
-                        step_id=patch_step_id,
-                        result=result,
-                        command_inputs=command_inputs,
-                    )
-                    if repaired_result is not None:
-                        repaired_step_id = f"{patch_step_id}.repair"
-                        results.append(repaired_result)
-                        repaired_artifact = self._build_produced_artifact(compiled_command, repaired_result)
-                        self.state_store.add_history_entry(HistoryEntry(
-                            step_id=repaired_step_id,
-                            command=repaired_result.command,
-                            status=repaired_result.status,
-                            result_count=repaired_result.count,
-                            duration_ms=repaired_result.duration_ms,
-                            timestamp=repaired_result.timestamp,
-                            error_message=repaired_result.error_message,
-                            provenance=repaired_result.provenance,
-                            produced_artifact=repaired_artifact,
-                        ))
-                        if repaired_artifact:
-                            self.state_store.append_produced_artifact(repaired_artifact)
-                        previous_result = repaired_result
-                        result = repaired_result
-
-                    if result.status == "error" and plan.config.get("stop_on_error", True):
-                        break_plan = True
-                        break
-                    elif result.status == "empty" and not plan.config.get("continue_on_empty", False):
-                        break_plan = True
-                        break
                 if break_plan:
                     break
-            
+
             return {
                 "plan_id": plan.plan_id,
                 "status": "completed",
@@ -323,6 +209,161 @@ class GASLExecutor:
             
         except Exception as e:
             raise ExecutionError(f"Plan execution failed: {e}", plan_json.get("plan_id", "unknown"))
+
+    def _run_command_track(
+        self,
+        *,
+        plan: PlanObject,
+        plan_json: Dict[str, Any],
+        commands: List[Command],
+        index: int,
+        command: Command,
+        previous_result: Optional[ExecutionResult],
+        results: List[ExecutionResult],
+        precompiled: Optional[tuple] = None,
+    ) -> tuple[Optional[ExecutionResult], bool]:
+        """One command's complete track: ON handling, step-compile, execute,
+        command-repair, history and trace — the body of `execute_plan`'s loop,
+        moved verbatim so it is callable per command (phase G, condition G5).
+        `break`/`continue` become the returned `break_plan` flag; new results
+        are appended to `results`; the updated `previous_result` is returned.
+        `precompiled` lets the query binding hand in a compile outcome it
+        already obtained (deciding walk-vs-leaf), so nothing compiles twice;
+        every existing caller omits it and compiles here exactly as before.
+        """
+        i = index
+        step_id = f"{plan.plan_id}-step-{i+1}"
+        command_inputs = self._capture_command_inputs(command)
+        if command.command_type == "ON":
+            on_result, nested_result = self._execute_on(command, step_id, previous_result)
+            results.append(on_result)
+            self.state_store.add_history_entry(HistoryEntry(
+                step_id=step_id,
+                command=command.raw_text,
+                status=on_result.status,
+                result_count=on_result.count,
+                duration_ms=on_result.duration_ms,
+                timestamp=on_result.timestamp,
+                error_message=on_result.error_message,
+                provenance=on_result.provenance,
+            ))
+            if nested_result is not None:
+                results.append(nested_result)
+                nested_step_id = f"{step_id}.action"
+                self.state_store.add_history_entry(HistoryEntry(
+                    step_id=nested_step_id,
+                    command=nested_result.command,
+                    status=nested_result.status,
+                    result_count=nested_result.count,
+                    duration_ms=nested_result.duration_ms,
+                    timestamp=nested_result.timestamp,
+                    error_message=nested_result.error_message,
+                    provenance=nested_result.provenance,
+                ))
+                previous_result = nested_result
+                if nested_result.status == "error" and plan.config.get("stop_on_error", True):
+                    return previous_result, True
+                elif nested_result.status == "empty" and not plan.config.get("continue_on_empty", False):
+                    return previous_result, True
+            else:
+                previous_result = on_result
+            return previous_result, False
+
+        previous_plan_command = commands[i - 1] if i > 0 else None
+        next_plan_command = commands[i + 1] if i + 1 < len(commands) else None
+        if precompiled is not None:
+            compiled_commands, compile_failure = precompiled
+        else:
+            compiled_commands, compile_failure = self._compile_command_before_execution(
+                command=command,
+                step_id=step_id,
+                query=plan_json.get("query", self.state_store.get_state().get("query", "")),
+                previous_command=previous_plan_command,
+                next_command=next_plan_command,
+            )
+        if compile_failure is not None:
+            result = compile_failure
+            results.append(result)
+            history_entry = HistoryEntry(
+                step_id=step_id,
+                command=command.raw_text,
+                status=result.status,
+                result_count=result.count,
+                duration_ms=result.duration_ms,
+                timestamp=result.timestamp,
+                error_message=result.error_message,
+                provenance=result.provenance,
+                produced_artifact=None,
+            )
+            self.state_store.add_history_entry(history_entry)
+            previous_result = result
+            if result.status == "error" and plan.config.get("stop_on_error", True):
+                return previous_result, True
+            elif result.status == "empty" and not plan.config.get("continue_on_empty", False):
+                return previous_result, True
+            return previous_result, False
+
+        break_plan = False
+        for patch_index, compiled_command in enumerate(compiled_commands):
+            patch_step_id = (
+                step_id
+                if len(compiled_commands) == 1
+                else f"{step_id}.patch{patch_index + 1}"
+            )
+            command_inputs = self._capture_command_inputs(compiled_command)
+            result = self._execute_command(compiled_command, patch_step_id)
+            results.append(result)
+
+            artifact = self._build_produced_artifact(compiled_command, result)
+            history_entry = HistoryEntry(
+                step_id=patch_step_id,
+                command=compiled_command.raw_text,
+                status=result.status,
+                result_count=result.count,
+                duration_ms=result.duration_ms,
+                timestamp=result.timestamp,
+                error_message=result.error_message,
+                provenance=result.provenance,
+                produced_artifact=artifact,
+            )
+            self.state_store.add_history_entry(history_entry)
+            if artifact:
+                self.state_store.append_produced_artifact(artifact)
+            previous_result = result
+
+            repaired_result = self._attempt_command_repair(
+                command=compiled_command,
+                step_id=patch_step_id,
+                result=result,
+                command_inputs=command_inputs,
+            )
+            if repaired_result is not None:
+                repaired_step_id = f"{patch_step_id}.repair"
+                results.append(repaired_result)
+                repaired_artifact = self._build_produced_artifact(compiled_command, repaired_result)
+                self.state_store.add_history_entry(HistoryEntry(
+                    step_id=repaired_step_id,
+                    command=repaired_result.command,
+                    status=repaired_result.status,
+                    result_count=repaired_result.count,
+                    duration_ms=repaired_result.duration_ms,
+                    timestamp=repaired_result.timestamp,
+                    error_message=repaired_result.error_message,
+                    provenance=repaired_result.provenance,
+                    produced_artifact=repaired_artifact,
+                ))
+                if repaired_artifact:
+                    self.state_store.append_produced_artifact(repaired_artifact)
+                previous_result = repaired_result
+                result = repaired_result
+
+            if result.status == "error" and plan.config.get("stop_on_error", True):
+                break_plan = True
+                break
+            elif result.status == "empty" and not plan.config.get("continue_on_empty", False):
+                break_plan = True
+                break
+        return previous_result, break_plan
 
     def _execute_on(
         self,
@@ -463,7 +504,17 @@ class GASLExecutor:
                 status="error",
                 error_message=str(e),
                 duration_ms=duration_ms,
-                timestamp=datetime.now()
+                timestamp=datetime.now(),
+                # The exception CLASS beside the message (phase G, condition
+                # G4; precedent: _attempt_plan_repair's trace record). Fate
+                # labels suffix on this class name, never on message text,
+                # which can carry provider or model prose.
+                provenance=[
+                    Provenance(
+                        source_id="command_execution",
+                        extraction={"error_type": type(e).__name__},
+                    )
+                ],
             )
 
     def _capture_command_inputs(self, command: Command) -> Dict[str, Any]:
@@ -654,29 +705,33 @@ class GASLExecutor:
         self.context_store.clear()
     
     def run_hypothesis_driven_traversal(self, query: str, max_iterations: int = 10) -> Dict[str, Any]:
-        """Run the complete HDT loop."""
+        """Run the complete HDT loop as ONE query Episode (phase G).
+
+        This method builds the query binding composition — injecting the
+        planner, the per-command track callable, the repair/adaptation
+        callables, trace, and state stores — makes one `Episode.run` call,
+        and keys the existing final-answer tail off the emitted record's
+        `ended_by` and the source summary. The continue/stop decision is the
+        kernel's numerical verdict, the written completion counting rule, or
+        the typed planner-iteration budget (`max_iterations` survives as the
+        disclosed safety bound, reported `bound_hit` — never as convergence).
+        The closures below are the previous loop's blocks, moved verbatim
+        into the source's string-work steps.
+        """
         # Set initial query
         self.state_store.set_query(query)
-        
+
         print(f"🔍 STATE DEBUG: Initial state variables: {list(self.state_store.get_state().get('variables', {}).keys())}")
-        
-        iteration = 0
-        all_results = []
-        pending_plan_json: Optional[Dict[str, Any]] = None
-        clean_iteration_completed = False
-        
-        while iteration < max_iterations:
-            iteration += 1
-            plan_json: Optional[Dict[str, Any]] = None
-            
-            # Get current state and schema
+
+        def _acquire_plan(iteration: int, pending_plan_json: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+            """Generate (or validate-and-reuse) one plan, exactly as before."""
             current_state = self.state_store.get_state()
             schema = self.get_schema()
             history = current_state.get("history", [])
-            
+            plan_json: Optional[Dict[str, Any]] = None
+
             if pending_plan_json is None:
                 print(f"🔄 ITERATION {iteration} - Generating Plan...")
-                plan_obs_id = None
                 planning_result = self.two_phase_planner.generate_plan(
                     query=query,
                     schema=schema,
@@ -709,8 +764,6 @@ class GASLExecutor:
                 })
             else:
                 plan_json = pending_plan_json
-                pending_plan_json = None
-                plan_obs_id = None
                 current_symbol_table = self.state_store.get_plan_symbol_table()
                 reuse_validation = self.two_phase_planner.validate_plan(plan_json, current_symbol_table)
                 if not reuse_validation["ok"]:
@@ -751,146 +804,186 @@ class GASLExecutor:
                     })
                 else:
                     plan_response = json.dumps(plan_json)
-                    plan_obs_id = None
                     self.trace.log("planner_plan_reuse", {
                         "iteration": iteration,
                         "plan": plan_json,
                     })
-            
+
+            # Parse JSON response — tolerant of markdown fences / prose. A
+            # json.JSONDecodeError propagates to the source, which counts the
+            # unparsed plan, charges the budget, and re-asks (no unit minted).
+            if plan_json is None:
+                plan_json = json.loads(_extract_json(plan_response))
+            plan_json["query"] = query  # Ensure query is set
+            self.trace.log("planner_plan", {
+                "iteration": iteration,
+                "plan": plan_json,
+            })
+            return plan_json
+
+        def _begin_plan(plan_json: Dict[str, Any]) -> tuple:
+            """`execute_plan`'s plan setup, unchanged: parse and set state."""
+            plan = PlanObject.from_dict(plan_json)
+            commands = self.parser.parse_plan(plan_json)
+            self.state_store.set_query(plan_json.get("query", ""))
+            self.state_store.set_config(plan_json.get("config", {}))
+            return plan, commands
+
+        def _summarize(results: List[ExecutionResult], iteration: int) -> Dict[str, Any]:
+            """The written completion counting rule, traced as before."""
+            failure_summary = self._summarize_iteration_outcomes(results)
+            self.trace.log("iteration_failure_summary", {
+                "iteration": iteration,
+                "summary": failure_summary,
+            })
+            return failure_summary
+
+        def _repair_and_adapt(
+            previous_plan: Dict[str, Any],
+            iteration: int,
+            failure_summary: Dict[str, Any],
+        ) -> Optional[Dict[str, Any]]:
+            """Plan repair, planner constraints, strategy adaptation — the
+            previous loop's needs-repair tail, verbatim. Returns the repaired
+            plan for reuse, or None so a fresh plan is generated."""
+            variables = self.state_store.get_state().get("variables", {})
+            print(f"DEBUG: Iteration {iteration} needs repair: {failure_summary['reasons']}")
+            self.state_store.set_last_failure_summary(failure_summary)
+            # The clear that stood here is DELETED, not moved and not
+            # guarded. It wrote `[]` to disk via `_save_state()` BEFORE
+            # the repair call, so any failure of that call -- a raise, a
+            # provider outage, a crash -- left a persisted state file
+            # with every constraint gone and nothing to say they had
+            # ever existed. The next planner resumed unconstrained and
+            # was told nothing.
+            #
+            # Clearing before an operation that might not produce a
+            # replacement is the same defect as truncating before
+            # knowing what you need: it destroys the only copy in
+            # exchange for nothing. The single write site is below, and
+            # it fires only when repair actually produced constraints.
+            constraints_before = self.state_store.get_planner_constraints()
+            repaired_plan, plan_repair_response = self._attempt_plan_repair(
+                query=query,
+                previous_plan=previous_plan,
+                variables=variables,
+                iteration=iteration,
+            )
+            new_constraints = list(
+                (plan_repair_response or {}).get("planner_constraints") or []
+            )
+            if new_constraints:
+                self.state_store.set_planner_constraints(
+                    new_constraints,
+                    authored_iteration=iteration,
+                    authored_for=query,
+                )
+            # Traced whether or not anything changed. Nothing logged this
+            # before, which is how a clear-then-lose survived unnoticed:
+            # the constraints simply were not there on the next
+            # iteration and no record said when they left.
+            self.trace.log("planner_constraints_delta", {
+                "iteration": iteration,
+                "before": constraints_before,
+                "after": self.state_store.get_planner_constraints(
+                    current_iteration=iteration, current_for=query
+                ),
+                "replaced": bool(new_constraints),
+                "repair_produced_plan": repaired_plan is not None,
+            })
+            if repaired_plan is not None:
+                return repaired_plan
+            if new_constraints:
+                return None
+
+            current_schema = self.get_schema()
+            strategy_prompt = self.llm_func.create_strategy_adaptation_prompt(query, variables, iteration, current_schema, self.state_store.get_state())
+            strat_obs_id = self.prompt_obs.record_invocation(
+                prompt_name="strategy_adaptation",
+                prompt_text=strategy_prompt,
+                model=getattr(self.llm_func, "model", None),
+                metadata={"iteration": iteration, "query": query},
+            )
+            strategy_response = self.llm_func.call(strategy_prompt)
+            self.prompt_obs.record_outcome(
+                strat_obs_id,
+                prompt_name="strategy_adaptation",
+                response_text=strategy_response,
+                labels={"generated": True},
+                metadata={"iteration": iteration},
+            )
+            print(f"DEBUG: Strategy Analysis (Iteration {iteration}):\n{strategy_response}\n")
+            self.trace.log("strategy_prompt", {"iteration": iteration, "prompt": strategy_prompt})
+            self.trace.log("strategy_response", {"iteration": iteration, "response": strategy_response})
+            self.state_store.set_strategy_insights(strategy_response)
+            return None
+
+        def _compile(command, step_id, previous_command, next_command):
+            return self._compile_command_before_execution(
+                command=command,
+                step_id=step_id,
+                query=query,
+                previous_command=previous_command,
+                next_command=next_command,
+            )
+
+        def _parse_command_type(text: str) -> str:
             try:
-                # Parse JSON response — tolerant of markdown fences / prose
-                if plan_json is None:
-                    plan_json = json.loads(_extract_json(plan_response))
-                plan_json["query"] = query  # Ensure query is set
-                if plan_obs_id is not None:
-                    self.prompt_obs.record_outcome(
-                        plan_obs_id,
-                        prompt_name="plan_generation",
-                        response_text=plan_response,
-                        parsed=plan_json,
-                        labels={"parse_success": True},
-                        metadata={"iteration": iteration},
-                    )
-                self.trace.log("planner_plan", {
-                    "iteration": iteration,
-                    "plan": plan_json,
-                })
-                
-                # Execute plan
-                result = self.execute_plan(plan_json)
-                all_results.append(result)
-                
-                print(f"DEBUG: Plan execution result status: '{result['status']}'")
-                print(f"DEBUG: Status type: {type(result['status'])}")
-                print(f"DEBUG: Status repr: {repr(result['status'])}")
-                print(f"🔍 STATE DEBUG: After plan execution, state variables: {list(self.state_store.get_state().get('variables', {}).keys())}")
-                
-                # Deterministic repair trigger: if this execution produced any command errors/empties,
-                # the run failed and must be repaired. Do not gate repair on an LLM validator.
-                if result["status"] in ["completed", "success"]:
-                    final_state = result["final_state"]
-                    variables = final_state.get("variables", {})
-                    print(f"DEBUG: Final state variables: {list(variables.keys())}")
-                    failure_summary = self._summarize_iteration_outcomes(result["results"])
-                    self.trace.log("iteration_failure_summary", {
-                        "iteration": iteration,
-                        "summary": failure_summary,
-                    })
-                    if not failure_summary["needs_repair"]:
-                        print(f"DEBUG: Clean iteration completed after {iteration} iterations")
-                        clean_iteration_completed = True
-                        break
+                return self.parser.parse_command(text, 0).command_type
+            except Exception:
+                return ""
 
-                    print(f"DEBUG: Iteration {iteration} needs repair: {failure_summary['reasons']}")
-                    if iteration >= max_iterations:
-                        print(f"DEBUG: Reached max iterations ({max_iterations}) with unresolved execution defects")
-                        break
+        def _publish_result(step_id: str, command: Command, result: ExecutionResult) -> None:
+            """History entry + produced artifact for a nested walk's result —
+            the same publication the track body performs for a Leaf command."""
+            artifact = self._build_produced_artifact(command, result)
+            self.state_store.add_history_entry(HistoryEntry(
+                step_id=step_id,
+                command=command.raw_text,
+                status=result.status,
+                result_count=result.count,
+                duration_ms=result.duration_ms,
+                timestamp=result.timestamp,
+                error_message=result.error_message,
+                provenance=result.provenance,
+                produced_artifact=artifact,
+            ))
+            if artifact:
+                self.state_store.append_produced_artifact(artifact)
 
-                    self.state_store.set_last_failure_summary(failure_summary)
-                    # The clear that stood here is DELETED, not moved and not
-                    # guarded. It wrote `[]` to disk via `_save_state()` BEFORE
-                    # the repair call, so any failure of that call -- a raise, a
-                    # provider outage, a crash -- left a persisted state file
-                    # with every constraint gone and nothing to say they had
-                    # ever existed. The next planner resumed unconstrained and
-                    # was told nothing.
-                    #
-                    # Clearing before an operation that might not produce a
-                    # replacement is the same defect as truncating before
-                    # knowing what you need: it destroys the only copy in
-                    # exchange for nothing. The single write site is below, and
-                    # it fires only when repair actually produced constraints.
-                    constraints_before = self.state_store.get_planner_constraints()
-                    repaired_plan, plan_repair_response = self._attempt_plan_repair(
-                        query=query,
-                        previous_plan=plan_json,
-                        variables=variables,
-                        iteration=iteration,
-                    )
-                    new_constraints = list(
-                        (plan_repair_response or {}).get("planner_constraints") or []
-                    )
-                    if new_constraints:
-                        self.state_store.set_planner_constraints(
-                            new_constraints,
-                            authored_iteration=iteration,
-                            authored_for=query,
-                        )
-                    # Traced whether or not anything changed. Nothing logged this
-                    # before, which is how a clear-then-lose survived unnoticed:
-                    # the constraints simply were not there on the next
-                    # iteration and no record said when they left.
-                    self.trace.log("planner_constraints_delta", {
-                        "iteration": iteration,
-                        "before": constraints_before,
-                        "after": self.state_store.get_planner_constraints(
-                            current_iteration=iteration, current_for=query
-                        ),
-                        "replaced": bool(new_constraints),
-                        "repair_produced_plan": repaired_plan is not None,
-                    })
-                    if repaired_plan is not None:
-                        pending_plan_json = repaired_plan
-                        continue
-                    if new_constraints:
-                        continue
+        graph_nav = next(
+            (handler for handler in self.handlers if isinstance(handler, GraphNavHandler)),
+            None,
+        )
+        if graph_nav is None:
+            raise ExecutionError("GraphNavHandler is not registered; the query binding cannot compose", query)
 
-                    current_schema = self.get_schema()
-                    strategy_prompt = self.llm_func.create_strategy_adaptation_prompt(query, variables, iteration, current_schema, self.state_store.get_state())
-                    strat_obs_id = self.prompt_obs.record_invocation(
-                        prompt_name="strategy_adaptation",
-                        prompt_text=strategy_prompt,
-                        model=getattr(self.llm_func, "model", None),
-                        metadata={"iteration": iteration, "query": query},
-                    )
-                    strategy_response = self.llm_func.call(strategy_prompt)
-                    self.prompt_obs.record_outcome(
-                        strat_obs_id,
-                        prompt_name="strategy_adaptation",
-                        response_text=strategy_response,
-                        labels={"generated": True},
-                        metadata={"iteration": iteration},
-                    )
-                    print(f"DEBUG: Strategy Analysis (Iteration {iteration}):\n{strategy_response}\n")
-                    self.trace.log("strategy_prompt", {"iteration": iteration, "prompt": strategy_prompt})
-                    self.trace.log("strategy_response", {"iteration": iteration, "response": strategy_response})
-                    self.state_store.set_strategy_insights(strategy_response)
-                
-            except json.JSONDecodeError:
-                # LLM didn't return valid JSON, try again
-                if plan_obs_id is not None:
-                    self.prompt_obs.record_outcome(
-                        plan_obs_id,
-                        prompt_name="plan_generation",
-                        response_text=plan_response,
-                        labels={"parse_success": False},
-                        metadata={"iteration": iteration},
-                    )
-                continue
-            except Exception as e:
-                # Plan execution failed, try again
-                continue
-        
+        binding = GaslQueryBinding(QueryBindingServices(
+            acquire_plan=_acquire_plan,
+            begin_plan=_begin_plan,
+            run_track=self._run_command_track,
+            compile_command=_compile,
+            summarize_outcomes=_summarize,
+            repair_and_adapt=_repair_and_adapt,
+            parse_command_type=_parse_command_type,
+            prepare_graphwalk=graph_nav.prepare_graphwalk,
+            finish_graphwalk=graph_nav.finish_graphwalk,
+            publish_result=_publish_result,
+            get_state=self.state_store.get_state,
+            walk_binding=graph_nav.walk_binding,
+            adapter=self.adapter,
+            trace=self.trace,
+        ))
+        composition = binding.compose(query=query, max_iterations=max_iterations)
+        record = composition.episode.run(composition.context)
+        summary = binding.summarize(composition, record)
+        source = composition.source
+
+        all_results = list(source.plan_records)
+        interrupted = source.interrupted_plan_record()
+        if interrupted is not None:
+            all_results.append(interrupted)
+
         final_state = self.state_store.get_state()
         variables = final_state.get("variables", {})
 
@@ -906,11 +999,21 @@ class GASLExecutor:
              (v.get("items") or any(k != "_meta" for k in v)))
             for v in variables.values()
         )
-        if clean_iteration_completed and has_data:
+        # The tail is keyed off the record's typed end, not a loop flag: the
+        # two counting ends — `exhausted` (the source's plan_completed_clean
+        # counting rule) and `yield_stop` (the kernel's measured verdict) —
+        # are clean completions; `bound_hit`, `source_failed`, and
+        # `incomplete` report the typed non-answer, naming the end.
+        if record.ended_by in COUNTING_ENDS and has_data:
             final_answer = self._generate_final_answer(query, final_state)
             query_answered = True
         else:
-            final_answer = f"Query could not be answered cleanly after {iteration} iterations. Execution defects remain."
+            end_label = record.ended_by + (f" ({record.end_reason})" if record.end_reason else "")
+            final_answer = (
+                f"Query could not be answered cleanly: the query episode ended "
+                f"'{end_label}' after {source.plans_charged} planner iteration(s) "
+                f"and {source.operations_yielded} graph-reading operation(s)."
+            )
             query_answered = False
             self.state_store.set_final_answer(
                 final_answer,
@@ -922,11 +1025,14 @@ class GASLExecutor:
 
         return {
             "query": query,
-            "iterations": iteration,
+            "iterations": source.plans_charged,
             "results": all_results,
             "final_state": final_state,
             "final_answer": final_answer,
             "query_answered": query_answered,
+            "episode_ended_by": record.ended_by,
+            "episode_end_reason": record.end_reason,
+            "binding_summary": summary,
         }
 
     def _summarize_iteration_outcomes(self, results: List[ExecutionResult]) -> Dict[str, Any]:

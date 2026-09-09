@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence
 
 import networkx as nx
+from method_loop import EpisodeRef
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
@@ -66,6 +67,15 @@ from .completion import (
     merge_completion_state,
     scope_probe_context,
 )
+from .checkpoint import (
+    ActiveParent,
+    CompletedEpisode,
+    EpisodeCheckpoint,
+    NextEpisode,
+    load_checkpoint,
+    resolve_checkpoint_path,
+    write_checkpoint,
+)
 from .control import (
     CONTROL_VOCABULARY_VERSION,
     ActionCandidate,
@@ -101,6 +111,8 @@ from .derived_context import source_ids_from_row
 from .evidence_registry import EvidenceRegistry
 from .evidence_acceptance import TypedEvidenceAcceptor
 from .extraction import chunk_spans, chunk_text, enrich_graph, extract_from_text
+from .table_extraction import TableSpecExtractor, extract_table_rows_from_text
+from .chunk_retrieval import page_outline, propose_lexical_probe, rank_chunks
 from .goals import (
     FillGoalState,
     TableFillGoalTracker,
@@ -117,7 +129,7 @@ from . import acquisition as acq
 from .acquisition import (
     RUN_GRAIN,
     AcquisitionController,
-    ColumnProjection,
+    TableCreditAssigner,
     ProviderHealth,
     RunTermination,
     SourceBudget,
@@ -160,17 +172,16 @@ from .search import (
     table_gap_search_tasks,
 )
 from .search_memory import SearchMemory
-from .tables import SeedTables, load_seed_tables, merge_rows_by_table
+from .tables import SeedTables, TypedTableStore, load_seed_tables, merge_rows_by_table
 from .numeric_candidates import (
     NUMERIC_CANDIDATE_COLUMNS,
     numeric_candidates_from_tables,
 )
 from .reward import (
     REWARD_COMPONENT_COLUMNS,
-    CreditLedger,
     load_seed_best_guess_rows,
     merge_best_guess_rows,
-    score_criterion_yield,
+    report_assigned_credit,
 )
 from .strategy_state import (
     QUERY_OPERATORS,
@@ -193,6 +204,8 @@ class PipelineConfig:
     question: str
     pipeline_mode: str = "answer"
     output_dir: str = "./question_runs/run"
+    #: Internal runner handoff populated only by ``--continue``.
+    resume_checkpoint: Optional[str] = None
 
     # Schema: if schema_name is set, load it; otherwise synthesize one.
     schema_name: Optional[str] = None
@@ -335,7 +348,6 @@ STRATEGY_SOURCE_NODES_VAR = "strategy_source_nodes"
 STRATEGY_SOURCES_VAR = "strategy_sources"
 SOURCE_CATALOG_VAR = "source_catalog"
 TABLE_REQUIRED_COLUMNS: Dict[str, List[str]] = {}
-TABLE_COMPLETENESS_COLUMNS: Dict[str, List[str]] = {}
 PIPELINE_MODE_ANSWER = "answer"
 PIPELINE_MODE_TABLE_FILL = "table_fill"
 
@@ -741,6 +753,9 @@ class QuestionPipeline:
         if config.target_queries_per_prompt_arm <= 0:
             raise ValueError("target_queries_per_prompt_arm must be positive")
         self.seed_tables: SeedTables = load_seed_tables(config.seed_tables_dir)
+        self._last_table_export_row_counts = {
+            name: len(rows) for name, rows in self.seed_tables.rows_by_name.items()
+        }
         self.table_spec: TableSpec = load_table_spec_with_seed_tables(
             self.seed_tables.rows_by_name,
             config.seed_tables_dir,
@@ -771,9 +786,6 @@ class QuestionPipeline:
             for name in self._cold_start_anchors_by_table
         }
         self._best_guess_columns_by_table = self.table_spec.best_guess_columns_by_table()
-        self._completeness_columns_by_table = (
-            self.table_spec.completeness_columns_by_table()
-        )
         # The guard that was here read `if not self.table_spec.is_empty`, which
         # tests whether the spec holds tables -- not whether it yielded any
         # columns. Every column accessor on TableSpec filters on
@@ -792,6 +804,12 @@ class QuestionPipeline:
         # schema is distinguishable downstream from a satisfied one.
         self.table_schema_disclosure: Dict[str, Any] = (
             self.table_spec.column_yield_diagnostic()
+        )
+        self.table_extractor = (
+            TableSpecExtractor(self.llm, self.table_spec)
+            if config.pipeline_mode == PIPELINE_MODE_TABLE_FILL
+            and self.table_schema_disclosure["usable_schema"]
+            else None
         )
         if (
             not self.table_schema_disclosure["usable_schema"]
@@ -865,10 +883,6 @@ class QuestionPipeline:
         self.reward_exports: List[Dict[str, Any]] = []
         self.last_reward_exports: List[Dict[str, Any]] = []
         self.last_reward_report: Dict[str, Any] = {}
-        #: Reward credit already paid, carried across strategy Episodes (Phase 3A).  A
-        #: criterion is a datapoint once and a source is harvested once; without
-        #: this the same yield is re-credited at every artifact write.
-        self.reward_credit_ledger = CreditLedger()
         self.seed_best_guess_rows: List[Dict[str, Any]] = load_seed_best_guess_rows(
             config.seed_tables_dir,
         )
@@ -887,10 +901,6 @@ class QuestionPipeline:
         self.seeded_control_decision_count = len(self.control_decisions)
         self.criteria_snapshot: CriteriaSnapshot = empty_snapshot()
         self._strategy_ledger_mark = len(self.control_decisions)
-        #: The previous scored strategy Episode's `after` snapshot, carried
-        #: forward so the next strategy's `before` IS it rather than a fresh
-        #: projection of some other row set. See `_write_reward_exports`.
-        self._last_reward_after: Optional[CriteriaSnapshot] = None
 
         # -- cost accounting (Phase 1B) --------------------------------- #
         # One record per action, never a running total: summing is 3A's
@@ -920,7 +930,12 @@ class QuestionPipeline:
         # and the declared facet set is fixed at run start. Its spec digest is
         # emitted on every record so a mid-run spec rewrite is legible against a
         # denominator that did not move.
-        self.crediter = ColumnProjection(self.table_spec)
+        self.table_store = TypedTableStore(
+            self.table_spec,
+            self.evidence_registry,
+            self.seed_tables.rows_by_name,
+        )
+        self.crediter = TableCreditAssigner(self.table_spec, self.table_store)
         self.source_budget = SourceBudget(limit=int(config.max_source_units))
         self.provider_health = ProviderHealth()
         self.run_termination = RunTermination()
@@ -974,6 +989,16 @@ class QuestionPipeline:
             ),
             sample_strategies=self._sample_strategies,
             post_strategy=self._run_post_strategy_body,
+            get_table_extractor=lambda: self.table_extractor,
+            extract_table_text=extract_table_rows_from_text,
+            page_outline=page_outline,
+            propose_lexical_probe=lambda **kwargs: propose_lexical_probe(
+                self.llm,
+                question=self.config.question,
+                table_spec=self.table_spec,
+                **kwargs,
+            ),
+            rank_chunks=rank_chunks,
             get_extractor=lambda: self.extractor,
             extract_text=extract_from_text,
             chunk_spans=chunk_spans,
@@ -1013,8 +1038,14 @@ class QuestionPipeline:
             hook_failures=lambda: self.hook_failures,
             criteria_projection_version=CRITERIA_PROJECTION_VERSION,
             missing_tokens=criteria_missing_tokens,
+            checkpoint_completed_strategy=self._checkpoint_completed_strategy,
+            checkpoint_completed_search=self._checkpoint_completed_search,
         )
         self._run_episode_id = self.provider_binding.run_episode_id
+
+        self._resume_checkpoint = bool(config.resume_checkpoint)
+        if self._resume_checkpoint:
+            self._restore_checkpoint_state(config.resume_checkpoint or "")
 
         # -- path-selection gate (Phase 2B) ----------------------------- #
         # Records on every run; demotes nothing unless configured to.  2A's
@@ -1597,10 +1628,9 @@ genuinely separate view that is not covered by a listed target."""
         Every field is context and none reaches a predicate: the accept rule
         reads a code-minted content key and a reported distance
         (`control.select_first_clearing`) and nothing else, so no prose in here
-        can reach a branch by construction. It deliberately does NOT draw from
-        `strategy_memory` records, so the page gate's `matched_needs` /
-        `missing_needs` and `search_memory`'s judge-emitted cue counters do not
-        enter this prompt at all.
+        can reach a branch by construction. Completed strategy outcomes are
+        post-verdict observations: they shape only the next sampled strings and
+        cannot revise any completed credit, estimate, or verdict.
         """
 
         latest_goal = self.goal_states[-1] if self.goal_states else {}
@@ -1624,17 +1654,9 @@ genuinely separate view that is not covered by a listed target."""
             "accepted_source_terms": self.provider_binding.accepted_source_terms(),
             "pages_pulled": self.source_budget.spent,
             "pages_budget": self.source_budget.limit,
-            "completed_strategies": [
-                {
-                    "scope_key": decision.get("scope_key"),
-                    "strategy_family": decision.get("strategy_family"),
-                    "units_consumed": decision.get("units_consumed"),
-                    "ended_by": decision.get("ended_by"),
-                    "distinct_credits": (decision.get("curve") or {}).get("distinct"),
-                }
-                for decision in self.acquisition.decision_records
-                if decision.get("decision_point") == acq.DECISION_STRATEGY_YIELD
-            ],
+            "completed_strategy_outcomes": list(
+                self.provider_binding.strategy_learning_history()
+            ),
         }
 
 
@@ -1729,9 +1751,6 @@ genuinely separate view that is not covered by a listed target."""
         self._best_guess_columns_by_table = (
             self.table_spec.best_guess_columns_by_table()
         )
-        self._completeness_columns_by_table = (
-            self.table_spec.completeness_columns_by_table()
-        )
         self.table_schema_disclosure = self.table_spec.column_yield_diagnostic()
         if not self.table_schema_disclosure["usable_schema"]:
             raise ValueError(
@@ -1752,7 +1771,13 @@ genuinely separate view that is not covered by a listed target."""
 
         # The contract is immutable for the run. Replace the pre-run empty
         # projection and its context before any Episode is built or opened.
-        self.crediter = ColumnProjection(self.table_spec)
+        self.table_store = TypedTableStore(
+            self.table_spec,
+            self.evidence_registry,
+            self.seed_tables.rows_by_name,
+        )
+        self.crediter = TableCreditAssigner(self.table_spec, self.table_store)
+        self.table_extractor = TableSpecExtractor(self.llm, self.table_spec)
         self.acquisition = AcquisitionController(
             crediter=self.crediter,
             budget=self.source_budget,
@@ -2698,9 +2723,6 @@ genuinely separate view that is not covered by a listed target."""
         )
         self.last_reward_exports = self._write_reward_exports(
             artifact_label,
-            previous_rows_by_name=self.seed_tables.rows_by_name,
-            current_rows_by_name=rows_by_name,
-            best_guess_state=best_guess_state,
         )
         self.seed_best_guess_rows = merge_best_guess_rows(
             self.seed_best_guess_rows,
@@ -2928,71 +2950,16 @@ genuinely separate view that is not covered by a listed target."""
     def _write_reward_exports(
         self,
         artifact_label: int | str,
-        *,
-        previous_rows_by_name: Dict[str, List[Dict[str, Any]]],
-        current_rows_by_name: Dict[str, List[Dict[str, Any]]],
-        best_guess_state: Dict[str, Any],
     ) -> List[Dict[str, Any]]:
         if self.config.answer_mode != "table":
             return []
 
-        # Both sides go through `criteria.project_rows`, so reward reads the
-        # same projection every other consumer joins on rather than parsing
-        # rows for itself.  The allowlist is explicit: the spec guard defaults
-        # open, and a working table reaching the projection would put
-        # best-guess *candidates* -- including rejected ones -- on the scoring
-        # surface.
-        #
-        # That was written as though the allowlist already prevented working
-        # tables from scoring. It did not. Its no-spec fallback was every table
-        # handed in, and a traversal hands in its intermediate variables too,
-        # so on a run that declared no spec the allowlist named the very tables
-        # it existed to exclude. `_declared_table_names` now supplies the
-        # missing statement of intent.
         episode_id = self._active_strategy_episode_id
         if not episode_id:
-            # A non-episode export pass (the "seed" / "bootstrap" re-export of
-            # carried state) has no strategy Episode to attribute cost or
-            # first-harvest credit to -- "Episode level is the finest
-            # granularity that is honest here" per `reward.py`'s own
-            # docstring, and a bootstrap re-export of the seed state is not an
-            # acquisition. Skip scoring rather than crediting against an
-            # undefined Episode; the first completed strategy scores from here
-            # forward through the normal path.
+            # A bootstrap re-export is not an acquisition Episode.
             return []
-        source_records = self._source_records_by_id()
-        accepted_source_ids = sorted(source_records)
-        resolutions = (best_guess_state or {}).get("resolutions") or []
-
-        # THE CHAIN IS CARRIED, NOT RECONSTRUCTED.
-        #
-        # `before` used to be a fresh projection of `self.seed_tables.rows_by_name`.
-        # That is a different row set from the one the previous round scored as
-        # its `after`, so consecutive rounds did not meet: on the live
-        # earthquake run round 1's `after` was `fd2cc58a60dabcfd` while round
-        # 2's `before` was `615fb3d17f39bd35`, and the recorded round-2
-        # `before` is reproducible as the projection of the round-1 *exported*
-        # table -- confirming the two sides were built from different rows.
-        #
-        # Whatever appeared in that gap was scored by nobody. It is not a
-        # rounding error in the credit: it is an interval of the run that no
-        # round's reward covers, with no error and no disclosure, and it
-        # compounds with every additional round. The round-0-only symptom that
-        # motivated this work masked it, because a chain that credits zero for
-        # every later round looks the same whether or not it is continuous.
-        #
-        # Making `before` literally the stored `after` object removes the gap
-        # by construction rather than by keeping two derivations in agreement,
-        # which is the kind of invariant that holds until someone edits one of
-        # them.
-        # THE COST CUT IS RECORDED, NOT LEFT TO BE RECONSTRUCTED.
-        #
-        # This runs MID-strategy, so `self.cost_records` is a prefix that keeps
-        # growing after scoring. A frozen snapshot is taken, the records in
-        # scope are selected by the strategy Episode's own `episode_id` -- the
-        # selection `reward.aggregate_cost` documents as the caller's business
-        # -- and the ids inside the cut are emitted, so the cut is readable
-        # from the export rather than inferred from it.
+        # Reporting consumes the live assigner's immutable records. It does not
+        # project tables again or make a second decision about what counts.
         cost_snapshot = [
             record for record in self.cost_records if isinstance(record, Mapping)
         ]
@@ -3005,65 +2972,19 @@ genuinely separate view that is not covered by a listed target."""
             str(record.get("observation_id") or "") for record in matched_cost_records
         ]
 
-        chained = self._last_reward_after is not None
-        if chained:
-            before = self._last_reward_after
-        else:
-            before = project_rows(
-                previous_rows_by_name,
-                self.table_spec,
-                accepted_source_ids=accepted_source_ids,
-                deliverable_tables=self._deliverable_tables(previous_rows_by_name),
-                evidence_registry=self.evidence_registry,
-            )
-        after = project_rows(
-            current_rows_by_name,
-            self.table_spec,
-            accepted_source_ids=accepted_source_ids,
-            best_guess_resolutions=resolutions,
-            deliverable_tables=self._deliverable_tables(current_rows_by_name),
-            evidence_registry=self.evidence_registry,
+        strategy_key = (
+            str(self._active_strategy_episode_path[1][1])
+            if len(self._active_strategy_episode_path) > 1
+            else ""
         )
-        reward = score_criterion_yield(
-            before,
-            after,
+        reward = report_assigned_credit(
+            self.crediter.assignments_for_strategy(strategy_key),
             episode_id=episode_id,
-            accepted_source_ids=accepted_source_ids,
-            ledger=self.reward_credit_ledger,
             cost_records=matched_cost_records,
         )
-        self.reward_credit_ledger = reward.ledger
         report = reward.to_dict()
-
-        # Closing the chain removes the leak but would also hide the thing that
-        # caused it: the `after` snapshots are taken over different rows than
-        # the exports. So the projection the old code would have used is still
-        # computed and compared, and the disagreement is reported rather than
-        # silently resolved. `chain_continuous: false` here means this round's
-        # carried `before` does not match a fresh projection of the previous
-        # exported state -- credit is no longer lost either way, but the two
-        # derivations disagree and someone should know which is right.
-        rebuilt = project_rows(
-            previous_rows_by_name,
-            self.table_spec,
-            accepted_source_ids=accepted_source_ids,
-            deliverable_tables=self._deliverable_tables(previous_rows_by_name),
-            evidence_registry=self.evidence_registry,
-        )
-        report["before_snapshot_source"] = (
-            "previous_pass_after" if chained else "projection_of_previous_rows"
-        )
-        report["before_snapshot_rebuilt_id"] = rebuilt.id
-        report["chain_continuous"] = (not chained) or before.id == rebuilt.id
-        if chained and before.id != rebuilt.id:
-            report["chain_divergence_reason"] = (
-                "the previous round's `after` snapshot and a fresh projection "
-                "of the previous exported rows do not agree, so the two are "
-                "built from different row sets; scoring uses the carried "
-                "`after` so no interval goes uncredited"
-            )
-
-        self._last_reward_after = after
+        report["credit_source"] = "table_credit_assigner"
+        report["credit_recomputed"] = False
         self.last_reward_report = report
         artifact_stem = self._artifact_stem(artifact_label)
         self.derived_dir.mkdir(parents=True, exist_ok=True)
@@ -3107,19 +3028,8 @@ genuinely separate view that is not covered by a listed target."""
                     "that this strategy was free"
                 )
             ),
-            # The snapshot-chain fields were written into the reward JSON but
-            # never onto this record, so every consumer reading exports saw
-            # `chain_continuous: None` -- indistinguishable from a chain that
-            # was checked and found broken. A run gate cannot assert on a field
-            # that is never emitted, so absent and false must not look alike.
-            "chain_continuous": report.get("chain_continuous"),
-            "before_snapshot_source": report.get("before_snapshot_source"),
-            "before_criteria_snapshot_id": report.get(
-                "before_criteria_snapshot_id"
-            ),
-            "after_criteria_snapshot_id": report.get("after_criteria_snapshot_id"),
-            "before_snapshot_rebuilt_id": report.get("before_snapshot_rebuilt_id"),
-            "chain_divergence_reason": report.get("chain_divergence_reason", ""),
+            "before_table_state_id": report.get("before_table_state_id"),
+            "after_table_state_id": report.get("after_table_state_id"),
             "rows": len(components),
             "json_path": str(json_path),
             "csv_path": str(csv_path),
@@ -3276,77 +3186,70 @@ genuinely separate view that is not covered by a listed target."""
 
     def _validate_table(self, name: str, rows: List[Any]) -> Dict[str, Any]:
         required = self._required_columns(name)
-        completeness_columns = self._completeness_columns(name)
         row_dicts = [row for row in rows if isinstance(row, dict)]
-        missing_by_column = {
+        physical_columns = [
+            column.column
+            for column in self.table_store.result_contract.columns
+            if column.table == name
+        ]
+        representation_missing_by_column = {
             column: sum(
                 1 for row in row_dicts if self._is_missing(row.get(column))
             )
-            for column in completeness_columns
+            for column in physical_columns
         }
-        # A row is "complete" when no column it must carry is missing. With no
-        # columns to check, `all(...)` over an empty sequence is vacuously true
-        # and every row is certified complete -- which is how the live
-        # earthquake run's round-2 manifest reported 303 of 303 rows complete
-        # with zero gaps on a table whose spec declares no required columns at
-        # all. Unmeasurable and satisfied produced the identical artifact.
-        #
-        # The self-declared route is measurable regardless, because a row that
-        # carries its own `completeness` field is asserting something falsifiable.
-        self_declared = any("completeness" in row for row in row_dicts)
-        checked_columns = list(completeness_columns or required)
-        measurable = bool(self_declared or checked_columns)
-
-        if self_declared:
-            complete_rows = sum(
-                1 for row in row_dicts if row.get("completeness") == "complete"
-            )
-        elif checked_columns:
-            complete_rows = sum(
-                1
-                for row in row_dicts
-                if all(
-                    not self._is_missing(row.get(column))
-                    for column in checked_columns
-                )
-            )
-        else:
-            complete_rows = None
+        projection = self.table_store.logical_projection()
+        table_state = projection.table_summary(name)
+        slots = [
+            slot
+            for slot in projection.slot_definitions
+            if slot.table == name
+        ]
+        required_slots = [slot for slot in slots if slot.required]
+        slots_by_id = {slot.slot_id: slot for slot in slots}
+        measurable = bool(required_slots)
+        complete_rows = table_state["complete_subjects"] if measurable else None
+        partial_rows = table_state["partial_subjects"] if measurable else None
+        missing_by_slot = {
+            slots_by_id[slot_id].value_slot: count
+            for slot_id, count in table_state["missing_by_slot_id"].items()
+            if slot_id in slots_by_id
+        }
 
         validation: Dict[str, Any] = {
             "required_columns": required,
             "rows": len(rows),
             "dict_rows": len(row_dicts),
+            "logical_subjects": table_state["subjects"],
             "completeness_measurable": measurable,
-            "completeness_basis": (
-                "row-declared completeness field"
-                if self_declared
-                else "required/completeness columns"
-                if checked_columns
-                else "none"
-            ),
-            "completeness_checked_columns": checked_columns,
+            "completeness_basis": "accepted typed logical value slots",
+            "required_logical_slots": [
+                {
+                    "value_slot": slot.value_slot,
+                    "slot_id": slot.slot_id,
+                    "alternative_columns": list(slot.column_names),
+                }
+                for slot in required_slots
+            ],
             "complete_rows": complete_rows,
-            "partial_rows": (
-                None if complete_rows is None
-                else max(0, len(row_dicts) - complete_rows)
-            ),
-            "missing_by_column": {
+            "partial_rows": partial_rows,
+            "missing_by_slot": missing_by_slot,
+            "logical_slot_coverage": {
+                slots_by_id[slot_id].value_slot: dict(coverage)
+                for slot_id, coverage in table_state["slot_coverage"].items()
+                if slot_id in slots_by_id
+            },
+            "representation_missing_by_column": {
                 column: missing
-                for column, missing in missing_by_column.items()
+                for column, missing in representation_missing_by_column.items()
                 if missing
             },
         }
         if not measurable:
-            # Fail closed with a reason rather than defaulting to a pass. A
-            # consumer that does `float(complete_rows or 0)` on this now gets a
-            # visibly wrong zero instead of an invisibly wrong full count, and
-            # a consumer that reads the flag gets the truth.
             validation["completeness_unavailable_reason"] = (
-                f"table {name!r} declares no required or completeness columns "
-                "and no row declares its own completeness, so row completeness "
-                "cannot be falsified; complete_rows and partial_rows are "
-                "unavailable rather than vacuously satisfied"
+                f"table {name!r} declares no required logical result slots; "
+                "complete_rows and partial_rows are unavailable rather than "
+                "vacuously satisfied"
             )
         return validation
 
@@ -3378,11 +3281,10 @@ genuinely separate view that is not covered by a listed target."""
         This module kept a fifth eight-token set until phase 4E-c, in the module
         that writes the tables; `criteria` owns the vocabulary now and this
         gains ten tokens. THE DIRECTION IS REGISTERED: this predicate drives
-        `missing_by_column` and `complete_rows` in `_validate_table`, the
-        group-metadata backfill and seed-row column matching, so more tokens
-        reading as missing means more cells counted missing, fewer rows counted
-        complete, and more table-gap searches -- in the very run that measures
-        the composition.
+        physical representation-availability metadata in `_validate_table`,
+        group-metadata backfill and seed-row column matching. Logical-slot
+        occupancy and completion come only from `TypedTableStore`'s accepted
+        post-storage projection.
 
         The EMPTY-COLLECTION clause stays local and deliberately does not move
         to `criteria`. It is a SHAPE rule, not a token rule, and folding it into
@@ -3421,15 +3323,14 @@ genuinely separate view that is not covered by a listed target."""
                     f"{validation.get('completeness_unavailable_reason') or 'no checkable columns'}"
                 )
 
-            missing = validation.get("missing_by_column") or {}
-            rows = validation.get("dict_rows") or validation.get("rows") or 0
-            # Every missing column, not the worst five. The list is sorted by
-            # missing count, so a `[:5]` decided which columns the next round
-            # was allowed to search by their rank on the very quantity a search
-            # would change -- a column below the cut is never searched, stays
-            # missing, and is below the cut again next round.
-            for column, count in sorted(missing.items(), key=lambda item: -item[1]):
-                gaps.append(f"{table_name} is missing {column} in {count}/{rows} rows.")
+            missing = validation.get("missing_by_slot") or {}
+            rows = validation.get("logical_subjects") or 0
+            # Every missing logical slot, not a physical reported/best-guess
+            # representation. Alternative columns satisfy the same slot and
+            # therefore produce one search deficit, just as they produce one
+            # incidence channel.
+            for slot, count in sorted(missing.items(), key=lambda item: -item[1]):
+                gaps.append(f"{table_name} is missing {slot} in {count}/{rows} rows.")
 
         return gaps
 
@@ -5274,11 +5175,6 @@ genuinely separate view that is not covered by a listed target."""
             return self._required_columns_by_table.get(table_name, [])
         return TABLE_REQUIRED_COLUMNS.get(table_name, [])
 
-    def _completeness_columns(self, table_name: str) -> List[str]:
-        if self._completeness_columns_by_table:
-            return self._completeness_columns_by_table.get(table_name, [])
-        return TABLE_COMPLETENESS_COLUMNS.get(table_name, [])
-
     def _write_observed_table_spec(
         self,
         artifact_label: int | str,
@@ -5822,6 +5718,256 @@ genuinely separate view that is not covered by a listed target."""
                     }
                 )
 
+    @staticmethod
+    def _write_checkpoint_json(path: Path, payload: Mapping[str, Any]) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(dict(payload), indent=2, default=str) + "\n",
+            encoding="utf-8",
+        )
+
+    def _checkpoint_completed_search(
+        self,
+        completed: Optional[Any],
+        strategy_key: str,
+        _family: str,
+    ) -> None:
+        if completed is None:
+            raise ValueError("a checkpoint boundary requires a completed search Episode")
+        parent = EpisodeRef(
+            run_id=self.out.name,
+            path=(
+                (RUN_GRAIN.name, self.out.name),
+                (acq.STRATEGY_GRAIN.name, str(strategy_key)),
+            ),
+        )
+        self._write_episode_checkpoint(
+            completed,
+            active_parent=parent,
+            generation_label=f"search_{len(self.search_outcomes):06d}",
+        )
+
+    def _checkpoint_completed_strategy(
+        self,
+        completed: Optional[Any],
+        _parent_unit: Any,
+    ) -> None:
+        if completed is None or completed.episode_ref is None:
+            raise ValueError("a checkpoint boundary requires a completed strategy Episode")
+        parent = EpisodeRef(
+            run_id=self.out.name,
+            path=((RUN_GRAIN.name, self.out.name),),
+        )
+        self._write_episode_checkpoint(
+            completed,
+            active_parent=parent,
+            generation_label=(
+                f"strategy_{len(self.provider_binding._completed_run_units):06d}"
+            ),
+        )
+
+    def _write_episode_checkpoint(
+        self,
+        completed: Any,
+        *,
+        active_parent: EpisodeRef,
+        generation_label: str,
+    ) -> None:
+        """Publish one immutable state generation, then move the pointer."""
+
+        if completed.episode_ref is None:
+            raise ValueError("a checkpoint boundary requires an Episode identity")
+        relative_root = Path("checkpoint_state") / generation_label
+        generation = self.out / relative_root
+        generation.mkdir(parents=True, exist_ok=False)
+
+        resume_config = self.config.to_dict()
+        resume_config.update(
+            {
+                "output_dir": str(self.out),
+                "resume_checkpoint": str(self.out / "checkpoint.json"),
+                "seed_tables_dir": str(self.tables_dir),
+                "seed_sources_dir": str(self.out),
+                "seed_frontier_path": None,
+                "evidence_corpus_roots": list(
+                    dict.fromkeys(
+                        [*self.config.evidence_corpus_roots, str(self.out)]
+                    )
+                ),
+            }
+        )
+        state_payloads: dict[str, Mapping[str, Any]] = {
+            "config": resume_config,
+            "episode": self.provider_binding.checkpoint_state(),
+            "evidence": {
+                "registry_directory": "answers/evidence_registry",
+                "source_assertions": "answers/evidence_registry/source_assertions.jsonl",
+                "acceptances": "answers/evidence_registry/acceptances.jsonl",
+            },
+            "frontier": {
+                "search_frontier": self.search_frontier.to_dict(),
+                "search_outcomes": list(self.search_outcomes),
+                "queries_used": list(self.queries_used),
+                "units_pulled": self.units_pulled,
+                "source_budget_spent": self.source_budget.spent,
+                "source_ingestion_ledger": dict(self.source_ingestion_ledger),
+            },
+            "memory": {
+                "search_memory": self.search_memory.to_dict(),
+                "goal_discovery_sources": list(self.goal_discovery_sources),
+                "goal_universe_estimate": dict(self.goal_universe_estimate),
+            },
+            "policy": {
+                "goal_states": list(self.goal_states),
+                "completion_state": dict(self.completion_state),
+                "control_decisions": list(self.control_decisions),
+                "strategy_records": list(self.strategy_records),
+                "cost_records": list(self.cost_records),
+                "last_answer": self._last_answer,
+                "gaps": list(self._gaps),
+                "final_assessment": dict(self._final_assessment),
+                "seen_target_attempts": [list(item) for item in self._seen_target_attempts],
+                "target_evolution_counts": dict(self._target_evolution_counts),
+            },
+            "table": {
+                "table_exports": list(self.table_exports),
+                "derived_table_exports": list(self.derived_table_exports),
+                "best_guess_exports": list(self.best_guess_exports),
+                "reward_exports": list(self.reward_exports),
+                "seed_rows": self.seed_tables.rows_by_name,
+                "table_spec_id": self.table_spec_id,
+            },
+        }
+        state_files: dict[str, str] = {}
+        for role, payload in state_payloads.items():
+            relative = relative_root / f"{role}.json"
+            self._write_checkpoint_json(self.out / relative, payload)
+            state_files[role] = relative.as_posix()
+        completed_relative = relative_root / "completed_episode.json"
+        self._write_checkpoint_json(self.out / completed_relative, completed.as_record())
+
+        write_checkpoint(
+            EpisodeCheckpoint(
+                run_id=self.out.name,
+                lineage_id=self.out.name,
+                last_completed_episode=CompletedEpisode(
+                    episode=completed.episode_ref,
+                    record_file=completed_relative.as_posix(),
+                ),
+                active_parent=ActiveParent(
+                    episode=active_parent,
+                    next_unit_index=(
+                        len(self.provider_binding._active_search_units)
+                        if len(active_parent.path) > 1
+                        else len(self.provider_binding._completed_run_units)
+                    ),
+                ),
+                next_episode=NextEpisode(path=active_parent.path),
+                state_files=state_files,
+            ),
+            self.out,
+        )
+        print(f"  Checkpoint: {self.out / 'checkpoint.json'}")
+
+    def _restore_checkpoint_state(self, source: str) -> None:
+        """Restore only files named by the explicit checkpoint pointer."""
+
+        checkpoint_path = resolve_checkpoint_path(source)
+        checkpoint = load_checkpoint(checkpoint_path)
+        if checkpoint.run_id != self.out.name:
+            raise ValueError(
+                f"checkpoint run {checkpoint.run_id!r} does not match output {self.out.name!r}"
+            )
+
+        def read_role(role: str) -> dict[str, Any]:
+            path = checkpoint_path.parent / checkpoint.state_files[role]
+            value = json.loads(path.read_text(encoding="utf-8"))
+            if not isinstance(value, dict):
+                raise ValueError(f"checkpoint state {role!r} must be an object")
+            return value
+
+        frontier = read_role("frontier")
+        self.search_frontier.restore_checkpoint_state(
+            frontier.get("search_frontier") or {}
+        )
+        self.search_outcomes[:] = [
+            dict(item) for item in (frontier.get("search_outcomes") or ())
+        ]
+        self.queries_used[:] = [
+            str(item) for item in (frontier.get("queries_used") or ())
+        ]
+        self.units_pulled = int(frontier.get("units_pulled") or 0)
+        self.source_budget.spent = int(
+            frontier.get("source_budget_spent") or self.units_pulled
+        )
+        self.source_ingestion_ledger.clear()
+        self.source_ingestion_ledger.update(
+            {
+                str(key): dict(value)
+                for key, value in dict(
+                    frontier.get("source_ingestion_ledger") or {}
+                ).items()
+            }
+        )
+        self.search_memory = SearchMemory.from_outcomes(self.search_outcomes)
+
+        memory = read_role("memory")
+        self.goal_discovery_sources = [
+            dict(item) for item in (memory.get("goal_discovery_sources") or ())
+        ]
+        self.goal_universe_estimate = dict(
+            memory.get("goal_universe_estimate") or {"status": "missing"}
+        )
+
+        policy = read_role("policy")
+        self.goal_states = [dict(item) for item in (policy.get("goal_states") or ())]
+        self.completion_state = dict(policy.get("completion_state") or {})
+        self.control_decisions[:] = [
+            dict(item) for item in (policy.get("control_decisions") or ())
+        ]
+        self.seeded_control_decision_count = len(self.control_decisions)
+        self.strategy_records[:] = [
+            dict(item) for item in (policy.get("strategy_records") or ())
+        ]
+        self.cost_records[:] = [dict(item) for item in (policy.get("cost_records") or ())]
+        self._last_answer = str(policy.get("last_answer") or "")
+        self._gaps = [str(item) for item in (policy.get("gaps") or ())]
+        self._final_assessment = dict(policy.get("final_assessment") or {})
+        self._seen_target_attempts = {
+            (str(item[0]), str(item[1]))
+            for item in (policy.get("seen_target_attempts") or ())
+            if isinstance(item, list) and len(item) == 2
+        }
+        self._target_evolution_counts = Counter(
+            {
+                str(key): int(value)
+                for key, value in dict(
+                    policy.get("target_evolution_counts") or {}
+                ).items()
+            }
+        )
+
+        table = read_role("table")
+        self.table_exports[:] = [dict(item) for item in (table.get("table_exports") or ())]
+        self.derived_table_exports[:] = [
+            dict(item) for item in (table.get("derived_table_exports") or ())
+        ]
+        self.best_guess_exports[:] = [
+            dict(item) for item in (table.get("best_guess_exports") or ())
+        ]
+        self.reward_exports[:] = [
+            dict(item) for item in (table.get("reward_exports") or ())
+        ]
+        restored_rows = table.get("seed_rows") or {}
+        if not isinstance(restored_rows, Mapping):
+            raise ValueError("checkpoint table seed_rows must be a mapping")
+        self.table_store.replace_rows(restored_rows)
+        self._last_table_export_row_counts = {
+            name: len(rows)
+            for name, rows in self.table_store.rows_by_name.items()
+        }
+        self.provider_binding.restore_checkpoint_state(read_role("episode"))
+
     async def run(self) -> Dict[str, Any]:
         """Prepare the frontier, then run the composition ONCE.
 
@@ -5834,29 +5980,33 @@ genuinely separate view that is not covered by a listed target."""
         cfg = self.config
         print(f"\n{'='*70}\nQuestion-driven pipeline\n{'='*70}")
         print(f"Question: {cfg.question}\nOutput:   {self.out}\n")
-        await self._ensure_table_contract()
-        if self.seed_tables.row_count:
-            print(
-                "  Loaded seed tables: "
-                f"{self.seed_tables.row_count} rows across "
-                f"{len(self.seed_tables.rows_by_name)} tables"
-            )
-        if self.seen_urls:
-            print(f"  Loaded {len(self.seen_urls)} seed source URLs")
-
-        seeded_from_graph = self._load_seed_graph()
-
-        if seeded_from_graph:
-            await self._resolve_schema([])
-        else:
+        if self._resume_checkpoint:
+            print(f"Continuing from: {resolve_checkpoint_path(cfg.resume_checkpoint or '')}")
             self._ensure_search_ready()
+        else:
+            await self._ensure_table_contract()
+            if self.seed_tables.row_count:
+                print(
+                    "  Loaded seed tables: "
+                    f"{self.seed_tables.row_count} rows across "
+                    f"{len(self.seed_tables.rows_by_name)} tables"
+                )
+            if self.seen_urls:
+                print(f"  Loaded {len(self.seen_urls)} seed source URLs")
+
+            seeded_from_graph = self._load_seed_graph()
+
+            if seeded_from_graph:
+                await self._resolve_schema([])
+            else:
+                self._ensure_search_ready()
             # A named schema is already the extractor contract.  Resolve it
             # before the first acquisition strategy so those pages can be
             # gated, extracted, and credited.  Only schema synthesis must wait
             # for probe pages; delaying an explicitly named schema marked every
             # initial page `no_extractor` and discarded its possible evidence.
-            if cfg.schema_name:
-                await self._resolve_schema([])
+                if cfg.schema_name:
+                    await self._resolve_schema([])
             # The seed search is no longer a phase before the loop: it becomes
             # the run episode's FIRST STRATEGY, family `llm_initial`. Its pages
             # supply schema-synthesis evidence only when no schema was named.
@@ -5864,38 +6014,39 @@ genuinely separate view that is not covered by a listed target."""
             # crediting-disabled under the fate table's `no_extractor` row; the
             # strategy hook then resolves the synthesized schema.  With a named
             # schema, the extractor now exists before this strategy opens.
-            print("Seeding search from the question...")
-            schema_hint = cfg.schema_name or ""
-            run_path = ((RUN_GRAIN.name, self.out.name),)
-            with prompt_scope(
-                self.out / "prompts" / self._run_episode_id,
-                episode_id=self._run_episode_id,
-                episode_path=run_path,
-            ):
-                with self._cost_scope(
-                    ObservationKind.STRATEGY_PROPOSAL.value,
-                    observation_id=f"{self.out.name}#seed",
+                print("Seeding search from the question...")
+                schema_hint = cfg.schema_name or ""
+                run_path = ((RUN_GRAIN.name, self.out.name),)
+                with prompt_scope(
+                    self.out / "prompts" / self._run_episode_id,
                     episode_id=self._run_episode_id,
                     episode_path=run_path,
                 ):
-                    queries = await strategy.initial_queries(
-                        self.llm,
-                        cfg.question,
-                        n=cfg.initial_seed_queries,
-                        schema_hint=schema_hint,
-                    )
-            print(f"  Initial queries: {queries}")
-            self.search_frontier.enqueue_queries(
-                queries,
-                topic="initial",
-                expansion_op="llm_initial",
-                producer_class="seed_query",
-            )
+                    with self._cost_scope(
+                        ObservationKind.STRATEGY_PROPOSAL.value,
+                        observation_id=f"{self.out.name}#seed",
+                        episode_id=self._run_episode_id,
+                        episode_path=run_path,
+                    ):
+                        queries = await strategy.initial_queries(
+                            self.llm,
+                            cfg.question,
+                            n=cfg.initial_seed_queries,
+                            schema_hint=schema_hint,
+                        )
+                print(f"  Initial queries: {queries}")
+                self.search_frontier.enqueue_queries(
+                    queries,
+                    topic="initial",
+                    expansion_op="llm_initial",
+                    producer_class="seed_query",
+                )
 
-        self._last_answer = ""
-        self._gaps: List[str] = []
-        self._final_assessment: Dict[str, Any] = {}
-        if self.goal_tracker is not None:
+        if not self._resume_checkpoint:
+            self._last_answer = ""
+            self._gaps: List[str] = []
+            self._final_assessment: Dict[str, Any] = {}
+        if self.goal_tracker is not None and not self._resume_checkpoint:
             print("  Bootstrapping task-level goal from current tables...")
             seed_exports = await self._bootstrap_task_goal()
             seed_goal_search_tasks = self._enqueue_seed_frontier_searches()
@@ -5998,7 +6149,10 @@ genuinely separate view that is not covered by a listed target."""
         )
 
         accepted_sources = self._drain_strategy_sources()
-        if self.extractor is None:
+        if (
+            self.extractor is None
+            and self.config.pipeline_mode != PIPELINE_MODE_TABLE_FILL
+        ):
             # The schema is synthesized FROM these pages, so this is the first
             # moment it can exist. Every page of this strategy was
             # crediting-disabled under the `no_extractor` fate.
@@ -6006,9 +6160,15 @@ genuinely separate view that is not covered by a listed target."""
                 "resolve_schema", self._resolve_schema, accepted_sources[:2]
             )
         if accepted_sources:
+            destination = (
+                f"{sum(len(rows) for rows in self.crediter.rows_by_name.values())} "
+                "typed table row(s)"
+                if self.config.pipeline_mode == PIPELINE_MODE_TABLE_FILL
+                else self._graph_summary()
+            )
             print(
                 f"  Accepted {len(accepted_sources)} page(s) -> "
-                f"{self._graph_summary()}"
+                f"{destination}"
             )
         else:
             print("  No new sources accepted by this strategy.")
@@ -6022,7 +6182,10 @@ genuinely separate view that is not covered by a listed target."""
         if followups:
             print(f"  Queued {len(followups)} follow-up target-deficit searches")
 
-        if self.graph.number_of_nodes() == 0:
+        if (
+            self.config.pipeline_mode != PIPELINE_MODE_TABLE_FILL
+            and self.graph.number_of_nodes() == 0
+        ):
             print("  Graph is still empty; cannot answer yet.")
             self.strategy_records.append(
                 {
@@ -6040,14 +6203,36 @@ genuinely separate view that is not covered by a listed target."""
             self._close_prompt_log()
             return
 
+        direct_table_fill_path = self.config.pipeline_mode == PIPELINE_MODE_TABLE_FILL
         no_new_sources_path = (
-            self.goal_tracker is not None
+            not direct_table_fill_path
+            and self.goal_tracker is not None
             and not accepted_sources
             and self.seed_tables.row_count
             and not self._seed_table_migrations_available()
         )
         gasl_result: Dict[str, Any] = {}
-        if no_new_sources_path:
+        if direct_table_fill_path:
+            current_counts = {
+                name: len(rows)
+                for name, rows in self.crediter.rows_by_name.items()
+            }
+            table_exports = await self._guarded(
+                "table_exports",
+                self._write_table_exports,
+                label,
+                self.crediter.rows_by_name,
+                seed_row_counts=dict(self._last_table_export_row_counts),
+                new_row_counts={
+                    name: max(
+                        0,
+                        count - self._last_table_export_row_counts.get(name, 0),
+                    )
+                    for name, count in current_counts.items()
+                },
+            ) or []
+            self._last_table_export_row_counts = current_counts
+        elif no_new_sources_path:
             print(
                 "  No new sources accepted; recording current tables "
                 "without rerunning GASL."

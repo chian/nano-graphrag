@@ -34,6 +34,14 @@ These are the operator's instructions, and each agent definition under
   not from a copy. A recurring pattern in the code is the signal to lift it
   into a template with swappable parts, the way a team lead lays out a class
   for the team.
+- **Use one method credit.** Accepted stable identities remain separated by
+  declared result column and form the estimator vector. Marginal dominated
+  hypervolume over that normalized vector is the sole method credit; predicted
+  future hypervolume credit is the numerical controller's sole stop statistic.
+  Per-column values remain intermediate contributions and learning context. A
+  parent receives distinct identities by column and recomputes on its own
+  scale; it never sums child hypervolumes. Charter:
+  `docs/ACQUISITION_LOOP.md` §"Credit has one owner".
 - **Run experiments in full.** Duration and spend are never a reason to
   shrink, defer, or reorder a registered run; the stop rules decide when a
   run ends.
@@ -175,12 +183,13 @@ unvalidated, and reintroducing it silently undoes the prune. A module from that
 list enters the tree only as the deliverable of a build phase that owns it, with
 its own charter and tracker row.
 
-**The generic method and rarefaction estimator have entered the tree as
-separate top-level packages.** `method_loop/` owns `Episode`, nesting, runtime
-identity, scope state, and the numerical controller attachment. `rarefaction/`
-owns only the incidence estimator and its typed numeric output. Neither is a
+**The generic method and numerical component are separate top-level
+packages.** `method_loop/` owns `Episode`, nesting, runtime identity, scope
+state, and routing to an attached numerical component. `rarefaction/` owns the
+paired incidence estimator and numerical controller, threshold state and
+adapter hook, and their typed numeric output. Neither is a
 `question_pipeline` module or a restoration of the `cd44ebb` file. Surface
-bindings import the generic method from `method_loop` and estimator contracts
+bindings import the generic method from `method_loop` and numerical contracts
 from `rarefaction`.
 
 ### Evidence rules at baseline

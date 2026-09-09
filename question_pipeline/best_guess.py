@@ -294,6 +294,9 @@ async def page_best_guess(
     *,
     records: Sequence[Mapping[str, Any]],
     columns_by_table: Mapping[str, Sequence[str]],
+    reported_alternatives_by_table: Mapping[
+        str, Mapping[str, Sequence[str]]
+    ] | None = None,
     subject_key_columns_by_table: Mapping[str, Sequence[str]],
     source_id: str,
     evidence_chunks: Sequence[Mapping[str, Any]] = (),
@@ -355,8 +358,25 @@ async def page_best_guess(
             is_missing_value(values.get(column)) for column in subject_keys
         ):
             continue
+        row_values = dict(values)
+        for best_guess_column, reported_columns in (
+            (reported_alternatives_by_table or {}).get(table) or {}
+        ).items():
+            if any(
+                _is_exact_reported_number(row_values.get(column))
+                for column in reported_columns
+            ):
+                # Internal task-suppression marker only. It is never returned
+                # as an extracted or accepted best-guess cell.
+                row_values[best_guess_column] = row_values.get(
+                    next(
+                        column
+                        for column in reported_columns
+                        if _is_exact_reported_number(row_values.get(column))
+                    )
+                )
         position = len(rows_by_name[table])
-        rows_by_name[table].append(dict(values))
+        rows_by_name[table].append(row_values)
         chunks_by_row[(table, position)] = tuple(
             str(chunk) for chunk in (record.get("source_chunks") or ()) if chunk
         )
@@ -489,6 +509,17 @@ async def page_best_guess(
     report["candidates"] = [candidate.to_dict() for candidate in candidates]
     report["resolutions"] = list(resolved.values())
     return report
+
+
+_EXACT_REPORTED_NUMBER_RE = re.compile(
+    r"[-+]?\d[\d,]*(?:\.\d+)?(?:[eE][-+]?\d+)?"
+)
+
+
+def _is_exact_reported_number(value: Any) -> bool:
+    if isinstance(value, bool) or value is None:
+        return False
+    return _EXACT_REPORTED_NUMBER_RE.fullmatch(str(value).strip()) is not None
 
 
 def best_guess_context_by_row_key(

@@ -11,16 +11,14 @@ owns the provider surface's binding; the generic kernel stays in
             |
             +-- search Episode  (unit: one fetched page/document)
                   |
-                  +-- page Leaf
-                        acquire -> extract -> accept evidence -> credit
-                                                            |
-                                                            v
-                       incidence -> numerical verdict -> continue
-                                              |          -> stop search
-                                              +----------> switch strategy
+                  +-- page Episode  (unit: one lexical-probe Episode)
+                        |
+                        +-- lexical-probe Episode  (unit: one chunk)
+                              |
+                              +-- chunk Leaf
+                                    extract -> accept evidence -> credit
 
-    fan-up: page credits -> search record -> strategy record -> run record
-    nesting: page Leaf ⊂ search Episode ⊂ strategy Episode ⊂ run Episode
+    fan-up: chunk -> lexical probe -> page -> search -> strategy -> run
 
 The run is driven by **one** ``Episode.run_async`` call. Nothing in this package
 contains a ``for`` or ``while`` that pulls a unit, calls ``scoped.observe``,
@@ -30,32 +28,35 @@ in ``method_loop.episode.Episode``.
 What this module owns
 ---------------------
 
-1. **The three grains**, each declared once with its unit and credit sentences.
-   The run-start ``ColumnProjection`` supplies their one frozen generic channel
+1. **The five grains**, each declared once with its unit and credit sentences.
+   The run-start ``TableCreditAssigner`` supplies their one frozen generic channel
    schema before any scope opens. Their numerical controls are declared once
    and consume the same role-based estimate contract.
-2. **The crediter**: a pure projection from one page's extracted material onto
-   the declared contract columns, in two kinds (per-column values, and
-   completed rows). It reads no curve and calls no model.
+2. **The credit assigner**: accepted evidence is first written into typed table
+   state; one deterministic assignment then projects the resulting supported
+   logical value slots. Row completion is a diagnostic of that same projection.
+   It reads no curve and calls no model.
 3. **The fate rule**: what a page's outcome means for ``(active,
    counts_toward_verdict)``, implemented once here and *called* by the
    surface's ``extract`` -- never re-derived by a second module.
 4. **The sources**, one per grain, and the typed objects they read before a
    pull (a page budget, provider health, the run's terminal state).
-5. **The binding**: ``ProviderBinding`` builds the three Episode declarations,
-   binds the page leaf, hooks, source callbacks, and record writers through
+5. **The binding**: ``ProviderBinding`` builds the five Episode declarations,
+   binds the chunk leaf, hooks, source callbacks, and record writers through
    injected collaborators. ``AcquisitionController`` owns the context and the
    single kernel call. Neither consults anything between units.
 
-An acquisition credit is an accepted criterion identity.  The source version,
+An acquisition credit is a table-supported logical value-slot identity. The source version,
 exact chunk and span, direct assertion candidate, and deterministic acceptance
-must already be durable in ``evidence_registry`` before this surface can emit
-that identity. Completed-row identities are a separate channel and appear only
-on the first accepted transition to the table's required ordinary columns.
+must already be durable in ``evidence_registry`` and the accepted value must be
+materialized in typed table state before this surface can emit that identity.
+The same post-storage projection reports row completion without creating a
+second credit identity or channel.
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 from collections import Counter
@@ -79,16 +80,16 @@ from method_loop import (
     END_SOURCE_FAILED,
     END_YIELD_STOP,
     Context,
-    ControllerConfig,
     CreditResult,
     Episode,
     EpisodeRecord,
     EpisodeView,
     Grain,
     Leaf,
+    ResumeUnit,
     SourceEnd,
 )
-from rarefaction import ChannelSchema
+from rarefaction import ChannelSchema, ControllerConfig
 
 from . import criteria
 from .control import select_first_clearing, stable_id
@@ -104,7 +105,14 @@ from .evidence_registry import (
     TextSpan,
 )
 from .evidence_acceptance import EvidenceAcceptor
-from .table_specs import ColumnEvidenceRole, ColumnRef, TableRef
+from .table_specs import ColumnEvidenceRole
+from .tables import (
+    ResultContract,
+    ResultColumn,
+    TableMutation,
+    TypedTableStore,
+    result_contract,
+)
 from .search import (
     SearchFrontier,
     SearchHarvester,
@@ -117,11 +125,13 @@ from .search import (
 
 __all__ = [
     "ACQUISITION_POLICY_NAME",
-    "CHUNK_GRAIN_DISCLOSURE",
     "CREDIT_SEMANTICS",
+    "DEFAULT_CHUNK_CONTROL",
     "DEFAULT_ITEM_CONTROL",
+    "DEFAULT_PAGE_CONTROL",
     "DEFAULT_RUN_CONTROL",
     "DEFAULT_STRATEGY_CONTROL",
+    "LEXICAL_PROBE_GRAIN",
     "MAX_PROPOSAL_SAMPLES",
     "PAGE_CREDIT_WINDOW",
     "REJECT_OPERATOR_NOT_IN_CATALOG",
@@ -131,11 +141,11 @@ __all__ = [
     "STRATEGY_GRAIN",
     "AcquisitionController",
     "AcquisitionDecision",
-    "ColumnProjection",
+    "TableCreditAssigner",
     "CreditAttribution",
     "CreditColumn",
-    "GrainDisclosure",
     "PageCredit",
+    "PAGE_GRAIN",
     "PageMaterial",
     "PageSource",
     "PageUnit",
@@ -155,43 +165,42 @@ ACQUISITION_POLICY_NAME = "acquisition_yield_v2"
 
 #: Stamped on every emitted acquisition record. The module docstring's
 #: separation, in the artifact a later reader actually opens.
-CREDIT_SEMANTICS = "acquisition_control_signal_not_reward_datapoint"
+CREDIT_SEMANTICS = "single_post_table_logical_slot_credit_v2"
 
 
 # ==========================================================================
-# The three grains -- the one place a policy is declared (charter rule 4)
+# The five grains -- the one place a policy is declared (charter rule 4)
 # ==========================================================================
 
-# These three policies belong only to the retained legacy live controller.
-# They remain byte-for-byte available until 4G-b removes that path atomically;
-# they are not a second or future target method.
-
-#: Per-search item policy: stop pulling pages from one search's result list
-#: when the posterior says fewer than 1 in 4 further pages would credit anything
-#: new, at 95% certainty, never before 4 pages. Firecrawl may return a
-#: provider-sized batch, but the batch is only a buffer: this rule is the
-#: numerical processing stop and is consulted after every one-page pull.
-#: ``searches_to_stop`` puts the all-barren firing point at 10 units, and
-#: ``min_observations`` moves that crossing at no value this build uses -- it
-#: only sets a floor below which the posterior branch is unreachable.
+#: Per-search item policy. Firecrawl may return a provider-sized batch, but the
+#: batch is only a buffer. After each one-page pull, the paired numerical
+#: component predicts the next page's marginal hypervolume credit. Its upper
+#: band must be zero for the declared streak before this policy stops.
 DEFAULT_ITEM_CONTROL = ControllerConfig.uniform(
     ("overall",), gamma=0.0, rho=0.0, streak_length=4
 )
 
-#: Strategy-grain policy (unit = one completed search). All-barren crossing 10:
-#: inert until a strategy closes ten barren searches. No number here is changed
-#: to make a verdict fire -- reachability is bought with observations, never by
-#: moving a threshold.
+#: Chunk policy inside one lexical probe.  It is deliberately a distinct
+#: declaration from the page policy even while the first live experiment holds
+#: their conservative zero-tolerance thresholds fixed.
+DEFAULT_CHUNK_CONTROL = ControllerConfig.uniform(
+    ("overall",), gamma=0.0, rho=0.0, streak_length=4
+)
+
+#: Lexical-probe policy inside one page.  Its unit is a completed ranking, so
+#: it can be calibrated independently from both chunks and Firecrawl pages.
+DEFAULT_PAGE_CONTROL = ControllerConfig.uniform(
+    ("overall",), gamma=0.0, rho=0.0, streak_length=4
+)
+
+#: Strategy-grain policy (unit = one completed search). Its scalar threshold is
+#: fixed before the run and applies to predicted next-search hypervolume.
 DEFAULT_STRATEGY_CONTROL = ControllerConfig.uniform(
     ("overall",), gamma=0.0, rho=0.0, streak_length=8
 )
 
-#: Run-grain policy (unit = one completed strategy). All-barren crossing 10, so
-#: the verdict is unreachable on any run whose strategy budget is under ten --
-#: which is every configuration this build's provider credit can buy. That
-#: inertness is REGISTERED with the arithmetic that makes it inert rather than
-#: reached by lowering the policy: a threshold fitted to make its own mechanism
-#: visible stops being a decision and becomes a constant wearing one's clothes.
+#: Run-grain policy (unit = one completed strategy). Its scalar threshold is
+#: fixed before the run and applies to predicted next-strategy hypervolume.
 DEFAULT_RUN_CONTROL = ControllerConfig.uniform(
     ("overall",), gamma=0.0, rho=0.0, streak_length=8
 )
@@ -203,10 +212,33 @@ SEARCH_GRAIN = Grain(
         "is acquired and extracted before the next one is pulled"
     ),
     credit=(
-        "one non-trivial value for a declared, deliverable, non-key contract "
-        "column, or one completed row of a declared table"
+        "one non-trivial logical value slot for a declared, deliverable, "
+        "non-key contract column"
     ),
     control=DEFAULT_ITEM_CONTROL,
+)
+
+PAGE_GRAIN = Grain(
+    name="page",
+    unit="one completed lexical-probe episode over this page's remaining chunks",
+    credit=(
+        "one accepted finding that the probe contributed to this page, counted "
+        "once however many chunks in that probe carried it"
+    ),
+    control=DEFAULT_PAGE_CONTROL,
+)
+
+LEXICAL_PROBE_GRAIN = Grain(
+    name="lexical_probe",
+    unit=(
+        "one previously unprocessed chunk from this probe's lexical ranking; "
+        "the same chunk identity is never pulled twice on one page"
+    ),
+    credit=(
+        "one accepted finding carried by that chunk; recurrence in another "
+        "chunk is incidence but not a new distinct finding"
+    ),
+    control=DEFAULT_CHUNK_CONTROL,
 )
 
 STRATEGY_GRAIN = Grain(
@@ -231,82 +263,17 @@ RUN_GRAIN = Grain(
 
 #: The declared grain order of this composition, handed to ``Context`` so a
 #: mis-nested episode fails by name instead of opening a scope nobody meant.
-GRAIN_ORDER = (RUN_GRAIN, STRATEGY_GRAIN, SEARCH_GRAIN)
-
-
-@dataclass(frozen=True)
-class GrainDisclosure:
-    """A grain named and derived, but deliberately NOT bound.
-
-    A distinct type, not a :class:`~method_loop.Grain`: a ``Grain`` carries a
-    ``ControllerConfig`` and ``Context.enter`` would open a scope from it. This
-    carries no controller, no estimator state and no verdict, and nothing in the kernel can
-    consume it. It exists so the charter's innermost row is unbound *and says
-    so*, which is the pattern the charter itself uses for the GASL depth step.
-
-    **OWNED BY THIS MODULE.** The GASL depth step's own disclosure is not
-    required to use it -- that surface may say the same thing its own way -- and
-    a second surface that genuinely needs this type lifts it into
-    ``method_loop/`` rather than importing it from here. Two surfaces disclosing
-    different objects is not a duplicated owner; two surfaces importing one
-    provider-surface type would make this module a dependency of a surface that
-    has nothing to do with providers.
-    """
-
-    name: str
-    unit: str
-    credit: str
-    bound: bool
-    bound_reason: str
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "name": self.name,
-            "unit": self.unit,
-            "credit": self.credit,
-            "bound": self.bound,
-            "bound_reason": self.bound_reason,
-        }
-
-
-CHUNK_GRAIN_DISCLOSURE = GrainDisclosure(
-    name="chunk",
-    unit=(
-        "one chunk of one fetched page's reduced text, as extraction.chunk_text "
-        "splits it at the run's chunk_size and overlap"
-    ),
-    credit=(
-        "one non-trivial value for a declared credit column, or one completed "
-        "row, present in that chunk's own extraction output before cross-chunk "
-        "entity merging"
-    ),
-    bound=False,
-    bound_reason=(
-        "credits are minted per page from all of its chunks "
-        "(docs/ACQUISITION_LOOP.md); extraction merges entities across chunks "
-        "and a merged entity keeps the first chunk's attributes, so a per-chunk "
-        "crediter can never observe a completed row and the chartered "
-        "row-completeness credit kind would exist nowhere. Binding it would "
-        "also serialize extraction's per-chunk concurrency. Per-chunk counts "
-        "are emitted as disclosure and a chunk-grain verdict is replayed "
-        "offline from them, so a later phase binds this on measurement."
-    ),
+GRAIN_ORDER = (
+    RUN_GRAIN,
+    STRATEGY_GRAIN,
+    SEARCH_GRAIN,
+    PAGE_GRAIN,
+    LEXICAL_PROBE_GRAIN,
 )
-
-#: Chunks a page must carry before the current all-barren item-controller
-#: arithmetic could have fired at a hypothetical chunk grain. The grain stays
-#: explicitly unbound; this number is replay disclosure only and never steers
-#: acquisition.
-CHUNK_GRAIN_CROSSING = 10
 
 
 def grain_disclosure(grain: Grain) -> dict[str, Any]:
-    """One grain's declaration plus its all-barren crossing, for the record.
-
-    The crossing is emitted beside ``units_consumed`` so "3 observations against
-    a crossing of 10" is one line rather than an analyzer step, and so a reader
-    can see inertness without recomputing it.
-    """
+    """One grain's numerical declaration for the durable record."""
 
     return {
         "name": grain.name,
@@ -640,7 +607,56 @@ class PageUnit:
                 f"credit detail already attached to page {self.label!r}; a "
                 f"PageUnit is constructed fresh per pull and credited once"
             )
-        self.credit_detail = detail
+        object.__setattr__(self, "credit_detail", detail)
+
+
+@dataclass(frozen=True)
+class ChunkUnit:
+    """One exact chunk selected once inside one page's lexical probes."""
+
+    page: PageUnit
+    span: Any
+    source_record: Mapping[str, Any]
+    episode_id: str
+    episode_path: tuple[tuple[str, str], ...]
+    probe_key: str
+    label: str
+    credit_detail: Optional["PageCredit"] = None
+
+    def attach_credit(self, detail: "PageCredit") -> None:
+        if self.credit_detail is not None:
+            raise ValueError(
+                f"credit detail already attached to chunk {self.label!r}"
+            )
+        object.__setattr__(self, "credit_detail", detail)
+
+
+@dataclass
+class PageRunState:
+    """Binding-local state shared by successive probes of one page."""
+
+    unit: PageUnit
+    source_record: Mapping[str, Any]
+    ingestion: dict[str, Any]
+    reduction: Mapping[str, Any]
+    chunks: tuple[Any, ...]
+    outline: Mapping[str, Any]
+    processed_chunk_ids: set[str] = field(default_factory=set)
+    seen_finding_ids: set[str] = field(default_factory=set)
+    probe_proposals: dict[str, Mapping[str, Any]] = field(default_factory=dict)
+    probe_history: list[dict[str, Any]] = field(default_factory=list)
+    chunk_units: list[ChunkUnit] = field(default_factory=list)
+    materials: list["PageMaterial"] = field(default_factory=list)
+
+    def chunk_id(self, span: Any) -> str:
+        return f"{self.source_record.get('id', '')}_chunk_{span.index}"
+
+    def remaining_chunks(self) -> tuple[Any, ...]:
+        return tuple(
+            span
+            for span in self.chunks
+            if self.chunk_id(span) not in self.processed_chunk_ids
+        )
 
 
 @dataclass(frozen=True)
@@ -672,6 +688,8 @@ class PageMaterial:
     #: Model calls and their cost belong to the SOURCE scope this ran inside.
     text_chars: int = 0
     evidence_commit: Optional[EvidenceCommit] = None
+    evidence_commits: Sequence[EvidenceCommit] = ()
+    probe_history: Sequence[Mapping[str, Any]] = ()
 
 
 # ==========================================================================
@@ -750,6 +768,8 @@ class CreditColumn:
     column: str
     table_id: str
     column_id: str
+    value_slot: str
+    slot_id: str
     required: bool
     role: ColumnEvidenceRole
     token_keys: tuple[frozenset[str], ...]
@@ -787,6 +807,8 @@ class CreditBasis:
                     "table_id": column.table_id,
                     "column": column.column,
                     "column_id": column.column_id,
+                    "value_slot": column.value_slot,
+                    "slot_id": column.slot_id,
                     "required": column.required,
                     "role": column.role.value,
                     "value_type": column.value_type,
@@ -823,10 +845,11 @@ def declared_credit_columns(table_spec: Any) -> tuple[CreditColumn, ...]:
 
 
 def credit_basis(table_spec: Any) -> CreditBasis:
-    """Compute the accepted-assertion column basis and exclusions once.
+    """Add extraction matching keys to the store-owned result contract.
 
-    Declared, deliverable, non-key, non-provenance contract columns that
-    ``criteria`` agrees are datapoints.
+    ``tables.result_contract`` is the one owner of column selection and
+    logical-slot grouping. This surface adds only the lexical names needed to
+    map extracted fields onto those already-selected physical columns.
 
     **THE BASIS HAS ONE OWNER AND IT IS ``criteria``.** This used to keep a
     second, weaker opinion -- key membership plus the provenance name shape --
@@ -848,79 +871,44 @@ def credit_basis(table_spec: Any) -> CreditBasis:
     is emitted with its class, so an unintended one is legible on the first run.
     """
 
-    columns: list[CreditColumn] = []
-    excluded: list[ExcludedColumn] = []
-    subject_keys: dict[str, tuple[str, ...]] = {}
-    tables: list[str] = []
-    spec_tables = getattr(table_spec, "tables", None) or {}
-    for table_name, table in spec_tables.items():
-        if not getattr(table, "deliverable", True):
-            continue
-        name = str(table_name)
-        tables.append(name)
-        subject_keys[name] = tuple(
-            str(column)
-            for column in (getattr(table, "subject_key_columns", ()) or ())
-        )
-        keys = {str(k) for k in (getattr(table, "key_columns", ()) or ())}
-        keys |= set(subject_keys[name])
-        required_names = {
-            str(column)
-            for column in (
-                table.required_columns()
-                if callable(getattr(table, "required_columns", None))
-                else ()
-            )
-        }
-        for column in table.all_columns():
-            column_name = str(column.name)
-            built = _credit_column(
-                name, column, required=column_name in required_names
-            )
-            if column_name in keys:
-                excluded.append(
-                    ExcludedColumn(name, column_name, "identity")
-                )
-                continue
-            exclusion = criteria.datapoint_exclusion_class(column_name)
-            if exclusion:
-                excluded.append(ExcludedColumn(name, column_name, exclusion))
-                continue
-            if built is not None:
-                columns.append(built)
+    return _credit_basis_from_contract(result_contract(table_spec))
+
+
+def _credit_basis_from_contract(contract: ResultContract) -> CreditBasis:
     return CreditBasis(
-        columns=tuple(columns),
-        excluded=tuple(excluded),
-        subject_key_columns=subject_keys,
-        tables=tuple(tables),
+        columns=tuple(_credit_column(column) for column in contract.columns),
+        excluded=tuple(
+            ExcludedColumn(item.table, item.column, item.exclusion_class)
+            for item in contract.excluded
+        ),
+        subject_key_columns=contract.subject_key_columns,
+        tables=contract.tables,
     )
 
 
-def _credit_column(
-    table: str, column: Any, *, required: bool = False
-) -> Optional[CreditColumn]:
-    name = str(column.name)
-    aliases = tuple(str(a) for a in (getattr(column, "aliases", ()) or ()))
+def _credit_column(column: ResultColumn) -> CreditColumn:
+    name = column.column
+    aliases = column.aliases
     names = [name, *aliases]
     token_keys = tuple(dict.fromkeys(_tokens(item) for item in names if _tokens(item)))
-    if not token_keys:
-        return None
     return CreditColumn(
-        table=table,
+        table=column.table,
         column=name,
-        table_id=TableRef.create(table).id,
-        column_id=ColumnRef.create(table, name).id,
-        required=bool(required),
-        role=ColumnEvidenceRole.coerce(getattr(column, "role", None)),
+        table_id=column.table_id,
+        column_id=column.column_id,
+        value_slot=column.value_slot,
+        slot_id=column.slot_id,
+        required=column.required,
+        role=column.role,
         token_keys=token_keys,
         normalized_names=(_normalize_name(name),),
         normalized_aliases=tuple(
             dict.fromkeys(_normalize_name(alias) for alias in aliases if alias)
         ),
         aliases=aliases,
-        description=str(getattr(column, "description", "") or ""),
-        value_type=str(getattr(column, "value_type", "") or ""),
-        unit=str(getattr(column, "unit", "") or ""),
+        description=column.description,
+        value_type=column.value_type,
+        unit=column.unit,
     )
 
 
@@ -931,52 +919,74 @@ def _credit_column(
 
 @dataclass(frozen=True)
 class CreditAttribution:
-    """One accepted direct assertion occurrence for one criterion identity."""
+    """One post-storage credit assignment for one logical value slot."""
 
     identity: str
+    assignment_id: str
+    criterion_id: str
+    subject_id: str
+    source_id: str
     table: str
     column: str
+    value_slot: str
+    slot_id: str
     field: str
     rule: str
     triviality_rule: str
     source_kind: str
+    new_to_table: bool
+    before_table_state_id: str
+    after_table_state_id: str
+    strategy_key: str
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "identity": self.identity,
+            "assignment_id": self.assignment_id,
+            "criterion_id": self.criterion_id,
+            "subject_id": self.subject_id,
+            "source_id": self.source_id,
             "table": self.table,
             "column": self.column,
+            "value_slot": self.value_slot,
+            "slot_id": self.slot_id,
             "field": self.field,
             "rule": self.rule,
             "triviality_rule": self.triviality_rule,
             "source_kind": self.source_kind,
+            "new_to_table": self.new_to_table,
+            "before_table_state_id": self.before_table_state_id,
+            "after_table_state_id": self.after_table_state_id,
+            "strategy_key": self.strategy_key,
         }
 
 
 @dataclass(frozen=True)
-class RowCreditDetail:
-    """One first accepted transition to a complete required row."""
+class RowCompletionDetail:
+    """Diagnostic for a first transition to all required logical slots."""
 
     identity: str
     table: str
-    accepted_column_ids: tuple[str, ...]
+    subject_id: str
+    accepted_slot_ids: tuple[str, ...]
     declared_total: int
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "identity": self.identity,
             "table": self.table,
-            "accepted_column_ids": list(self.accepted_column_ids),
+            "subject_id": self.subject_id,
+            "accepted_slot_ids": list(self.accepted_slot_ids),
             "declared_total": self.declared_total,
         }
 
 
 @dataclass(frozen=True)
 class _AcceptedProjection:
-    """Registry-accepted cells and row transitions before channel projection."""
+    """Post-storage logical-slot incidence and row diagnostics."""
 
     attributions: tuple[CreditAttribution, ...] = ()
-    row_credits: tuple[RowCreditDetail, ...] = ()
+    row_completions: tuple[RowCompletionDetail, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -993,26 +1003,28 @@ class PageCredit:
     """
 
     attributions: tuple[CreditAttribution, ...]
-    row_credits: tuple[RowCreditDetail, ...]
-    row_credit_inert: Mapping[str, str]
+    row_completions: tuple[RowCompletionDetail, ...]
+    row_completion_unavailable: Mapping[str, str]
     declared_facets: tuple[str, ...]
     chunk_encounters: tuple[Mapping[str, Any], ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "attributions": [item.to_dict() for item in self.attributions],
-            "row_credits": [item.to_dict() for item in self.row_credits],
-            "row_credit_inert_reason": dict(self.row_credit_inert),
+            "row_completions": [item.to_dict() for item in self.row_completions],
+            "row_completion_unavailable": dict(self.row_completion_unavailable),
             "declared_facets": list(self.declared_facets),
             "chunk_encounters": [dict(item) for item in self.chunk_encounters],
         }
 
 
-class ColumnProjection:
-    """The what-counts rule: accepted registry commit -> incidence channels.
+class TableCreditAssigner:
+    """The single what-counts rule: typed table state -> incidence channels.
 
-    Deterministic. No model, no curve, no instance state that a page could
-    leave behind. Raw extracted records and guesses never enter its credit slot.
+    Evidence acceptance is necessary but not sufficient. The accepted cells
+    are first materialized by ``TypedTableStore``; only cells present in the
+    resulting typed table state receive an assignment. These exact
+    assignments feed Episode incidence and later yield reporting.
 
     CONSTRUCTED ONCE PER RUN, with two consequences stated rather than left to a
     run to discover: a column the planner adds to the observed spec mid-run
@@ -1021,33 +1033,50 @@ class ColumnProjection:
     rewrite is legible against a denominator that did not move.
     """
 
-    def __init__(self, table_spec: Any) -> None:
+    def __init__(self, table_spec: Any, table_store: TypedTableStore) -> None:
         self._table_spec = table_spec
-        self._basis = credit_basis(table_spec)
+        if not isinstance(table_store, TypedTableStore):
+            raise TypeError("TableCreditAssigner requires a TypedTableStore")
+        if table_spec != table_store.table_spec:
+            raise ValueError(
+                "TableCreditAssigner and TypedTableStore must share one table contract"
+            )
+        self._table_store = table_store
+        self._assignments: list[CreditAttribution] = []
+        self._basis = _credit_basis_from_contract(table_store.result_contract)
         self._by_table: dict[str, list[CreditColumn]] = {}
+        self._column_by_id: dict[str, CreditColumn] = {}
+        self._column_by_field: dict[tuple[str, str], CreditColumn] = {}
         for column in self._basis.columns:
             self._by_table.setdefault(column.table, []).append(column)
-        self._row_inert: dict[str, str] = {}
+            self._column_by_id[column.column_id] = column
+            self._column_by_field[(column.table, column.column)] = column
+        self._row_completion_unavailable: dict[str, str] = {}
         for table in self._basis.tables:
             if not self._basis.subject_key_columns.get(table):
-                self._row_inert[table] = (
-                    "table declares no subject_key_columns, so no row-completeness "
-                    "credit can be minted for it; a flat curve here means 'no "
-                    "credit could be minted', not 'no page completed a row'"
+                self._row_completion_unavailable[table] = (
+                    "table declares no subject_key_columns, so logical row "
+                    "completion cannot be measured"
                 )
             elif not self._by_table.get(table):
-                self._row_inert[table] = (
-                    "table declares no non-key credit columns, so its "
-                    "row-completeness conjunction is over an empty set"
+                self._row_completion_unavailable[table] = (
+                    "table declares no non-key result slots, so logical row "
+                    "completion cannot be measured"
                 )
-        ordinary = tuple(f"column:{column.column_id}" for column in self._basis.columns)
-        rows = tuple(f"row:{TableRef.create(table).id}" for table in self._basis.tables)
-        self._declared_facets = ordinary + rows
+        ordinary = tuple(
+            f"column:{slot.slot_id}"
+            for slot in table_store.result_contract.slots
+        )
+        self._declared_facets = ordinary
+        self._facet_labels = {
+            f"column:{slot.slot_id}": f"{slot.table}.{slot.value_slot}"
+            for slot in table_store.result_contract.slots
+        }
         required = tuple(
-            f"column:{column.column_id}"
-            for column in self._basis.columns
-            if column.required
-        ) + rows
+            f"column:{slot.slot_id}"
+            for slot in table_store.result_contract.slots
+            if slot.required
+        )
         self._channel_schema = (
             ChannelSchema.partition(
                 self._declared_facets,
@@ -1071,6 +1100,10 @@ class ColumnProjection:
         return self._declared_facets
 
     @property
+    def facet_labels(self) -> Mapping[str, str]:
+        return dict(self._facet_labels)
+
+    @property
     def channel_schema(self) -> ChannelSchema:
         return self._channel_schema
 
@@ -1079,8 +1112,29 @@ class ColumnProjection:
         return self._spec_digest
 
     @property
-    def row_credit_inert(self) -> Mapping[str, str]:
-        return dict(self._row_inert)
+    def row_completion_unavailable(self) -> Mapping[str, str]:
+        return dict(self._row_completion_unavailable)
+
+    @property
+    def rows_by_name(self) -> dict[str, list[dict[str, Any]]]:
+        return self._table_store.rows_by_name
+
+    def assignments_for_strategy(self, strategy_key: str) -> tuple[dict[str, Any], ...]:
+        return tuple(
+            item.to_dict()
+            for item in self._assignments
+            if item.strategy_key == str(strategy_key)
+        )
+
+    def checkpoint_assignments(self) -> tuple[dict[str, Any], ...]:
+        return tuple(item.to_dict() for item in self._assignments)
+
+    def restore_assignments(self, rows: Iterable[Mapping[str, Any]]) -> None:
+        self._assignments = [
+            CreditAttribution(**dict(row))
+            for row in rows
+            if isinstance(row, Mapping)
+        ]
 
     def columns_by_table(self) -> dict[str, list[str]]:
         return {
@@ -1098,17 +1152,21 @@ class ColumnProjection:
             for table, columns in self._by_table.items()
         }
 
-    @property
-    def required_column_ids_by_table(self) -> dict[str, tuple[str, ...]]:
-        out: dict[str, tuple[str, ...]] = {}
-        for table in self._basis.tables:
-            table_id = TableRef.create(table).id
-            out[table_id] = tuple(
-                column.column_id
-                for column in self._by_table.get(table) or ()
-                if column.required
-            )
-        return out
+    def best_guess_routes_by_table(self) -> dict[str, dict[str, list[str]]]:
+        routes: dict[str, dict[str, list[str]]] = {}
+        for table, columns in self._by_table.items():
+            reported_by_slot: dict[str, list[str]] = {}
+            for column in columns:
+                if column.role is ColumnEvidenceRole.REPORTED:
+                    reported_by_slot.setdefault(column.value_slot, []).append(
+                        column.column
+                    )
+            routes[table] = {
+                column.column: list(reported_by_slot.get(column.value_slot, ()))
+                for column in columns
+                if column.role is ColumnEvidenceRole.BEST_GUESS
+            }
+        return routes
 
     def assertion_candidates(
         self,
@@ -1122,6 +1180,7 @@ class ColumnProjection:
 
         spans: dict[str, TextSpan] = {}
         candidates: list[DirectAssertionCandidate] = []
+        chunks_by_id = {chunk.id: chunk for chunk in chunks}
         for position, record in enumerate(records):
             if not isinstance(record, Mapping):
                 continue
@@ -1134,6 +1193,15 @@ class ColumnProjection:
             )
             subject = subject_refs[0] if subject_refs else None
             if subject is None:
+                continue
+            record_chunks = tuple(
+                chunks_by_id[chunk_id]
+                for chunk_id in (
+                    str(item) for item in record.get("source_chunks") or ()
+                )
+                if chunk_id in chunks_by_id
+            )
+            if not record_chunks:
                 continue
             for field_name, value in _iter_fields(values):
                 match = self._match(
@@ -1150,7 +1218,7 @@ class ColumnProjection:
                 admitted = self._non_trivial(value, column)
                 if admitted is None:
                     continue
-                located = _locate_reported_value(value, chunks)
+                located = _locate_reported_value(value, record_chunks)
                 if located is None:
                     continue
                 chunk, offset, end, source_match_rule = located
@@ -1293,11 +1361,17 @@ class ColumnProjection:
 
         fate = material.fate
         commit = material.evidence_commit if fate.judged else None
-        projected = self._accepted_identities(commit)
+        mutation = (
+            self._table_store.apply(material.records, commit)
+            if commit is not None
+            else None
+        )
+        projected = self._accepted_identities(unit, commit, mutation)
+        self._assignments.extend(projected.attributions)
         detail = PageCredit(
             attributions=projected.attributions,
-            row_credits=projected.row_credits,
-            row_credit_inert=self.row_credit_inert,
+            row_completions=projected.row_completions,
+            row_completion_unavailable=self.row_completion_unavailable,
             declared_facets=self._declared_facets,
             chunk_encounters=tuple(dict(item) for item in material.chunks),
         )
@@ -1318,40 +1392,109 @@ class ColumnProjection:
         return CreditResult(credits=identities, facets=facets)
 
     def _accepted_identities(
-        self, commit: Optional[EvidenceCommit]
+        self,
+        unit: PageUnit | ChunkUnit,
+        commit: Optional[EvidenceCommit],
+        mutation: Optional[TableMutation],
     ) -> _AcceptedProjection:
-        if commit is None:
+        if commit is None or mutation is None:
             return _AcceptedProjection()
+        admitted = mutation.admitted_cell_ids
         cells = [
             *commit.accepted_cells,
             *commit.accepted_best_guess_cells,
         ]
-        attributions = tuple(
-            CreditAttribution(
-                identity=cell.criterion_id,
-                table=cell.table,
-                column=cell.column,
-                field=cell.column,
-                rule=cell.acceptance_rule_version,
-                triviality_rule="accepted_registry_chain",
-                source_kind=(
-                    "best_guess"
-                    if isinstance(cell, AcceptedBestGuessCell)
-                    else SOURCE_KIND_VERBATIM
+        before_slots = mutation.before_projection.identities
+        logical_value_by_cell_id = {
+            cell_id: value
+            for value in mutation.after_projection.slot_values
+            for cell_id in value.accepted_cell_ids
+        }
+        candidates: dict[str, tuple[Any, CreditColumn]] = {}
+        for cell in cells:
+            if cell.id not in admitted:
+                continue
+            column = self._column_by_id.get(cell.column_id)
+            if column is None:
+                continue
+            logical_value = logical_value_by_cell_id.get(cell.id)
+            if logical_value is None:
+                continue
+            identity = logical_value.identity
+            prior = candidates.get(identity)
+            if prior is not None:
+                prior_cell, _ = prior
+                if not isinstance(prior_cell, AcceptedBestGuessCell):
+                    continue
+                if isinstance(cell, AcceptedBestGuessCell):
+                    continue
+            candidates[identity] = (cell, column)
+
+        strategy_key = (
+            str(unit.episode_path[1][1])
+            if len(unit.episode_path) > 1
+            and unit.episode_path[1][0] == STRATEGY_GRAIN.name
+            else ""
+        )
+        attributions: list[CreditAttribution] = []
+        for identity, (cell, column) in candidates.items():
+            attributions.append(
+                CreditAttribution(
+                    identity=identity,
+                    assignment_id=stable_id(
+                        {
+                            "version": "post_table_credit_assignment_v1",
+                            "credit_identity": identity,
+                            "evidence_cell_id": cell.id,
+                            "unit_label": unit.label,
+                        }
+                    ),
+                    criterion_id=cell.criterion_id,
+                    subject_id=cell.subject_id,
+                    source_id=cell.source_id,
+                    table=cell.table,
+                    column=cell.column,
+                    value_slot=column.value_slot,
+                    slot_id=column.slot_id,
+                    field=cell.column,
+                    rule=cell.acceptance_rule_version,
+                    triviality_rule="accepted_registry_chain",
+                    source_kind=(
+                        "best_guess"
+                        if isinstance(cell, AcceptedBestGuessCell)
+                        else SOURCE_KIND_VERBATIM
+                    ),
+                    new_to_table=identity not in before_slots,
+                    before_table_state_id=mutation.before_state_id,
+                    after_table_state_id=mutation.after_state_id,
+                    strategy_key=strategy_key,
+                )
+            )
+        before_rows = mutation.before_projection.completed_subjects
+        after_rows = mutation.after_projection.completed_subjects
+        after_row_states = {
+            (row.table_id, row.table, row.subject_id): row
+            for row in mutation.after_projection.rows
+        }
+        rows = tuple(
+            RowCompletionDetail(
+                identity=after_row_states[
+                    (table_id, table, subject_id)
+                ].identity,
+                table=table,
+                subject_id=subject_id,
+                accepted_slot_ids=tuple(
+                    after_row_states[(table_id, table, subject_id)].required_slot_ids
+                ),
+                declared_total=len(
+                    after_row_states[(table_id, table, subject_id)].required_slot_ids
                 ),
             )
-            for cell in cells
+            for table_id, table, subject_id in sorted(after_rows - before_rows)
         )
-        rows = tuple(
-            RowCreditDetail(
-                identity=row.subject_id,
-                table=row.table,
-                accepted_column_ids=tuple(row.required_column_ids),
-                declared_total=len(row.required_column_ids),
-            )
-            for row in commit.completed_rows
+        return _AcceptedProjection(
+            attributions=tuple(attributions), row_completions=rows
         )
-        return _AcceptedProjection(attributions=attributions, row_credits=rows)
 
     # ------------------------------------------------------------------ #
     # internals
@@ -1368,9 +1511,9 @@ class ColumnProjection:
         unit records, so a search whose facet set depended on which page arrived
         would give its strategy a facet set depending on which search arrived.
 
-        The groups partition base-channel membership. Ordinary criterion
-        identities also form the kernel-derived pooled union; completed-row
-        subject identities remain only in their row facets.
+        The groups partition base-channel membership. Logical-slot identities
+        also form the kernel-derived pooled union. Row completion is diagnostic
+        state from the same projection and is not a second credit channel.
         """
 
         groups: dict[str, list[str]] = {name: [] for name in self._declared_facets}
@@ -1379,14 +1522,9 @@ class ColumnProjection:
             if attribution.identity in seen:
                 continue
             seen.add(attribution.identity)
-            groups[f"column:{ColumnRef.create(attribution.table, attribution.column).id}"].append(
+            groups[f"column:{attribution.slot_id}"].append(
                 attribution.identity
             )
-        for row in projected.row_credits:
-            if row.identity in seen:
-                continue
-            seen.add(row.identity)
-            groups[f"row:{TableRef.create(row.table).id}"].append(row.identity)
         return {name: tuple(members) for name, members in groups.items()}
 
 
@@ -1525,7 +1663,98 @@ def _parses_as(text: str, value_type: str, unit: str) -> bool:
 # ==========================================================================
 
 SearchFn = Callable[[str, Optional[int]], Sequence[Mapping[str, Any]]]
-LeafFactory = Callable[[Any, Mapping[str, Any], int], Leaf]
+PageFactory = Callable[[Any, Mapping[str, Any], int], Any]
+
+
+class RankedChunkSource:
+    """One lexical ranking over chunks that were unprocessed when it opened."""
+
+    def __init__(
+        self,
+        *,
+        state: PageRunState,
+        ranked_chunks: Sequence[Any],
+        make_leaf: Callable[[Any], Leaf],
+    ) -> None:
+        self._state = state
+        self._ranked_chunks = tuple(ranked_chunks)
+        self._make_leaf = make_leaf
+        self._next_index = 0
+
+    def next(self, view: EpisodeView) -> Leaf | None:
+        while self._next_index < len(self._ranked_chunks):
+            span = self._ranked_chunks[self._next_index]
+            self._next_index += 1
+            if self._state.chunk_id(span) in self._state.processed_chunk_ids:
+                continue
+            return self._make_leaf(span)
+        return None
+
+
+class LexicalProbeSource:
+    """Propose one query per pull, after observing every prior probe."""
+
+    def __init__(
+        self,
+        *,
+        state: PageRunState,
+        propose: Callable[..., Awaitable[Any]],
+        rank: Callable[[Sequence[Any], str], Sequence[Any]],
+        make_probe: Callable[[str, Any, Sequence[Any]], Episode],
+        open_cost_scope: Callable[
+            [str, str, str, tuple[tuple[str, str], ...]], Any
+        ],
+        open_prompt_scope: Callable[
+            [str, tuple[tuple[str, str], ...]], Any
+        ],
+    ) -> None:
+        self._state = state
+        self._propose = propose
+        self._rank = rank
+        self._make_probe = make_probe
+        self._open_cost_scope = open_cost_scope
+        self._open_prompt_scope = open_prompt_scope
+
+    async def next(self, view: EpisodeView) -> Episode | None:
+        remaining = self._state.remaining_chunks()
+        # Physical exhaustion is authoritative. No model call and no
+        # statistical extrapolation may create a unit beyond the page.
+        if not remaining:
+            return None
+
+        probe_key = f"probe-{len(self._state.probe_history) + 1:04d}"
+        observation_id = f"{self._state.unit.label}#{probe_key}"
+        with self._open_prompt_scope(
+            view.episode_ref.episode_id,
+            view.path,
+        ):
+            with self._open_cost_scope(
+                ObservationKind.PROBE_SEARCH.value,
+                observation_id,
+                view.episode_ref.episode_id,
+                view.path,
+            ):
+                proposal = await self._propose(
+                    outline=self._state.outline,
+                    previous_probes=tuple(self._state.probe_history),
+                )
+        query = str(
+            proposal.get("query")
+            if isinstance(proposal, Mapping)
+            else getattr(proposal, "query", "")
+        ).strip()
+        if not query:
+            raise ValueError("lexical probe proposer returned an empty query")
+        ranked = tuple(self._rank(remaining, query))
+        if not ranked:
+            return None
+        proposal_record = (
+            dict(proposal)
+            if isinstance(proposal, Mapping)
+            else proposal.to_dict()
+        )
+        self._state.probe_proposals[probe_key] = proposal_record
+        return self._make_probe(probe_key, proposal, ranked)
 
 
 class PageSource:
@@ -1543,7 +1772,7 @@ class PageSource:
         *,
         task: Any,
         search_fn: SearchFn,
-        make_leaf: LeafFactory,
+        make_page: PageFactory,
         budget: SourceBudget,
         health: ProviderHealth,
         episode_id: str,
@@ -1557,7 +1786,7 @@ class PageSource:
     ) -> None:
         self._task = task
         self._search_fn = search_fn
-        self._make_leaf = make_leaf
+        self._make_page = make_page
         self._budget = budget
         self._health = health
         self._episode_id = str(episode_id)
@@ -1592,7 +1821,7 @@ class PageSource:
             "unprocessed_results": self.remaining,
         }
 
-    def next(self, view: EpisodeView) -> Leaf | None | SourceEnd:
+    def next(self, view: EpisodeView) -> Any:
         if self._health.fatal:
             # The run already knows the provider refused. A search must not pay
             # another round trip to rediscover it.
@@ -1608,7 +1837,7 @@ class PageSource:
             return None
         result = self._results[self._next_rank]
         self._next_rank += 1
-        return self._make_leaf(self._task, result, self._next_rank)
+        return self._make_page(self._task, result, self._next_rank)
 
     def _issue(self) -> Optional[SourceEnd]:
         """The provider call, inside its own cost scope, on the first pull."""
@@ -1789,6 +2018,7 @@ class StrategyProposer:
         self._opened_token_sets: list[frozenset[str]] = []
         self._instances: dict[str, int] = {}
         self._pulls = 0
+        self._resume_episode: Optional[Episode] = None
         # The candidate partition, emitted whether or not any cell is zero:
         # `candidates == operator_not_in_catalog + cleared_floor + below_floor`,
         # with `already_opened` a subset of `cleared_floor`. A zero
@@ -1825,7 +2055,55 @@ class StrategyProposer:
 
         return dict(self._instances)
 
+    def checkpoint_state(self) -> dict[str, Any]:
+        """Return the exact string-policy state needed at the next pull."""
+
+        return {
+            "opened_content": sorted(self._opened_content),
+            "opened": [dict(item) for item in self._opened],
+            "instances": dict(self._instances),
+            "pulls": self._pulls,
+            "ledger": dict(self.ledger),
+        }
+
+    def restore_checkpoint_state(self, state: Mapping[str, Any]) -> None:
+        """Restore a state emitted by :meth:`checkpoint_state`."""
+
+        opened = [dict(item) for item in (state.get("opened") or ())]
+        self._opened = opened
+        self._opened_content = {
+            str(value) for value in (state.get("opened_content") or ())
+        }
+        self._opened_token_sets = [
+            _proposal_tokens(
+                str(item.get("family") or ""),
+                item.get("targets") or (),
+                item.get("seeds") or (),
+            )
+            for item in opened
+        ]
+        self._instances = {
+            str(name): int(value)
+            for name, value in dict(state.get("instances") or {}).items()
+        }
+        self._pulls = int(state.get("pulls") or 0)
+        restored_ledger = dict(state.get("ledger") or {})
+        if restored_ledger:
+            self.ledger.update(restored_ledger)
+        self.ledger["pulls"] = self._pulls
+
+    def resume_with(self, episode: Episode) -> None:
+        """Return the interrupted child once before proposing new work."""
+
+        if self._resume_episode is not None:
+            raise ValueError("a proposer may hold only one resumed child")
+        self._resume_episode = episode
+
     async def next(self, view: EpisodeView) -> Episode | None | SourceEnd:
+        if self._resume_episode is not None:
+            episode = self._resume_episode
+            self._resume_episode = None
+            return episode
         if self._termination.stopped:
             end = self._termination.source_end()
             self.ledger["end"] = (
@@ -2364,7 +2642,7 @@ class AcquisitionController:
     has one owner and it is ``costs.py``.
     """
 
-    crediter: ColumnProjection
+    crediter: TableCreditAssigner
     budget: SourceBudget
     health: ProviderHealth = field(default_factory=ProviderHealth)
     termination: RunTermination = field(default_factory=RunTermination)
@@ -2439,19 +2717,18 @@ class AcquisitionController:
             ],
             "credit_semantics": CREDIT_SEMANTICS,
             "credit_join": (
-                "direct-cell fan-up uses registry-accepted criterion IDs; "
-                "completed-row fan-up uses registry-accepted subject IDs"
+                "typed-table-supported logical value-slot identities fan up; "
+                "row completion is diagnostic state from the same projection"
             ),
             "facet_gate": "crediting_active",
             "grains": [
                 grain_disclosure(grain) for grain in GRAIN_ORDER
             ],
-            "chunk_grain": CHUNK_GRAIN_DISCLOSURE.to_dict(),
             "credit_basis": self.crediter.basis.to_dict(),
             "spec_digest": self.crediter.spec_digest,
             "declared_facets": list(self.crediter.declared_facets),
             "channel_schema": self.crediter.channel_schema.as_record(),
-            "row_credit_rule": ROW_CREDIT_RULE_DISCLOSURE,
+            "row_completion_rule": ROW_COMPLETION_RULE_DISCLOSURE,
             "budget": self.budget.to_dict(),
             "provider_health": self.health.to_dict(),
             "run_termination": self.termination.to_dict(),
@@ -2478,16 +2755,32 @@ class AcquisitionController:
         }
 
 
-#: The row-completeness rule, in the artifact rather than only in the code.
-#: A reader reconstructing why a row credit fired reads this beside the curve.
-ROW_CREDIT_RULE_DISCLOSURE = {
+#: The row-completeness diagnostic, in the artifact rather than only in code.
+ROW_COMPLETION_RULE_DISCLOSURE = {
     "rule": (
         "the first durable acceptance transition at which one bound subject "
-        "has accepted direct assertions for every required ordinary column"
+        "has at least one accepted evidence route for every required logical "
+        "value slot"
     ),
-    "identity": "registry-accepted stable subject ID",
-    "required_columns": "required ordinary ColumnRef IDs from the frozen schema",
+    "identity": "typed-table-supported stable subject ID",
+    "required_value_slots": (
+        "frozen slot IDs with their reported/best-guess column alternatives"
+    ),
 }
+
+
+class _SingleAcquirableSource:
+    """Yield one already-composed Episode/Leaf, then physical exhaustion."""
+
+    def __init__(self, item: Any) -> None:
+        self._item = item
+        self._yielded = False
+
+    def next(self, view: EpisodeView) -> Any:
+        if self._yielded:
+            return None
+        self._yielded = True
+        return self._item
 
 
 class ProviderBinding:
@@ -2525,6 +2818,11 @@ class ProviderBinding:
             Awaitable[Sequence[Mapping[str, Any]]],
         ],
         post_strategy: Callable[..., Awaitable[None]],
+        get_table_extractor: Callable[[], Any],
+        extract_table_text: Callable[..., Awaitable[list[dict[str, Any]]]],
+        page_outline: Callable[[str, str], Mapping[str, Any]],
+        propose_lexical_probe: Callable[..., Awaitable[Any]],
+        rank_chunks: Callable[[Sequence[Any], str], Sequence[Any]],
         get_extractor: Callable[[], Any],
         extract_text: Callable[..., Awaitable[tuple[Any, Any]]],
         chunk_spans: Callable[..., Iterable[Any]],
@@ -2564,6 +2862,12 @@ class ProviderBinding:
         hook_failures: Callable[[], Sequence[Mapping[str, Any]]],
         criteria_projection_version: str,
         missing_tokens: Callable[[], AbstractSet[str]],
+        checkpoint_completed_strategy: Optional[
+            Callable[[Optional[EpisodeRecord], Any], Any]
+        ] = None,
+        checkpoint_completed_search: Optional[
+            Callable[[Optional[EpisodeRecord], str, str], Any]
+        ] = None,
     ) -> None:
         self.controller = controller
         self.crediter = controller.crediter
@@ -2589,6 +2893,11 @@ class ProviderBinding:
         self.open_prompt_scope = open_prompt_scope
         self.sample_strategies = sample_strategies
         self.post_strategy = post_strategy
+        self.get_table_extractor = get_table_extractor
+        self.extract_table_text = extract_table_text
+        self.page_outline = page_outline
+        self.propose_lexical_probe = propose_lexical_probe
+        self.rank_chunks = rank_chunks
         self.get_extractor = get_extractor
         self.extract_text = extract_text
         self.chunk_spans = chunk_spans
@@ -2628,6 +2937,8 @@ class ProviderBinding:
         self.hook_failures = hook_failures
         self.criteria_projection_version = str(criteria_projection_version)
         self.missing_tokens = missing_tokens
+        self.checkpoint_completed_strategy = checkpoint_completed_strategy
+        self.checkpoint_completed_search = checkpoint_completed_search
 
         self._strategy_ends: dict[str, str] = {}
         self._strategy_seed_queries: dict[str, list[str]] = {}
@@ -2636,10 +2947,21 @@ class ProviderBinding:
         self._accepted_sources: list[dict[str, Any]] = []
         self._episode_records: list[dict[str, Any]] = []
         self._strategy_proposals: list[dict[str, Any]] = []
+        # One compact post-verdict observation per completed strategy. This is
+        # the run-level memory used by the next string proposal; it is not read
+        # by credit, incidence, or any stop predicate.
+        self._strategy_learning_history: list[dict[str, Any]] = []
         self._page_guess_reports: list[dict[str, Any]] = []
+        self._page_states: dict[str, PageRunState] = {}
         self._pending_followup_outcomes: list[SearchOutcome] = []
         self.acquisition_page_details: list[dict[str, Any]] = []
         self._completed_strategies = 0
+        self._completed_run_units: list[dict[str, Any]] = []
+        self._resume_proposer_state: dict[str, Any] = {}
+        self._active_strategy_key = ""
+        self._active_strategy_family = ""
+        self._active_strategy_seeds: list[str] = []
+        self._active_search_units: list[dict[str, Any]] = []
         self.proposer: Optional[StrategyProposer] = None
         self._page_detail_path = self.answers_dir / "acquisition_page_detail.jsonl"
         self._episodes_path = self.answers_dir / "acquisition_episodes.json"
@@ -2664,12 +2986,125 @@ class ProviderBinding:
             record_proposal=self._record_strategy_proposal,
         )
         self.controller.proposer = self.proposer
+        if self._resume_proposer_state:
+            self.proposer.restore_checkpoint_state(self._resume_proposer_state)
+        if self._active_strategy_key:
+            self.proposer.resume_with(
+                self._build_strategy_episode(
+                    self._active_strategy_key,
+                    self._active_strategy_family,
+                    self._active_strategy_seeds,
+                )
+            )
         return Episode(
             grain=RUN_GRAIN,
             key=self.run_key,
             source=self.proposer,
             on_unit=self._on_strategy,
             bound=self.episode_unit_safety_cap,
+            resume_units=tuple(
+                ResumeUnit(
+                    label=str(item["label"]),
+                    credit=CreditResult(
+                        credits=tuple(item.get("credits") or ()),
+                        active=bool(item.get("active", True)),
+                        note=str(item.get("note") or ""),
+                        facets={
+                            str(name): tuple(values)
+                            for name, values in dict(item.get("facets") or {}).items()
+                        },
+                    ),
+                    counts_toward_verdict=bool(
+                        item.get("counts_toward_verdict", True)
+                    ),
+                )
+                for item in self._completed_run_units
+            ),
+        )
+
+    def build_source_replay_episode(
+        self,
+        task: SearchTask,
+        result: Mapping[str, Any],
+        *,
+        strategy_key: str = "source_replay#0",
+    ) -> Episode:
+        """Compose one saved source through the production Episode hierarchy.
+
+        Replay replaces only the provider search with one explicit result.
+        Page preparation, chunk ranking, extraction, evidence acceptance,
+        typed table mutation, credit assignment, numerical control, hooks, and
+        post-strategy exports are the same objects used by a live run. Each
+        enclosing source yields its one child and then returns ``None``, so
+        physical corpus exhaustion—not a synthetic numerical verdict or unit
+        cap—ends the replay.
+        """
+
+        if not isinstance(task, SearchTask):
+            raise TypeError("source replay requires a SearchTask")
+        if not isinstance(result, Mapping):
+            raise TypeError("source replay result must be a mapping")
+        if not str(strategy_key):
+            raise ValueError("source replay strategy_key must be non-empty")
+
+        family = str(strategy_key).split("#", 1)[0]
+        outcome = SearchOutcome.for_task(task)
+        outcome.search_result_observations.append(
+            search_result_observation(dict(result), rank=1)
+        )
+        self._open_outcomes[task.id] = outcome
+        self._active_strategy_key = str(strategy_key)
+        self._active_strategy_family = family
+        self._active_strategy_seeds = [task.query]
+
+        search_path = (
+            (RUN_GRAIN.name, self.run_key),
+            (STRATEGY_GRAIN.name, str(strategy_key)),
+            (SEARCH_GRAIN.name, task.id),
+        )
+        search_episode_id = Episode.identity(
+            self.controller.context,
+            SEARCH_GRAIN,
+            task.id,
+            parent_path=search_path[:-1],
+        ).episode_id
+        page_item = self._make_page_item(
+            task,
+            result,
+            1,
+            episode_id=search_episode_id,
+            episode_path=search_path,
+        )
+        search_episode = Episode(
+            grain=SEARCH_GRAIN,
+            key=task.id,
+            source=_SingleAcquirableSource(page_item),
+            on_unit=lambda item, contribution, record: self._on_page(
+                item,
+                contribution,
+                record,
+                outcome,
+                str(strategy_key),
+                family,
+            ),
+        )
+        strategy_episode = Episode(
+            grain=STRATEGY_GRAIN,
+            key=str(strategy_key),
+            source=_SingleAcquirableSource(search_episode),
+            on_unit=lambda item, contribution, record: self._on_search(
+                item,
+                contribution,
+                record,
+                str(strategy_key),
+                family,
+            ),
+        )
+        return Episode(
+            grain=RUN_GRAIN,
+            key=self.run_key,
+            source=_SingleAcquirableSource(strategy_episode),
+            on_unit=self._on_strategy,
         )
 
     def _build_strategy_episode(
@@ -2678,7 +3113,12 @@ class ProviderBinding:
         family: str,
         seeds: Sequence[str],
     ) -> Episode:
-        if seeds:
+        resuming = bool(
+            self._active_strategy_key
+            and self._active_strategy_key == strategy_key
+            and self._active_search_units
+        )
+        if seeds and not resuming:
             self._strategy_seed_queries[strategy_key] = list(seeds)
             self.frontier.enqueue_queries(
                 seeds,
@@ -2686,6 +3126,11 @@ class ProviderBinding:
                 expansion_op=family,
                 producer_class="strategy_proposer",
             )
+        if not resuming:
+            self._active_search_units = []
+        self._active_strategy_key = str(strategy_key)
+        self._active_strategy_family = str(family)
+        self._active_strategy_seeds = [str(seed) for seed in seeds]
         return Episode(
             grain=STRATEGY_GRAIN,
             key=strategy_key,
@@ -2701,6 +3146,24 @@ class ProviderBinding:
             ),
             on_unit=lambda unit, contribution, record: self._on_search(
                 unit, contribution, record, strategy_key, family
+            ),
+            resume_units=tuple(
+                ResumeUnit(
+                    label=str(item["label"]),
+                    credit=CreditResult(
+                        credits=tuple(item.get("credits") or ()),
+                        active=bool(item.get("active", True)),
+                        note=str(item.get("note") or ""),
+                        facets={
+                            str(name): tuple(values)
+                            for name, values in dict(item.get("facets") or {}).items()
+                        },
+                    ),
+                    counts_toward_verdict=bool(
+                        item.get("counts_toward_verdict", True)
+                    ),
+                )
+                for item in self._active_search_units
             ),
         )
 
@@ -2726,7 +3189,7 @@ class ProviderBinding:
         source = PageSource(
             task=task,
             search_fn=self.search_fn,
-            make_leaf=lambda task, result, rank: self._make_page_leaf(
+            make_page=lambda task, result, rank: self._make_page_item(
                 task,
                 result,
                 rank,
@@ -2752,6 +3215,208 @@ class ProviderBinding:
             ),
         )
 
+    def _make_page_item(
+        self,
+        task: SearchTask,
+        result: Mapping[str, Any],
+        rank: int,
+        *,
+        episode_id: str,
+        episode_path: tuple[tuple[str, str], ...],
+    ) -> Any:
+        """Return the table binding's page Episode or the existing page leaf.
+
+        Graph extraction remains a separate binding path.  The new nested
+        chunk method is selected by the presence of the table extractor, not a
+        mode flag.
+        """
+
+        if self.get_table_extractor() is None:
+            return self._make_page_leaf(
+                task,
+                result,
+                rank,
+                episode_id=episode_id,
+                episode_path=episode_path,
+            )
+
+        unit = PageUnit(
+            task=task,
+            result=result,
+            rank=rank,
+            episode_id=episode_id,
+            episode_path=episode_path,
+            label=f"{task.id}#{rank}",
+        )
+        outcome = self._open_outcomes.get(task.id)
+        if outcome is None:
+            outcome = SearchOutcome.for_task(task)
+            self._open_outcomes[task.id] = outcome
+
+        with self.open_cost_scope(
+            ObservationKind.SOURCE.value,
+            unit.label,
+            unit.episode_id,
+            unit.episode_path,
+        ):
+            prepared = self.harvester.prepare_page(
+                task, dict(result), outcome, rank=rank
+            )
+            if prepared.candidate is None:
+                material = PageMaterial(
+                    fate=page_fate(
+                        mechanical=prepared.fate,
+                        error_class=prepared.error_class,
+                    ),
+                    text_chars=prepared.text_length,
+                )
+                return self._material_leaf(unit, material)
+            if not self.crediter.basis.columns:
+                return self._material_leaf(
+                    unit,
+                    PageMaterial(
+                        fate=page_fate(mechanical=FATE_NO_CREDIT_COLUMNS),
+                        text_chars=len(prepared.candidate.text),
+                    ),
+                )
+            source_record = self.harvester.write_source(
+                task,
+                prepared.candidate,
+                outcome,
+                rank=rank,
+                episode_id=episode_id,
+            )
+
+        text = str(source_record.get("text") or "")
+        spans = tuple(self.chunk_spans(text, self.chunk_size, self.chunk_overlap))
+        if not spans:
+            return self._material_leaf(
+                unit,
+                PageMaterial(
+                    fate=page_fate(extraction=EXTRACT_OK),
+                    source_id=str(source_record.get("id") or ""),
+                    source_record=source_record,
+                    ingestion=self._open_ingestion_entry(source_record),
+                    reduction=prepared.candidate.reduction,
+                    text_chars=len(text),
+                ),
+            )
+
+        page_path = episode_path + ((PAGE_GRAIN.name, unit.label),)
+        page_ref = Episode.identity(
+            self.controller.context,
+            PAGE_GRAIN,
+            unit.label,
+            parent_path=episode_path,
+        )
+        state = PageRunState(
+            unit=unit,
+            source_record=source_record,
+            ingestion=self._open_ingestion_entry(source_record),
+            reduction=prepared.candidate.reduction,
+            chunks=spans,
+            outline=self.page_outline(
+                text,
+                str(source_record.get("title") or ""),
+            ),
+        )
+        self._page_states[unit.label] = state
+        source = LexicalProbeSource(
+            state=state,
+            propose=self.propose_lexical_probe,
+            rank=self.rank_chunks,
+            make_probe=lambda key, proposal, ranked: self._make_probe_episode(
+                state,
+                key,
+                proposal,
+                ranked,
+                page_episode_id=page_ref.episode_id,
+                page_path=page_path,
+            ),
+            open_cost_scope=self.open_cost_scope,
+            open_prompt_scope=self.open_prompt_scope,
+        )
+        return Episode(
+            grain=PAGE_GRAIN,
+            key=unit.label,
+            source=source,
+            on_unit=lambda probe, contribution, record: self._on_probe(
+                state, probe, contribution, record
+            ),
+        )
+
+    def _material_leaf(self, unit: PageUnit, material: PageMaterial) -> Leaf:
+        return Leaf(
+            unit=unit,
+            extract=lambda _unit: material,
+            accept=self.accept_evidence,
+            credit=self.crediter,
+            label=unit.label,
+        )
+
+    def _make_probe_episode(
+        self,
+        state: PageRunState,
+        probe_key: str,
+        proposal: Any,
+        ranked_chunks: Sequence[Any],
+        *,
+        page_episode_id: str,
+        page_path: tuple[tuple[str, str], ...],
+    ) -> Episode:
+        probe_path = page_path + ((LEXICAL_PROBE_GRAIN.name, probe_key),)
+        probe_ref = Episode.identity(
+            self.controller.context,
+            LEXICAL_PROBE_GRAIN,
+            probe_key,
+            parent_path=page_path,
+        )
+        source = RankedChunkSource(
+            state=state,
+            ranked_chunks=ranked_chunks,
+            make_leaf=lambda span: self._make_chunk_leaf(
+                state,
+                span,
+                probe_key=probe_key,
+                episode_id=probe_ref.episode_id,
+                episode_path=probe_path,
+            ),
+        )
+        return Episode(
+            grain=LEXICAL_PROBE_GRAIN,
+            key=probe_key,
+            source=source,
+            on_unit=lambda leaf, contribution, record: self._on_chunk(
+                state, leaf, contribution, record
+            ),
+        )
+
+    def _make_chunk_leaf(
+        self,
+        state: PageRunState,
+        span: Any,
+        *,
+        probe_key: str,
+        episode_id: str,
+        episode_path: tuple[tuple[str, str], ...],
+    ) -> Leaf:
+        unit = ChunkUnit(
+            page=state.unit,
+            span=span,
+            source_record=state.source_record,
+            episode_id=episode_id,
+            episode_path=episode_path,
+            probe_key=probe_key,
+            label=state.chunk_id(span),
+        )
+        return Leaf(
+            unit=unit,
+            extract=self._extract_chunk,
+            accept=self.accept_evidence,
+            credit=self.crediter,
+            label=unit.label,
+        )
+
     def _make_page_leaf(
         self,
         task: SearchTask,
@@ -2775,6 +3440,242 @@ class ProviderBinding:
             accept=self.accept_evidence,
             credit=self.crediter,
             label=unit.label,
+        )
+
+    async def _extract_chunk(self, unit: ChunkUnit) -> PageMaterial:
+        """Extract one selected chunk; no other chunk is touched by this pull."""
+
+        source_id = str(unit.source_record.get("id") or "")
+        chunk_record = {
+            "chunk_index": int(unit.span.index),
+            "chunk_id": unit.label,
+            "source_id": source_id,
+            "start_offset": int(unit.span.start_offset),
+            "end_offset": int(unit.span.end_offset),
+            "text": str(unit.span.text),
+            "failed": False,
+            "failure_class": "",
+            "credits_minted": 0,
+            "new_within_page": 0,
+            "repeats_within_page": 0,
+            "row_credits_minted": 0,
+            "probe_key": unit.probe_key,
+        }
+        extractor = self.get_table_extractor()
+        if extractor is None:
+            return PageMaterial(
+                source_id=source_id,
+                fate=page_fate(mechanical=FATE_NO_EXTRACTOR),
+                source_record=unit.source_record,
+                chunks=(chunk_record,),
+                text_chars=len(str(unit.span.text)),
+            )
+
+        try:
+            with self.open_prompt_scope(unit.episode_id, unit.episode_path):
+                with self.open_cost_scope(
+                    ObservationKind.SOURCE.value,
+                    unit.label,
+                    unit.episode_id,
+                    unit.episode_path,
+                ):
+                    call = extractor.forward(str(unit.span.text))
+                    result = (
+                        await asyncio.wait_for(
+                            call, timeout=self.extraction_timeout_sec
+                        )
+                        if self.extraction_timeout_sec is not None
+                        and self.extraction_timeout_sec > 0
+                        else await call
+                    )
+        except Exception as exc:  # noqa: BLE001 - one chunk is one failed unit
+            error_class = classify_error(exc)
+            chunk_record.update(
+                {
+                    "failed": True,
+                    "failure_class": error_class or type(exc).__name__,
+                }
+            )
+            return PageMaterial(
+                source_id=source_id,
+                fate=page_fate(
+                    extraction=EXTRACT_RAISED,
+                    error_class=error_class,
+                ),
+                source_record=unit.source_record,
+                chunks=(chunk_record,),
+                text_chars=len(str(unit.span.text)),
+            )
+
+        records = [
+            {
+                "table": row["table"],
+                "index": index,
+                "values": dict(row["values"]),
+                "source_chunks": [unit.label],
+            }
+            for index, row in enumerate(result.rows)
+        ]
+        return PageMaterial(
+            source_id=source_id,
+            fate=page_fate(extraction=EXTRACT_OK),
+            records=tuple(records),
+            source_record=unit.source_record,
+            chunks=(chunk_record,),
+            text_chars=len(str(unit.span.text)),
+        )
+
+    def _on_chunk(
+        self,
+        state: PageRunState,
+        leaf: Leaf,
+        contribution: Any,
+        record: Any,
+    ) -> None:
+        """Close one chunk pull and make it ineligible for every later probe."""
+
+        unit = leaf.unit
+        state.processed_chunk_ids.add(unit.label)
+        state.chunk_units.append(unit)
+        material = contribution.extracted
+        if isinstance(material, PageMaterial):
+            findings = set(contribution.credit.credits)
+            new_findings = findings - state.seen_finding_ids
+            repeated_findings = findings & state.seen_finding_ids
+            for chunk in material.chunks:
+                if isinstance(chunk, dict):
+                    chunk["credits_minted"] = len(findings)
+                    chunk["new_within_page"] = len(new_findings)
+                    chunk["repeats_within_page"] = len(repeated_findings)
+            state.seen_finding_ids.update(findings)
+            state.materials.append(material)
+        successful = sum(1 for item in state.materials if item.fate.judged)
+        failed = sum(1 for item in state.materials if not item.fate.judged)
+        state.ingestion.update(
+            {
+                "extraction_state": (
+                    "extracting_chunks"
+                    if state.remaining_chunks()
+                    else "extracted_table_rows"
+                    if any(item.records for item in state.materials)
+                    else "extracted_no_table_rows"
+                ),
+                "table_row_count": sum(
+                    len(item.records) for item in state.materials
+                ),
+                "failed_chunks": failed,
+                "successful_chunks": successful,
+                "chunk_count": len(state.materials),
+                "unprocessed_chunk_count": len(state.remaining_chunks()),
+            }
+        )
+
+    def _on_probe(
+        self,
+        state: PageRunState,
+        episode: Episode,
+        contribution: Any,
+        record: Any,
+    ) -> None:
+        """Expose one probe's measured result to the next probe proposal."""
+
+        child = contribution.child
+        proposal = dict(state.probe_proposals.get(episode.key) or {})
+        proposal.update(
+            {
+                "probe_key": episode.key,
+                "chunks_processed": child.units_consumed if child else 0,
+                "distinct_findings": (
+                    len(child.distinct_identities) if child else 0
+                ),
+                "findings_by_channel": (
+                    {
+                        self.crediter.facet_labels.get(name, name): len(values)
+                        for name, values in child.facet_distinct.items()
+                    }
+                    if child
+                    else {}
+                ),
+                "ended_by": child.ended_by if child else "",
+                "unprocessed_chunks": len(state.remaining_chunks()),
+                "volume_credit": (
+                    record.volume_credit.as_record()
+                    if record.volume_credit is not None
+                    else None
+                ),
+            }
+        )
+        state.probe_history.append(proposal)
+
+    def _page_material(self, state: PageRunState) -> PageMaterial:
+        """Project completed chunk work into the existing page artifact shape."""
+
+        judged = [item for item in state.materials if item.fate.judged]
+        fate = page_fate(
+            extraction=(EXTRACT_OK if judged else EXTRACT_ALL_CHUNKS_FAILED)
+        )
+        chunks = tuple(
+            dict(chunk)
+            for material in state.materials
+            for chunk in material.chunks
+        )
+        commits = tuple(
+            material.evidence_commit
+            for material in state.materials
+            if material.evidence_commit is not None
+        )
+        return PageMaterial(
+            source_id=str(state.source_record.get("id") or ""),
+            fate=fate,
+            records=tuple(
+                record
+                for material in state.materials
+                for record in material.records
+            ),
+            guesses=tuple(
+                guess
+                for material in state.materials
+                for guess in material.guesses
+            ),
+            source_record=state.source_record,
+            ingestion=state.ingestion,
+            reduction=state.reduction,
+            chunks=chunks,
+            text_chars=len(str(state.source_record.get("text") or "")),
+            evidence_commits=commits,
+            probe_history=tuple(dict(item) for item in state.probe_history),
+        )
+
+    def _attach_page_credit(self, state: PageRunState) -> None:
+        if state.unit.credit_detail is not None:
+            return
+        details = [
+            unit.credit_detail
+            for unit in state.chunk_units
+            if unit.credit_detail is not None
+        ]
+        state.unit.attach_credit(
+            PageCredit(
+                attributions=tuple(
+                    item
+                    for detail in details
+                    for item in detail.attributions
+                ),
+                row_completions=tuple(
+                    item
+                    for detail in details
+                    for item in detail.row_completions
+                ),
+                row_completion_unavailable=(
+                    self.crediter.row_completion_unavailable
+                ),
+                declared_facets=self.crediter.declared_facets,
+                chunk_encounters=tuple(
+                    dict(chunk)
+                    for material in state.materials
+                    for chunk in material.chunks
+                ),
+            )
         )
 
     # ------------------------------------------------------------------ #
@@ -2815,8 +3716,9 @@ class ProviderBinding:
             )
         candidate = prepared.candidate
 
-        extractor = self.get_extractor()
-        if extractor is None:
+        table_extractor = self.get_table_extractor()
+        graph_extractor = self.get_extractor()
+        if table_extractor is None and graph_extractor is None:
             return PageMaterial(
                 fate=page_fate(mechanical=FATE_NO_EXTRACTOR),
                 text_chars=len(candidate.text),
@@ -2834,20 +3736,36 @@ class ProviderBinding:
         ingestion = self._open_ingestion_entry(source_record)
         chunks: list[dict[str, Any]] = []
         try:
-            entities, relationships = await self.extract_text(
-                extractor,
-                source_record["text"],
-                source_id,
-                chunk_size=self.chunk_size,
-                overlap=self.chunk_overlap,
-                concurrency=self.extraction_concurrency,
-                timeout=self.extraction_timeout_sec,
-                on_chunk=self._chunk_observer(
-                    chunks,
-                    source_id=source_id,
-                    page_text=str(source_record["text"]),
-                ),
+            observer = self._chunk_observer(
+                chunks,
+                source_id=source_id,
+                page_text=str(source_record["text"]),
             )
+            if table_extractor is not None:
+                records = await self.extract_table_text(
+                    table_extractor,
+                    source_record["text"],
+                    source_id,
+                    chunk_size=self.chunk_size,
+                    overlap=self.chunk_overlap,
+                    concurrency=self.extraction_concurrency,
+                    timeout=self.extraction_timeout_sec,
+                    on_chunk=observer,
+                )
+                entities: Mapping[str, Mapping[str, Any]] = {}
+                relationships: Sequence[Mapping[str, Any]] = ()
+            else:
+                entities, relationships = await self.extract_text(
+                    graph_extractor,
+                    source_record["text"],
+                    source_id,
+                    chunk_size=self.chunk_size,
+                    overlap=self.chunk_overlap,
+                    concurrency=self.extraction_concurrency,
+                    timeout=self.extraction_timeout_sec,
+                    on_chunk=observer,
+                )
+                records = self._extracted_records(entities, relationships)
         except Exception as exc:  # noqa: BLE001 - converted, never raised
             error_class = classify_error(exc)
             ingestion.update(
@@ -2893,14 +3811,20 @@ class ProviderBinding:
                 text_chars=len(candidate.text),
             )
 
-        records = self._extracted_records(entities, relationships)
         ingestion.update(
             {
                 "extraction_state": (
-                    "extracted_entities" if entities else "extracted_no_entities"
+                    "extracted_table_rows"
+                    if table_extractor is not None and records
+                    else "extracted_no_table_rows"
+                    if table_extractor is not None
+                    else "extracted_entities"
+                    if entities
+                    else "extracted_no_entities"
                 ),
                 "entity_count": len(entities or {}),
                 "relationship_count": len(relationships or ()),
+                "table_row_count": len(records),
                 "failed_chunks": failed_chunks,
                 "chunk_count": len(chunks),
             }
@@ -2997,9 +3921,6 @@ class ProviderBinding:
             evidence_commit = self.evidence_registry.commit_acceptance(
                 source_batch_id,
                 decision,
-                required_columns_by_table=(
-                    self.crediter.required_column_ids_by_table
-                ),
             )
             accepted_by_chunk: dict[str, set[str]] = {}
             for cell in evidence_commit.accepted_cells:
@@ -3129,6 +4050,9 @@ class ProviderBinding:
         report = await self.page_best_guess_fn(
             records=records,
             columns_by_table=columns,
+            reported_alternatives_by_table=(
+                self.crediter.best_guess_routes_by_table()
+            ),
             subject_key_columns_by_table=(
                 self.crediter.basis.subject_key_columns
             ),
@@ -3179,15 +4103,28 @@ class ProviderBinding:
     # ------------------------------------------------------------------ #
     def _on_page(
         self,
-        leaf: Leaf,
+        item: Any,
         contribution: Any,
         record: Any,
         outcome: SearchOutcome,
         strategy_key: str,
         family: str,
     ) -> None:
-        unit = leaf.unit
-        material = contribution.extracted
+        if isinstance(item, Episode):
+            state = self._page_states.pop(item.key, None)
+            if state is None:
+                self.record_hook_failure(
+                    "on_page",
+                    item.key,
+                    LookupError(f"page state missing for {item.key!r}"),
+                )
+                return
+            self._attach_page_credit(state)
+            unit = state.unit
+            material = self._page_material(state)
+        else:
+            unit = item.unit
+            material = contribution.extracted
         try:
             self.budget.charge(1)
             self.set_units_pulled(self.budget.spent)
@@ -3199,15 +4136,16 @@ class ProviderBinding:
                     source = dict(material.source_record)
                     self._accepted_sources.append(source)
                     self.record_goal_discovery_sources([source])
-                    graph = self.enrich_graph_fn(
-                        self.get_graph(),
-                        dict(material.entities),
-                        list(material.relationships),
-                        material.source_id,
-                        similarity_threshold=self.similarity_threshold,
-                        auto_merge=self.auto_merge_entities,
-                    )
-                    self.set_graph(graph)
+                    if material.entities or material.relationships:
+                        graph = self.enrich_graph_fn(
+                            self.get_graph(),
+                            dict(material.entities),
+                            list(material.relationships),
+                            material.source_id,
+                            similarity_threshold=self.similarity_threshold,
+                            auto_merge=self.auto_merge_entities,
+                        )
+                        self.set_graph(graph)
                 self._write_page_detail(
                     unit, record, material, strategy_key, family
                 )
@@ -3253,6 +4191,23 @@ class ProviderBinding:
             self.refresh_search_memory()
             self.record_prompt_attempt_counts([outcome])
             self._pending_followup_outcomes.append(outcome)
+            self._active_search_units.append(
+                {
+                    "label": str(episode.label),
+                    "credits": list(contribution.credit.credits),
+                    "active": bool(contribution.credit.active),
+                    "note": str(contribution.credit.note),
+                    "facets": {
+                        str(name): list(values)
+                        for name, values in contribution.credit.facets.items()
+                    },
+                    "counts_toward_verdict": bool(
+                        contribution.counts_toward_verdict
+                    ),
+                }
+            )
+            if self.checkpoint_completed_search is not None:
+                self.checkpoint_completed_search(child, strategy_key, family)
         except Exception as exc:  # noqa: BLE001 - hook must not unwind the tree
             self.record_hook_failure("on_search", episode.key, exc)
 
@@ -3275,6 +4230,19 @@ class ProviderBinding:
                     )
                 )
                 self.write_episode_record(child)
+                try:
+                    self._strategy_learning_history.append(
+                        self._strategy_learning_observation(
+                            strategy_key=str(episode.key),
+                            family=family,
+                            record=child,
+                            volume_credit=record.volume_credit,
+                        )
+                    )
+                except Exception as exc:  # noqa: BLE001 - memory is advisory
+                    self.record_hook_failure(
+                        "strategy_learning_observation", episode.key, exc
+                    )
                 observed = int(record.yield_record.unit_index)
                 if observed != int(self._completed_strategies):
                     self.record_hook_failure(
@@ -3303,6 +4271,101 @@ class ProviderBinding:
         finally:
             self.set_active_strategy("", ())
             self._completed_strategies += 1
+        self._completed_run_units.append(
+            {
+                "label": str(episode.label),
+                "credits": list(contribution.credit.credits),
+                "active": bool(contribution.credit.active),
+                "note": str(contribution.credit.note),
+                "facets": {
+                    str(name): list(values)
+                    for name, values in contribution.credit.facets.items()
+                },
+                "counts_toward_verdict": bool(
+                    contribution.counts_toward_verdict
+                ),
+            }
+        )
+        self._active_strategy_key = ""
+        self._active_strategy_family = ""
+        self._active_strategy_seeds = []
+        self._active_search_units = []
+        if self.checkpoint_completed_strategy is not None:
+            try:
+                result = self.checkpoint_completed_strategy(child, record)
+                if hasattr(result, "__await__"):
+                    await result
+            except Exception as exc:  # noqa: BLE001 - disclosed hook failure
+                self.record_hook_failure("checkpoint", episode.key, exc)
+
+    def checkpoint_state(self) -> dict[str, Any]:
+        """Return provider-owned state at a completed strategy boundary."""
+
+        return {
+            "completed_run_units": list(self._completed_run_units),
+            "completed_strategies": self._completed_strategies,
+            "strategy_ends": dict(self._strategy_ends),
+            "strategy_seed_queries": {
+                key: list(values)
+                for key, values in self._strategy_seed_queries.items()
+            },
+            "episode_records": list(self._episode_records),
+            "strategy_proposals": list(self._strategy_proposals),
+            "strategy_learning_history": list(
+                self._strategy_learning_history
+            ),
+            "credit_assignments": list(self.crediter.checkpoint_assignments()),
+            "proposer": (
+                self.proposer.checkpoint_state() if self.proposer else {}
+            ),
+            "active_strategy": {
+                "key": self._active_strategy_key,
+                "family": self._active_strategy_family,
+                "seeds": list(self._active_strategy_seeds),
+                "completed_search_units": list(self._active_search_units),
+            },
+        }
+
+    def restore_checkpoint_state(self, state: Mapping[str, Any]) -> None:
+        """Restore provider-owned state before the run Episode is built."""
+
+        self._completed_run_units = [
+            dict(item) for item in (state.get("completed_run_units") or ())
+        ]
+        self._completed_strategies = int(
+            state.get("completed_strategies") or len(self._completed_run_units)
+        )
+        self._strategy_ends = {
+            str(name): str(value)
+            for name, value in dict(state.get("strategy_ends") or {}).items()
+        }
+        self._strategy_seed_queries = {
+            str(key): [str(value) for value in values]
+            for key, values in dict(
+                state.get("strategy_seed_queries") or {}
+            ).items()
+        }
+        self._episode_records = [
+            dict(item) for item in (state.get("episode_records") or ())
+        ]
+        self._strategy_proposals = [
+            dict(item) for item in (state.get("strategy_proposals") or ())
+        ]
+        self._strategy_learning_history = [
+            dict(item)
+            for item in (state.get("strategy_learning_history") or ())
+        ]
+        self.crediter.restore_assignments(state.get("credit_assignments") or ())
+        self._resume_proposer_state = dict(state.get("proposer") or {})
+        active = dict(state.get("active_strategy") or {})
+        self._active_strategy_key = str(active.get("key") or "")
+        self._active_strategy_family = str(active.get("family") or "")
+        self._active_strategy_seeds = [
+            str(value) for value in (active.get("seeds") or ())
+        ]
+        self._active_search_units = [
+            dict(item) for item in (active.get("completed_search_units") or ())
+        ]
 
     # ------------------------------------------------------------------ #
     # Source callbacks and provider-binding state.
@@ -3344,6 +4407,166 @@ class ProviderBinding:
             if title:
                 terms.append(title)
         return terms
+
+    def strategy_learning_history(self) -> tuple[Mapping[str, Any], ...]:
+        """Completed strategy outcomes available to the next proposer.
+
+        This is post-verdict memory. It can shape later query strings, but it
+        cannot revise the completed strategy's credits, estimate, or verdict.
+        """
+
+        return tuple(dict(item) for item in self._strategy_learning_history)
+
+    def _strategy_learning_observation(
+        self,
+        *,
+        strategy_key: str,
+        family: str,
+        record: EpisodeRecord,
+        volume_credit: Any = None,
+    ) -> dict[str, Any]:
+        """Compress one completed strategy into measured search feedback."""
+
+        def observed(curve: Mapping[str, Any]) -> int:
+            band = curve.get("observed_results")
+            if not isinstance(band, Mapping):
+                return 0
+            return int(float(band.get("value") or 0))
+
+        def labeled_facets(
+            episode_record: EpisodeRecord,
+        ) -> dict[str, Any]:
+            out: dict[str, Any] = {}
+            for channel, estimate in episode_record.facets.items():
+                if isinstance(estimate, Mapping):
+                    value: Any = dict(estimate)
+                elif hasattr(estimate, "as_record"):
+                    value = estimate.as_record()
+                else:
+                    value = estimate
+                out[
+                    self.crediter.facet_labels.get(
+                        str(channel), str(channel)
+                    )
+                ] = value
+            return out
+
+        search_units = {
+            unit.child.scope_key: unit
+            for unit in record.unit_records
+            if unit.child is not None
+        }
+        skipped: Counter[str] = Counter()
+        candidate_fates: Counter[str] = Counter()
+        searches: list[dict[str, Any]] = []
+        for outcome in self.last_search_outcomes:
+            search_unit = search_units.get(outcome.task_id)
+            search_record = search_unit.child if search_unit is not None else None
+            skipped.update(outcome.skipped_by_reason)
+            for candidate in outcome.candidate_source_outcomes:
+                fate = str(candidate.get("fate") or "")
+                if fate:
+                    candidate_fates[fate] += 1
+            searches.append(
+                {
+                    "query": outcome.query,
+                    "provider_results": int(outcome.firecrawl_hits),
+                    "processed_pages": int(
+                        outcome.result_buffer.get("processed_results") or 0
+                    ),
+                    "unprocessed_pages": int(
+                        outcome.result_buffer.get("unprocessed_results") or 0
+                    ),
+                    "sources_acquired": len(outcome.accepted_source_ids),
+                    "duplicate_urls": len(set(outcome.duplicate_urls)),
+                    "skipped_by_reason": dict(outcome.skipped_by_reason),
+                    "error": str(outcome.error or ""),
+                    "ended_by": (
+                        search_record.ended_by if search_record is not None else ""
+                    ),
+                    "distinct_findings": (
+                        observed(search_record.curve)
+                        if search_record is not None
+                        else 0
+                    ),
+                    "credit_occurrences": (
+                        sum(
+                            unit.yield_record.credits_observed
+                            for unit in search_record.unit_records
+                            if unit.yield_record.eligible
+                        )
+                        if search_record is not None
+                        else 0
+                    ),
+                    "repeat_occurrences": (
+                        sum(
+                            len(unit.yield_record.repeat_identities)
+                            for unit in search_record.unit_records
+                            if unit.yield_record.eligible
+                        )
+                        if search_record is not None
+                        else 0
+                    ),
+                    "incidence_estimate": (
+                        dict(search_record.curve)
+                        if search_record is not None
+                        else {}
+                    ),
+                    "findings_by_column": (
+                        labeled_facets(search_record)
+                        if search_record is not None
+                        else {}
+                    ),
+                    "volume_credit": (
+                        search_unit.volume_credit.as_record()
+                        if search_unit is not None
+                        and search_unit.volume_credit is not None
+                        else None
+                    ),
+                }
+            )
+
+        return {
+            "strategy_key": strategy_key,
+            "strategy_family": family,
+            "seed_queries": list(
+                self._strategy_seed_queries.get(strategy_key) or ()
+            ),
+            "ended_by": record.ended_by,
+            "end_reason": record.end_reason,
+            "searches_completed": int(record.units_consumed),
+            "distinct_findings": observed(record.curve),
+            "incidence_estimate": dict(record.curve),
+            "findings_by_column": labeled_facets(record),
+            "volume_credit": (
+                volume_credit.as_record()
+                if volume_credit is not None
+                and hasattr(volume_credit, "as_record")
+                else None
+            ),
+            "searches": searches,
+            "totals": {
+                "provider_results": sum(item["provider_results"] for item in searches),
+                "processed_pages": sum(item["processed_pages"] for item in searches),
+                "unprocessed_pages": sum(item["unprocessed_pages"] for item in searches),
+                "sources_acquired": sum(item["sources_acquired"] for item in searches),
+                "duplicate_urls": sum(item["duplicate_urls"] for item in searches),
+                "distinct_findings": observed(record.curve),
+                "credit_occurrences": sum(
+                    item["credit_occurrences"] for item in searches
+                ),
+                "repeat_occurrences": sum(
+                    item["repeat_occurrences"] for item in searches
+                ),
+                "skipped_by_reason": dict(skipped),
+                "candidate_fates": dict(candidate_fates),
+            },
+            "acquired_source_titles": [
+                str(source.get("title") or "").strip()
+                for source in self._accepted_sources
+                if str(source.get("title") or "").strip()
+            ],
+        }
 
     def _record_strategy_proposal(self, row: Mapping[str, Any]) -> None:
         self._strategy_proposals.append(dict(row))
@@ -3438,6 +4661,9 @@ class ProviderBinding:
             "counts_toward_verdict": bool(
                 record.yield_record.counts_toward_verdict
             ),
+            "numerical_snapshot_after": record.as_record().get(
+                "numerical_snapshot_after", {}
+            ),
             "spec_digest": self.crediter.spec_digest,
             "crediter_built_at_episode_id": self.run_episode_id,
             "credit_semantics": CREDIT_SEMANTICS,
@@ -3448,6 +4674,12 @@ class ProviderBinding:
                 if material.evidence_commit is not None
                 else None
             ),
+            "evidence_commits": [
+                commit.to_dict() for commit in material.evidence_commits
+            ],
+            "lexical_probes": [
+                dict(item) for item in material.probe_history
+            ],
             **(detail.to_dict() if detail is not None else {}),
         }
         self.acquisition_page_details.append(row)
@@ -3473,9 +4705,8 @@ class ProviderBinding:
                         "spec_digest": self.crediter.spec_digest,
                         "grains": [
                             grain_disclosure(grain)
-                            for grain in (RUN_GRAIN, STRATEGY_GRAIN, SEARCH_GRAIN)
+                            for grain in GRAIN_ORDER
                         ],
-                        "chunk_grain": CHUNK_GRAIN_DISCLOSURE.to_dict(),
                         "strategies": self._episode_records,
                         "run": (
                             window_episode_record(
@@ -3547,21 +4778,15 @@ class ProviderBinding:
     def run_summary(self) -> dict[str, Any]:
         details = self.acquisition_page_details
         chunk_counts: Counter = Counter()
-        chunk_would_fire = 0
         rule_counts: Counter = Counter()
         triviality_counts: Counter = Counter()
         source_kind_counts: Counter = Counter()
         counterfactual = 0
-        row_guess_split: Counter = Counter()
-        key_only_pages = 0
+        no_credit_pages = 0
         subject_identities: set[str] = set()
         for row in details:
             chunks = row.get("chunk_encounters") or []
             chunk_counts[len(chunks)] += 1
-            if len(chunks) >= CHUNK_GRAIN_CROSSING and not any(
-                chunk.get("new_within_page") for chunk in chunks
-            ):
-                chunk_would_fire += 1
             for attribution in row.get("attributions") or []:
                 rule_counts[str(attribution.get("rule") or "")] += 1
                 triviality_counts[
@@ -3571,16 +4796,14 @@ class ProviderBinding:
                     str(attribution.get("source_kind") or "")
                 ] += 1
             counterfactual += len(row.get("counterfactual_credits") or [])
-            for credit in row.get("row_credits") or []:
-                row_guess_split[len(credit.get("columns_best_guess") or [])] += 1
-                subject_identities.add(str(credit.get("identity") or ""))
+            for completion in row.get("row_completions") or []:
+                subject_identities.add(str(completion.get("identity") or ""))
             if (
                 row.get("counts_toward_verdict")
                 and not (row.get("attributions") or [])
-                and row.get("row_credit_max_columns_covered") == 0
                 and row.get("skip_reason") == ""
             ):
-                key_only_pages += 1
+                no_credit_pages += 1
 
         exported_subjects = 0
         rows_by_table = self.exported_rows()
@@ -3608,19 +4831,14 @@ class ProviderBinding:
                 "empty counterfactual means the exclusion had nothing to remove "
                 "on this configuration and NEVER that it was unnecessary"
             ),
-            "row_credit_guessed_column_counts": {
-                str(k): v for k, v in sorted(row_guess_split.items())
-            },
-            "distinct_row_credit_identities": len(subject_identities),
+            "distinct_completed_subjects": len(subject_identities),
             "distinct_exported_subject_keys": exported_subjects,
             "subject_key_columns": {
                 table: list(columns)
                 for table, columns in self.crediter.basis.subject_key_columns.items()
             },
-            "extracted_pages_with_no_credit": key_only_pages,
+            "extracted_pages_with_no_credit": no_credit_pages,
             "chunk_counts": {str(k): v for k, v in sorted(chunk_counts.items())},
-            "chunk_grain_crossing": CHUNK_GRAIN_CROSSING,
-            "pages_where_a_chunk_verdict_would_have_fired": chunk_would_fire,
             "typed_credit_columns": sum(
                 1
                 for column in self.crediter.basis.columns
@@ -3636,3 +4854,5 @@ class ProviderBinding:
             "hook_failures": [dict(item) for item in self.hook_failures()],
             "search_provider_batch": dict(self.search_provider_batch),
         }
+    "LEXICAL_PROBE_GRAIN",
+    "PAGE_GRAIN",

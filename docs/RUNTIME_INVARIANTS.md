@@ -76,9 +76,12 @@ one `query_generation.graph_validator`). They are **not blessed** — the
 inventory exists so that a *new* outbound import fails the check rather than
 hiding among them. It may shrink. It must not grow.
 
-The operator's stated goal (2026-08-24) is strict dependency linearity —
-`rarefaction/` below `gasl/` below `question_pipeline/`, with ingestion
-beside the pipeline and nothing importing upward. So the inventory is debt:
+The current method boundary is dependency-directed: `rarefaction/` owns only
+the paired estimator-controller arithmetic; `method_loop/` owns Episode,
+nesting, identity, and scope attachment; `gasl/` and `question_pipeline/`
+compose those lower packages without either lower package importing a surface.
+Ingestion remains beside the pipeline and nothing imports upward. So the
+inventory is debt:
 a phase that edits a file carrying one of these imports removes the import
 as part of the phase, and the steward reviewing that phase asks why if it
 did not.
@@ -87,13 +90,13 @@ did not.
 the `rarefaction/` package. This is not growth of the outbound inventory and
 not a weakening of this rule: the rule keeps the engine from importing the
 ingestion and control layers *above* it, and `rarefaction/` is a *lower*
-layer — pure stdlib arithmetic over opaque identity tokens, importing
+layer — pure stdlib numerical control over opaque identity tokens, importing
 nothing, schema-agnostic by construction. The checker carries an explicit
 permitted-lower-layer entry for it, with this paragraph as the documented
 reason. Charter: `docs/ACQUISITION_LOOP.md`. The binding that uses it is
-`gasl/commands/graph_nav.py` (phase 4B): the walk reports yield in numbers
-and quits on the kernel's verdict; it passes the kernel opaque identities
-only, so the engine stays schema-agnostic.
+`gasl/query_binding.py`: the GASL surface composes `method_loop.Episode`, passes
+opaque identities into the attached numerical component, and quits on its
+scalar hypervolume verdict, so the engine stays schema-agnostic.
 
 ## Enforcement
 

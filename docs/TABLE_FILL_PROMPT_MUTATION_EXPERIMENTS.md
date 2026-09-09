@@ -8,11 +8,12 @@
 > is now a measured verdict at the strategy grain of the acquisition loop
 > (phase 4D). Mutation may consume only post-verdict typed observations when
 > proposing future strings; it cannot change the current incidence sample,
-> estimate, or verdict. `IncidenceEstimator`, configured by a fixed
+> estimate, or verdict. The bound estimator, configured by a fixed
 > `ChannelSchema`, produces the generic role-based decision-facing
-> `IncidenceEstimate`; its rarefied role is required, and bias-corrected
-> incidence Chao2 internally fills the expected and remaining roles. Read
-> mutation ideas from here and the method from the charter.
+> `IncidenceEstimate` vector. Marginal hypervolume is the sole method credit,
+> predicted future hypervolume is the sole stop statistic, and the complete
+> column vector remains learning context. Read mutation ideas from here and the
+> method from the charter.
 >
 > Historical sequences below that ingest provider results into a graph, invoke
 > GASL afterward, or place table materialization inside one round are not

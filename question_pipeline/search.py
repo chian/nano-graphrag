@@ -17,7 +17,7 @@ import os
 import re
 import uuid
 from collections import Counter, OrderedDict
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping, Optional, Sequence
@@ -322,8 +322,37 @@ class SearchFrontier:
                 for task in self._pending.values()
             ],
             "seen_tasks": len(self._seen_task_ids),
+            "seen_task_ids": sorted(self._seen_task_ids),
             "completed_tasks": len(self.outcomes),
+            "completed_task_records": [
+                outcome.to_dict() for outcome in self.outcomes
+            ],
         }
+
+    def restore_checkpoint_state(self, payload: Mapping[str, Any]) -> None:
+        """Replace queue state from one explicit checkpoint generation."""
+
+        pending: OrderedDict[str, SearchTask] = OrderedDict()
+        for raw in payload.get("pending_task_records") or ():
+            task = _search_task_from_record(raw)
+            if task is not None:
+                pending[task.id] = task
+        allowed = {item.name for item in fields(SearchOutcome)}
+        outcomes: list[SearchOutcome] = []
+        for raw in payload.get("completed_task_records") or ():
+            if not isinstance(raw, Mapping):
+                continue
+            values = {key: value for key, value in raw.items() if key in allowed}
+            if values.get("task_id") and values.get("query"):
+                outcomes.append(SearchOutcome(**values))
+        seen = {
+            str(value) for value in (payload.get("seen_task_ids") or ())
+        }
+        seen.update(pending)
+        seen.update(outcome.task_id for outcome in outcomes)
+        self._pending = pending
+        self._seen_task_ids = seen
+        self.outcomes = outcomes
 
 
 @dataclass(frozen=True)

@@ -82,10 +82,17 @@ async def initial_queries(
 {question}
 {("DOMAIN FOCUS: " + schema_hint if schema_hint else "")}
 
-Produce {n} diverse search queries that, run against scientific sources (PubMed,
-bioRxiv, journals), would surface the evidence needed to answer the question.
-Cover the core mechanism, key quantitative outcomes, and important sub-aspects.
-Keep each query concise (3-9 words), no boolean operators.
+Produce {n} complementary web-search queries that would surface the evidence
+needed to answer the question. Infer the appropriate source ecosystem from the
+question and domain focus: useful routes may include primary datasets and
+catalogs, government or institutional repositories, scholarly literature,
+technical reports, historical archives, and authoritative compilations.
+
+Make each query pursue a distinct, task-relevant evidence route. Collectively,
+the queries should cover the entities, attributes, quantitative values,
+qualifiers, and source types required by the question rather than varying
+wording for its own sake. Keep each query concise (3-9 words), no boolean
+operators.
 
 Return JSON: {{"queries": ["...", "..."]}}"""
     parsed = await ask_json(llm, prompt, system_prompt=_SEARCH_SYSTEM_PROMPT)
@@ -516,12 +523,13 @@ async def propose_distant_strategy(
     tried: Sequence[Mapping[str, Any]],
     n: int = 3,
 ) -> List[Dict[str, Any]]:
-    """Sample candidate strategies for the acquisition run grain's switch edge.
+    """Sample outcome-informed strategies for the run grain's switch edge.
 
     THE MODEL'S WHOLE JOB HERE IS STRING WORK AND ONE NUMBER. It samples
-    candidate ``(operator, targets, seed phrasings)`` combinations and reports,
-    per candidate, how far it judges that combination to sit from the ones
-    already tried -- because semantic distance is a property of two strings.
+    candidate ``(operator, targets, seed phrasings)`` combinations using the
+    completed strategies' measured outcomes, and reports how far each candidate
+    sits from the ones already tried -- because semantic distance is a property
+    of two strings.
 
     It does **not** decide whether to propose: that is the run grain's own
     verdict, read by the loop after every unit. It does **not** decide whether a
@@ -570,9 +578,26 @@ operator from the catalog above, applied to one or more of the target ids the
 run has declared, with a few seed phrasings that show how its searches would be
 worded.
 
+Use the completed strategy outcomes as empirical memory. Compare what each
+prior query attempted with its distinct findings overall and by column, its
+incidence estimate, acquired sources, duplicate URLs, page fates, failures, and
+unprocessed results. Identify which search vocabulary and source shapes yielded
+new evidence, which saturated, which mostly repeated prior material, and which
+were not actually judged because acquisition or extraction failed.
+
+Propose searches that are likely to add distinct findings for the observed
+deficits. Build on productive vocabulary or source shapes when they still have
+estimated findings remaining. Change the terminology, source shape, target, or
+operator when prior work saturated or produced mostly repeats. Do not treat an
+instrument failure as evidence that a subject direction is barren. Do not
+repeat an unproductive query unless the proposal states the concrete change
+that makes the new search materially different.
+
 Use an `operator` value that appears as a key of the catalog. Use `target_ids`
-that appear in the run view. Order your proposals by how different you judge
-them to be from the strategies already opened, most different first.
+that appear in the run view. Order proposals by expected marginal contribution
+of distinct evidence to the observed deficits, highest first. Semantic novelty
+is a constraint, not the objective: a different query that is unlikely to fill
+a deficit is not useful merely because it is different.
 
 For each proposal report `distance` on a 0.0-1.0 scale: how far this
 combination of operator, targets and seed phrasing sits from the nearest
@@ -588,7 +613,7 @@ Return JSON:
       "query_seeds": ["seed phrasing", "seed phrasing"],
       "distance": 0.0,
       "label": "short generic name",
-      "rationale": "why this combination differs from the opened ones"
+      "rationale": "which measured prior outcomes support this choice, what it changes, and which deficit it should fill"
     }}
   ]
 }}"""

@@ -17,7 +17,7 @@ from ..adapters.base import (
 )
 from ..contracts import make_contract
 from ..state_manager import StateManager
-from ..walk_binding import GraphWalkBinding
+from ..query_binding import GraphWalkBinding
 
 
 # Bounds on the pilot walk that feeds the refinement judgement. NO MEASUREMENT
@@ -91,15 +91,45 @@ class GraphNavHandler(CommandHandler):
             )
     
     def _execute_graphwalk(self, command: Command) -> ExecutionResult:
-        """Execute GRAPHWALK command."""
+        """Execute GRAPHWALK command — the standalone (non-Episode) path.
+
+        The pre-walk half (`prepare_graphwalk`) and post-walk half
+        (`finish_graphwalk`) are the same functions the query binding calls
+        when it nests the walk as a child Episode; this method keeps the
+        handler working for any caller outside that composition, walking
+        through the standalone `walk()` path with its own Context.
+        """
+        prep = self.prepare_graphwalk(command)
+        if prep.get("status") != "ok":
+            return prep["error_result"]
+        walked_data, walk_completeness = self.walk_binding.walk(
+            prep["source_nodes"],
+            prep["follow_filters"],
+            prep["depth"],
+            source_cap=prep["source_cap"],
+            max_nodes=prep["max_nodes"],
+            edge_cap=prep["edge_cap"],
+        )
+        return self.finish_graphwalk(command, prep, walked_data, walk_completeness)
+
+    def prepare_graphwalk(self, command: Command) -> dict:
+        """GRAPHWALK's pre-walk half: inputs, filters, pilot, declared caps.
+
+        Accepted inputs preserved verbatim (Phase G condition G7): variable
+        resolution, the `last_nodes_result` fallback, `_normalize_follow_types`
+        permissiveness, and the pilot trigger condition are exactly the
+        handler's previous first half. Returns `{"status": "ok", ...}` with
+        everything the walk and the post-walk half need, or
+        `{"status": "error", "error_result": ...}`.
+        """
         args = command.args
         from_var = args["from_variable"]
         follow_types = args["relationship_types"]
         depth = int(args.get("depth", 1))
         result_var = args.get("result_var")
-        
+
         print(f"DEBUG: GRAPHWALK - from: {from_var}, follow: {follow_types}, depth: {depth}")
-        
+
         # Get source nodes
         source_nodes = self._get_variable_data(from_var)
         if not source_nodes:
@@ -108,13 +138,21 @@ class GraphNavHandler(CommandHandler):
                 source_nodes = self.context_store.get("last_nodes_result")
                 print(f"DEBUG: GRAPHWALK - Using last_nodes_result as fallback: {len(source_nodes)} nodes")
             else:
-                return self._create_result(command=command, status="error", 
-                                         error_message=f"Variable {from_var} not found or empty, and no last_nodes_result available")
-        
+                return {
+                    "status": "error",
+                    "error_result": self._create_result(
+                        command=command,
+                        status="error",
+                        error_message=f"Variable {from_var} not found or empty, and no last_nodes_result available",
+                    ),
+                }
+
         # Perform graph walk with memory limit
         follow_filters = self._normalize_follow_types(follow_types)
 
         pilot_refinement = {}
+        pilot_sample_size = 0
+        pilot_empty = True
         if len(source_nodes) > 10 or depth > 1:
             pilot, _pilot_completeness = self.walk_binding.walk(
                 source_nodes, follow_filters, depth, **PILOT_CAPS
@@ -159,6 +197,8 @@ class GraphNavHandler(CommandHandler):
                 iter(pilot),
                 contract=pilot_contract,
             )
+            pilot_sample_size = len(pilot)
+            pilot_empty = not pilot
             # The pilot-driven adaptive reduction that stood here is DELETED.
             # It fired on exactly two paths and neither was salvageable by
             # retuning:
@@ -182,21 +222,47 @@ class GraphNavHandler(CommandHandler):
             # the typed fallback marker was going to have to police.
 
         # The seed budget is the adapter's declared work bound now, not a
-        # literal here. None means expand every seed.
-        walked_data, walk_completeness = self.walk_binding.walk(
-            source_nodes,
-            follow_filters,
-            depth,
-            source_cap=self.adapter.capabilities.walk_seed_budget,
+        # literal at the call site. None means expand every seed.
+        return {
+            "status": "ok",
+            "source_nodes": source_nodes,
+            "follow_filters": follow_filters,
+            "depth": depth,
+            "result_var": result_var,
+            "from_var": from_var,
+            "pilot_refinement": pilot_refinement,
+            "pilot_sample_size": pilot_sample_size,
+            "pilot_empty": pilot_empty,
+            "source_cap": self.adapter.capabilities.walk_seed_budget,
             # NO MEASUREMENT JUSTIFIES EITHER NUMBER. Both are inline
             # constants carried forward, and both are now disclosed when they
             # fire rather than silently shortening the answer. `edge_cap=50` is
             # looser than the pilot's 15 but the same hub-suppressing shape:
             # p99 degree is 24-27, so it still binds at the tail.
-            max_nodes=10000,
-            edge_cap=50,
-        )
-        
+            "max_nodes": 10000,
+            "edge_cap": 50,
+        }
+
+    def finish_graphwalk(
+        self,
+        command: Command,
+        prep: dict,
+        walked_data: list,
+        walk_completeness: dict,
+    ) -> ExecutionResult:
+        """GRAPHWALK's post-walk half: contracts, storage, ExecutionResult.
+
+        Exactly the handler's previous second half. Standalone it runs
+        immediately after `walk()`; nested it runs in the query episode's
+        post-verdict `on_unit` hook, which the kernel guarantees fires before
+        the next command is pulled, so `last_walk_result`/`result_var` land
+        before the next command executes (G7).
+        """
+        result_var = prep["result_var"]
+        from_var = prep["from_var"]
+        depth = prep["depth"]
+        pilot_refinement = prep["pilot_refinement"]
+
         if result_var:
             walk_contract = make_contract(
                 payload_kind="walk_rows",
@@ -262,9 +328,9 @@ class GraphNavHandler(CommandHandler):
                 available=bool(pilot_refinement.get("refinement_available", True)),
                 trigger=(
                     pilot_refinement.get("refinement_unavailable_trigger", "")
-                    or (TRIGGER_EMPTY_PILOT if not pilot else "")
+                    or (TRIGGER_EMPTY_PILOT if prep["pilot_empty"] else "")
                 ),
-                sample_size=len(pilot),
+                sample_size=prep["pilot_sample_size"],
                 caps=PILOT_CAPS,
                 requested_depth=depth,
                 effective_depth=depth,

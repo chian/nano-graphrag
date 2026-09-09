@@ -104,6 +104,9 @@ class ColumnRef:
 class TableColumnSpec:
     name: str
     role: ColumnEvidenceRole = ColumnEvidenceRole.REPORTED
+    #: One semantic result field. Reported and best-guess representations of
+    #: the same value declare the same slot while remaining separate columns.
+    value_slot: str = ""
     nullable: bool = True
     description: str = ""
     aliases: tuple[str, ...] = ()
@@ -120,12 +123,27 @@ class TableColumnSpec:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "role", ColumnEvidenceRole.coerce(self.role))
+        object.__setattr__(
+            self,
+            "value_slot",
+            str(self.value_slot or self.name).strip() or self.name,
+        )
+        if (
+            self.role is ColumnEvidenceRole.BEST_GUESS
+            and self.value_type not in {"number", "integer"}
+        ):
+            raise ValueError(
+                f"best-guess column {self.name!r} must declare value_type "
+                f"number or integer, got {self.value_type!r}"
+            )
 
     def to_dict(self) -> dict[str, Any]:
         out: dict[str, Any] = {
             "role": self.role.value,
             "nullable": self.nullable,
         }
+        if self.value_slot != self.name:
+            out["value_slot"] = self.value_slot
         if self.description:
             out["description"] = self.description
         if self.aliases:
@@ -193,6 +211,7 @@ class TableTargetSpec:
                 columns[name] = TableColumnSpec(
                     name=column.name,
                     role=column.role,
+                    value_slot=column.value_slot,
                     nullable=False,
                     description=column.description,
                     aliases=column.aliases,
@@ -223,9 +242,6 @@ class TableTargetSpec:
                 ],
             ),
         )
-
-    def completeness_columns(self) -> tuple[str, ...]:
-        return self.required_columns()
 
     def best_guess_columns(self) -> tuple[TableColumnSpec, ...]:
         return tuple(
@@ -395,13 +411,6 @@ class TableSpec:
             if table.deliverable and table.cold_start_anchors
         }
 
-    def completeness_columns_by_table(self) -> dict[str, list[str]]:
-        return {
-            name: list(table.completeness_columns())
-            for name, table in self.tables.items()
-            if table.deliverable
-        }
-
     def best_guess_columns_by_table(self) -> dict[str, list[str]]:
         return {
             name: [column.name for column in table.best_guess_columns()]
@@ -528,9 +537,13 @@ Rules:
   reported columns. When an evidence-anchored numeric best guess would be a
   distinct useful output, add a separate real column with role="best_guess";
   never replace or relabel the reported column.
+- Give every column a value_slot. Reported and best-guess columns representing
+  the same semantic value MUST use the same value_slot. They are alternative
+  evidence routes to one completeness and rarefaction target, not two targets.
 - A best-guess column must have value_type="number" or "integer". It remains
   nullable=false when the question requires that estimate, so unsupported
-  guesses remain missing rather than being fabricated.
+  guesses remain missing rather than being fabricated. Never declare a
+  best-guess date, year, text, category, or range column.
 - value_type must be one of: number, integer, range, date, year, category, text.
   Use an empty unit when values may legitimately carry different units or
   scales; otherwise state the unit.
@@ -553,6 +566,7 @@ Return exactly this JSON shape:
       "columns": {{
         "column_name": {{
           "role": "reported or best_guess",
+          "value_slot": "shared semantic field name",
           "nullable": false,
           "description": "what belongs here",
           "aliases": ["source wording"],
@@ -586,6 +600,22 @@ Return exactly this JSON shape:
         if table.deliverable and not table.subject_key_columns:
             raise ValueError(
                 f"synthesized table {table.name!r} declares no subject_key_columns"
+            )
+        reported_slots = {
+            column.value_slot
+            for column in table.all_columns()
+            if column.role is ColumnEvidenceRole.REPORTED
+        }
+        orphan_best_guesses = sorted(
+            column.name
+            for column in table.best_guess_columns()
+            if column.value_slot not in reported_slots
+        )
+        if orphan_best_guesses:
+            raise ValueError(
+                f"synthesized table {table.name!r} has best-guess columns "
+                "without a reported column in the same value_slot: "
+                + ", ".join(orphan_best_guesses)
             )
     return spec
 
@@ -1201,6 +1231,7 @@ def _coerce_column(fallback_name: Any, raw: Any) -> TableColumnSpec | None:
     return TableColumnSpec(
         name=name,
         role=ColumnEvidenceRole.coerce(raw.get("role")),
+        value_slot=str(raw.get("value_slot") or name).strip(),
         nullable=not bool(raw.get("required", False))
         if "nullable" not in raw
         else bool(raw.get("nullable")),

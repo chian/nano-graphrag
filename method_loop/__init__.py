@@ -2,15 +2,10 @@
 
 ``Episode`` owns the method loop and tree. Surfaces compose sources, leaves,
 acceptance projections, numerical control, and post-verdict hooks around it.
-Rarefaction is one estimator component consumed by the method runtime.
+The method runtime routes observations to one opaque estimator-controller
+component owned by ``rarefaction``.
 """
 
-from .controller import (
-    CONTROLLER_VERSION,
-    ControllerConfig,
-    ControllerVerdict,
-    NumericalController,
-)
 from .runtime import Path, Scope, ScopedYield
 from .identities import (
     IDENTITY_VERSION,
@@ -39,6 +34,7 @@ from .episode import (
     EpochMutation,
     Grain,
     Leaf,
+    ResumeUnit,
     SourceEnd,
     UnitRecord,
     UnitSource,
@@ -46,10 +42,6 @@ from .episode import (
 )
 
 __all__ = [
-    "CONTROLLER_VERSION",
-    "ControllerConfig",
-    "ControllerVerdict",
-    "NumericalController",
     "Path",
     "Scope",
     "ScopedYield",
@@ -77,6 +69,7 @@ __all__ = [
     "EpochMutation",
     "Grain",
     "Leaf",
+    "ResumeUnit",
     "SourceEnd",
     "UnitRecord",
     "UnitSource",

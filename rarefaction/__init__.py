@@ -1,27 +1,42 @@
-"""Incidence estimation for the generic acquisition method.
+"""Paired incidence estimation and numerical control.
 
-This package owns the estimator mathematics and its typed numeric output. It
-does not own the Episode loop, nesting, runtime identity, scope lifecycle,
-controller, memory, persistence, or any acquisition surface.
+This package owns estimator mathematics, its matching numerical controller,
+threshold state and the threshold-adaptation injection boundary. It does not
+own the Episode loop, nesting, runtime identity, scope lifecycle, memory,
+persistence, or any acquisition surface.
 """
 
-from .accumulator import (
+from .method import (
     CHANNEL_SCHEMA_VERSION,
     INCIDENCE_ESTIMATOR_VERSION,
     NUMERIC_BAND_VERSION,
     RAREFACTION_FORMULA_VERSION,
     REACHABLE_TOTAL_FORMULA_VERSION,
+    VOLUME_CREDIT_VERSION,
     STATUS_INSUFFICIENT,
     STATUS_NORMAL,
     STATUS_UNIDENTIFIABLE,
     UNCERTAINTY_CHEBYSHEV,
     UNCERTAINTY_EXACT,
+    UNCERTAINTY_LAPLACE,
     UNCERTAINTY_UNAVAILABLE,
     ChannelSchema,
     IncidenceEstimate,
     IncidenceEstimator,
     NumericBand,
     UnitYield,
+    CONTROLLER_VERSION,
+    ControlStep,
+    ControllerConfig,
+    ControllerVerdict,
+    VolumeCredit,
+    EstimatorController,
+    IncidenceReport,
+    NumericalController,
+    ThresholdAdapter,
+    OBSERVATION_EXCLUDED,
+    OBSERVATION_FAILED,
+    OBSERVATION_OBSERVED,
 )
 
 __all__ = [
@@ -31,14 +46,28 @@ __all__ = [
     "UNCERTAINTY_UNAVAILABLE",
     "UNCERTAINTY_EXACT",
     "UNCERTAINTY_CHEBYSHEV",
+    "UNCERTAINTY_LAPLACE",
     "NUMERIC_BAND_VERSION",
     "INCIDENCE_ESTIMATOR_VERSION",
     "RAREFACTION_FORMULA_VERSION",
     "REACHABLE_TOTAL_FORMULA_VERSION",
+    "VOLUME_CREDIT_VERSION",
     "CHANNEL_SCHEMA_VERSION",
     "ChannelSchema",
     "NumericBand",
     "UnitYield",
     "IncidenceEstimate",
     "IncidenceEstimator",
+    "CONTROLLER_VERSION",
+    "ControlStep",
+    "ControllerConfig",
+    "ControllerVerdict",
+    "VolumeCredit",
+    "EstimatorController",
+    "IncidenceReport",
+    "NumericalController",
+    "ThresholdAdapter",
+    "OBSERVATION_EXCLUDED",
+    "OBSERVATION_FAILED",
+    "OBSERVATION_OBSERVED",
 ]

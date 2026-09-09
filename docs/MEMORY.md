@@ -1,14 +1,15 @@
 # Completion, Evidence, and Replay Memory
 
-> **STATUS (amended 2026-08-28):** the sections below marked "Not in the tree"
+> **STATUS (amended 2026-09-06):** the sections below marked "Not in the tree"
 > describe the pruned `cd44ebb` snapshot, as before. Additionally, all
 > rarefaction and completion-estimation semantics in this file are superseded
 > where they conflict with `docs/ACQUISITION_LOOP.md`, which charters the
 > `Episode` method core with fixed `ChannelSchema` declarations and
 > `IncidenceEstimator` as the single owner of immutable incidence samples and
-> the generic role-based `IncidenceEstimate`. Bias-corrected incidence Chao2
-> internally fills the expected and remaining roles; verdicts remain arithmetic
-> and per-channel.
+> the generic role-based `IncidenceEstimate`. Per-column incidence remains
+> explicit, but the column vector is reduced to marginal hypervolume as the
+> sole method credit, and predicted future hypervolume credit is the
+> controller's sole stop statistic.
 >
 > **Round removal (2026-08-31):** the round concept is deleted from the live
 > tree. Wherever this file's historical sections speak of rounds, round
@@ -542,22 +543,18 @@ records whether that supersession was accepted or rejected.
 ## Acquisition Estimate and Search Memory
 
 The expected-result estimate is numerical method output, not a model-synthesized
-expectation. For each frozen `(scope_path, epoch, channel)`,
-`IncidenceEstimator`, configured by a frozen `ChannelSchema`, emits an
-`IncidenceEstimate` with the required numeric roles `observed_results`,
-`rarefied_results`, `expected_results`, and `remaining_results`, each with the
-band and status contract in `docs/ACQUISITION_LOOP.md`. It also emits exact
-`window_observed_results` and declared parameters needed for controller
-arithmetic. Extra estimator statistics use typed, versioned numeric
-diagnostics. The current controller derives `rarefaction_tail_yield` and may
-emit it as a typed, versioned controller diagnostic; it is not an
-`IncidenceEstimate` field. Bias-corrected incidence Chao2 internally fills the
-`expected_results` and `remaining_results` roles. The controller sees only
-typed estimate roles, never Chao-specific state. A future
-`IncidenceEstimator` version may replace that internal calculation while
-filling the same numeric bands under a new version and experiment; it cannot
-alter rolling rarefaction or emit the verdict. Models never author or revise
-any of those values.
+expectation. For each frozen `(scope_path, epoch, channel)`, the bound estimator
+emits an `IncidenceEstimate` with the required numeric roles
+`observed_results`, `expected_results`, and `remaining_results`, plus its typed
+control statistics and diagnostics. Every accepted stable identity is retained
+in its declared column. Those one-dimensional contributions construct the
+column vector; the paired numerical component normalizes each axis by that
+column's reachable-total estimate and derives marginal hypervolume. The
+hypervolume scalar is the only method credit. Its predicted next-unit upper
+band is the only stop statistic. Estimator versions may replace the internal
+calculation while filling the same numeric bands under a new version and
+experiment; they cannot emit the verdict. Models never author or revise any of
+those values.
 
 Search planning remains adaptive, but uses a different channel. After a unit's
 incidence sample, estimates, and arithmetic verdict are immutable, the
@@ -576,9 +573,11 @@ changed acquisition distribution is not silently mixed into one Chao2
 population.
 
 Semantic fulfillment and acquisition convergence remain distinct. An
-acquisition scope may end locally because all required channels meet their
-registered rarefaction and remaining-richness thresholds; only the root may
-call the whole acquisition run converged. A safety bound, provider failure,
+acquisition scope ends numerically when the predicted future marginal
+hypervolume upper band remains at or below its registered scalar threshold for
+the declared streak; only the root may call the whole acquisition run
+converged. Per-column remaining bands explain and label that outcome but do not
+form additional stop gates. A safety bound, provider failure,
 dependency failure, or exhausted frontier while criteria remain unresolved is
 typed incomplete, never fulfilled. Operational row counts, provider-result
 counts, and model prose cannot satisfy a goal.

@@ -41,6 +41,13 @@ def load_graph_from_nano_graphrag(working_dir: str):
         # Load the graph directly
         graph = nx.read_graphml(graph_file)
 
+        # Content digest of the exact bytes loaded, computed ONCE at load, so
+        # every emitted query record can disclose which graph revision it read
+        # (phase G §8). Disclosure only: nothing branches on it here.
+        import hashlib
+        with open(graph_file, "rb") as digest_handle:
+            graph_source_sha256 = hashlib.sha256(digest_handle.read()).hexdigest()
+
         # Auto-discover GraphML key mapping and apply it
         graph = _apply_graphml_key_mapping(graph, graph_file)
 
@@ -50,6 +57,8 @@ def load_graph_from_nano_graphrag(working_dir: str):
         # Wrap in versioned graph system
         versioned_graph = VersionedGraph(graph, working_dir)
         versioned_graph._graph_metadata = graph_metadata
+        versioned_graph._graph_source_path = graph_file
+        versioned_graph._graph_source_sha256 = graph_source_sha256
 
         return versioned_graph, "networkx"
         
@@ -217,6 +226,12 @@ def main():
         adapter = NetworkXAdapter(current_graph, graph_metadata=graph_metadata)
         # Store reference to versioned graph for updates
         adapter.versioned_graph = graph
+        # Graph identity disclosure (phase G §8): the path and content digest
+        # of the graphml this run reads, recorded beside the versioned-graph
+        # reference. The query binding reads these with getattr and records
+        # absence explicitly as "unavailable" — never silently missing.
+        adapter.graph_source_path = getattr(graph, "_graph_source_path", None)
+        adapter.graph_source_sha256 = getattr(graph, "_graph_source_sha256", None)
         print(f"DEBUG: Adapter created successfully")
         
         # Create LLM

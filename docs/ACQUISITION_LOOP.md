@@ -1,11 +1,10 @@
 # The Acquisition Control Loop
 
-Status: **amended 2026-08-28; incidence migration in progress.** The 4A--4E
-build established the composed `Episode` method. The current method uses
-incidence samples, exact rolling rarefaction, a generic role-based
-`IncidenceEstimate`, bias-corrected incidence Chao2 as the current
-reachable-total estimator, and a versioned numerical controller. Build and
-live-verification state are tracked in `docs/CONTROL_LAYER_BUILD.md`.
+Status: **amended 2026-09-06; failure-aware estimator-controller replacement
+implemented as an unvalidated draft.** The composed `Episode` method is
+established. One opaque estimator-controller implementation owns estimation,
+threshold state, and the resulting verdict. Review and validation state are
+tracked in `docs/NEXT_STEP.md`.
 
 This is the governing design for the acquisition span — everything between
 "what should we try next" and "did that produce a datapoint we were aiming
@@ -20,8 +19,9 @@ Build phases and owners are tracked in `docs/CONTROL_LAYER_BUILD.md` (the
 
 Control of acquisition is one span:
 
-> feature decision → search strategy → what counts as a value → extract →
-> count over time → a rarefaction signal **in numbers** decides
+> feature decision → search strategy → extract → accept evidence →
+> write typed result state → assign credit once → count over time →
+> a rarefaction signal **in numbers** decides
 > continue / stop / switch.
 
 That span is a **closed loop, and the loop is a first-class modular
@@ -34,12 +34,17 @@ nothing needs to pre-narrow a search to control cost.
 ```
 THE ACQUISITION EPISODE (one generic Episode, instantiated at every surface):
 
-   strategy ──► unit source ──► unit ──► extract ──► credit against
-   (what to     (search hits /          (values)     declared targets
-    try next)    walk frontier)                           │
-      ▲             ▲                                     ▼
-      │             │                            incidence samples by channel:
-      │             │                            Q1, Q2, rarefaction, Chao2 —
+   strategy ──► unit source ──► unit ──► extract ──► accept evidence
+   (what to     (search hits /          (values)              │
+    try next)    walk frontier)                               ▼
+      ▲             ▲                         typed result state
+      │             │                                  │
+      │             │                                  ▼
+      │             │                         ONE credit assignment
+      │             │                                  │
+      │             │                                  ▼
+      │             │                          numerical control component:
+      │             │                          estimate → threshold → verdict
       │             │                            NUMBERS, measured only
       │             │                                     │
       └──── switch ─┴──── continue / stop ◄─── verdict ───┘
@@ -52,16 +57,49 @@ THE ACQUISITION EPISODE (one generic Episode, instantiated at every surface):
 Concretely, on the provider surface: one Firecrawl search may batch many
 results, but **each returned item is processed one at a time**. Fetch and judge
 one item, extract from its chunks, persist and accept any evidence-backed
-criterion assertions, project those accepted stable identities into channel
-incidence, then update the rolling rarefaction and Chao2 numbers before pulling
+criterion assertions, write the accepted values into the typed result state,
+and assign credit from that resulting state. The same stable assignment
+identities enter channel incidence, then the bound estimator-controller
+transition runs before pulling
 the next buffered item. Provider batching is an acquisition optimization; it
 is never a processing count or stop rule. The per-search verdict decides
 whether to keep consuming that result list; the per-strategy verdict decides
 whether that strategy family is locally saturated; and the run verdict decides
-whether the whole declared scope has converged. Graph enrichment happens as a
-post-verdict side effect and never as a precondition of crediting. On the GASL
-surface, each walk unit reports incidence the same way, and the walk quits on
-the numerical verdict, not on a fixed unit cap.
+whether the whole declared scope has converged. Acquisition never mutates a
+graph. A completed run may emit a separately reviewable graph-addition proposal
+for a later explicit merge. On the GASL surface, each walk unit reports
+incidence the same way, and the walk quits on the numerical verdict, not on a
+fixed unit cap.
+
+## Credit has one owner
+
+Evidence acceptance establishes that a value has a valid source chain; it does
+not itself earn method credit. The accepted value is first written into the
+binding's typed result state. The bound projector then emits the stable
+one-dimensional identities that the resulting state actually contains,
+separated by column. Those identities feed incidence and parent fan-up. The
+paired numerical component is the one owner that assigns method credit from
+the resulting vector. Learning and reward/cost reports consume that recorded
+credit; they do not assign another one.
+
+For table-fill bindings the result state is the declared table. Therefore an
+accepted registry cell that was not materialized in that table cannot enter a
+table-fill incidence sample. Reported and best-guess alternatives share their
+declared logical value-slot identity. Reappearance of that identity in another
+eligible unit remains recurrence for incidence estimation; it is not a second
+distinct finding.
+
+The accepted identities are one-dimensional contributions, separated by
+declared result column. The numerical component retains that complete vector,
+normalizes every axis by its own reachable-total estimate, and reduces the
+vector to marginal dominated hypervolume. That scalar is the method's **only
+credit**. It is recorded for learning and routing, and its predicted value for
+the next unit is the controller's sole stop statistic. Per-column incidence and
+uncertainty remain visible because they explain the scalar and identify where
+future search should concentrate; they are not parallel credits or parallel
+stop rules. If any required normalization is unavailable, the hypervolume
+credit carries numeric insufficient-information status rather than selecting a
+fallback scale.
 
 ## Decisions are numerical; LLMs are string experts
 
@@ -108,10 +146,10 @@ one completed inner loop. The two landed surfaces, as instances:
 
 | Grain | Unit that advances the count | Credit | What "stop" means |
 | --- | --- | --- | --- |
-| Inside one provider search | one fetched page or document | non-trivial values credited to declared columns, and rows completed | stop consuming that result list |
+| Inside one provider search | one fetched page or document | accepted typed logical value-slot identities | stop consuming that result list |
 | Inside one seed expansion (GASL surface) | one depth step (hop level) | node encounters at that depth | stop deepening from that seed (today: runs to its caps, disclosed) |
 | Inside one GASL walk | one seed expansion (a completed seed loop) | that seed's node encounters | quit the walk |
-| Inside one GASL query | one completed walk | that walk's encounters | stop walking for that query |
+| Inside one GASL query | one completed GASL operation track — a graph-reading operation: a GRAPHWALK as a completed walk episode, or a FIND / SUBGRAPH / GRAPHCONNECT / GRAPHPATTERN leaf; pure state transforms ride inside the source and are never units | the distinct opaque node identities that operation encountered, each once | stop executing further operations for that query |
 | Search arc / strategy (above both surfaces) | one completed search query or walk — each mutated query nested below is one unit | the identities that search contributed | abandon the arc; move to an untried, semantically distant strategy — a big mutation, a new idea |
 
 A grain not in this table gets its row by the same derivation, and a
@@ -119,22 +157,56 @@ surface that cannot name its unit and its credit has not bound to the loop.
 
 ## The statistical contract
 
-The method is incidence-based. For one exact `(scope_path, epoch, channel)`,
-one eligible loop unit contributes an immutable **set** of accepted stable
-identities. Repeats inside that unit collapse to one incidence. The same
-identity in a later unit is a recurrence: it does not increase observed
-richness, but it does increase that identity's incidence frequency and changes
-`Q1`, `Q2`, rarefaction, and Chao2.
+The numerical method is incidence-based. For one exact
+`(scope_path, epoch, channel)`, one observed loop unit contributes an immutable
+**set** of accepted stable identities. Repeats inside that unit collapse to
+one incidence. The same identity in a later unit is a recurrence: it does not
+increase observed richness, but it remains part of the estimator's recurrence
+history.
+
+Every attempted unit reaches the numerical component with a typed observation
+status. `observed` means acquisition and evaluation completed; its identity set
+may contain new findings, repeats, or nothing. `failed` means the attempt did
+not produce an evaluable observation and must remain visible to failure-aware
+estimation. `excluded` means the unit was invalidated and does not enter the
+estimator. Failure is never silently converted into successful zero yield.
 
 The channel schema is frozen for an estimator epoch and contains no task
-vocabulary. A question binding declares ordinary criterion-ID channels for
-each real result column, a completed-row-ID channel, and, where declared,
-separate accepted `BestGuessCell` channels. The Episode method core derives
-the overall ordinary-criterion union; an application cannot submit a pooled
-channel that hides a weak required column. Required channels are conjoined by
-the controller and are never averaged or summed.
+vocabulary. A question binding declares one channel for each logical result
+slot. A reported column and its best-guess alternative occupy that same slot;
+they are evidence routes, not separate incidence dimensions. Row completion is
+a diagnostic projection of those slots and is not a channel. The Episode
+method core derives the overall logical-slot union; an application cannot
+submit a pooled channel that hides a weak required slot. Required channels are
+conjoined by the controller and are never averaged or summed.
 
-### Rolling exact rarefaction
+### Active enclosed estimator arithmetic
+
+The active paired component is the joint preferential new-incidence model
+specified in `docs/TABLE_FILL_POLICY_LEARNING_WHITEPAPER.tex` under "Active
+numerical amendment". For every channel, a successfully evaluated unit enters
+with its number of newly observed stable identities, including a real zero;
+repeated identities do not increase that count. A compute, provider, decoding,
+or evaluation failure enters the coupled observation process without inventing
+a zero yield. Excluded units enter neither process.
+
+The model emits `expected_next_discoveries` for every column. The paired
+component combines those bands with per-column observed and reachable richness
+to predict the next unit's marginal hypervolume credit. Its scalar upper bound
+is compared with one `gamma`; no column can independently stop the scope.
+`remaining_results` labels that stop as convergence or
+saturation/incompleteness; it is not a second stop gate. Every observed or
+failed attempt recomputes the numeric report, method credit, and verdict. The
+Episode sees only that generic transition.
+
+### V22 comparison estimator arithmetic
+
+The following rolling rarefaction and Chao2 calculations describe the V22
+comparison implementation. They remain here as the historical mathematical
+record; they are not the active estimator. The recorded V22 stream lacks the
+service-failure observations required to validate the active estimator.
+
+#### Rolling exact rarefaction
 
 Let the trailing window contain `W` eligible incidence samples and let `m`
 satisfy `W >= 2` and `1 <= m < W`. For identity `i`, let `y_i` be the number
@@ -183,7 +255,7 @@ controller derives `rarefaction_tail_yield=0` exactly. Before a full window
 exists, rarefaction is insufficient and any dependent diagnostic is likewise
 numeric status `-1`.
 
-### Reachable total: the fixed estimator role, currently Chao2
+#### Reachable total: V22 Chao2 implementation
 
 The reachable-total estimator uses **all eligible incidence samples in the
 current statistical epoch**, not only the rolling window. Let `T` be their
@@ -196,7 +268,7 @@ expected_hat   = D + unseen_hat
 remaining_hat  = max(0, expected_hat - D)
 ```
 
-The current implementation is bias-corrected incidence Chao2. It estimates
+The V22 implementation is bias-corrected incidence Chao2. It estimates
 richness reachable under
 the current scope, epoch, acquisition distribution, acceptance boundary, and
 channel—not a timeless global universe. `Q2=0` remains finite under the bias
@@ -216,29 +288,27 @@ Remaining bounds are derived exactly from the total bounds and `D`; they are
 not estimated independently. Its uncertainty behavior is part of the live
 experiment and changes only through a newly registered method version.
 
-`IncidenceEstimator` owns the calculation and exposes one role-based
-`IncidenceEstimate` per channel. Bias-corrected incidence Chao2 is the current
-versioned internal calculation filling the numeric `expected_results` and
-`remaining_results`
-roles. A future reachable-total calculation fills those same roles under a new
-estimator version and experiment while preserving the `IncidenceEstimate`
-contract.
+That historical estimator exposed the same role-based `IncidenceEstimate` per
+channel. The active preferential estimator fills `expected_results` and
+`remaining_results` under a new version while preserving the
+`IncidenceEstimate` contract.
 
-### Generic numeric estimate roles and special states
+### Method-facing numeric report
 
-The interface is role-based. Every channel `IncidenceEstimate` carries the
-same typed `NumericBand` shape and must fill these required roles:
+Every channel report carries the same typed `NumericBand` shape and fills
+these generic result roles:
 
 - `observed_results` — cumulative exact `D` in the epoch;
-- `rarefied_results` — exact `R_W(m)` for the current window;
-- `expected_results` — the active reachable-total estimator's estimate;
+- `expected_results` — the active estimator's reachable-result estimate;
 - `remaining_results` — derived `max(0, expected_results-observed_results)`;
 
-It also carries exact `window_observed_results=S_W`, `W`, `m`, incidence sample
-count, scope/epoch/channel identity, and method/component versions. Additional
-statistics use a generic typed numeric-diagnostic collection with stable names
-and formula versions; they do not enlarge the required estimator interface.
-The current controller records `rarefaction_tail_yield` there.
+The report also carries incidence sample count, scope/epoch/channel identity,
+and method/component versions. Estimator-specific control statistics and
+diagnostics use generic mappings of stable names to numeric bands or finite
+numbers. The active preferential implementation records fitted observation and
+discovery parameters, attempt counts, fit state, and
+`expected_next_discoveries` there. Those names do not enlarge the
+method-facing interface.
 
 Each band contains numeric `value`, `lower`, `upper`, `status_code`,
 `uncertainty_code`, and `alpha`. Normal finite values use `status_code=0`.
@@ -249,41 +319,61 @@ The special codes are fixed:
   this method.
 
 For a coded band, `value=lower=upper=status_code`; `uncertainty_code=-1` and
-`alpha=-1`. Observed richness is never coded. A controller-derived tail yield
-is never `-2`.
-With `T<2`, total and remaining are `-1`. With `T>=2` and `D=0`, total and
-remaining are `-2`: an all-empty incidence history cannot distinguish an empty
-reachable universe from one the active distribution has not found. A normal
-band is finite and non-negative with `lower <= value <= upper`; no record may
-contain `null`, NaN, infinity, or prose in a numeric field. Boundary validation
-rejects malformed inputs rather than laundering them into another status.
+`alpha=-1`. Observed richness is never coded. A normal band is finite and
+non-negative with `lower <= value <= upper`; no record may contain `null`, NaN,
+infinity, or prose in a numeric field. Boundary validation rejects malformed
+inputs rather than laundering them into another status.
 
-### Current versioned arithmetic controller
+### Combined estimator-controller transition
 
-The controller is a versioned numerical component over an
-`IncidenceEstimate`.
-Every controller version declares the estimate roles and numeric thresholds it
-consumes, consumes the `rarefied_results` role, and emits its arithmetic and
-derived diagnostics for recomputation.
+The estimator and its numerical controller form one opaque component. For one
+unit, that component updates every channel estimator, produces one immutable
+numeric report, reduces its vector to realized and predicted marginal
+hypervolume, applies its injected threshold adapter, and calculates the verdict
+as one atomic transition. `Episode` cannot join estimator output to a
+separately constructed controller or interpret an estimator-specific control
+statistic.
 
-The current controller version derives tail yield from the rarefied role and
-window metadata. For each required channel `c`, configuration declares numeric thresholds
-`gamma_c` (tail yield), `rho_c` (remaining findings), and a positive integer
-streak length `K`. On each eligible observation:
+The threshold adapter receives the immutable report and current thresholds and
+returns the thresholds used by that transition. Its initial implementation is
+the identity operation: thresholds remain fixed. The hook exists so a later
+approved numerical adaptation rule can be supplied by composition without
+changing `Episode`. Returned thresholds are validated and recorded with the
+verdict.
+
+For required channels `C`, let `D_tc` be cumulative distinct accepted
+identities after unit `t`, `N_tc` the channel's current reachable-total
+estimate, and `g_(t+1)c` its expected new identities in the next attempted
+unit. The controller preserves the vector and computes
 
 ```
-flat_c = tail.status_code == 0 and tail.upper <= gamma_c
-done_c = flat_c
-         and remaining.status_code == 0
-         and remaining.upper <= rho_c
+p_tc       = min(1, D_tc / N_tc)
+p_next_c   = min(1, (D_tc + g_(t+1)c) / N_tc)
+expected_next_hypervolume_credit
+           = product_c(p_next_c) - product_c(p_tc)
 ```
 
-One epoch-scope controller owns `flat_streak` and `done_streak`; channels do
-not keep independent stop streaks. Any required `-1` resets both and continues.
-If not all required channels are flat, both reset and acquisition continues.
-If all are flat but any total is `-2` or any remaining upper bound exceeds its
-threshold, `flat_streak` advances and `done_streak` resets. If every channel is
-done, both advance.
+A zero estimated population with zero observations is a completed axis with
+coordinate one. A positive observation against a zero denominator is
+unidentifiable. The component propagates the numeric bands on `N` and `g` into
+a conservative numeric band on expected next hypervolume credit and records
+the per-axis inputs beside it.
+
+Configuration declares one numeric `gamma` for expected next hypervolume
+credit, per-column `rho_c` values used only to label a stopped scope's remaining
+state, and a positive integer streak length `K`. On each eligible observation:
+
+```
+flat = expected_next_hypervolume_credit.status_code == 0
+       and expected_next_hypervolume_credit.upper <= gamma
+done_c = remaining_c.status_code == 0
+         and remaining_c.upper <= rho_c
+```
+
+One epoch-scope controller owns `flat_streak` and `done_streak`. An unavailable
+hypervolume band resets both and continues. A non-flat scalar resets both and
+continues. A flat scalar advances `flat_streak`; it advances `done_streak` only
+when every required column is also labelled done.
 
 At `done_streak >= K`, a non-root episode returns local convergence to its
 parent and a root episode records whole-scope convergence. At
@@ -326,9 +416,9 @@ Grain                                    # one level of the loop, declared once
   unit    : str            # one sentence: what one unit IS at this grain
   credit  : str            # one sentence: what one credit IS at this grain
   channels: ChannelSchema  # fixed, versioned channel declarations
-  control : NumericalControllerConfig
-                           # version, declared input roles, numeric thresholds;
-                           # never a surface stop callback
+  control : EstimatorControllerConfig
+                           # paired numerical implementation, initial
+                           # thresholds, and injected threshold adapter
 
 Episode[Unit, Extracted]                 # one instance of one grain
   grain   : Grain
@@ -361,15 +451,14 @@ Episode[Unit, Extracted]                 # one instance of one grain
         if unit is None:                  end = exhausted;  break
         if unit is a SourceEnd:           end = unit.kind;  break   # rule 6
         contribution = unit.acquire(ctx)  # ONE path: a Leaf runs extract then
-                                          #   credit; an Episode runs the inner
+                                          #   projects accepted column identities;
+                                          #   an Episode runs the inner
                                           #   loop and carries its own record
-        sample = incidence.sample(        # core-owned within-unit dedupe,
-            grain.channels, contribution # channel union and eligibility
+        observation = incidence.observe(  # core-owned within-unit dedupe,
+            grain.channels, contribution # channel union and typed status
         )
-        unit_yield = scoped.observe(scope, epoch, sample)
-        curve = scoped.curve(scope)
-        verdict = numerical_controller.evaluate(curve)
-        record = UnitRecord(unit, contribution, unit_yield, curve, verdict)
+        control_step = scoped.advance(scope, epoch, observation)
+        record = UnitRecord(unit, contribution, control_step)
         on_unit(unit, contribution, record)  # post-verdict publication only
         if verdict.ends_episode:          end = verdict.end_reason; break
     return EpisodeRecord(grain, key, epoch_records, units, end, estimates, verdict)
@@ -379,24 +468,19 @@ Episode[Unit, Extracted]                 # one instance of one grain
 
 Fixed in the Episode method core: the step order; safety is checked before a
 unit is pulled; accepted identities are deduplicated into incidence by the
-core; `IncidenceEstimator` emits its complete role-based `IncidenceEstimate`
-after every eligible unit; the arithmetic verdict is evaluated before a hook
-can observe the record; epoch
+core; the bound estimator-controller component returns one internally
+consistent control step after every unit; the arithmetic verdict is evaluated
+before a hook can observe the record; epoch
 transitions and streaks have one owner; and a child episode is one unit of its
 parent. Records nest as episodes do. The method core calls no model and does no
 I/O — whether an injected `extract` fetches a page is invisible to it.
 
 Bound at the method level: `source`, `extract`, the deterministic acceptance
 projection, the post-verdict observation hook, explicit safety boundary,
-incidence estimator, numerical controller, fixed channel declarations, and
-numeric thresholds. The current estimator binding is incidence rarefaction
-plus bias-corrected incidence Chao2 and fills the stable `IncidenceEstimate`
-roles. A replacement estimator fills those same roles under a new registered
-experiment. The numerical controller can also be versioned, but must
-declare and consume the required rarefaction role and emit recomputable
-arithmetic rather than becoming an arbitrary stop function. Python code remains editable, but this class makes the
-correct method the obvious path and makes an alternative stop rule require a
-visible rewrite rather than a harmless-looking configuration change.
+fixed channel declarations, and one estimator-controller component. The
+component owns its estimator-specific statistics, threshold state and
+arithmetic. Composition may supply a validated numerical threshold adapter;
+it cannot replace the Episode loop.
 
 Fixed in `Episode`: order of operations, eligibility handling, identity,
 nesting, fan-up, record shape, and epoch lifecycle. Rarefaction is one attached
@@ -406,7 +490,9 @@ numerical component. It never owns the method that calls it.
 
 A parent observes the eligible child's **distinct accepted identities by
 channel**, each once. It does not receive the child's encounter multiplicity
-or a precomputed scalar. At the parent, an identity's incidence frequency is
+or child-scale hypervolume. The parent updates its own per-column vector and
+recomputes marginal hypervolume on its own reachable-total scale. At the
+parent, an identity's incidence frequency is
 the number of eligible children that contributed it: at the strategy grain,
 `Q1` means identities found by exactly one completed search and `Q2` means
 identities found by exactly two. Each grain deduplicates its own unit, so an
@@ -444,13 +530,16 @@ changes eligibility, rewrites the current sample, or changes the current
 verdict. The separation is deliberate:
 
 ```
-accepted identities -> incidence -> estimates -> arithmetic verdict
-                                                  |
-                                                  v
-                              post-verdict typed learning observation
-                                                  |
-                                                  v
-                                    future source/query proposal only
+accepted identities by column -> incidence vectors -> hypervolume credit
+                                                        |
+                                                        v
+                                       arithmetic scalar verdict
+                                                        |
+                                                        v
+                         post-verdict credit + vector learning observation
+                                                        |
+                                                        v
+                                      future source/query proposal only
 ```
 
 ### Credits — the what-counts rule
@@ -465,8 +554,9 @@ Required order:
 ```
 persist source/version/chunk/span anchor and assertion
   -> validate direct or derived acceptance
-  -> accept the real table cell
-  -> emit the stable accepted identity into its declared channel
+  -> materialize the accepted real table cell in typed storage
+  -> project typed storage into canonical logical slots
+  -> emit each stable logical-slot identity into its one declared channel
 ```
 
 Every accepted credit therefore carries at least the stable criterion ID,
@@ -475,29 +565,28 @@ version ID, chunk/span locator, supporting-text hash/reference, and acceptance
 rule version. A graph edge, `source_ref`, populated value, candidate, or model
 claim cannot substitute for this chain.
 
-Three credit kinds are accumulated separately:
+One typed contribution form constructs the estimator vector: a stable subject
+occupying one declared logical result slot in accepted typed storage. Reported
+and best-guess columns that share a `value_slot` map to the same identity and
+the same channel, so filling both never doubles incidence. Direct evidence is
+preferred for presentation when both routes exist. The physical route remains
+visible as metadata, including the full anchored derivation for a best guess.
 
-1. **Ordinary per-column criterion credits.** Each declared real result column
-   has its own channel. The identity is the accepted stable criterion ID, not
-   `table|column|normalized value`; changing an extracted spelling does not
-   mint a new finding. The method core also derives an overall union of these
-   ordinary channels for reporting, never as a replacement for their separate
-   verdicts.
-2. **Row-completeness credits.** A separate channel receives the stable row or
-   subject identity once when every required real column has an accepted cell.
-   Re-finding that row does not mint it again. A row can include an anchored
-   accepted best guess where its contract allows one, but the record must
-   disclose which cells were direct and which were derived.
-3. **Best-guess credits.** Best guessing is a mandatory real-column mechanism,
-   not optional metadata. For each enabled real column, an accepted
-   `BestGuessCell.id` enters a separate best-guess channel, while the accepted
-   criterion ID also enters that column's ordinary channel and the overall
-   union. Candidate generation alone earns nothing. Acceptance requires an
-   acyclic derivation terminating in persisted direct assertions: named and
-   versioned rule, exact input assertion IDs, typed inputs and output, unit,
-   deterministic recomputation, and source/span traceability. A model may
-   extract a relation or propose a derivation string; deterministic code
-   performs the numerical transformation.
+The same canonical projection determines whether a subject occupies every
+required logical slot. That row-complete flag is export and learning context,
+not another identity, channel, credit, or stop input. Evidence acceptance does
+not compute it, and an exporter does not reconstruct it from physical columns.
+
+The method credit is then derived once:
+
+```
+accepted typed contributions by column
+  -> unique identity sets by column
+  -> cumulative per-column richness and estimator bands
+  -> normalized column vector
+  -> marginal hypervolume
+  -> one scalar method credit and one scalar controller statistic
+```
 
 The mapping from an extracted field to a declared column is contract data:
 declared names, aliases, types, units, and criterion IDs. Any fallback matcher
@@ -520,7 +609,7 @@ extended there — never by a second meter.
 | Surface | Composition (outer ⊃ inner) | The unit at each grain |
 | --- | --- | --- |
 | Provider (re-bound in 4E-c) | run ⊃ strategy ⊃ search ⊃ page | a proposed strategy Episode ⊃ a search Episode ⊃ one fetched page or document |
-| GASL walk (4B, one grain bound) | query ⊃ walk ⊃ seed | a walk Episode ⊃ one seed expansion; the depth steps inside a seed run to their disclosed caps (4E-b registers whether a depth-step verdict would have changed anything, and binds it if so) |
+| GASL (4B walk grain; Phase G query grain) | query ⊃ walk ⊃ seed | an operation-track unit — a walk Episode ⊃ one seed expansion for GRAPHWALK, a graph-reading Leaf otherwise; the depth steps inside a seed run to their disclosed caps (4E-b registers whether a depth-step verdict would have changed anything, and binds it if so) |
 
 A search returns pages, so the page is the provider surface's natural unit;
 chunks are how a page is fed to extraction, not a grain. The strategy grain
@@ -563,18 +652,11 @@ semantics.
 
 ### Current migration sequence
 
-The historical 4A--4E sequence established the Episode composition and is
-complete as structural evidence. The current sequence is deliberately atomic
-at the live boundary:
-
-1. land the generic incidence sample and estimator records with no controller,
-   Episode wiring, or second live path;
-2. replace the current estimator/controller inputs to `Episode` with that
-   estimator and the numerical controller in the same phase;
-3. bind evidence-first accepted identities and the frozen per-column channel
-   schema;
-4. verify the complete composition with a registered live Firecrawl plus LLM
-   run that continues until the numerical verdict ends it.
+First place the current estimator and controller behind one rarefaction-owned
+control transition without changing their arithmetic. After that structural
+gate passes, replace the paired numerical implementation, update the bindings'
+observation input, and verify the complete composition in a live Firecrawl
+plus LLM run.
 
 ## Why this is a rebuild, not an insertion
 
@@ -614,17 +696,16 @@ Three structural facts made insertion impossible and mandated the rebuild:
 no model calls. A surface composes its source, extraction, acceptance,
 post-verdict learning, persistence, and safety bindings around `Episode`.
 
-`rarefaction/` owns only incidence-estimator mathematics and its typed numeric
-contract. It does not own Episode identity, scope lifecycle, nesting, control,
-memory, persistence, or a surface. This is not a restoration of the pruned
-`cd44ebb` `question_pipeline/rarefaction.py`.
+`rarefaction/` owns the paired incidence estimator, its matching numerical
+controller, threshold state and adaptation hook, and their typed numeric
+contract. It does not own Episode identity, scope lifecycle, nesting, memory,
+persistence, or a surface.
 
 | Module | Owns |
 | --- | --- |
-| `method_loop/episode.py` | The single composable loop: safety check → pull one unit → extract → accept → construct incidence sample → estimate → arithmetic verdict → publish post-verdict observation. It owns Episode/unit identities, nesting, fan-up, and records |
-| `method_loop/runtime.py` | Path/epoch state that attaches the estimator and controller to each Episode scope |
-| `method_loop/controller.py` | The versioned numerical controller over the estimator's stable `IncidenceEstimate` roles |
-| `rarefaction/accumulator.py` | `IncidenceEstimator`: immutable per-unit incidence sets, within-unit deduplication, `T`, `D`, `Q1`, `Q2`, exact rolling rarefaction and pairwise uncertainty, and the current bias-corrected incidence Chao2 reachable-total estimate |
+| `method_loop/episode.py` | The single composable loop: safety check → pull one unit → extract → accept → invoke one numerical control transition → publish the post-verdict observation. It owns Episode/unit identities, nesting, fan-up, and records |
+| `method_loop/runtime.py` | Path/epoch routing that attaches one opaque numerical component to each Episode scope |
+| `rarefaction/method.py` | The paired estimator-controller transition, generic numeric report, current fixed-threshold adapter, and estimator-specific arithmetic |
 
 `stop_rule.py` is removed when the upgraded `accumulator.py` and
 `controller.py` are wired. `Episode` is the sole owner of the composed loop

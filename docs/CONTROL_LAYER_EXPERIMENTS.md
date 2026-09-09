@@ -2,53 +2,55 @@
 
 What counts as evidence in this build, and how each phase earns it.
 
-> **Acquisition-method amendment — 2026-08-28.** Historical 4A--4E runs below
+> **Acquisition-method amendment — 2026-09-06.** Historical 4A--4E runs below
 > supply evidence about Episode composition, nesting, one-unit processing,
 > and typed end reasons. `docs/ACQUISITION_LOOP.md` defines the current
 > estimator contract. The next acquisition registration is §4G: real
 > Firecrawl search results, real LLM extraction, evidence-first
-> acceptance, fixed `ChannelSchema` declarations, per-channel incidence, the
-> generic role-based `IncidenceEstimate` produced by `IncidenceEstimator`,
-> bias-corrected incidence Chao2 internally filling the expected and remaining
-> roles, and the numerical controller.
+> acceptance, fixed `ChannelSchema` declarations, per-column incidence, the
+> generic role-based `IncidenceEstimate` produced by `IncidenceEstimator`, and
+> the paired numerical controller. The column vector is reduced to marginal
+> hypervolume as the sole method credit; predicted future hypervolume credit is
+> the controller's sole stop statistic.
 
 ## 4G — incidence estimator and composed stopping method
 
-4G-a replaces the existing `YieldAccumulator` and `YieldCurve` behind the
-current `ScopedYield.observe()` boundary with `ChannelSchema`,
-`IncidenceEstimator`, and `IncidenceEstimate`. `Episode`, child fan-up, and
-nested records remain unchanged. 4G-b wires the numerical controller to that
-estimate and then runs the registered live experiment.
+4G-a established `ChannelSchema`, `IncidenceEstimator`, and
+`IncidenceEstimate` behind the Episode boundary. `Episode`, child fan-up, and
+nested records remain unchanged. 4G-b binds the current paired
+estimator-controller implementation, reduces its column vector to one
+hypervolume credit, and then runs the registered live experiment.
 
 The registration must freeze, before the first provider call:
 
 - the question, committed table schema, fixed channel declarations, evidence
-  acceptance version, stable identity projection, epoch rule, rolling `W` and
-  `m`, `alpha`, per-channel `gamma_c` and `rho_c`, streak length `K`, and any
+  acceptance version, stable identity projection, epoch rule, estimator
+  parameters, `alpha`, scalar hypervolume threshold `gamma`, per-channel
+  remaining-state labels `rho_c`, streak length `K`, and any
   explicit run-wide safety boundary;
 - the Firecrawl request shape, including its provider batch size, while
   predicting that buffered results are processed one by one and that no
   provider batch count acts as a stop rule;
 - exact artifact paths for source/version/span evidence, accepted assertion
-  IDs, per-unit incidence sets, `T/D/Q1/Q2`, rarefaction bands, Chao2 bands,
-  controller predicates, streaks, epoch transitions, nested child records,
-  and post-verdict learning observations;
+  IDs, per-unit incidence sets by column, observed/failed/excluded status,
+  estimator bands and diagnostics, normalized vectors, realized and predicted
+  marginal hypervolume, controller predicates, streaks, epoch transitions,
+  nested child records, and post-verdict learning observations;
 - independent checks that duplicate findings inside a page do not increase
   its incidence, recurrence across eligible pages changes incidence frequency
   without increasing observed richness, and an eligible child contributes its
   distinct accepted IDs once to its parent;
-- a two-sided prediction for each required channel: whether its trailing
-  rarefaction upper bound and Chao2 remaining upper bound should cross their
-  registered thresholds sooner, later, or not at all relative to another
-  channel, with no averaging across channels;
-- confirmation that the live decision path consists of accepted incidence,
-  typed estimate roles, declared numerical controller inputs and thresholds,
-  and recomputable arithmetic verdicts;
-- the falsifier that the controller reads Chao2 internals instead of typed
-  `IncidenceEstimate` roles, that a controller can decide without declaring and
-  consuming the required rarefied role, or that the internal Chao2 calculation
-  can emit a verdict, mutate incidence/epoch state, or replace rolling
-  rarefaction;
+- a two-sided prediction for the sole scalar decision path: how the predicted
+  next marginal-hypervolume upper band should move as the per-column vectors
+  accumulate, and when it should cross the registered scalar threshold;
+- confirmation that the live decision path consists of accepted identities by
+  column, typed estimate roles, the normalized vector, marginal hypervolume,
+  the declared scalar threshold, and a recomputable arithmetic verdict;
+- confirmation that learning receives the scalar hypervolume credit as its
+  success signal and retains the full column vector as explanatory context;
+- the falsifier that any per-column statistic bypasses the hypervolume
+  reduction to stop an Episode, that child hypervolume is summed at a parent,
+  or that the estimator can emit a verdict or mutate incidence/epoch state;
 - the falsifier that a bound-hit, failed, or dependency-unavailable child
   enters parent incidence, or that an accepted assertion lacks its exact
   source-version and text-span traceability.

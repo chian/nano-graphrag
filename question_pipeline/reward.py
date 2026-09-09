@@ -1,112 +1,10 @@
-"""Reward: real datapoints added, per unit cost.
+"""Read-only reward reporting over the pipeline's one credit assignment.
 
-This module replaced ``table_fill_v3``, a coverage scorer over table cells. The
-thing it scored -- distinct field/value pairs, cited source IDs, capped source
-repeats -- is **operational volume**. Every one of those numbers rises when the
-pipeline materializes more rows, accepts more sources, or re-extracts what it
-already had, whether or not anything was learned. A system optimized against it
-gets busier without getting better, and the failure is invisible because every
-number goes up.
-
-What replaces it counts direct datapoints whose complete durable assertion
-chain was accepted by the evidence registry.
-
-Accepted support arrives here as a :class:`~question_pipeline.criteria.
-CriterionTransition` produced by ``criteria.diff_snapshots``. This module does
-**not** define what a criterion or a transition is. ``criteria.py`` owns that,
-and 3B joins the same IDs; a second definition here would make the two
-incomparable while still producing numbers.
-
-What is never credited, at any weight
--------------------------------------
-
-Operational volume in every disguise, and the disguises are the point:
-
-* ``CRITERION_ADDED`` -- rows materialized, with an ID on it. It outnumbers
-  ``SUPPORT_GAINED`` by an order of magnitude on real runs.
-* ``EVIDENCE_CHANGED`` -- re-extraction churn. Values fold into the snapshot ID
-  and normalization only casefolds, so an extractor rephrasing "12 patients" as
-  "twelve patients" emits one. Rewording must not become yield.
-* ``BASIS_CHANGED`` -- on real runs every occurrence was
-  ``row_ref_unmatched -> row_ref_accepted``. The status did not move; a source
-  got accepted. Crediting it pays per accepted source times criterion fan-out.
-* ``CRITERION_REMOVED``, and any function of snapshot cardinality -- counts,
-  ratios, per-round deltas. Cardinality rises with traversal as a numerator and
-  falls with it as a denominator.
-* ``len(values)``, per-value counts, per-source counts.
-* ``basis_strength`` as a weight, summand, or average. See
-  :data:`~question_pipeline.criteria.BASIS_STRENGTH`: it is non-monotone in
-  trustworthiness and ``accepted_source_ids`` is optional, so a
-  strength-weighted reward is *raised by declining to verify*. It is used here
-  as nothing at all -- :data:`CREDITABLE_EVIDENCE_BASES` names the admissible
-  bases outright, so there is no threshold to slip.
-* ``ROW_REF_ACCEPTED`` and below as verified support. Blind re-derivation put it
-  at 0.450 against unresolved's 0.417 -- 0.033 of discrimination, inside noise --
-  and 22,461 ``row_ref_unmatched`` states sit one source-acceptance away from it
-  with no new data.
-* Producer self-verdicts (``completeness``, ``evidence_gap``) by any route.
-* Any table that is not a declared deliverable. The caller passes an allowlist
-  into the projection; see :func:`~question_pipeline.criteria.project_rows`.
-* Completion scope. It is a constraint and a state input. A run may be
-  scope-satisfied and still incomplete.
-
-There is no negative term
--------------------------
-
-Nothing here subtracts. The reason recorded here was that ``SUPPORT_LOST`` was
-observed zero times across every round pair of a real run and that the
-supported count is therefore monotone. **That is false and should not be
-repeated.** A recorded table-fill run reports ``support_lost: 734`` and
-``criterion_removed: 2874`` in a single round's ``uncredited_volume``; support
-is lost routinely, most visibly when a re-traversal re-keys a subject and the
-old criterion IDs cease to exist.
-
-What survives is the narrower claim: with no ``conflicting`` status, a
-criterion does not leave ``supported`` by being *discovered wrong*, so a loss
-here does not carry the meaning a penalty would need. Whether that warrants a
-negative term is a reward-design question owned by a phase, not something to
-settle in a comment. It is left open deliberately rather than closed by an
-argument that does not hold.
-
-Delayed credit
---------------
-
-Scoring runs once per completed strategy Episode, and a source accepted under
-one Episode may not yield a criterion until a later Episode's traversal --
-traversal and extraction lag ingest. Crediting only same-pass yield would
-discard that, and crediting any yield that touches any accepted source would
-credit re-traversal of sources the run has held all along, which is where
-nearly all of the raw ``SUPPORT_GAINED`` volume actually comes from.
-
-The rule that does neither is the **first-harvest credit window**, and it is
-identity-based rather than ordinal: a source is creditable from the moment
-this run durably accepts it until the first scoring pass in which it credits
-something, and it is retired after that. An acquisition is credited for one
-harvest, whenever that harvest lands. Membership in the run's accepted-source
-set is the acceptance side; ``harvested_source_ids`` is the retirement side;
-no round number or pass ordinal participates. The window and the set of
-already-credited criteria live in :class:`CreditLedger`, which the caller
-carries across scoring passes. Attribution back to the acquisition that bought
-a source goes through the source record's own ``search_episode_id``, joined by
-source ID -- Episode ancestry, never a round window.
-
-Cost
-----
-
-Costs are 1B's :class:`~question_pipeline.costs.CostRecord`, summed by the
-caller over the Episode being scored (cost records carry ``episode_id``).
-**Episode level is the finest granularity that is honest here.**
-``CriterionTransition`` carries no action, decision, or task ID. A
-source-attributable transition has an exact path through ``gained_source_ids``,
-but searches that returned nothing, traversal, extraction, and best-guess
-operators join only through the snapshot ID, which every action in the pass
-shares -- that is attribution by timing coincidence. Dividing one transition by
-one action's cost would produce a precise number about nothing.
-
-When no cost record exists -- every run recorded before cost accounting landed
--- the ratios are ``None`` and :attr:`RewardReport.cost_available` is false.
-They are not zero and they are not infinity: a run whose cost is unknown must
-not compare equal to a run that was free.
+Credit is assigned after accepted evidence is written into typed table state by
+``TableCreditAssigner`` in :mod:`question_pipeline.acquisition`.  This module
+does not decide what counts, project tables, or maintain a second credit
+ledger.  It only aggregates those immutable assignment records with measured
+costs for export.
 """
 
 from __future__ import annotations
@@ -117,68 +15,26 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
-from .criteria import (
-    CRITERIA_PROJECTION_VERSION,
-    BASIS_STRENGTH,
-    CriteriaSnapshot,
-    CriterionTransition,
-    EvidenceBasis,
-    TransitionKind,
-    diff_snapshots,
-)
+from .criteria import CRITERIA_PROJECTION_VERSION, EvidenceBasis
 
 
 __all__ = [
     "REWARD_VERSION",
     "REWARD_COMPONENT_COLUMNS",
-    "CREDITABLE_EVIDENCE_BASES",
-    "CREDITABLE_TRANSITION_KINDS",
     "DatapointKind",
     "CreditedDatapoint",
-    "CreditLedger",
     "CostVector",
     "RewardReport",
-    "score_criterion_yield",
+    "report_assigned_credit",
     "aggregate_cost",
     "load_seed_best_guess_rows",
     "merge_best_guess_rows",
 ]
 
 
-#: Bumped from ``table_fill_v3``.
-#:
-#: **What changed.** The unit of reward moved from a table cell to a criterion
-#: transition, and from coverage to yield. ``table_fill_v3`` scored six
-#: components -- new cell values, new source-backed cell values, new capped
-#: source-support units, new best-guess slots, new cited source IDs, and a
-#: saturation penalty -- each through a ``sqrt`` transform with a hand-set
-#: weight. Five of the six are operational volume; the sixth penalized volume,
-#: which is not the same as rewarding yield. ``criterion_yield_v1`` scores one
-#: thing: criteria that became supported on a field-scoped accepted basis
-#: because of a source the run had not yet harvested, divided by what the round
-#: paid.
-#:
-#: **What it means for historical traces.** Nothing scored under
-#: ``table_fill_v3`` is comparable to anything scored under this version, and
-#: the two must not be plotted on one axis or differenced. The old score is
-#: unbounded above and grows with row count; this one is a rate whose numerator
-#: is capped by the number of criteria that can ever exist. A rise from a
-#: ``table_fill_v3`` run to a ``criterion_yield_v1`` run is not an improvement,
-#: it is a unit change. Traces carry :data:`REWARD_VERSION` so the mismatch
-#: surfaces as a refused comparison rather than as a trend.
-#:
-#: This version also depends on the projection version, and **this comment no
-#: longer names it**. It named v2 while runs recorded v3, then named v3 while
-#: the code carried v4, and the code has since moved to v5. A version comment
-#: that lies is the exact instrument the versioning rule depends on, and the
-#: only fix that holds is to stop restating a value that lives somewhere else:
-#: :data:`~question_pipeline.criteria.CRITERIA_PROJECTION_VERSION` is the one
-#: place it is declared, and every trace stamps it. Criterion IDs differ between
-#: projection versions, so traces from two of them will not join at all -- read
-#: the version off the trace.
-#: ``criterion_yield_v2`` narrows the admissible evidence map to the live
-#: registry's ``RESOLVED_ASSERTION_CHAIN`` basis.
-REWARD_VERSION = "criterion_yield_v2"
+#: Reporting semantics changed when credit assignment moved to the post-table
+#: boundary. Historical reward versions are not directly comparable.
+REWARD_VERSION = "single_credit_report_v1"
 
 REWARD_COMPONENT_COLUMNS = [
     "component",
@@ -194,26 +50,12 @@ class DatapointKind(str, Enum):
 
     #: A source states the value, joined at field scope.
     VERBATIM = "verbatim"
-
-#: The only evidence bases a credited datapoint may rest on, named outright
-#: rather than derived from a strength threshold.
-#:
-#: Naming them is deliberate. A ``basis_strength >= 7`` predicate looks
-#: equivalent and is not: it couples credit to a ladder that is explicitly not
-#: an ordering of trustworthiness, so a later reordering, or a new member
-#: inserted at a convenient rung, would silently widen what counts as evidence.
-#: A set changes only when someone edits this line.
-CREDITABLE_EVIDENCE_BASES: Mapping[EvidenceBasis, DatapointKind] = {
-    EvidenceBasis.RESOLVED_ASSERTION_CHAIN: DatapointKind.VERBATIM,
-}
-
-#: The only transition kind that can carry credit. The other five are counters.
-CREDITABLE_TRANSITION_KINDS = frozenset({TransitionKind.SUPPORT_GAINED})
+    BEST_GUESS = "best_guess"
 
 
 @dataclass(frozen=True)
 class CreditedDatapoint:
-    """One real datapoint, joined to the transition that established it.
+    """One real datapoint copied from its authoritative assignment record.
 
     Every field here is an identifier or a closed vocabulary member. Nothing is
     a count, a timestamp, or free text: credit joins by ID, so an attribution
@@ -221,26 +63,21 @@ class CreditedDatapoint:
     when prose does.
     """
 
-    transition_id: str
+    assignment_id: str
     criterion_id: str
     kind: DatapointKind
     basis: EvidenceBasis
     table: str
     field: str
     subject_id: str
-    #: The sources whose first harvest this datapoint is. The exact ID path
-    #: from a datapoint back to the acquisition that bought it: each source
-    #: record carries its own ``search_episode_id``, so attribution to the
-    #: acquiring Episode is a join on these IDs, never a round window.
+    #: The accepted source carried by the authoritative assignment.
     crediting_source_ids: tuple[str, ...]
-    #: The Episode whose scoring pass observed the transition. Attribution of
-    #: the *acquisition* goes through ``crediting_source_ids``; this names
-    #: where the yield was realized.
+    #: The Episode in which the assignment was made.
     realized_episode_id: str
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "criteria_transition_id": self.transition_id,
+            "credit_assignment_id": self.assignment_id,
             "criterion_id": self.criterion_id,
             "datapoint_kind": self.kind.value,
             "evidence_basis": self.basis.value,
@@ -250,45 +87,6 @@ class CreditedDatapoint:
             "crediting_source_ids": list(self.crediting_source_ids),
             "realized_episode_id": self.realized_episode_id,
         }
-
-
-@dataclass(frozen=True)
-class CreditLedger:
-    """What credit has already been paid. Carried across scoring passes by the caller.
-
-    Two sets, both of IDs:
-
-    ``credited_criterion_ids`` -- a criterion is a datapoint once. Support is
-    monotone, so without this a criterion re-emitting ``SUPPORT_GAINED`` after a
-    re-projection would be paid for twice.
-
-    ``harvested_source_ids`` -- sources that have already credited something and
-    are retired from the credit window. This is what stops re-traversal of a
-    long-held paper from reading as new yield, and what lets a source whose
-    yield arrives three rounds late still be paid once.
-    """
-
-    credited_criterion_ids: frozenset[str] = frozenset()
-    harvested_source_ids: frozenset[str] = frozenset()
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "reward_version": REWARD_VERSION,
-            "credited_criterion_ids": sorted(self.credited_criterion_ids),
-            "harvested_source_ids": sorted(self.harvested_source_ids),
-        }
-
-    @classmethod
-    def from_dict(cls, payload: Mapping[str, Any] | None) -> "CreditLedger":
-        payload = payload or {}
-        return cls(
-            credited_criterion_ids=frozenset(
-                str(value) for value in payload.get("credited_criterion_ids") or ()
-            ),
-            harvested_source_ids=frozenset(
-                str(value) for value in payload.get("harvested_source_ids") or ()
-            ),
-        )
 
 
 @dataclass(frozen=True)
@@ -357,26 +155,18 @@ class CostVector:
 
 @dataclass(frozen=True)
 class RewardReport:
-    """One scoring pass's yield, its cost, and the ledger the next pass starts from."""
+    """One episode's already-assigned yield and measured cost."""
 
     reward_version: str
     criteria_projection_version: str
     #: The strategy Episode this scoring pass belongs to.
     episode_id: str
-    before_snapshot_id: str
-    after_snapshot_id: str
+    before_table_state_id: str
+    after_table_state_id: str
     datapoints: tuple[CreditedDatapoint, ...]
     cost: CostVector
-    ledger: CreditLedger
-    #: Volume observed and deliberately not scored, recorded so a reader can see
-    #: what the reward declined to pay for.
+    #: Assignment records that were recurrences rather than new table slots.
     uncredited: Mapping[str, int] = field(default_factory=dict)
-    #: The transitions behind every `uncredited` count, keyed by the same key.
-    #: A count says how many negative observations there were; this says WHICH,
-    #: so they can be joined to sources and criteria instead of re-run.
-    uncredited_instances: Mapping[str, tuple[Mapping[str, Any], ...]] = field(
-        default_factory=dict
-    )
 
     @property
     def datapoint_count(self) -> int:
@@ -429,8 +219,8 @@ class RewardReport:
                 "raw_value": self.datapoint_count,
                 "score": self.datapoint_count,
                 "interpretation": (
-                    "Criteria that became supported on a field-scoped accepted "
-                    "basis, on the first harvest of the source that carried them."
+                    "New logical value slots assigned after accepted evidence "
+                    "was materialized in typed table state."
                 ),
             }
         ]
@@ -452,8 +242,8 @@ class RewardReport:
                     "raw_value": count,
                     "score": 0,
                     "interpretation": (
-                        "Observed and deliberately not scored: operational "
-                        "volume, not a datapoint."
+                        "An authoritative assignment record that repeated a "
+                        "logical slot already present in typed table state."
                     ),
                 }
             )
@@ -464,8 +254,8 @@ class RewardReport:
             "reward_version": self.reward_version,
             "criteria_projection_version": self.criteria_projection_version,
             "episode_id": self.episode_id,
-            "before_criteria_snapshot_id": self.before_snapshot_id,
-            "after_criteria_snapshot_id": self.after_snapshot_id,
+            "before_table_state_id": self.before_table_state_id,
+            "after_table_state_id": self.after_table_state_id,
             "score": self.score,
             "cost_available": self.cost_available,
             "credited_datapoints": self.datapoint_count,
@@ -482,12 +272,7 @@ class RewardReport:
             },
             "cost": self.cost.to_dict(),
             "uncredited_volume": dict(sorted(self.uncredited.items())),
-            "uncredited_instances": {
-                key: [dict(item) for item in values]
-                for key, values in sorted(self.uncredited_instances.items())
-            },
             "datapoints": [datapoint.to_dict() for datapoint in self.datapoints],
-            "credit_ledger": self.ledger.to_dict(),
         }
 
 
@@ -546,183 +331,63 @@ def aggregate_cost(
     )
 
 
-def score_criterion_yield(
-    before: CriteriaSnapshot | None,
-    after: CriteriaSnapshot | None,
+def report_assigned_credit(
+    assignments: Iterable[Mapping[str, Any]],
     *,
     episode_id: str,
-    accepted_source_ids: Iterable[str] | None = None,
-    ledger: CreditLedger | None = None,
     cost_records: Iterable[Mapping[str, Any]] | None = None,
-    cost: CostVector | None = None,
 ) -> RewardReport:
-    """Score one pass: real datapoints added, over what the pass paid.
+    """Report the single table-bound credit assignments without reassigning.
 
-    ``episode_id`` names the strategy Episode this scoring pass belongs to.
-
-    ``accepted_source_ids`` is the set of sources this run has durably
-    accepted, from the run's own source records -- **never from the
-    transition**. ``gained_source_ids`` is new *to the criterion*, not new to
-    the run: ``_transition_kind`` emits ``SUPPORT_GAINED`` when the criterion
-    did not exist before, so for a freshly minted criterion it lists every
-    source cited however old. Crediting on its non-emptiness would credit
-    nearly all re-traversal. Intersecting with the run's own accepted set,
-    minus the sources the ledger has already retired, is the identity-based
-    first-harvest window.
-
-    ``ledger`` carries credit state across scoring passes; pass the previous
-    pass's :attr:`RewardReport.ledger` back in. Omitting it re-opens every
-    source's credit window and re-credits every criterion, which is why the
-    returned report carries the next ledger rather than leaving the caller to
-    rebuild it.
-
-    Costs come from ``cost_records`` -- the caller supplies exactly the
-    records in scope, selected by ``episode_id`` on the records -- or from an
-    already-summed ``cost``. Supplying neither is legitimate -- runs recorded
-    before cost accounting have none -- and yields a report whose ratios are
-    ``None``.
+    ``new_to_table`` is authored by the live credit assigner after typed table
+    storage. This function may aggregate that decision for cost/yield output;
+    it never projects tables, evaluates evidence, or decides what deserves
+    credit.
     """
 
-    before = before if before is not None else None
-    transitions = diff_snapshots(before, after)
-    accepted = {
-        str(source) for source in (accepted_source_ids or ()) if str(source)
-    }
-    ledger = ledger if ledger is not None else CreditLedger()
+    rows = [dict(item) for item in assignments if isinstance(item, Mapping)]
+    selected = [row for row in rows if bool(row.get("new_to_table"))]
+    repeats = len(rows) - len(selected)
 
-    credited: list[CreditedDatapoint] = []
-    newly_credited: set[str] = set()
-    newly_harvested: set[str] = set()
-    uncredited: dict[str, int] = {}
-    # THE NEGATIVE INSTANCES, KEPT RATHER THAN COUNTED.
-    #
-    # `uncredited` is a histogram, and a histogram cannot be joined, audited, or
-    # re-derived. The transitions counted here are precisely the negative
-    # observations the yield question needs -- a criterion that gained support
-    # which did not clear the credit floor is the "examined, credited nothing"
-    # case -- and they were constructed in memory, tallied, and dropped. One
-    # recorded round holds 751 of them.
-    #
-    # Every instance keeps its criterion id and its source ids, so the counts
-    # remain exactly what they were and the same data can now be joined back to
-    # sources and criteria. Nothing is sampled or capped: dropping the ids while
-    # keeping the count is a truncation to zero, and the whole point is that the
-    # negative cases are the scarce ones.
-    uncredited_instances: dict[str, list[dict[str, Any]]] = {}
-
-    def _note_uncredited(key: str, transition: CriterionTransition) -> None:
-        uncredited[key] = uncredited.get(key, 0) + 1
-        uncredited_instances.setdefault(key, []).append(
-            {
-                "criteria_transition_id": transition.id,
-                "criterion_id": transition.criterion_id,
-                "table": transition.table,
-                "field": transition.field,
-                "subject_id": transition.subject_id,
-                "before_status": transition.before_status,
-                "after_status": transition.after_status,
-                "before_basis": transition.before_basis,
-                "after_basis": transition.after_basis,
-                "gained_source_ids": list(transition.gained_source_ids),
-                "after_source_ids": list(transition.after_source_ids),
-            }
+    datapoints: list[CreditedDatapoint] = []
+    for row in selected:
+        identity = str(row.get("identity") or "")
+        source_id = str(row.get("source_id") or "")
+        kind = (
+            DatapointKind.BEST_GUESS
+            if str(row.get("source_kind") or "") == DatapointKind.BEST_GUESS.value
+            else DatapointKind.VERBATIM
         )
-
-    for transition in sorted(transitions, key=lambda item: item.id):
-        if transition.kind not in CREDITABLE_TRANSITION_KINDS:
-            _note_uncredited(transition.kind.value, transition)
-            continue
-
-        basis = _basis(transition.after_basis)
-        kind = CREDITABLE_EVIDENCE_BASES.get(basis) if basis is not None else None
-        if kind is None:
-            _note_uncredited(
-                f"support_gained_below_floor:{transition.after_basis or 'unknown'}",
-                transition,
-            )
-            continue
-
-        if transition.criterion_id in ledger.credited_criterion_ids:
-            _note_uncredited("support_gained_already_credited", transition)
-            continue
-
-        crediting = _crediting_sources(
-            transition,
-            accepted=accepted,
-            harvested=ledger.harvested_source_ids,
-        )
-        if not crediting:
-            _note_uncredited("support_gained_no_unharvested_source", transition)
-            continue
-
-        credited.append(
+        datapoints.append(
             CreditedDatapoint(
-                transition_id=transition.id,
-                criterion_id=transition.criterion_id,
+                assignment_id=str(row.get("assignment_id") or identity),
+                criterion_id=str(row.get("criterion_id") or identity),
                 kind=kind,
-                basis=basis,  # type: ignore[arg-type]
-                table=transition.table,
-                field=transition.field,
-                subject_id=transition.subject_id,
-                crediting_source_ids=crediting,
+                basis=EvidenceBasis.RESOLVED_ASSERTION_CHAIN,
+                table=str(row.get("table") or ""),
+                field=str(row.get("field") or ""),
+                subject_id=str(row.get("subject_id") or ""),
+                crediting_source_ids=(source_id,) if source_id else (),
                 realized_episode_id=str(episode_id),
             )
         )
-        newly_credited.add(transition.criterion_id)
-        newly_harvested.update(crediting)
-
-    resolved_cost = cost if cost is not None else aggregate_cost(cost_records)
 
     return RewardReport(
         reward_version=REWARD_VERSION,
         criteria_projection_version=CRITERIA_PROJECTION_VERSION,
         episode_id=str(episode_id),
-        before_snapshot_id=before.id if before is not None else "",
-        after_snapshot_id=after.id if after is not None else "",
-        datapoints=tuple(credited),
-        cost=resolved_cost,
-        ledger=CreditLedger(
-            credited_criterion_ids=ledger.credited_criterion_ids | newly_credited,
-            harvested_source_ids=ledger.harvested_source_ids | newly_harvested,
+        before_table_state_id=(
+            rows[0].get("before_table_state_id", "") if rows else ""
         ),
-        uncredited=dict(sorted(uncredited.items())),
-        uncredited_instances={
-            key: tuple(values) for key, values in sorted(uncredited_instances.items())
+        after_table_state_id=(
+            rows[-1].get("after_table_state_id", "") if rows else ""
+        ),
+        datapoints=tuple(datapoints),
+        cost=aggregate_cost(cost_records),
+        uncredited={
+            "repeat_assignment": repeats,
         },
     )
-
-
-def _crediting_sources(
-    transition: CriterionTransition,
-    *,
-    accepted: frozenset[str] | set[str],
-    harvested: frozenset[str],
-) -> tuple[str, ...]:
-    """The sources whose first harvest this transition is, if any.
-
-    A source qualifies when this run has durably accepted it, it has not yet
-    credited anything, and this transition's criterion gained it. Membership
-    in the accepted set carries delayed credit -- a source stays creditable
-    across later scoring passes until it credits; ``harvested`` is what stops
-    re-traversal from being paid for. A source with no recorded acceptance is
-    not creditable -- an unknown acquisition cannot be the acquisition that
-    bought this.
-    """
-
-    return tuple(
-        sorted(
-            source
-            for source in transition.gained_source_ids
-            if source in accepted and source not in harvested
-        )
-    )
-
-
-def _basis(value: str) -> EvidenceBasis | None:
-    try:
-        return EvidenceBasis(str(value or ""))
-    except ValueError:
-        return None
 
 
 def _int(value: Any) -> int:
@@ -816,18 +481,3 @@ def _read_dict_rows(path: Path) -> list[dict[str, Any]]:
 
 def _stable_json(value: Any) -> str:
     return json.dumps(value, ensure_ascii=True, sort_keys=True, default=str)
-
-
-# ``BASIS_STRENGTH`` is imported for one purpose: to assert at import time that
-# nothing creditable sits below the field-scoped accepted rung. If a future edit
-# adds a member to CREDITABLE_EVIDENCE_BASES that a blind reader could not
-# distinguish from no support, this fails loudly here rather than quietly
-# inflating every yield number in the build.
-_FLOOR = BASIS_STRENGTH[EvidenceBasis.FIELD_REF_ACCEPTED]
-for _basis_member in CREDITABLE_EVIDENCE_BASES:
-    if BASIS_STRENGTH[_basis_member] < _FLOOR:
-        raise AssertionError(
-            f"{_basis_member.value} is below the field-scoped accepted floor; "
-            "row-scoped co-location is not verified support"
-        )
-del _basis_member

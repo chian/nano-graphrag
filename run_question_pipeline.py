@@ -39,7 +39,9 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import sys
+from dataclasses import fields
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent
@@ -47,6 +49,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from question_pipeline import PipelineConfig, QuestionPipeline
+from question_pipeline.checkpoint import load_checkpoint, resolve_checkpoint_path
 
 
 def build_config(args: argparse.Namespace) -> PipelineConfig:
@@ -107,7 +110,13 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
-    parser.add_argument("--question", required=True, help="The question to answer.")
+    parser.add_argument("--question", required=False, help="The question to answer.")
+    parser.add_argument(
+        "--continue",
+        dest="continue_from",
+        default=None,
+        help="Continue from a run directory or its checkpoint.json.",
+    )
     parser.add_argument(
         "--pipeline-mode",
         choices=("answer", "table-fill"),
@@ -313,7 +322,21 @@ def main() -> None:
     parser.add_argument("--firecrawl-api-key", default=None, help="Firecrawl API key (or set FIRECRAWL_API_KEY).")
 
     args = parser.parse_args()
-    config = build_config(args)
+    if args.continue_from:
+        checkpoint_path = resolve_checkpoint_path(args.continue_from)
+        checkpoint = load_checkpoint(checkpoint_path)
+        config_path = checkpoint_path.parent / checkpoint.state_files["config"]
+        raw = json.loads(config_path.read_text(encoding="utf-8"))
+        if not isinstance(raw, dict):
+            parser.error("checkpoint config state must be a JSON object")
+        allowed = {item.name for item in fields(PipelineConfig)}
+        config = PipelineConfig(**{key: value for key, value in raw.items() if key in allowed})
+        config.output_dir = str(checkpoint_path.parent)
+        config.resume_checkpoint = str(checkpoint_path)
+    else:
+        if not args.question:
+            parser.error("--question is required unless --continue is used")
+        config = build_config(args)
     pipeline = QuestionPipeline(config)
     asyncio.run(pipeline.run())
 

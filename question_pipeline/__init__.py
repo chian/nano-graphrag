@@ -46,13 +46,12 @@ from .numeric_candidates import (
 from .reward import (
     REWARD_COMPONENT_COLUMNS,
     REWARD_VERSION,
-    CreditLedger,
     CreditedDatapoint,
     RewardReport,
     aggregate_cost,
     load_seed_best_guess_rows,
     merge_best_guess_rows,
-    score_criterion_yield,
+    report_assigned_credit,
 )
 from .best_guess import (
     BEST_GUESS_CANDIDATE_COLUMNS,
@@ -118,9 +117,8 @@ __all__ = [
     "numeric_candidates_from_tables",
     "load_seed_best_guess_rows",
     "merge_best_guess_rows",
-    "score_criterion_yield",
+    "report_assigned_credit",
     "aggregate_cost",
-    "CreditLedger",
     "CreditedDatapoint",
     "RewardReport",
     "REWARD_VERSION",

@@ -19,7 +19,9 @@ from method_loop import EpisodeRef, StructuralPath, normalize_structural_path
 
 CHECKPOINT_VERSION = "episode_checkpoint_v1"
 CHECKPOINT_FILENAME = "checkpoint.json"
-STATE_ROLES = frozenset({"episode", "evidence", "frontier", "memory", "policy", "table"})
+STATE_ROLES = frozenset(
+    {"config", "episode", "evidence", "frontier", "memory", "policy", "table"}
+)
 REQUIRED_STATE_ROLES = STATE_ROLES
 
 

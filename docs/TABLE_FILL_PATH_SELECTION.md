@@ -9,10 +9,11 @@
 > (acquire → extract → credit → count → verdict) and rarefaction/crediting
 > semantics are defined by that charter and the `Episode` method core. The
 > decision-facing record is a generic role-based `IncidenceEstimate` produced
-> by `IncidenceEstimator` from a fixed `ChannelSchema`; its rarefied role is
-> required, and bias-corrected incidence Chao2 internally fills the expected
-> and remaining roles. Read path-feature ideas from here and all acquisition
-> flow, counting, evidence acceptance, and verdict rules from the charter.
+> by the bound estimator from a fixed `ChannelSchema`. Per-column identities
+> and estimates form a normalized vector; marginal hypervolume is the sole
+> method credit and predicted future hypervolume is the sole stop statistic.
+> Read path-feature ideas from here and all acquisition flow, counting,
+> evidence acceptance, and verdict rules from the charter.
 >
 > Historical sequences below that ingest provider results into a graph, invoke
 > GASL afterward, or place table materialization inside one round are not
