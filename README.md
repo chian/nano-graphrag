@@ -28,73 +28,67 @@ measured without graph construction confounding the result.
 ## The acquisition method
 
 Acquisition is one generic method, implemented by `method_loop.Episode` and
-composed recursively at several grains. A binding supplies the source of
-units, leaf extraction and acceptance functions, post-verdict hooks, and an
-optional safety boundary. The Episode owns the order of operations.
+composed recursively at several levels. Each Episode chooses and processes one
+unit at a time, measures what that unit added, and uses its numerical component
+to decide whether to continue. A unit can be an ordinary item or another
+Episode.
 
 ```text
-ONE EPISODE: ITS LOCAL LOOP
-
-       +------------------------------------------------------------+
-       |                                                            |
-       v                                                            |
-  check declared safety bound -- hit ----------------> EpisodeRecord|
-       | not hit                                                    |
-       v                                                            |
-  source.next(this Episode's read-only EpisodeView)                 |
-       |                                                            |
-       +-- exhausted or source failure -------------> EpisodeRecord|
-       | one unit                                                   |
-       v                                                            |
-  acquire through the bound leaf parts                              |
-  extract -> accept -> project credit                               |
-       |                                                            |
-       v                                                            |
-  opaque stable identities grouped by declared channels            |
-       |                                                            |
-       v                                                            |
-  attached numerical component                                     |
-  estimate -> scalar statistic -> fixed verdict                     |
-       |                                                            |
-       v                                                            |
-  append UnitRecord -> run post-verdict hook                        |
-  (the hook can inform future units but cannot change this verdict) |
-       |                                                            |
-       +-- numerical stop --------------------------> EpisodeRecord|
-       | continue: build updated EpisodeView                         |
-       +------------------------------------------------------------+
+  +------------------------------------------------------------------+
+  |                                                                  |
+  v                                                                  |
+source reads this Episode's completed records and estimates          |
+  |                                                                  |
+  v                                                                  |
+choose the next unit                                                  |
+  |                                                                  |
+  +-- no unit left ------------------------> publish Episode record   |
+  |                                                                  |
+  +-- ordinary item -> run tool -> accept and store results --+      |
+  |                                                           |      |
+  +-- child Episode -> run child loop -> receive results ------+      |
+                                                              |      |
+                                                              v      |
+                                             results from one unit   |
+                                                              |      |
+                                                              v      |
+                                      update counts by column         |
+                                      update estimates and decision   |
+                                                              |      |
+                                                              v      |
+                                      save record; update memory      |
+                                                              |      |
+                                      +-- stop --> publish record     |
+                                      |                               |
+                                      +-- continue -------------------+
 ```
 
 The numerical component is attached to the method; it does not contain the
 method. `rarefaction/` owns the paired incidence estimator and numerical
-controller. `method_loop/` owns iteration, nesting, identities, fan-up, and
-the Episode record tree.
+controller. `method_loop/` owns iteration, nesting, stable record keys, and the
+Episode record tree.
 
-For table filling, a credited identity means that a stable subject occupies a
-declared logical value slot in accepted typed storage. Directly reported and
-anchored best-guess values for the same slot share one identity, so they cannot
-double count. Row completion is an export and learning diagnostic, not another
-credit.
+For table filling, a counted result means that one subject has an accepted
+value in one declared result column. A directly reported value and a best guess
+for that same subject and column count as the same result, so they cannot be
+double counted. Finding the same result in another source is recorded as a
+repeat.
 
-In the current table-fill numerical binding, the estimator retains a vector of
-distinct identities by result column. Its controller normalizes those axes by
-their respective reachable-result estimates and reduces their progress to one
-marginal relaxed-geometric hypervolume credit. The predicted next marginal
-credit is that binding's sole stop statistic. Per-column estimates remain
-visible for interpretation and future search planning, but they are not
-independent stop rules.
+The table-fill numerical component keeps a separate count and estimate for
+each result column, then combines them into one hypervolume credit. The
+predicted credit from the next unit is the single number used to stop or
+continue. The per-column estimates remain visible so people and future search
+strategies can see which columns are still sparse.
 
-Every attempted unit is explicitly recorded as successfully observed, failed,
-or excluded. A successfully evaluated unit with no findings is a real zero; a
-provider, compute, decoding, or evaluation failure is not silently converted
-into zero yield. Safety bounds are likewise reported as `bound_hit`, never as
-statistical convergence.
+Every attempted unit records whether it was successfully evaluated. A unit
+that was evaluated and found nothing is a real zero. A failed tool call or
+failed evaluation is not treated as evidence that no useful result existed.
 
 ## The nesting
 
-An Episode can pull a leaf or another Episode. The child completes its own
-loop and becomes one unit of its parent. The current Firecrawl table-fill
-binding has this shape:
+An Episode can process an ordinary item or run another Episode. A child
+finishes its own loop and becomes one unit of its parent. The current
+Firecrawl table-fill binding has this shape:
 
 ```text
 run Episode
@@ -102,7 +96,7 @@ run Episode
     └── search Episode
         └── page Episode
             └── lexical-probe Episode
-                └── chunk Leaf
+                └── process one chunk
 ```
 
 Here is the same tree using the real CATDAT document and recorded chunk
@@ -117,17 +111,17 @@ run: fatal-earthquake table
     └── search: "CATDAT damaging earthquakes year in review"
         └── page: CATDAT 2012 report
             ├── lexical probe: "Mw MMI USD"
-            │   ├── chunk 52 -> accepted magnitude, death, injury,
-            │   │              displacement, and damage slots
-            │   ├── chunk 53 -> more accepted slots plus recurrences
-            │   └── ... numerical saturation ends this probe
+            │   ├── chunk 52 -> fills magnitude, deaths, injuries,
+            │   │              displacement, and damage fields
+            │   ├── chunk 53 -> fills more fields and repeats some findings
+            │   └── ... the numerical decision ends this probe
             └── next lexical probe, if the page verdict requests one,
                 ranks only the chunks that remain unprocessed
 ```
 
 Each level answers a different question with the same method:
 
-| Episode grain | One unit | What ending the Episode means |
+| Episode level | One unit | What ending the Episode means |
 | --- | --- | --- |
 | lexical probe | one previously unprocessed ranked chunk | return control to the page so it can propose another vocabulary over the remaining chunks |
 | page | one completed lexical-probe Episode | finish this document and return its distinct findings to the search |
@@ -135,69 +129,160 @@ Each level answers a different question with the same method:
 | strategy | one completed search Episode | stop pursuing that strategy family |
 | run | one completed strategy Episode | end the declared acquisition run |
 
-The child passes its distinct accepted identities upward by column, once per
-identity. A parent never sums child hypervolumes. It treats the completed child
-as one incidence sample, deduplicates on the parent's scale, and recomputes its
-own attached numerical statistic and verdict. In the current table-fill
-binding, that statistic is marginal hypervolume. The full child record remains
-nested beneath the parent's unit record for audit.
+The child returns its distinct accepted results by column. The parent treats
+the completed child as one unit and recalculates its own counts, estimates, and
+decision. It does not add together the child's hypervolume and its own. The
+full child record is stored inside the parent's unit record.
 
 ```text
-WHEN A CHILD EPISODE CLOSES INTO ITS PARENT
+PARENT EPISODE                         CHILD EPISODE
 
-  child runs its own local loop, possibly for many units
-       |
-       |  parent receives no ordinary fan-up sample yet
-       v
-  child EpisodeRecord
-       |
-       +---------------- full record ---------------------+
-       |                                                  |
-       v                                                  v
-  child contribution                               nested under the
-  - distinct identities by channel                 parent's UnitRecord
-  - child eligibility                              for context and audit
-       |
-       v
-  one unit in the immediate parent Episode
-       |
-       v
-  parent deduplicates on its own scale
-  -> parent numerical transition
-  -> parent UnitRecord
-  -> parent post-verdict hook
-       |
-       +-- parent continues
-       |      |
-       |      v
-       |   parent.source.next(updated parent EpisodeView)
-       |
-       +-- parent closes
-              |
-              v
-           the same handoff repeats to the grandparent
+choose the child --------------------> run the child's own loop
+                                                |
+                                                v
+                                      return the child record and
+                                      distinct results by column
+                                                |
+                  <-----------------------------+
+                  |
+                  v
+       count the completed child as one parent unit
+                  |
+                  v
+       update the parent's estimates and decision
+                  |
+                  v
+       store the child record inside the parent record
+                  |
+             +----+----+
+             |         |
+         continue     stop
+             |         |
+             v         v
+       choose the    return the parent record
+       next unit     to its own parent
 ```
 
-Applied to the Firecrawl composition, propagation is therefore staged rather
-than broadcast through the whole tree:
+Information moves up one level whenever a child finishes:
 
 ```text
 chunk completes          -> lexical-probe view updates locally
-lexical probe closes     -> page receives one probe contribution
-page closes              -> search receives one page contribution
-search closes            -> strategy receives one search contribution
-strategy closes          -> run receives one strategy contribution
+lexical probe closes     -> page receives its distinct results
+page closes              -> search receives its distinct results
+search closes            -> strategy receives its distinct results
+strategy closes          -> run receives its distinct results
 ```
 
-This architecture combines recursive decomposition with scoped in-context
-adaptation. A source can read the completed child records, numerical outcomes,
-and compressed learning context available at its own level, then use an LLM to
-propose a different string for the next unit. For example, a page can replace
-an unproductive conceptual probe with document-native abbreviations, while a
-strategy can replace a saturated search query with a different search angle.
-The LLM proposes strings; the numerical estimator/controller decides whether
-another proposal is due. The architecture enables this feedback, while live
-experiments determine whether a particular prompt actually learns well.
+Each source sees the completed records and numerical results from its own
+Episode. It can use that history to propose different work next time. For
+example, a page can replace an unproductive lexical query with abbreviations
+found in the document, while a strategy can replace a saturated Web search
+with a different search angle. The model proposes the next string; the
+numerical component decides whether there should be another attempt.
+
+## Adding a new Episode type
+
+A new Episode type is made by connecting new work to `Episode`; it does not
+need a new loop.
+
+First, declare the level. State plainly what one turn processes and what useful
+result one turn can add:
+
+```python
+grain = Grain(
+    name="document_search",
+    unit="one document returned by this search",
+    credit="one accepted result in a declared result column",
+    control=controller_config,
+)
+```
+
+Next, write a source that uses the Episode's history to return one item at a
+time. Return `None` when there are no more items:
+
+```python
+class ToolSource:
+    def next(self, view):
+        # view.units contains the completed work at this level.
+        return choose_next_item(view)
+```
+
+Bind the work performed on each item:
+
+```python
+source = leaves(
+    units=ToolSource(),
+    extract=run_tool,
+    accept=validate_and_store_results,
+    credit=count_accepted_results,
+    label=lambda item: item.stable_name,
+)
+
+episode = Episode(
+    grain=grain,
+    key="search-1",
+    source=source,
+    on_unit=update_search_memory,
+)
+```
+
+These functions have separate jobs:
+
+| Function | Job |
+| --- | --- |
+| `next(view)` | choose the next item using the work already completed at this level |
+| `extract(item)` | run the tool and produce candidate results |
+| `accept(item, results)` | validate and store results that are supported by evidence |
+| `credit(item, accepted)` | return the stable keys of accepted results, separated by result column |
+| `on_unit(...)` | update memory or write logs after the numerical decision has been recorded |
+
+`credit` returns a `CreditResult`: `credits` contains the distinct result keys
+and `facets` separates those same keys by result column.
+When the outer Episode uses `run_async()`, the source and bound functions may
+also be asynchronous.
+
+A stable result key names a subject and result column. The same result found
+again must return the same key, so the estimator records a repeat instead of a
+new finding. For example, every supported value for the deaths field of the
+same earthquake uses the same result key whether it came from a reported value
+or an accepted best guess.
+
+To nest Episodes, make the parent's source return a child `Episode` instead of
+an ordinary item:
+
+```python
+class ChildEpisodeSource:
+    def next(self, view):
+        return build_next_child_episode(view)  # or None when finished
+```
+
+The child runs to its own numerical decision and returns its record and
+distinct results to the parent. The parent then counts that completed child as
+one unit. Do not write a loop around either Episode; calling `run()` or
+`run_async()` on the outer Episode runs the complete nested tree.
+
+Finally, create one `Context` for the run. Give it the `ChannelSchema` that
+lists the result columns used at each level, and list the permitted nesting
+order from outermost to innermost:
+
+```python
+ctx = Context(
+    run_id="run-1",
+    order=(run_grain, strategy_grain, search_grain),
+    channel_schemas={
+        "run": channel_schema,
+        "strategy": channel_schema,
+        "search": channel_schema,
+    },
+)
+
+record = await run_episode.run_async(ctx)
+```
+
+Tool calls and model calls belong in `next` or `extract`. Evidence checking and
+storage belong in `accept`. Counting must be a direct calculation from the
+accepted stored results. The estimator and controller make the numerical
+continue-or-stop decision.
 
 The complete method contract is
 [docs/ACQUISITION_LOOP.md](docs/ACQUISITION_LOOP.md). Where another document
@@ -208,7 +293,8 @@ of `Episode`, that description is stale.
 
 ```text
 method_loop/             generic Episode method: iteration, nesting, runtime
-                         identity, scope routing, fan-up, and record trees
+                         identity, scope routing, child-to-parent results,
+                         and record trees
 rarefaction/             paired incidence estimator and numerical controller;
                          threshold state and typed numerical reports
 question_pipeline/       Firecrawl/table-fill binding: search proposals,
@@ -244,9 +330,7 @@ FIRECRAWL_API_KEY=... LLM_API_KEY=... \
 Firecrawl may return many results in one provider response, but that response
 is only a buffer. The search Episode pulls, fetches, extracts, accepts, credits,
 and evaluates one source before pulling the next. There is no papers-per-query
-or rounds control. `--max-source-units 0`, the default, is unbounded; if an
-operator supplies a positive value, it is a disclosed safety boundary rather
-than a convergence rule.
+or rounds control.
 
 Resume a durable Episode checkpoint with:
 
