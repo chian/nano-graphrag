@@ -127,7 +127,6 @@ from .prompt_log import (
 )
 from . import acquisition as acq
 from .acquisition import (
-    RUN_GRAIN,
     AcquisitionController,
     TableCreditAssigner,
     ProviderHealth,
@@ -1604,7 +1603,7 @@ genuinely separate view that is not covered by a listed target."""
     ) -> List[Dict[str, Any]]:
         """The switch edge's model call. Strings and one number, nothing else."""
 
-        run_path = ((RUN_GRAIN.name, self.out.name),)
+        run_path = ((self.provider_binding.run_grain.name, self.out.name),)
         with prompt_scope(
             self.out / "prompts" / self._run_episode_id,
             episode_id=self._run_episode_id,
@@ -1721,7 +1720,7 @@ genuinely separate view that is not covered by a listed target."""
             return
 
         print("  No usable table contract supplied -- synthesizing it from the question.")
-        run_path = ((RUN_GRAIN.name, self.out.name),)
+        run_path = ((self.provider_binding.run_grain.name, self.out.name),)
         with prompt_scope(
             self.out / "prompts" / self._run_episode_id,
             episode_id=self._run_episode_id,
@@ -5737,8 +5736,8 @@ genuinely separate view that is not covered by a listed target."""
         parent = EpisodeRef(
             run_id=self.out.name,
             path=(
-                (RUN_GRAIN.name, self.out.name),
-                (acq.STRATEGY_GRAIN.name, str(strategy_key)),
+                (self.provider_binding.run_grain.name, self.out.name),
+                (self.provider_binding.strategy_grain.name, str(strategy_key)),
             ),
         )
         self._write_episode_checkpoint(
@@ -5752,14 +5751,17 @@ genuinely separate view that is not covered by a listed target."""
         completed: Optional[Any],
         _parent_unit: Any,
     ) -> None:
-        if completed is None or completed.episode_ref is None:
+        if completed is None:
+            raise ValueError("a checkpoint boundary requires a completed strategy Episode")
+        record = self.provider_binding.take_episode_record(completed.record_id)
+        if record.episode_ref is None:
             raise ValueError("a checkpoint boundary requires a completed strategy Episode")
         parent = EpisodeRef(
             run_id=self.out.name,
-            path=((RUN_GRAIN.name, self.out.name),),
+            path=((self.provider_binding.run_grain.name, self.out.name),),
         )
         self._write_episode_checkpoint(
-            completed,
+            record,
             active_parent=parent,
             generation_label=(
                 f"strategy_{len(self.provider_binding._completed_run_units):06d}"
@@ -6016,7 +6018,7 @@ genuinely separate view that is not covered by a listed target."""
             # schema, the extractor now exists before this strategy opens.
                 print("Seeding search from the question...")
                 schema_hint = cfg.schema_name or ""
-                run_path = ((RUN_GRAIN.name, self.out.name),)
+                run_path = ((self.provider_binding.run_grain.name, self.out.name),)
                 with prompt_scope(
                     self.out / "prompts" / self._run_episode_id,
                     episode_id=self._run_episode_id,

@@ -1,6 +1,6 @@
 """Paired incidence estimation and numerical control.
 
-One :class:`IncidenceEstimator` owns one frozen
+One internal incidence estimator owns one frozen
 ``(scope_path, epoch, channel)`` declaration. An eligible acquisition unit
 contributes one immutable set of opaque stable identity strings. Repeated
 identities inside the unit disappear before any count is changed; recurrence
@@ -37,18 +37,20 @@ __all__ = [
     "VOLUME_CREDIT_VERSION",
     "CHANNEL_SCHEMA_VERSION",
     "ChannelSchema",
+    "IncidenceObservation",
     "NumericBand",
     "UnitYield",
     "IncidenceEstimate",
-    "IncidenceEstimator",
     "CONTROLLER_VERSION",
     "ControllerConfig",
     "ControllerVerdict",
     "VolumeCredit",
     "IncidenceReport",
+    "IncidenceState",
     "ControlStep",
     "ThresholdAdapter",
     "EstimatorController",
+    "bind_controller",
     "OBSERVATION_OBSERVED",
     "OBSERVATION_FAILED",
     "OBSERVATION_EXCLUDED",
@@ -86,6 +88,116 @@ _OBSERVATION_STATUSES = {
     OBSERVATION_FAILED,
     OBSERVATION_EXCLUDED,
 }
+
+
+@dataclass(frozen=True)
+class IncidenceObservation:
+    """One binding-produced input to the paired numerical component.
+
+    The Episode method treats this object as opaque.  A binding decides which
+    stable identities belong to the observation, how they are partitioned into
+    channels, and whether the acquisition attempt was observed, failed, or
+    excluded from numerical control.
+    """
+
+    identities: tuple[str, ...] = ()
+    status: int = OBSERVATION_OBSERVED
+    channels: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
+    note: str = ""
+
+    def __post_init__(self) -> None:
+        if self.status not in _OBSERVATION_STATUSES:
+            raise ValueError(f"unknown observation status {self.status!r}")
+        object.__setattr__(
+            self,
+            "identities",
+            tuple(dict.fromkeys(str(value) for value in self.identities)),
+        )
+        object.__setattr__(
+            self,
+            "channels",
+            {
+                str(name): tuple(dict.fromkeys(str(value) for value in values))
+                for name, values in dict(self.channels).items()
+            },
+        )
+        if self.status != OBSERVATION_OBSERVED and (
+            self.identities or self.channels
+        ):
+            raise ValueError(
+                "failed and excluded observations cannot carry incidence data"
+            )
+
+    @classmethod
+    def failed(cls, note: str) -> "IncidenceObservation":
+        if not str(note).strip():
+            raise ValueError("a failed incidence observation must say why")
+        return cls(status=OBSERVATION_FAILED, note=str(note))
+
+    @classmethod
+    def excluded(cls, note: str) -> "IncidenceObservation":
+        if not str(note).strip():
+            raise ValueError("an excluded incidence observation must say why")
+        return cls(status=OBSERVATION_EXCLUDED, note=str(note))
+
+    @classmethod
+    def combine(
+        cls,
+        observations: Iterable["IncidenceObservation"],
+        *,
+        status: int = OBSERVATION_OBSERVED,
+        note: str = "",
+    ) -> "IncidenceObservation":
+        identities: list[str] = []
+        seen: set[str] = set()
+        channels: dict[str, list[str]] = {}
+        channel_seen: dict[str, set[str]] = {}
+        for observation in observations:
+            if not isinstance(observation, IncidenceObservation):
+                raise TypeError("combine() accepts IncidenceObservation values")
+            if observation.status != OBSERVATION_OBSERVED:
+                continue
+            for identity in observation.identities:
+                if identity not in seen:
+                    seen.add(identity)
+                    identities.append(identity)
+            for name, members in observation.channels.items():
+                sink = channels.setdefault(name, [])
+                membership = channel_seen.setdefault(name, set())
+                for identity in members:
+                    if identity not in membership:
+                        membership.add(identity)
+                        sink.append(identity)
+        return cls(
+            identities=tuple(identities),
+            status=status,
+            channels={name: tuple(values) for name, values in channels.items()},
+            note=note,
+        )
+
+    def as_record(self) -> dict:
+        return {
+            "identities": list(self.identities),
+            "status": self.status,
+            "channels": {
+                name: list(values) for name, values in self.channels.items()
+            },
+            "note": self.note,
+        }
+
+    @classmethod
+    def from_record(cls, record: Mapping[str, object]) -> "IncidenceObservation":
+        if not isinstance(record, Mapping):
+            raise TypeError("IncidenceObservation state must be a mapping")
+        return cls(
+            identities=tuple(str(value) for value in record.get("identities") or ()),
+            status=int(record.get("status", OBSERVATION_OBSERVED)),
+            channels={
+                str(name): tuple(str(value) for value in values)
+                for name, values in dict(record.get("channels") or {}).items()
+            },
+            note=str(record.get("note") or ""),
+        )
 
 _QUADRATURE_LATENT = (
     -6.3639478888298395, -5.190093591304782, -4.1962077112690155,
@@ -591,8 +703,8 @@ class IncidenceEstimate:
         }
 
 
-class IncidenceEstimator:
-    """Accumulate eligible incidence samples and emit an estimate record."""
+class _IncidenceEstimator:
+    """Internal per-channel estimator owned by EstimatorController."""
 
     @staticmethod
     def validate_parameters(window_size: int, subsample_size: int, alpha: Real) -> None:
@@ -1496,7 +1608,6 @@ class ControllerVerdict:
     stop: bool
     outcome: str
     flat_streak: int
-    done_streak: int
     config: ControllerConfig
     expected_next_hypervolume_credit: NumericBand
     channels: Mapping[str, Mapping[str, object]]
@@ -1506,7 +1617,6 @@ class ControllerVerdict:
             "stop": self.stop,
             "outcome": self.outcome,
             "flat_streak": self.flat_streak,
-            "done_streak": self.done_streak,
             "controller": self.config.as_record(),
             "expected_next_hypervolume_credit": (
                 self.expected_next_hypervolume_credit.as_record()
@@ -1515,13 +1625,12 @@ class ControllerVerdict:
         }
 
 
-class NumericalController:
-    """Stateful streak owner used only by its paired estimator component."""
+class _NumericalController:
+    """Internal stopping controller owned by EstimatorController."""
 
     def __init__(self, config: ControllerConfig) -> None:
         self.config = config
         self._flat_streak = 0
-        self._done_streak = 0
         self._last = self._record(
             {},
             expected_next_hypervolume_credit=NumericBand.coded(
@@ -1543,7 +1652,6 @@ class NumericalController:
             stop,
             outcome,
             self._flat_streak,
-            self._done_streak,
             self.config,
             expected_next_hypervolume_credit,
             channels,
@@ -1562,7 +1670,7 @@ class NumericalController:
         self.config = config
 
     def defer(self, outcome: str) -> ControllerVerdict:
-        """Record a non-decision without changing either streak."""
+        """Record a non-decision without changing the flat streak."""
 
         self._last = self._record(
             {},
@@ -1890,7 +1998,6 @@ class NumericalController:
         )
         if expected_next_credit.status_code != STATUS_NORMAL or not flat:
             self._flat_streak = 0
-            self._done_streak = 0
             outcome = (
                 "insufficient"
                 if expected_next_credit.status_code != STATUS_NORMAL
@@ -1904,10 +2011,6 @@ class NumericalController:
             )
             return self._last
         self._flat_streak += 1
-        if all_done:
-            self._done_streak += 1
-        else:
-            self._done_streak = 0
         if self._flat_streak >= self.config.streak_length:
             if all_done:
                 outcome = "whole_convergence" if is_root else "local_convergence"
@@ -1978,9 +2081,70 @@ class ControlStep:
     verdict: ControllerVerdict
     volume_credit: VolumeCredit
 
+    @property
+    def stop(self) -> bool:
+        return self.verdict.stop
+
+    @property
+    def requests_transition(self) -> bool:
+        return self.verdict.outcome == "root_incomplete"
+
+    def as_record(self) -> dict:
+        return {
+            "unit_yield": self.unit_yield.as_record(),
+            "report": self.report.as_record(),
+            "verdict": self.verdict.as_record(),
+            "volume_credit": self.volume_credit.as_record(),
+        }
+
+
+@dataclass(frozen=True)
+class IncidenceState:
+    """One immutable view of the paired estimator-controller state."""
+
+    epoch: str
+    report: IncidenceReport
+    verdict: ControllerVerdict
+
+    @property
+    def stop(self) -> bool:
+        return self.verdict.stop
+
+    @property
+    def requests_transition(self) -> bool:
+        return self.verdict.outcome == "root_incomplete"
+
+    def as_record(self) -> dict:
+        schema = self.report.channel_schema
+        facets = (
+            {
+                channel: self.report.estimates[channel].as_record()
+                for channel in schema.base_channels
+            }
+            if schema.union_channel is not None
+            else {}
+        )
+        return {
+            "epoch": self.epoch,
+            "curve": self.report.primary.as_record(),
+            "estimates": {
+                name: estimate.as_record()
+                for name, estimate in self.report.estimates.items()
+            },
+            "channel_schema": schema.as_record(),
+            "verdict": self.verdict.as_record(),
+            "controller": self.verdict.config.as_record(),
+            "facets": facets,
+        }
+
 
 class EstimatorController:
-    """One scope's paired estimators, threshold adapter, and controller."""
+    """One scope's complete numerical component.
+
+    This is the sole construction and advancement boundary exposed to the
+    Episode method. It owns every per-channel estimator, the one stopping
+    controller, threshold state, and the atomic ``advance`` transition.
+    """
 
     @staticmethod
     def validate_parameters(
@@ -1988,7 +2152,7 @@ class EstimatorController:
         subsample_size: int,
         alpha: Real,
     ) -> None:
-        IncidenceEstimator.validate_parameters(window_size, subsample_size, alpha)
+        _IncidenceEstimator.validate_parameters(window_size, subsample_size, alpha)
 
     def __init__(
         self,
@@ -2007,7 +2171,7 @@ class EstimatorController:
         bound_control = control.bind_channels(
             tuple(channel_schema.controller_channels or ())
         )
-        self.scope_path = IncidenceEstimator._normalize_path(scope_path)
+        self.scope_path = _IncidenceEstimator._normalize_path(scope_path)
         self.epoch = str(epoch)
         self.channel_schema = channel_schema
         self._window_size = window_size
@@ -2015,7 +2179,7 @@ class EstimatorController:
         self._alpha = float(alpha)
         self._threshold_adapter = threshold_adapter or _keep_current_thresholds
         self._estimators = {
-            channel: IncidenceEstimator(
+            channel: _IncidenceEstimator(
                 window_size=window_size,
                 subsample_size=subsample_size,
                 alpha=alpha,
@@ -2025,17 +2189,32 @@ class EstimatorController:
             )
             for channel in channel_schema.channels
         }
-        self._controller = NumericalController(bound_control)
+        self._controller = _NumericalController(bound_control)
 
     @property
     def config(self) -> ControllerConfig:
         return self._controller.config
 
-    def report(self) -> IncidenceReport:
-        estimates = {
+    def _estimate_snapshot(self) -> dict[str, IncidenceEstimate]:
+        return {
             channel: estimator.snapshot()
             for channel, estimator in self._estimators.items()
         }
+
+    def _report_from(
+        self,
+        estimates: Mapping[str, IncidenceEstimate],
+        expected_next_credit: NumericBand,
+    ) -> IncidenceReport:
+        return IncidenceReport(
+            primary_channel=self.channel_schema.primary_channel,
+            estimates=dict(estimates),
+            channel_schema=self.channel_schema,
+            expected_next_hypervolume_credit=expected_next_credit,
+        )
+
+    def report(self) -> IncidenceReport:
+        estimates = self._estimate_snapshot()
         expected_next_credit, _channels = (
             self._controller.expected_next_volume_credit(
                 {
@@ -2044,15 +2223,39 @@ class EstimatorController:
                 }
             )
         )
-        return IncidenceReport(
-            primary_channel=self.channel_schema.primary_channel,
-            estimates=estimates,
-            channel_schema=self.channel_schema,
-            expected_next_hypervolume_credit=expected_next_credit,
-        )
+        return self._report_from(estimates, expected_next_credit)
 
     def verdict(self) -> ControllerVerdict:
         return self._controller.verdict()
+
+    def state(self) -> IncidenceState:
+        return IncidenceState(
+            epoch=self.epoch,
+            report=self.report(),
+            verdict=self.verdict(),
+        )
+
+    def observe(
+        self,
+        unit_label: str,
+        observation: object,
+        *,
+        is_root: bool = False,
+    ) -> ControlStep:
+        """Accept the one opaque input shape this numerical component owns."""
+
+        if not isinstance(observation, IncidenceObservation):
+            raise TypeError(
+                "EstimatorController expects an IncidenceObservation, got "
+                f"{type(observation).__name__}"
+            )
+        return self.advance(
+            unit_label,
+            observation.identities,
+            observation_status=observation.status,
+            facets=observation.channels,
+            is_root=is_root,
+        )
 
     def advance(
         self,
@@ -2065,7 +2268,9 @@ class EstimatorController:
     ) -> ControlStep:
         if observation_status not in _OBSERVATION_STATUSES:
             raise ValueError(f"unknown observation_status {observation_status!r}")
-        before_report = self.report()
+
+        required_channels = self._controller.config.required_channels
+        before_estimates = self._estimate_snapshot()
         credit_tuple = tuple(str(raw) for raw in credits)
         groups = {
             str(name): tuple(str(raw) for raw in members)
@@ -2084,15 +2289,18 @@ class EstimatorController:
             )
             for channel in self.channel_schema.channels
         }
-        report = self.report()
-        required_channels = self._controller.config.required_channels
+        after_estimates = self._estimate_snapshot()
         volume_credit = self._controller.assign_volume_credit(
             {
-                channel: before_report.estimates[channel]
+                channel: before_estimates[channel]
                 for channel in required_channels
             },
-            {channel: report.estimates[channel] for channel in required_channels},
+            {channel: after_estimates[channel] for channel in required_channels},
             observation_status=observation_status,
+        )
+        report = self._report_from(
+            after_estimates,
+            volume_credit.expected_next_score,
         )
         if observation_status != OBSERVATION_EXCLUDED:
             threshold_state = self._threshold_adapter(
@@ -2133,3 +2341,40 @@ class EstimatorController:
             alpha=self._alpha,
             threshold_adapter=self._threshold_adapter,
         )
+
+
+def bind_controller(
+    *,
+    channel_schema: ChannelSchema,
+    control: ControllerConfig,
+    window_size: int = DEFAULT_WINDOW_SIZE,
+    subsample_size: int = DEFAULT_SUBSAMPLE_SIZE,
+    alpha: Real = DEFAULT_ALPHA,
+    epoch: str = DEFAULT_EPOCH,
+    threshold_adapter: Optional[ThresholdAdapter] = None,
+) -> Callable[[tuple[tuple[str, str], ...]], EstimatorController]:
+    """Bind numerical choices into the controller function a Grain receives."""
+
+    EstimatorController.validate_parameters(window_size, subsample_size, alpha)
+    if not isinstance(channel_schema, ChannelSchema):
+        raise TypeError("channel_schema must be a ChannelSchema")
+    if not isinstance(control, ControllerConfig):
+        raise TypeError("control must be a ControllerConfig")
+    if not isinstance(epoch, str) or not epoch.strip():
+        raise ValueError("epoch must be a non-empty stable identifier")
+
+    def open_controller(
+        path: tuple[tuple[str, str], ...],
+    ) -> EstimatorController:
+        return EstimatorController(
+            scope_path=path,
+            epoch=epoch,
+            channel_schema=channel_schema,
+            control=control,
+            window_size=window_size,
+            subsample_size=subsample_size,
+            alpha=alpha,
+            threshold_adapter=threshold_adapter,
+        )
+
+    return open_controller

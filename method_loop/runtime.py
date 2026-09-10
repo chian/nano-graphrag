@@ -1,63 +1,53 @@
-"""Path-addressed routing for the generic Episode method.
-
-This module owns scope paths and epoch lifecycle. Each opened scope is routed
-to one opaque rarefaction-owned estimator-controller component; this module
-does not construct, join, or interpret that component's internal estimator and
-controller.
-"""
+"""Path-addressed controller routing for the generic Episode method."""
 
 from __future__ import annotations
 
-from typing import Iterable, Mapping, Optional
+from typing import Any, Callable, Protocol, runtime_checkable
 
-from rarefaction import (
-    ChannelSchema,
-    ControlStep,
-    ControllerConfig,
-    ControllerVerdict,
-    EstimatorController,
-    IncidenceEstimate,
-    ThresholdAdapter,
-    UnitYield,
-)
-from rarefaction.method import (
-    DEFAULT_ALPHA,
-    DEFAULT_EPOCH,
-    DEFAULT_SUBSAMPLE_SIZE,
-    DEFAULT_WINDOW_SIZE,
-)
-
-__all__ = ["Path", "Scope", "ScopedYield"]
+__all__ = [
+    "Controller",
+    "ControllerFactory",
+    "ControllerRuntime",
+    "Path",
+    "Scope",
+]
 
 Path = tuple[tuple[str, str], ...]
 Scope = Path
 
 
-class ScopedYield:
-    """Route each Episode scope to one paired numerical component."""
+@runtime_checkable
+class Controller(Protocol):
+    """The behavior an Episode controller supplies.
 
-    def __init__(
+    The method does not know the controller's estimator, observation shape,
+    thresholds, or state schema. It routes the binding-produced value into
+    ``observe`` and uses only the two structural booleans on the returned step.
+    """
+
+    epoch: str
+
+    def observe(
         self,
+        unit_label: str,
+        value: object,
         *,
-        estimator_window_size: int = DEFAULT_WINDOW_SIZE,
-        estimator_subsample_size: int = DEFAULT_SUBSAMPLE_SIZE,
-        estimator_alpha: float = DEFAULT_ALPHA,
-        estimator_epoch: str = DEFAULT_EPOCH,
-        threshold_adapter: Optional[ThresholdAdapter] = None,
-    ) -> None:
-        EstimatorController.validate_parameters(
-            estimator_window_size,
-            estimator_subsample_size,
-            estimator_alpha,
-        )
-        if not isinstance(estimator_epoch, str) or not estimator_epoch.strip():
-            raise ValueError("estimator_epoch must be a non-empty stable identifier")
-        self._window_size = estimator_window_size
-        self._subsample_size = estimator_subsample_size
-        self._alpha = float(estimator_alpha)
-        self._initial_epoch = estimator_epoch
-        self._threshold_adapter = threshold_adapter
-        self._components: dict[Scope, EstimatorController] = {}
+        is_root: bool,
+    ) -> Any: ...
+
+    def state(self) -> Any: ...
+
+    def transitioned(self, epoch: str) -> "Controller": ...
+
+
+ControllerFactory = Callable[[Path], Controller]
+
+
+class ControllerRuntime:
+    """Open and route one injected controller per Episode path."""
+
+    def __init__(self) -> None:
+        self._controllers: dict[Scope, Controller] = {}
 
     @staticmethod
     def _normalize_path(path: Path) -> Path:
@@ -71,119 +61,63 @@ class ScopedYield:
                 raise ValueError(
                     f"path segment {segment!r} is not a (grain name, key) pair"
                 )
-            out.append((str(segment[0]), str(segment[1])))
+            grain, key = segment
+            if not isinstance(grain, str) or not grain:
+                raise ValueError("path grain names must be non-empty strings")
+            if not isinstance(key, str) or not key:
+                raise ValueError("path keys must be non-empty strings")
+            out.append((grain, key))
         return tuple(out)
 
-    def _unopened(self, scope: Scope) -> LookupError:
-        return LookupError(
-            f"path scope {scope!r} was never opened; open_scope(path, "
-            "grain.control, explicit_channel_schema) creates its numerical "
-            "component atomically"
-        )
-
-    def component(self, scope: Scope) -> EstimatorController:
+    def controller(self, scope: Scope) -> Controller:
         scope = self._normalize_path(scope)
-        if scope not in self._components:
-            raise self._unopened(scope)
-        return self._components[scope]
+        if scope not in self._controllers:
+            raise LookupError(f"path scope {scope!r} was never opened")
+        return self._controllers[scope]
 
-    def open_scope(
-        self,
-        path: Path,
-        control: ControllerConfig,
-        channel_schema: ChannelSchema,
-    ) -> Scope:
-        """Create the path's paired numerical component."""
-
-        if not isinstance(control, ControllerConfig):
-            raise TypeError("open_scope needs a ControllerConfig")
-        if not isinstance(channel_schema, ChannelSchema):
-            raise TypeError("open_scope needs a frozen ChannelSchema")
+    def open_scope(self, path: Path, factory: ControllerFactory) -> Scope:
+        if not callable(factory):
+            raise TypeError("open_scope needs a controller function")
         scope = self._normalize_path(path)
-        if scope in self._components:
+        if scope in self._controllers:
             raise ValueError(f"scope already open at path {scope!r}")
-        self._components[scope] = EstimatorController(
-            scope_path=scope,
-            epoch=self._initial_epoch,
-            channel_schema=channel_schema,
-            control=control,
-            window_size=self._window_size,
-            subsample_size=self._subsample_size,
-            alpha=self._alpha,
-            threshold_adapter=self._threshold_adapter,
-        )
+        controller = factory(scope)
+        if not isinstance(controller, Controller):
+            raise TypeError(
+                "a Grain controller function must return an object with "
+                "observe(), state(), transitioned(), and epoch"
+            )
+        self._controllers[scope] = controller
         return scope
 
     def epoch(self, scope: Scope) -> str:
-        return self.component(scope).epoch
+        return str(self.controller(scope).epoch)
 
     def transition_scope(self, scope: Scope, epoch: str) -> Scope:
         scope = self._normalize_path(scope)
-        self._components[scope] = self.component(scope).transitioned(epoch)
+        controller = self.controller(scope).transitioned(epoch)
+        if not isinstance(controller, Controller):
+            raise TypeError("transitioned() must return a Controller")
+        self._controllers[scope] = controller
         return scope
 
-    def channel_schema(self, scope: Scope) -> ChannelSchema:
-        return self.component(scope).channel_schema
-
-    def advance(
-        self,
-        scope: Scope,
-        unit_label: str,
-        credits: Iterable[str],
-        *,
-        observation_status: int,
-        facets: Optional[Mapping[str, Iterable[str]]] = None,
-    ) -> ControlStep:
+    def advance(self, scope: Scope, unit_label: str, value: object) -> Any:
         scope = self._normalize_path(scope)
-        return self.component(scope).advance(
-            unit_label,
-            credits,
-            observation_status=observation_status,
-            facets=facets,
+        step = self.controller(scope).observe(
+            str(unit_label),
+            value,
             is_root=len(scope) == 1,
         )
+        if not isinstance(getattr(step, "stop", None), bool):
+            raise TypeError("a controller step must expose a boolean stop")
+        if not isinstance(getattr(step, "requests_transition", None), bool):
+            raise TypeError(
+                "a controller step must expose a boolean requests_transition"
+            )
+        return step
 
-    def verdict(self, scope: Scope) -> ControllerVerdict:
-        return self.component(scope).verdict()
-
-    def curve(self, scope: Scope) -> IncidenceEstimate:
-        return self.component(scope).report().primary
-
-    def estimates(self, scope: Scope) -> dict[str, IncidenceEstimate]:
-        return dict(self.component(scope).report().estimates)
-
-    def facet_curves(self, scope: Scope) -> dict[str, dict]:
-        component = self.component(scope)
-        schema = component.channel_schema
-        if schema.union_channel is None:
-            return {}
-        report = component.report()
-        return {
-            channel: report.estimates[channel].as_record()
-            for channel in schema.base_channels
-        }
+    def state(self, scope: Scope) -> Any:
+        return self.controller(scope).state()
 
     def scopes(self) -> tuple[Scope, ...]:
-        return tuple(sorted(self._components, key=repr))
-
-    def snapshot(self, scope: Scope) -> dict:
-        scope = self._normalize_path(scope)
-        component = self.component(scope)
-        report = component.report()
-        verdict = component.verdict()
-        return {
-            "scope_level": scope[-1][0],
-            "scope_key": scope[-1][1],
-            "curve": report.primary.as_record(),
-            "estimates": {
-                name: estimate.as_record()
-                for name, estimate in report.estimates.items()
-            },
-            "channel_schema": component.channel_schema.as_record(),
-            "verdict": verdict.as_record(),
-            "path": [list(segment) for segment in scope],
-            "facets": self.facet_curves(scope),
-        }
-
-    def snapshot_all(self) -> list[dict]:
-        return [self.snapshot(scope) for scope in self.scopes()]
+        return tuple(sorted(self._controllers, key=repr))

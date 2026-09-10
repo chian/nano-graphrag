@@ -1,12 +1,11 @@
 """The generic, nestable acquisition method and its bindable components.
 
 ``Episode`` owns the method loop and tree. Surfaces compose sources, leaves,
-acceptance projections, numerical control, and post-verdict hooks around it.
-The method runtime routes observations to one opaque estimator-controller
-component owned by ``rarefaction``.
+result projections, controller functions, compact nested messages, and
+post-controller hooks around it.
 """
 
-from .runtime import Path, Scope, ScopedYield
+from .runtime import Controller, ControllerFactory, ControllerRuntime, Path, Scope
 from .identities import (
     IDENTITY_VERSION,
     EpisodeRef,
@@ -27,9 +26,10 @@ from .episode import (
     Acquirable,
     Context,
     Contribution,
-    CreditResult,
     Episode,
     EpisodeRecord,
+    EpisodeRequest,
+    EpisodeUpdate,
     EpisodeView,
     EpochMutation,
     Grain,
@@ -38,13 +38,16 @@ from .episode import (
     SourceEnd,
     UnitRecord,
     UnitSource,
+    UnitView,
     leaves,
 )
 
 __all__ = [
     "Path",
     "Scope",
-    "ScopedYield",
+    "Controller",
+    "ControllerFactory",
+    "ControllerRuntime",
     "IDENTITY_VERSION",
     "EpisodeRef",
     "StructuralPath",
@@ -62,9 +65,10 @@ __all__ = [
     "Acquirable",
     "Context",
     "Contribution",
-    "CreditResult",
     "Episode",
     "EpisodeRecord",
+    "EpisodeRequest",
+    "EpisodeUpdate",
     "EpisodeView",
     "EpochMutation",
     "Grain",
@@ -73,5 +77,6 @@ __all__ = [
     "SourceEnd",
     "UnitRecord",
     "UnitSource",
+    "UnitView",
     "leaves",
 ]

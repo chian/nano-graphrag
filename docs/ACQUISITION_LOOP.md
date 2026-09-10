@@ -51,7 +51,7 @@ THE ACQUISITION EPISODE (one generic Episode, instantiated at every surface):
 
  NESTING:  item-loop  ⊂  search-loop  ⊂  strategy-loop      (provider surface)
            iteration-loop  ⊂  walk-loop  ⊂  query-loop      (GASL surface)
-           — the same kernel at every grain; credits fan upward through scopes
+           — the same method at every grain; compact updates pass between scopes
 ```
 
 Concretely, on the provider surface: one Firecrawl search may batch many
@@ -175,10 +175,10 @@ The channel schema is frozen for an estimator epoch and contains no task
 vocabulary. A question binding declares one channel for each logical result
 slot. A reported column and its best-guess alternative occupy that same slot;
 they are evidence routes, not separate incidence dimensions. Row completion is
-a diagnostic projection of those slots and is not a channel. The Episode
-method core derives the overall logical-slot union; an application cannot
-submit a pooled channel that hides a weak required slot. Required channels are
-conjoined by the controller and are never averaged or summed.
+a diagnostic projection of those slots and is not a channel. The bound
+rarefaction component derives the overall logical-slot union; the generic
+Episode method never sees a column or channel. Required channels are conjoined
+by the controller and are never averaged or summed.
 
 ### Active enclosed estimator arithmetic
 
@@ -370,19 +370,18 @@ done_c = remaining_c.status_code == 0
          and remaining_c.upper <= rho_c
 ```
 
-One epoch-scope controller owns `flat_streak` and `done_streak`. An unavailable
-hypervolume band resets both and continues. A non-flat scalar resets both and
-continues. A flat scalar advances `flat_streak`; it advances `done_streak` only
-when every required column is also labelled done.
+One epoch-scope controller owns `flat_streak`. An unavailable hypervolume band
+resets it and continues. A non-flat scalar likewise resets it. A flat scalar
+advances it.
 
-At `done_streak >= K`, a non-root episode returns local convergence to its
-parent and a root episode records whole-scope convergence. At
-`flat_streak >= K` without `done`, a non-root episode returns local saturation
-so its parent can mutate or switch. The same condition at the root starts a
-new statistical epoch if an admissible distribution-changing mutation exists;
-otherwise it terminates with a typed incomplete result. It never masquerades
-as whole-scope convergence. Coverage may be emitted as a diagnostic, but it is
-not an independent decision edge.
+At `flat_streak >= K`, the episode stops. If every required column is also
+labelled done at that transition, a non-root episode returns local convergence
+and a root episode records whole-scope convergence. Otherwise a non-root
+episode returns local saturation so its parent can mutate or switch. The same
+condition at the root starts a new statistical epoch if an admissible
+distribution-changing mutation exists; otherwise it terminates with a typed
+incomplete result. Coverage may be emitted as a diagnostic, but it is not an
+independent decision edge.
 
 A mutation that changes the query or strategy distribution closes the current
 epoch and opens a deterministically identified new one. `Episode` owns that
@@ -414,30 +413,31 @@ body through `Episode.run` or `Episode.run_async`.
 Grain                                    # one level of the loop, declared once
   name    : str            # "search", "strategy", "walk", "seed", "run", ...
   unit    : str            # one sentence: what one unit IS at this grain
-  credit  : str            # one sentence: what one credit IS at this grain
-  channels: ChannelSchema  # fixed, versioned channel declarations
-  control : EstimatorControllerConfig
-                           # paired numerical implementation, initial
-                           # thresholds, and injected threshold adapter
+  result  : str            # one sentence: what one result IS at this grain
+  controller: Path -> Controller
+                           # a binding-supplied function that constructs one
+                           # controller for this Episode path
 
 Episode[Unit, Extracted]                 # one instance of one grain
   grain   : Grain
   key     : str            # this instance's scope key (task id, strategy
                            #   id, walk id); its scope is the complete ancestry
                            #   Path ending in (grain.name, key)
-  source  : UnitSource     # next(view) -> Unit | None. `view` is the
-                           #   parent's read-only running state: records so
-                           #   far, curve, verdict. A plain list is wrapped
-                           #   as a source that ignores the view. A proposer
-                           #   (the switch edge) reads the view. For an outer
-                           #   grain, a Unit is a child Episode
+  request : EpisodeRequest # compact parent -> child input
+  source  : UnitSource     # next(view) -> Unit | None. `view` carries the
+                           #   request, prior compact child updates, and the
+                           #   opaque current controller state. It never
+                           #   carries full child traces
   extract : Extractor      # Unit -> Extracted. String work may live here:
                            #   fetch + judge + extract on the provider
                            #   surface; pure expansion on the graph surface
-  credit  : Crediter       # (Unit, Extracted) -> accepted assertion records.
-                           #   It cannot construct incidence samples, set
-                           #   eligibility, pool channels, or return a verdict
-  on_unit : Hook?          # receives the immutable post-verdict record.
+  result  : ResultProjector# (Unit, Extracted) -> controller-specific input.
+                           #   The method treats that input as opaque
+  to_parent: Compressor?   # EpisodeRecord -> EpisodeUpdate. The binding
+                           #   decides what the parent controller and prompt need
+  on_close: TraceHook?     # receives this Episode's own completed record for
+                           #   audit/checkpoint work; never feeds the parent
+  on_unit : Hook?          # receives the compact result and controller step.
                            #   Learning memory, graph enrichment and ledgers
                            #   live here; the return is discarded and cannot
                            #   change the current unit's verdict
@@ -450,55 +450,55 @@ Episode[Unit, Extracted]                 # one instance of one grain
         unit = source.next(view)          # pull
         if unit is None:                  end = exhausted;  break
         if unit is a SourceEnd:           end = unit.kind;  break   # rule 6
-        contribution = unit.acquire(ctx)  # ONE path: a Leaf runs extract then
-                                          #   projects accepted column identities;
-                                          #   an Episode runs the inner
-                                          #   loop and carries its own record
-        observation = incidence.observe(  # core-owned within-unit dedupe,
-            grain.channels, contribution # channel union and typed status
-        )
-        control_step = scoped.advance(scope, epoch, observation)
+        contribution = unit.acquire(ctx)  # a Leaf projects a result; a child
+                                          #   Episode returns EpisodeUpdate
+        control_step = controller.observe(contribution.controller_input)
         record = UnitRecord(unit, contribution, control_step)
-        on_unit(unit, contribution, record)  # post-verdict publication only
+        on_unit(unit, contribution, UnitView(record))
         if verdict.ends_episode:          end = verdict.end_reason; break
-    return EpisodeRecord(grain, key, epoch_records, units, end, estimates, verdict)
-    #   a child episode's record hangs on ITS unit's record (UnitRecord.child):
-    #   one representation of the tree, built by the loop that owns it
+    episode_record = EpisodeRecord(grain, key, units, end, controller_state)
+    on_close(episode_record)             # child-owned trace publication
+    return episode_record
+    # EpisodeRecord keeps the complete recursive trace for audit. The running
+    # parent sees EpisodeUpdate, not that trace.
 ```
 
 Fixed in the Episode method core: the step order; safety is checked before a
-unit is pulled; accepted identities are deduplicated into incidence by the
-core; the bound estimator-controller component returns one internally
-consistent control step after every unit; the arithmetic verdict is evaluated
-before a hook can observe the record; epoch
+unit is pulled; one controller function is opened for each Episode path; the
+controller returns one internally consistent step after every unit; the
+arithmetic verdict is evaluated before a hook can observe the result; epoch
 transitions and streaks have one owner; and a child episode is one unit of its
 parent. Records nest as episodes do. The method core calls no model and does no
 I/O — whether an injected `extract` fetches a page is invisible to it.
 
-Bound at the method level: `source`, `extract`, the deterministic acceptance
-projection, the post-verdict observation hook, explicit safety boundary,
-fixed channel declarations, and one estimator-controller component. The
-component owns its estimator-specific statistics, threshold state and
-arithmetic. Composition may supply a validated numerical threshold adapter;
-it cannot replace the Episode loop.
+Bound at the method level: `source`, `extract`, the result projector, the
+controller function, compact request/update construction, the post-controller
+hook, and an explicit safety boundary. The controller owns its input shape,
+statistics, thresholds, and arithmetic. The table binding supplies incidence
+vectors and hypervolume; another binding may supply an entirely different
+numeric controller without changing `Episode` or `Context`.
 
-Fixed in `Episode`: order of operations, eligibility handling, identity,
-nesting, fan-up, record shape, and epoch lifecycle. Rarefaction is one attached
+Fixed in `Episode`: order of operations, identity, nesting, full trace shape,
+compact message routing, and epoch lifecycle. Rarefaction is one attached
 numerical component. It never owns the method that calls it.
 
 ### Fan-up, stated
 
-A parent observes the eligible child's **distinct accepted identities by
-channel**, each once. It does not receive the child's encounter multiplicity
-or child-scale hypervolume. The parent updates its own per-column vector and
-recomputes marginal hypervolume on its own reachable-total scale. At the
-parent, an identity's incidence frequency is
+A binding converts the completed child into an `EpisodeUpdate`. For the table
+binding, its controller input contains the eligible child's **distinct accepted
+identities by channel**, each once. It does not carry child-scale hypervolume.
+The parent updates its own per-column vector and recomputes marginal
+hypervolume on its own reachable-total scale. At the parent, an identity's incidence frequency is
 the number of eligible children that contributed it: at the strategy grain,
 `Q1` means identities found by exactly one completed search and `Q2` means
 identities found by exactly two. Each grain deduplicates its own unit, so an
 identity new within one child can correctly be a recurrence at the parent.
 
-The full child record always remains nested and auditable. A child enters the
+The full child `EpisodeRecord` remains nested and auditable in the trace tree.
+Its `record_id` joins audit artifacts to the compact update; it is not a route
+for parent steering code to recover the trace. The
+`EpisodeUpdate.prompt_context` is a binding-specific compression containing
+only what the next parent proposal needs. A child enters the
 parent's incidence history only when it completed as `exhausted` or by its own
 rarefaction convergence/saturation verdict. A child ended by `bound_hit`,
 `source_failed`, dependency unavailability, or another invalidating cut does
@@ -511,8 +511,8 @@ failure or cap look like measured barrenness.
 
 "Stop" at a grain ends that episode. What to try next is the `source` of
 the grain above: at the top of the provider composition the `run` grain's
-source is a **proposer** that reads the run's view (the finished strategy
-episodes' records, as text) and samples an untried, semantically distant
+source is a **proposer** that reads the run's compact strategy updates and
+samples an untried, semantically distant
 strategy — model string work — yielding it as the next child. The model
 returns the candidate strings and a distance number; the rule that accepts
 a candidate as "distant enough" is a written threshold on that number. The
@@ -703,9 +703,9 @@ persistence, or a surface.
 
 | Module | Owns |
 | --- | --- |
-| `method_loop/episode.py` | The single composable loop: safety check → pull one unit → extract → accept → invoke one numerical control transition → publish the post-verdict observation. It owns Episode/unit identities, nesting, fan-up, and records |
-| `method_loop/runtime.py` | Path/epoch routing that attaches one opaque numerical component to each Episode scope |
-| `rarefaction/method.py` | The paired estimator-controller transition, generic numeric report, current fixed-threshold adapter, and estimator-specific arithmetic |
+| `method_loop/episode.py` | The single composable loop, Episode/unit identities, compact `EpisodeRequest`/`EpisodeUpdate` routing, and the full recursive `EpisodeRecord` trace |
+| `method_loop/runtime.py` | Path routing that opens and calls the controller function supplied by each `Grain`; it knows no controller schema |
+| `rarefaction/method.py` | One optional controller implementation: incidence observation, paired estimator-controller transition, numeric report, threshold adapter, and estimator-specific arithmetic |
 
 `stop_rule.py` is removed when the upgraded `accumulator.py` and
 `controller.py` are wired. `Episode` is the sole owner of the composed loop
@@ -773,8 +773,6 @@ phase 4A to admit `rarefaction` as a permitted lower layer; the
   the composition and writes ledger decisions from episode records.
 - The historical `rarefaction/stop_rule.py` and its exports and configuration fields are
   deleted in the atomic Episode migration.
-- `IncidenceEstimator` and `IncidenceEstimate` are the single estimator and
-  decision-facing output names for incidence rarefaction.
 - `question_pipeline/reward.py` stops re-deriving credit at round end and
   consumes episode ledgers. The reward's definition of a datapoint (real,
   evidenced, never operational volume) is unchanged.

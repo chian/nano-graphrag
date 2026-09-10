@@ -31,8 +31,8 @@ is all).
 """
 
 import json
-from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from dataclasses import dataclass, replace
+from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple
 
 from method_loop import (
     END_BOUND_HIT,
@@ -41,16 +41,26 @@ from method_loop import (
     END_SOURCE_FAILED,
     END_YIELD_STOP,
     Context,
-    CreditResult,
+    Contribution,
     Episode,
     EpisodeRecord,
+    EpisodeUpdate,
     Grain,
     Leaf,
     SourceEnd,
     UnitRecord,
+    UnitView,
     leaves,
 )
-from rarefaction import ChannelSchema, ControllerConfig
+from rarefaction import (
+    OBSERVATION_FAILED,
+    ChannelSchema,
+    ControlStep,
+    ControllerConfig,
+    IncidenceObservation,
+    IncidenceState,
+    bind_controller,
+)
 
 from .adapters.base import (
     BOUND_KIND_NONE,
@@ -75,19 +85,22 @@ WALK_YIELD_CONTROL = ControllerConfig.uniform(
 # its policy (docs/ACQUISITION_LOOP.md rule 4). The scope level and key that
 # used to be string literals at the episode-composition call site come from
 # this declaration.
-WALK_GRAIN = Grain(
-    name="walk",
-    unit=(
-        "one seed expansion: every hop this walk makes outward from one seed "
-        "node, to the requested depth"
-    ),
-    credit=(
-        "one node encounter: an accepted, non-duplicate hop arrival at a graph "
-        "node, counted by its opaque node id, so re-arrivals via distinct hops "
-        "are genuine repeat encounters"
-    ),
-    control=WALK_YIELD_CONTROL,
-)
+WALK_GRAIN_NAME = "walk"
+
+
+def _walk_grain(channel_schema: ChannelSchema) -> Grain:
+    return Grain(
+        name=WALK_GRAIN_NAME,
+        unit=(
+            "one seed expansion: every hop this walk makes outward from one "
+            "seed node, to the requested depth"
+        ),
+        result="the binding-defined node encounters returned by that seed",
+        controller=bind_controller(
+            channel_schema=channel_schema,
+            control=WALK_YIELD_CONTROL,
+        ),
+    )
 
 # The query grain's yield-stop policy (phase G, design §2). Thresholds are
 # STATED DEFAULTS, NEVER FITTED so a verdict fires — the same numbers and the
@@ -99,20 +112,72 @@ QUERY_YIELD_CONTROL = ControllerConfig.uniform(
     ("overall",), gamma=0.0, rho=0.0, streak_length=8
 )
 
-QUERY_GRAIN = Grain(
-    name="query",
-    unit=(
-        "one completed GASL operation track: one graph-reading operation "
-        "(GRAPHWALK as a child walk episode; FIND, SUBGRAPH, GRAPHCONNECT, "
-        "GRAPHPATTERN as leaves) carried from its compiled command to its "
-        "final result, including its compile patches and repair attempts"
-    ),
-    credit=(
-        "one distinct opaque graph node identity the operation encountered, "
-        "counted once per operation however many rows carried it"
-    ),
-    control=QUERY_YIELD_CONTROL,
-)
+QUERY_GRAIN_NAME = "query"
+
+
+def _query_grain() -> Grain:
+    return Grain(
+        name=QUERY_GRAIN_NAME,
+        unit=(
+            "one completed GASL graph-reading operation, including its "
+            "compile and repair attempts"
+        ),
+        result="the binding-defined graph-node encounters returned by the operation",
+        controller=bind_controller(
+            channel_schema=ChannelSchema.single(),
+            control=QUERY_YIELD_CONTROL,
+        ),
+    )
+
+
+def _incidence_state(record: EpisodeRecord) -> IncidenceState:
+    state = record.controller_state
+    if not isinstance(state, IncidenceState):
+        raise TypeError("GASL Episode did not use the incidence controller")
+    return state
+
+
+def _incidence_step(record: UnitRecord | UnitView) -> ControlStep:
+    step = record.controller_step
+    if not isinstance(step, ControlStep):
+        raise TypeError("GASL unit did not use the incidence controller")
+    return step
+
+
+def _incidence_input(value: object) -> IncidenceObservation:
+    if not isinstance(value, IncidenceObservation):
+        raise TypeError("GASL unit did not provide an incidence observation")
+    return value
+
+
+def _episode_observation(record: EpisodeRecord) -> IncidenceObservation:
+    observations = tuple(
+        _incidence_input(unit.controller_input) for unit in record.unit_records
+    )
+    if record.ended_by not in (END_EXHAUSTED, END_YIELD_STOP):
+        reason = f":{record.end_reason}" if record.end_reason else ""
+        return IncidenceObservation.excluded(
+            f"child ended {record.ended_by}{reason}; its trace is retained but "
+            "it does not enter the parent's controller"
+        )
+    if observations and all(
+        observation.status == OBSERVATION_FAILED
+        for observation in observations
+    ):
+        return IncidenceObservation.failed(
+            "child made no numerical judgement: every unit failed"
+        )
+    combined = IncidenceObservation.combine(observations)
+    schema = _incidence_state(record).report.channel_schema
+    if schema.union_channel is None:
+        return combined
+    return IncidenceObservation(
+        identities=combined.identities,
+        channels={
+            channel: combined.channels.get(channel, ())
+            for channel in schema.base_channels
+        },
+    )
 
 #: The query episode's scope key — code-minted, constant per invocation (each
 #: invocation owns a fresh Context, so the constant never re-opens a path).
@@ -277,7 +342,10 @@ def _window_unit_records(unit_records: Tuple[UnitRecord, ...]) -> Dict[str, Any]
     """
 
     total = len(unit_records)
-    costs = [len(record.credits) for record in unit_records]
+    costs = [
+        len(_incidence_input(record.controller_input).identities)
+        for record in unit_records
+    ]
     credits_total = sum(costs)
 
     if credits_total <= WALK_UNIT_CREDIT_WINDOW:
@@ -356,6 +424,15 @@ class WalkComposition:
     edge_cap: int
 
 
+@dataclass(frozen=True)
+class WalkEpisodeOutput:
+    """The completed walk data its parent operation needs."""
+
+    rows: tuple[dict, ...]
+    completeness: Mapping[str, Any]
+    ended_by: str
+
+
 class GraphWalkBinding:
     """Compose one GRAPHWALK over the generic Episode method."""
 
@@ -381,6 +458,7 @@ class GraphWalkBinding:
         max_nodes: int,
         edge_cap: int,
         nested: bool,
+        grain: Optional[Grain] = None,
     ) -> WalkComposition:
         """Everything ``walk()`` does before ``Episode(...).run(...)``.
 
@@ -415,6 +493,14 @@ class GraphWalkBinding:
         step_names = tuple(
             f"{DEPTH_FACET_PREFIX}{step + 1}" for step in range(depth)
         )
+        channel_schema = (
+            ChannelSchema.single()
+            if nested
+            else ChannelSchema.partition(step_names, overlap_allowed=True)
+            if step_names
+            else ChannelSchema.single()
+        )
+        walk_grain = grain if grain is not None else _walk_grain(channel_schema)
 
         def expand(node: dict) -> SeedExpansion | FailedSeedExpansion | None:
             """Expand one seed. The grain's extractor; it decides nothing.
@@ -546,7 +632,7 @@ class GraphWalkBinding:
 
         if nested:
 
-            def credit_seed(node: dict, expansion: Any) -> CreditResult:
+            def result_seed(node: dict, expansion: Any) -> IncidenceObservation:
                 """The grain's crediter under the query's single channel.
 
                 Supplies NO facets: the shared Context freezes one schema per
@@ -559,18 +645,18 @@ class GraphWalkBinding:
                 without re-walking the graph.
                 """
                 if expansion is None:
-                    return CreditResult.disabled(
+                    return IncidenceObservation.failed(
                         "seed carries no id and could not be expanded"
                     )
                 if isinstance(expansion, FailedSeedExpansion):
-                    return CreditResult.disabled(
+                    return IncidenceObservation.failed(
                         f"seed_expansion_error:{expansion.error_class}"
                     )
-                return CreditResult(credits=expansion.encounters)
+                return IncidenceObservation(identities=expansion.encounters)
 
         else:
 
-            def credit_seed(node: dict, expansion: Any) -> CreditResult:
+            def result_seed(node: dict, expansion: Any) -> IncidenceObservation:
                 """The grain's crediter: opaque node ids, grouped by depth step.
 
                 The groups partition the seed's credits exactly, so the per-step
@@ -579,19 +665,19 @@ class GraphWalkBinding:
                 would have seen without re-walking the graph.
                 """
                 if expansion is None:
-                    return CreditResult.disabled(
+                    return IncidenceObservation.failed(
                         "seed carries no id and could not be expanded"
                     )
                 if isinstance(expansion, FailedSeedExpansion):
-                    return CreditResult.disabled(
+                    return IncidenceObservation.failed(
                         f"seed_expansion_error:{expansion.error_class}"
                     )
-                return CreditResult(
-                    credits=expansion.encounters,
-                    facets=dict(zip(step_names, expansion.encounters_by_step)),
+                return IncidenceObservation(
+                    identities=expansion.encounters,
+                    channels=dict(zip(step_names, expansion.encounters_by_step)),
                 )
 
-        def collect(leaf: Any, contribution: Any, record: UnitRecord) -> None:
+        def collect(leaf: Any, contribution: Any, record: UnitView) -> None:
             """The grain's hook: the rows, and the budget those rows spend.
 
             Decoupled from crediting by construction -- the loop discards what
@@ -601,7 +687,7 @@ class GraphWalkBinding:
             reads), preserving per-depth recomputability under the single
             channel schema (G2/F1).
             """
-            expansion = contribution.extracted
+            expansion = contribution.output
             if not isinstance(expansion, SeedExpansion):
                 return
             walked_data.extend(expansion.rows)
@@ -617,12 +703,12 @@ class GraphWalkBinding:
                 )
 
         episode = Episode(
-            grain=WALK_GRAIN,
+            grain=walk_grain,
             key=key,
             source=leaves(
                 _SeedStream(source_nodes, budget),
                 expand,
-                credit_seed,
+                result_seed,
                 label=lambda node: str(node.get("id") or "<no-id>"),
             ),
             on_unit=collect,
@@ -668,12 +754,16 @@ class GraphWalkBinding:
         walk_yield["units"] = _window_unit_records(record.unit_records)
 
         units_crediting_disabled = sum(
-            1 for unit in record.unit_records if unit.yield_record.crediting_disabled
+            1
+            for unit in record.unit_records
+            if _incidence_input(unit.controller_input).status == OBSERVATION_FAILED
         )
         seed_expansion_errors = sum(
             1
             for unit in record.unit_records
-            if unit.credit_note.startswith("seed_expansion_error")
+            if _incidence_input(unit.controller_input).note.startswith(
+                "seed_expansion_error"
+            )
         )
         seeds_expanded = record.units_consumed - units_crediting_disabled
         seeds_skipped = seeds_total - seeds_expanded
@@ -787,6 +877,34 @@ class GraphWalkBinding:
             )
         return walked_data, dict(complete_result(len(walked_data)), **detail)
 
+    def parent_update(
+        self,
+        comp: WalkComposition,
+        record: EpisodeRecord,
+    ) -> EpisodeUpdate:
+        """Compress a completed walk for its parent query Episode."""
+
+        rows, walk_completeness = self.interpret(comp, record)
+        state = _incidence_state(record)
+        observation = _episode_observation(record)
+        return EpisodeUpdate(
+            record_id=record.episode_id,
+            controller_input=observation,
+            prompt_context={
+                "episode_id": record.episode_id,
+                "units_processed": record.units_consumed,
+                "ended_by": record.ended_by,
+                "distinct_nodes": len(observation.identities),
+                "estimate": state.report.primary.as_record(),
+                "verdict": state.verdict.as_record(),
+            },
+            output=WalkEpisodeOutput(
+                rows=tuple(rows),
+                completeness=dict(walk_completeness),
+                ended_by=record.ended_by,
+            ),
+        )
+
     def walk(
         self,
         source_nodes: list[dict],
@@ -815,19 +933,8 @@ class GraphWalkBinding:
             edge_cap=edge_cap,
             nested=False,
         )
-        step_names = tuple(
-            f"{DEPTH_FACET_PREFIX}{step + 1}" for step in range(depth)
-        )
-        channel_schema = (
-            ChannelSchema.partition(step_names, overlap_allowed=True)
-            if step_names
-            else ChannelSchema.single()
-        )
         record = comp.episode.run(
-            Context(
-                order=(WALK_GRAIN,),
-                channel_schemas={WALK_GRAIN.name: channel_schema},
-            )
+            Context(order=(comp.episode.grain,))
         )
         return self.interpret(comp, record)
 
@@ -930,7 +1037,7 @@ def operation_credits(data: Any) -> tuple[Tuple[str, ...], int]:
     return (), 1
 
 
-def credit_for_track_outcome(outcome: "TrackOutcome") -> CreditResult:
+def result_for_track_outcome(outcome: "TrackOutcome") -> IncidenceObservation:
     """The operation crediter: fate label plus credits for one Leaf track.
 
     Every fate here is a typed label for an end the existing code already
@@ -941,27 +1048,27 @@ def credit_for_track_outcome(outcome: "TrackOutcome") -> CreditResult:
     result = outcome.final_result
     if result is None:
         # The track appended no result at all — nothing was judged.
-        return CreditResult.disabled(FATE_OP_ERROR)
+        return IncidenceObservation.failed(FATE_OP_ERROR)
     provenance_ids = [
         provenance.source_id for provenance in (result.provenance or [])
     ]
     if result.status == "error":
         if "step_compiler" in provenance_ids:
-            return CreditResult.disabled(FATE_COMPILE_BLOCKED)
+            return IncidenceObservation.failed(FATE_COMPILE_BLOCKED)
         error_class = ""
         for provenance in result.provenance or []:
             if provenance.source_id == "command_execution":
                 error_class = str(provenance.extraction.get("error_type") or "")
                 break
         if error_class:
-            return CreditResult.disabled(f"{FATE_OP_ERROR}:{error_class}")
-        return CreditResult.disabled(FATE_OP_ERROR)
+            return IncidenceObservation.failed(f"{FATE_OP_ERROR}:{error_class}")
+        return IncidenceObservation.failed(FATE_OP_ERROR)
     if (
         "gasl-on" in provenance_ids
         and isinstance(result.data, dict)
         and result.data.get("triggered") is False
     ):
-        return CreditResult.disabled(FATE_OP_NOT_TRIGGERED)
+        return IncidenceObservation.failed(FATE_OP_NOT_TRIGGERED)
     credits, unmappable = operation_credits(result.data)
     repaired = "command_repair" in provenance_ids
     if repaired and result.status == "success":
@@ -975,7 +1082,7 @@ def credit_for_track_outcome(outcome: "TrackOutcome") -> CreditResult:
         note += " repaired"
     if unmappable:
         note += f" unmappable_rows={unmappable}"
-    return CreditResult(credits=credits, note=note)
+    return IncidenceObservation(identities=credits, note=note)
 
 
 # --------------------------------------------------------------------------
@@ -1039,12 +1146,15 @@ def _run_operation_track(track: OperationTrack) -> TrackOutcome:
     )
 
 
-def _credit_operation_track(track: OperationTrack, outcome: Any) -> CreditResult:
+def _result_operation_track(
+    track: OperationTrack,
+    outcome: Any,
+) -> IncidenceObservation:
     if not isinstance(outcome, TrackOutcome):
         # Totality guard (G10): a mis-shaped extraction is a disclosed
         # non-judgement, never a raise inside the kernel's credit step.
-        return CreditResult.disabled(FATE_OP_ERROR)
-    return credit_for_track_outcome(outcome)
+        return IncidenceObservation.failed(FATE_OP_ERROR)
+    return result_for_track_outcome(outcome)
 
 
 # --------------------------------------------------------------------------
@@ -1146,10 +1256,12 @@ class PlannerOperationSource:
         services: QueryBindingServices,
         query: str,
         max_iterations: int,
+        walk_grain: Grain,
     ) -> None:
         self._services = services
         self._query = query
         self._max_iterations = int(max_iterations)
+        self._walk_grain = walk_grain
 
         # current-plan state
         self._plan: Any = None
@@ -1368,6 +1480,13 @@ class PlannerOperationSource:
             max_nodes=prep["max_nodes"],
             edge_cap=prep["edge_cap"],
             nested=True,
+            grain=self._walk_grain,
+        )
+        comp.episode = replace(
+            comp.episode,
+            to_parent=lambda record: self._services.walk_binding.parent_update(
+                comp, record
+            ),
         )
         self.graphwalks_nested += 1
         self._walk_registry[unit_key] = {
@@ -1399,22 +1518,22 @@ class PlannerOperationSource:
         return Leaf(
             unit=track,
             extract=_run_operation_track,
-            credit=_credit_operation_track,
+            result=_result_operation_track,
             label=unit_key,
         )
 
     # ---------------------------------------------------------------- #
     # the query grain's hook — post-verdict publication and writeback
     # ---------------------------------------------------------------- #
-    def on_unit(self, item: Any, contribution: Any, record: UnitRecord) -> None:
-        if record.child is not None:
+    def on_unit(self, item: Any, contribution: Contribution, record: UnitView) -> None:
+        if contribution.episode_update is not None:
             entry = self._walk_registry.pop(item.key, None)
             if entry is None:
                 return
             comp = entry["comp"]
-            rows, walk_completeness = self._services.walk_binding.interpret(
-                comp, record.child
-            )
+            output = contribution.output
+            if not isinstance(output, WalkEpisodeOutput):
+                raise TypeError("nested walk returned no WalkEpisodeOutput")
             # This nested path applies no plan-break gate (the track body's
             # stop_on_error/continue_on_empty checks) because
             # `finish_graphwalk`'s only result constructor is
@@ -1422,7 +1541,10 @@ class PlannerOperationSource:
             # future change to that status contract must revisit this hook
             # (code-review cycle 1, finding 4).
             result = self._services.finish_graphwalk(
-                entry["compiled_command"], entry["prep"], rows, walk_completeness
+                entry["compiled_command"],
+                entry["prep"],
+                list(output.rows),
+                dict(output.completeness),
             )
             self._services.publish_result(
                 entry["step_id"], entry["compiled_command"], result
@@ -1436,15 +1558,15 @@ class PlannerOperationSource:
                     "per_seed_encounters_by_step": list(comp.step_disclosure),
                 }
             )
-            self._tally(f"walk:{record.child.ended_by}")
+            self._tally(f"walk:{output.ended_by}")
             return
-        outcome = contribution.extracted
+        outcome = contribution.output
         if isinstance(outcome, TrackOutcome):
             self._plan_results.extend(outcome.results)
             self._previous_result = outcome.previous_result
             if outcome.break_plan:
                 self._plan_broke = True
-        note = contribution.credit.note or FATE_OP_ERROR
+        note = _incidence_input(contribution.controller_input).note or FATE_OP_ERROR
         self._tally(note.split()[0])
 
     # ---------------------------------------------------------------- #
@@ -1536,13 +1658,16 @@ class GaslQueryBinding:
         self._services = services
 
     def compose(self, *, query: str, max_iterations: int) -> QueryComposition:
+        query_grain = _query_grain()
+        walk_grain = _walk_grain(ChannelSchema.single())
         source = PlannerOperationSource(
             services=self._services,
             query=query,
             max_iterations=max_iterations,
+            walk_grain=walk_grain,
         )
         episode = Episode(
-            grain=QUERY_GRAIN,
+            grain=query_grain,
             key=QUERY_EPISODE_KEY,
             source=source,
             on_unit=source.on_unit,
@@ -1550,16 +1675,7 @@ class GaslQueryBinding:
             # count, so it is the SOURCE's typed cut (design §5).
             bound=None,
         )
-        context = Context(
-            order=(QUERY_GRAIN, WALK_GRAIN),
-            channel_schemas={
-                QUERY_GRAIN.name: ChannelSchema.single(),
-                # One frozen schema per grain name per Context (F1): nested
-                # walks run single-channel; per-depth identities ride in the
-                # binding's step disclosure instead.
-                WALK_GRAIN.name: ChannelSchema.single(),
-            },
-        )
+        context = Context(order=(query_grain, walk_grain))
         return QueryComposition(episode=episode, context=context, source=source)
 
     def summarize(

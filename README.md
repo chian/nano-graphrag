@@ -37,7 +37,7 @@ Episode.
   +------------------------------------------------------------------+
   |                                                                  |
   v                                                                  |
-source reads this Episode's completed records and estimates          |
+source reads this Episode's request, compact updates, and control state
   |                                                                  |
   v                                                                  |
 choose the next unit                                                  |
@@ -52,8 +52,8 @@ choose the next unit                                                  |
                                              results from one unit   |
                                                               |      |
                                                               v      |
-                                      update counts by column         |
-                                      update estimates and decision   |
+                                      send result to bound controller |
+                                      update its numbers and decision |
                                                               |      |
                                                               v      |
                                       save record; update memory      |
@@ -129,10 +129,11 @@ Each level answers a different question with the same method:
 | strategy | one completed search Episode | stop pursuing that strategy family |
 | run | one completed strategy Episode | end the declared acquisition run |
 
-The child returns its distinct accepted results by column. The parent treats
-the completed child as one unit and recalculates its own counts, estimates, and
-decision. It does not add together the child's hypervolume and its own. The
-full child record is stored inside the parent's unit record.
+The table binding's child update carries distinct accepted results by column.
+The parent treats the completed child as one unit and recalculates its own
+counts, estimates, and decision. It does not add together the child's
+hypervolume and its own. The full child record is retained only in the trace;
+the running parent receives a compact `EpisodeUpdate`.
 
 ```text
 PARENT EPISODE                         CHILD EPISODE
@@ -140,27 +141,29 @@ PARENT EPISODE                         CHILD EPISODE
 choose the child --------------------> run the child's own loop
                                                 |
                                                 v
-                                      return the child record and
-                                      distinct results by column
+                                      write the full child trace
+                                      and build EpisodeUpdate
                                                 |
                   <-----------------------------+
                   |
                   v
-       count the completed child as one parent unit
+       send EpisodeUpdate.controller_input to
+       the parent's own controller
                   |
                   v
        update the parent's estimates and decision
                   |
                   v
-       store the child record inside the parent record
+       expose only EpisodeUpdate.prompt_context
+       to the parent's next source call
                   |
              +----+----+
              |         |
          continue     stop
              |         |
              v         v
-       choose the    return the parent record
-       next unit     to its own parent
+       choose the    close this Episode and build
+       next unit     its own compact EpisodeUpdate
 ```
 
 Information moves up one level whenever a child finishes:
@@ -173,8 +176,8 @@ search closes            -> strategy receives its distinct results
 strategy closes          -> run receives its distinct results
 ```
 
-Each source sees the completed records and numerical results from its own
-Episode. It can use that history to propose different work next time. For
+Each source sees the compact child updates and opaque controller state from its
+own Episode. It can use that history to propose different work next time. For
 example, a page can replace an unproductive lexical query with abbreviations
 found in the document, while a strategy can replace a saturated Web search
 with a different search angle. The model proposes the next string; the
@@ -192,8 +195,8 @@ result one turn can add:
 grain = Grain(
     name="document_search",
     unit="one document returned by this search",
-    credit="one accepted result in a declared result column",
-    control=controller_config,
+    result="the binding-defined result returned by one document",
+    controller=controller_function,
 )
 ```
 
@@ -203,7 +206,7 @@ time. Return `None` when there are no more items:
 ```python
 class ToolSource:
     def next(self, view):
-        # view.units contains the completed work at this level.
+        # view.updates contains compact messages from completed children.
         return choose_next_item(view)
 ```
 
@@ -214,7 +217,7 @@ source = leaves(
     units=ToolSource(),
     extract=run_tool,
     accept=validate_and_store_results,
-    credit=count_accepted_results,
+    result=make_controller_input,
     label=lambda item: item.stable_name,
 )
 
@@ -233,11 +236,13 @@ These functions have separate jobs:
 | `next(view)` | choose the next item using the work already completed at this level |
 | `extract(item)` | run the tool and produce candidate results |
 | `accept(item, results)` | validate and store results that are supported by evidence |
-| `credit(item, accepted)` | return the stable keys of accepted results, separated by result column |
+| `result(item, accepted)` | build the input expected by this Grain's controller |
 | `on_unit(...)` | update memory or write logs after the numerical decision has been recorded |
+| `on_close(record)` | write this Episode's own full trace or checkpoint without giving it to the parent |
 
-`credit` returns a `CreditResult`: `credits` contains the distinct result keys
-and `facets` separates those same keys by result column.
+For the table-fill binding, `result` returns an `IncidenceObservation` whose
+identities are separated by logical result column. A different Episode type may
+bind a different result type and controller.
 When the outer Episode uses `run_async()`, the source and bound functions may
 also be asynchronous.
 
@@ -256,24 +261,35 @@ class ChildEpisodeSource:
         return build_next_child_episode(view)  # or None when finished
 ```
 
-The child runs to its own numerical decision and returns its record and
-distinct results to the parent. The parent then counts that completed child as
-one unit. Do not write a loop around either Episode; calling `run()` or
+The child also needs a `to_parent` function. It converts the full child trace
+into the compact message the parent actually needs:
+
+```python
+child = Episode(
+    grain=child_grain,
+    key="child-1",
+    source=child_source,
+    to_parent=lambda record: EpisodeUpdate(
+        record_id=record.episode_id,
+        controller_input=combine_child_results(record),
+        prompt_context=summarize_for_parent_prompt(record),
+    ),
+)
+```
+
+The parent receives that update as one unit. The full `EpisodeRecord` remains
+in the recursive trace for audit but is not placed in the parent's source view
+or prompt. Do not write a loop around either Episode; calling `run()` or
 `run_async()` on the outer Episode runs the complete nested tree.
 
-Finally, create one `Context` for the run. Give it the `ChannelSchema` that
-lists the result columns used at each level, and list the permitted nesting
-order from outermost to innermost:
+Finally, create one `Context` for the run and list the permitted nesting order
+from outermost to innermost. Controller configuration is already captured by
+each Grain's controller function; `Context` does not know its schema:
 
 ```python
 ctx = Context(
     run_id="run-1",
     order=(run_grain, strategy_grain, search_grain),
-    channel_schemas={
-        "run": channel_schema,
-        "strategy": channel_schema,
-        "search": channel_schema,
-    },
 )
 
 record = await run_episode.run_async(ctx)

@@ -80,16 +80,28 @@ from method_loop import (
     END_SOURCE_FAILED,
     END_YIELD_STOP,
     Context,
-    CreditResult,
     Episode,
     EpisodeRecord,
+    EpisodeUpdate,
     EpisodeView,
     Grain,
     Leaf,
     ResumeUnit,
     SourceEnd,
+    UnitRecord,
+    UnitView,
 )
-from rarefaction import ChannelSchema, ControllerConfig
+from rarefaction import (
+    OBSERVATION_EXCLUDED,
+    OBSERVATION_FAILED,
+    OBSERVATION_OBSERVED,
+    ChannelSchema,
+    ControlStep,
+    ControllerConfig,
+    IncidenceObservation,
+    IncidenceState,
+    bind_controller,
+)
 
 from . import criteria
 from .control import select_first_clearing, stable_id
@@ -131,21 +143,16 @@ __all__ = [
     "DEFAULT_PAGE_CONTROL",
     "DEFAULT_RUN_CONTROL",
     "DEFAULT_STRATEGY_CONTROL",
-    "LEXICAL_PROBE_GRAIN",
     "MAX_PROPOSAL_SAMPLES",
     "PAGE_CREDIT_WINDOW",
     "REJECT_OPERATOR_NOT_IN_CATALOG",
-    "RUN_GRAIN",
-    "SEARCH_GRAIN",
     "STRATEGY_DISTANCE_FLOOR",
-    "STRATEGY_GRAIN",
     "AcquisitionController",
     "AcquisitionDecision",
     "TableCreditAssigner",
     "CreditAttribution",
     "CreditColumn",
     "PageCredit",
-    "PAGE_GRAIN",
     "PageMaterial",
     "PageSource",
     "PageUnit",
@@ -206,81 +213,184 @@ DEFAULT_RUN_CONTROL = ControllerConfig.uniform(
     ("overall",), gamma=0.0, rho=0.0, streak_length=8
 )
 
-SEARCH_GRAIN = Grain(
-    name="search",
-    unit=(
-        "one fetched page or document from this search's result list: the page "
-        "is acquired and extracted before the next one is pulled"
-    ),
-    credit=(
-        "one non-trivial logical value slot for a declared, deliverable, "
-        "non-key contract column"
-    ),
-    control=DEFAULT_ITEM_CONTROL,
-)
-
-PAGE_GRAIN = Grain(
-    name="page",
-    unit="one completed lexical-probe episode over this page's remaining chunks",
-    credit=(
-        "one accepted finding that the probe contributed to this page, counted "
-        "once however many chunks in that probe carried it"
-    ),
-    control=DEFAULT_PAGE_CONTROL,
-)
-
-LEXICAL_PROBE_GRAIN = Grain(
-    name="lexical_probe",
-    unit=(
-        "one previously unprocessed chunk from this probe's lexical ranking; "
-        "the same chunk identity is never pulled twice on one page"
-    ),
-    credit=(
-        "one accepted finding carried by that chunk; recurrence in another "
-        "chunk is incidence but not a new distinct finding"
-    ),
-    control=DEFAULT_CHUNK_CONTROL,
-)
-
-STRATEGY_GRAIN = Grain(
-    name="strategy",
-    unit="one completed search episode of this strategy",
-    credit=(
-        "one credit identity that a search contributed to this strategy, "
-        "counted once however many of its pages carried it"
-    ),
-    control=DEFAULT_STRATEGY_CONTROL,
-)
-
-RUN_GRAIN = Grain(
-    name="run",
-    unit="one completed strategy episode",
-    credit=(
-        "one credit identity that a strategy contributed to the run, counted "
-        "once however many of its searches carried it"
-    ),
-    control=DEFAULT_RUN_CONTROL,
-)
-
-#: The declared grain order of this composition, handed to ``Context`` so a
-#: mis-nested episode fails by name instead of opening a scope nobody meant.
-GRAIN_ORDER = (
-    RUN_GRAIN,
-    STRATEGY_GRAIN,
-    SEARCH_GRAIN,
-    PAGE_GRAIN,
-    LEXICAL_PROBE_GRAIN,
-)
+RUN_GRAIN_NAME = "run"
+STRATEGY_GRAIN_NAME = "strategy"
+SEARCH_GRAIN_NAME = "search"
+PAGE_GRAIN_NAME = "page"
+LEXICAL_PROBE_GRAIN_NAME = "lexical_probe"
 
 
-def grain_disclosure(grain: Grain) -> dict[str, Any]:
+def _acquisition_grains(
+    channel_schema: ChannelSchema,
+) -> tuple[tuple[Grain, ...], dict[str, ControllerConfig]]:
+    declarations = (
+        (
+            RUN_GRAIN_NAME,
+            "one completed strategy episode",
+            "the binding-defined result returned by one completed strategy",
+            DEFAULT_RUN_CONTROL,
+        ),
+        (
+            STRATEGY_GRAIN_NAME,
+            "one completed search episode of this strategy",
+            "the binding-defined result returned by one completed search",
+            DEFAULT_STRATEGY_CONTROL,
+        ),
+        (
+            SEARCH_GRAIN_NAME,
+            "one fetched and processed page or document from one result list",
+            "the binding-defined result returned by that page",
+            DEFAULT_ITEM_CONTROL,
+        ),
+        (
+            PAGE_GRAIN_NAME,
+            "one completed lexical-probe episode over the page's remaining chunks",
+            "the binding-defined result returned by that lexical probe",
+            DEFAULT_PAGE_CONTROL,
+        ),
+        (
+            LEXICAL_PROBE_GRAIN_NAME,
+            "one previously unprocessed chunk from the lexical ranking",
+            "the binding-defined result returned by that chunk",
+            DEFAULT_CHUNK_CONTROL,
+        ),
+    )
+    grains = tuple(
+        Grain(
+            name=name,
+            unit=unit,
+            result=result,
+            controller=bind_controller(
+                channel_schema=channel_schema,
+                control=control,
+            ),
+        )
+        for name, unit, result, control in declarations
+    )
+    return grains, {name: control for name, _unit, _result, control in declarations}
+
+
+def grain_disclosure(
+    grain: Grain,
+    control: ControllerConfig,
+) -> dict[str, Any]:
     """One grain's numerical declaration for the durable record."""
 
     return {
         "name": grain.name,
         "unit": grain.unit,
-        "credit": grain.credit,
-        "controller": grain.control.as_record(),
+        "result": grain.result,
+        "controller": control.as_record(),
+    }
+
+
+def _incidence_state(record: EpisodeRecord) -> IncidenceState:
+    state = record.controller_state
+    if not isinstance(state, IncidenceState):
+        raise TypeError(
+            f"episode {record.episode_id!r} did not use the incidence controller"
+        )
+    return state
+
+
+def _incidence_step(record: UnitRecord | UnitView) -> ControlStep:
+    step = record.controller_step
+    if not isinstance(step, ControlStep):
+        raise TypeError("unit did not use the incidence controller")
+    return step
+
+
+def _incidence_input(value: object) -> IncidenceObservation:
+    if not isinstance(value, IncidenceObservation):
+        raise TypeError("unit did not provide an incidence observation")
+    return value
+
+
+def _episode_observation(record: EpisodeRecord) -> IncidenceObservation:
+    observations = tuple(
+        _incidence_input(unit.controller_input) for unit in record.unit_records
+    )
+    if record.ended_by not in (END_EXHAUSTED, END_YIELD_STOP):
+        reason = f":{record.end_reason}" if record.end_reason else ""
+        return IncidenceObservation.excluded(
+            f"child ended {record.ended_by}{reason}; its trace is retained but "
+            "it does not enter the parent's controller"
+        )
+    if observations and all(
+        observation.status == OBSERVATION_FAILED
+        for observation in observations
+    ):
+        return IncidenceObservation.failed(
+            "child made no numerical judgement: every unit failed"
+        )
+    combined = IncidenceObservation.combine(observations)
+    schema = _incidence_state(record).report.channel_schema
+    if schema.union_channel is None:
+        return combined
+    return IncidenceObservation(
+        identities=combined.identities,
+        channels={
+            channel: combined.channels.get(channel, ())
+            for channel in schema.base_channels
+        },
+    )
+
+
+def _restored_observation(item: Mapping[str, Any]) -> IncidenceObservation:
+    counts = bool(item.get("counts_toward_verdict", True))
+    active = bool(item.get("active", True))
+    status = (
+        OBSERVATION_OBSERVED
+        if counts and active
+        else OBSERVATION_FAILED
+        if counts
+        else OBSERVATION_EXCLUDED
+    )
+    return IncidenceObservation(
+        identities=(
+            tuple(item.get("credits") or ())
+            if status == OBSERVATION_OBSERVED
+            else ()
+        ),
+        status=status,
+        note=str(item.get("note") or ""),
+        channels=(
+            {
+                str(name): tuple(values)
+                for name, values in dict(item.get("facets") or {}).items()
+            }
+            if status == OBSERVATION_OBSERVED
+            else {}
+        ),
+    )
+
+
+def _base_prompt_context(record: EpisodeRecord) -> dict[str, Any]:
+    state = _incidence_state(record)
+    observation = _episode_observation(record)
+    return {
+        "episode_id": record.episode_id,
+        "grain": record.scope_level,
+        "key": record.scope_key,
+        "units_processed": record.units_consumed,
+        "ended_by": record.ended_by,
+        "end_reason": record.end_reason,
+        "distinct_results": len(observation.identities),
+        "results_by_channel": {
+            name: len(values) for name, values in observation.channels.items()
+        },
+        "estimate": state.report.primary.as_record(),
+        "verdict": state.verdict.as_record(),
+    }
+
+
+def _facet_estimates(state: IncidenceState) -> dict[str, Any]:
+    schema = state.report.channel_schema
+    if schema.union_channel is None:
+        return {}
+    return {
+        channel: state.report.estimates[channel].as_record()
+        for channel in schema.base_channels
     }
 
 
@@ -691,6 +801,14 @@ class PageMaterial:
     evidence_commit: Optional[EvidenceCommit] = None
     evidence_commits: Sequence[EvidenceCommit] = ()
     probe_history: Sequence[Mapping[str, Any]] = ()
+
+
+@dataclass(frozen=True)
+class PageEpisodeOutput:
+    """The page data its parent needs, without the page's full trace."""
+
+    unit: PageUnit
+    material: PageMaterial
 
 
 # ==========================================================================
@@ -1357,8 +1475,12 @@ class TableCreditAssigner:
             )
         return tuple(out)
 
-    def __call__(self, unit: PageUnit, material: PageMaterial) -> CreditResult:
-        """The Leaf's ``credit`` slot. Writes the breakdown onto the unit once."""
+    def __call__(
+        self,
+        unit: PageUnit,
+        material: PageMaterial,
+    ) -> IncidenceObservation:
+        """Project accepted table state into this binding's controller input."""
 
         fate = material.fate
         commit = material.evidence_commit if fate.judged else None
@@ -1379,18 +1501,18 @@ class TableCreditAssigner:
         unit.attach_credit(detail)
 
         if not self._basis.columns and not self._basis.tables:
-            return CreditResult.disabled(
+            return IncidenceObservation.failed(
                 "no declared, deliverable contract columns exist; zero credits "
                 "here means 'could not judge', not 'barren page'"
             )
         if not fate.judged:
-            return CreditResult.disabled(fate.disclosure)
+            return IncidenceObservation.failed(fate.disclosure)
 
         identities = tuple(
             dict.fromkeys(item.identity for item in projected.attributions)
         )
         facets = self._facets(projected)
-        return CreditResult(credits=identities, facets=facets)
+        return IncidenceObservation(identities=identities, channels=facets)
 
     def _accepted_identities(
         self,
@@ -1434,7 +1556,7 @@ class TableCreditAssigner:
         strategy_key = (
             str(unit.episode_path[1][1])
             if len(unit.episode_path) > 1
-            and unit.episode_path[1][0] == STRATEGY_GRAIN.name
+            and unit.episode_path[1][0] == STRATEGY_GRAIN_NAME
             else ""
         )
         attributions: list[CreditAttribution] = []
@@ -2476,7 +2598,6 @@ class AcquisitionDecision:
                 "decision_point": self.decision_point,
                 "scope_path": [list(segment) for segment in self.scope_path],
                 "flat_streak": self.verdict.get("flat_streak"),
-                "done_streak": self.verdict.get("done_streak"),
                 "outcome": self.verdict.get("outcome"),
                 "ended_by": self.ended_by,
                 "end_reason": self.end_reason,
@@ -2511,16 +2632,17 @@ def decision_from_record(
     family: str,
     declared_facets: Sequence[str],
 ) -> AcquisitionDecision:
+    state = _incidence_state(record)
     return AcquisitionDecision(
         policy_name=ACQUISITION_POLICY_NAME,
         decision_point=decision_point,
         scope_path=tuple(record.path),
         scope_key=record.scope_key,
         family=family,
-        verdict=dict(record.final_verdict),
-        curve=dict(record.curve),
-        facets=dict(record.facets),
-        controller=dict(record.controller),
+        verdict=state.verdict.as_record(),
+        curve=state.report.primary.as_record(),
+        facets=_facet_estimates(state),
+        controller=state.verdict.config.as_record(),
         ended_by=record.ended_by,
         end_reason=record.end_reason,
         units_consumed=record.units_consumed,
@@ -2593,16 +2715,20 @@ def _window_unit(unit: dict[str, Any]) -> dict[str, Any]:
     if isinstance(child, Mapping):
         unit["child"] = window_episode_record(child)
         return unit
-    credits = unit.get("credits")
+    controller_input = unit.get("controller_input")
+    credits = (
+        controller_input.get("identities")
+        if isinstance(controller_input, Mapping)
+        else None
+    )
     if not isinstance(credits, list) or len(credits) <= PAGE_CREDIT_WINDOW:
         return unit
     head = PAGE_CREDIT_WINDOW // 2
     tail = PAGE_CREDIT_WINDOW - head
     omitted = len(credits) - PAGE_CREDIT_WINDOW
-    unit["credits"] = credits[:head] + credits[-tail:]
-    sample = unit.get("incidence_sample")
-    if isinstance(sample, list) and len(sample) > PAGE_CREDIT_WINDOW:
-        unit["incidence_sample"] = sample[:head] + sample[-tail:]
+    controller_input = dict(controller_input)
+    controller_input["identities"] = credits[:head] + credits[-tail:]
+    unit["controller_input"] = controller_input
     unit["window"] = {
         "windowed": True,
         "limit": PAGE_CREDIT_WINDOW,
@@ -2633,14 +2759,9 @@ def _window_unit(unit: dict[str, Any]) -> dict[str, Any]:
 class AcquisitionController:
     """Builds the composition, runs it once, and writes decisions from records.
 
-    It is NOT a controller the loop consults between units: ``observe_item``,
-    ``close_search`` and the parent's own list of a child's identities are gone
-    and nothing replaces them. Fan-up is ``Episode._contribution``, and no hook
-    accumulates ``record.credits`` per scope.
-
-    It holds NO POLICY of its own -- each grain carries its own, and
-    ``Context.enter`` hands it straight to ``open_scope`` -- and no meter: cost
-    has one owner and it is ``costs.py``.
+    It binds this surface's channel schema and thresholds into one controller
+    function per grain. ``Context`` sees only those functions and their opaque
+    inputs. Cost has one owner and it is ``costs.py``.
     """
 
     crediter: TableCreditAssigner
@@ -2650,10 +2771,9 @@ class AcquisitionController:
 
     def __post_init__(self) -> None:
         schema = self.crediter.channel_schema
-        self.context = Context(
-            order=GRAIN_ORDER,
-            channel_schemas={grain.name: schema for grain in GRAIN_ORDER},
-        )
+        self.grains, self.grain_controls = _acquisition_grains(schema)
+        self.grain_by_name = {grain.name: grain for grain in self.grains}
+        self.context = Context(order=self.grains)
         self.decision_records: list[dict[str, Any]] = []
         self.record: Optional[EpisodeRecord] = None
         self.proposer: Optional[StrategyProposer] = None
@@ -2707,6 +2827,9 @@ class AcquisitionController:
         summary is told, in the summary, that it is one.
         """
 
+        run_state = (
+            _incidence_state(self.record) if self.record is not None else None
+        )
         return {
             "policy_name": ACQUISITION_POLICY_NAME,
             "projection_of": "acquisition_episodes.json",
@@ -2723,7 +2846,8 @@ class AcquisitionController:
             ),
             "facet_gate": "crediting_active",
             "grains": [
-                grain_disclosure(grain) for grain in GRAIN_ORDER
+                grain_disclosure(grain, self.grain_controls[grain.name])
+                for grain in self.grains
             ],
             "credit_basis": self.crediter.basis.to_dict(),
             "spec_digest": self.crediter.spec_digest,
@@ -2747,8 +2871,8 @@ class AcquisitionController:
                     "units_consumed": self.record.units_consumed,
                     "ended_by": self.record.ended_by,
                     "end_reason": self.record.end_reason,
-                    "final_verdict": dict(self.record.final_verdict),
-                    "curve": dict(self.record.curve),
+                    "final_verdict": run_state.verdict.as_record(),
+                    "curve": run_state.report.primary.as_record(),
                 }
                 if self.record is not None
                 else {}
@@ -2864,23 +2988,30 @@ class ProviderBinding:
         criteria_projection_version: str,
         missing_tokens: Callable[[], AbstractSet[str]],
         checkpoint_completed_strategy: Optional[
-            Callable[[Optional[EpisodeRecord], Any], Any]
+            Callable[[EpisodeUpdate, Any], Any]
         ] = None,
         checkpoint_completed_search: Optional[
             Callable[[Optional[EpisodeRecord], str, str], Any]
         ] = None,
     ) -> None:
         self.controller = controller
+        self.run_grain = controller.grain_by_name[RUN_GRAIN_NAME]
+        self.strategy_grain = controller.grain_by_name[STRATEGY_GRAIN_NAME]
+        self.search_grain = controller.grain_by_name[SEARCH_GRAIN_NAME]
+        self.page_grain = controller.grain_by_name[PAGE_GRAIN_NAME]
+        self.lexical_probe_grain = controller.grain_by_name[
+            LEXICAL_PROBE_GRAIN_NAME
+        ]
         self.crediter = controller.crediter
         self.budget = controller.budget
         self.health = controller.health
         self.termination = controller.termination
         self.run_key = str(run_key)
-        self.run_path = ((RUN_GRAIN.name, self.run_key),)
+        self.run_path = ((self.run_grain.name, self.run_key),)
         self.controller.context.bind_run_id(self.run_key)
         self.run_episode_id = Episode.identity(
             self.controller.context,
-            RUN_GRAIN,
+            self.run_grain,
             self.run_key,
         ).episode_id
         self.episode_unit_safety_cap = int(episode_unit_safety_cap)
@@ -2946,6 +3077,7 @@ class ProviderBinding:
         self._open_outcomes: dict[str, SearchOutcome] = {}
         self._open_sources: dict[str, PageSource] = {}
         self._accepted_sources: list[dict[str, Any]] = []
+        self._trace_records: dict[str, EpisodeRecord] = {}
         self._episode_records: list[dict[str, Any]] = []
         self._strategy_proposals: list[dict[str, Any]] = []
         # One compact post-verdict observation per completed strategy. This is
@@ -2970,6 +3102,74 @@ class ProviderBinding:
     # ------------------------------------------------------------------ #
     # Episode declarations: the surface binds; the kernel loops.
     # ------------------------------------------------------------------ #
+    def _episode_update(
+        self,
+        record: EpisodeRecord,
+        *,
+        prompt_context: Optional[Mapping[str, Any]] = None,
+        output: Any = None,
+        retain_trace: bool = False,
+    ) -> EpisodeUpdate:
+        """Return the compact parent message, retaining audit state if needed."""
+
+        if retain_trace:
+            self._trace_records[record.episode_id] = record
+        return EpisodeUpdate(
+            record_id=record.episode_id,
+            controller_input=_episode_observation(record),
+            prompt_context=(
+                dict(prompt_context)
+                if prompt_context is not None
+                else _base_prompt_context(record)
+            ),
+            output=output,
+        )
+
+    def take_episode_record(self, record_id: str) -> EpisodeRecord:
+        """Give the checkpoint writer a retained trace; never used for steering."""
+
+        try:
+            return self._trace_records.pop(str(record_id))
+        except KeyError as exc:
+            raise LookupError(
+                f"no retained EpisodeRecord for {record_id!r}"
+            ) from exc
+
+    def _page_episode_update(
+        self,
+        state: PageRunState,
+        record: EpisodeRecord,
+    ) -> EpisodeUpdate:
+        self._attach_page_credit(state)
+        return self._episode_update(
+            record,
+            output=PageEpisodeOutput(
+                unit=state.unit,
+                material=self._page_material(state),
+            ),
+        )
+
+    def _strategy_episode_update(
+        self,
+        record: EpisodeRecord,
+        *,
+        strategy_key: str,
+        family: str,
+    ) -> EpisodeUpdate:
+        prompt_context = self._strategy_learning_observation(
+            strategy_key=strategy_key,
+            family=family,
+            record=record,
+        )
+        return self._episode_update(
+            record,
+            prompt_context=prompt_context,
+            retain_trace=self.checkpoint_completed_strategy is not None,
+        )
+
+    def _search_episode_update(self, record: EpisodeRecord) -> EpisodeUpdate:
+        return self._episode_update(record)
+
     def build_run_episode(self) -> Episode:
         self.proposer = StrategyProposer(
             declared=self.eligible_families,
@@ -2998,7 +3198,7 @@ class ProviderBinding:
                 )
             )
         return Episode(
-            grain=RUN_GRAIN,
+            grain=self.run_grain,
             key=self.run_key,
             source=self.proposer,
             on_unit=self._on_strategy,
@@ -3006,18 +3206,7 @@ class ProviderBinding:
             resume_units=tuple(
                 ResumeUnit(
                     label=str(item["label"]),
-                    credit=CreditResult(
-                        credits=tuple(item.get("credits") or ()),
-                        active=bool(item.get("active", True)),
-                        note=str(item.get("note") or ""),
-                        facets={
-                            str(name): tuple(values)
-                            for name, values in dict(item.get("facets") or {}).items()
-                        },
-                    ),
-                    counts_toward_verdict=bool(
-                        item.get("counts_toward_verdict", True)
-                    ),
+                    controller_input=_restored_observation(item),
                 )
                 for item in self._completed_run_units
             ),
@@ -3059,13 +3248,13 @@ class ProviderBinding:
         self._active_strategy_seeds = [task.query]
 
         search_path = (
-            (RUN_GRAIN.name, self.run_key),
-            (STRATEGY_GRAIN.name, str(strategy_key)),
-            (SEARCH_GRAIN.name, task.id),
+            (self.run_grain.name, self.run_key),
+            (self.strategy_grain.name, str(strategy_key)),
+            (self.search_grain.name, task.id),
         )
         search_episode_id = Episode.identity(
             self.controller.context,
-            SEARCH_GRAIN,
+            self.search_grain,
             task.id,
             parent_path=search_path[:-1],
         ).episode_id
@@ -3077,7 +3266,7 @@ class ProviderBinding:
             episode_path=search_path,
         )
         search_episode = Episode(
-            grain=SEARCH_GRAIN,
+            grain=self.search_grain,
             key=task.id,
             source=_SingleAcquirableSource(page_item),
             on_unit=lambda item, contribution, record: self._on_page(
@@ -3088,21 +3277,28 @@ class ProviderBinding:
                 str(strategy_key),
                 family,
             ),
+            on_close=lambda record: self._close_search(
+                record, str(strategy_key), family
+            ),
+            to_parent=self._search_episode_update,
         )
         strategy_episode = Episode(
-            grain=STRATEGY_GRAIN,
+            grain=self.strategy_grain,
             key=str(strategy_key),
             source=_SingleAcquirableSource(search_episode),
-            on_unit=lambda item, contribution, record: self._on_search(
-                item,
-                contribution,
+            on_close=lambda record: self._close_strategy(
                 record,
                 str(strategy_key),
                 family,
             ),
+            to_parent=lambda record: self._strategy_episode_update(
+                record,
+                strategy_key=str(strategy_key),
+                family=family,
+            ),
         )
         return Episode(
-            grain=RUN_GRAIN,
+            grain=self.run_grain,
             key=self.run_key,
             source=_SingleAcquirableSource(strategy_episode),
             on_unit=self._on_strategy,
@@ -3133,7 +3329,7 @@ class ProviderBinding:
         self._active_strategy_family = str(family)
         self._active_strategy_seeds = [str(seed) for seed in seeds]
         return Episode(
-            grain=STRATEGY_GRAIN,
+            grain=self.strategy_grain,
             key=strategy_key,
             source=StrategySearches(
                 strategy_key=strategy_key,
@@ -3145,24 +3341,18 @@ class ProviderBinding:
                 budget=self.budget,
                 health=self.health,
             ),
-            on_unit=lambda unit, contribution, record: self._on_search(
-                unit, contribution, record, strategy_key, family
+            on_close=lambda record: self._close_strategy(
+                record, strategy_key, family
+            ),
+            to_parent=lambda record: self._strategy_episode_update(
+                record,
+                strategy_key=strategy_key,
+                family=family,
             ),
             resume_units=tuple(
                 ResumeUnit(
                     label=str(item["label"]),
-                    credit=CreditResult(
-                        credits=tuple(item.get("credits") or ()),
-                        active=bool(item.get("active", True)),
-                        note=str(item.get("note") or ""),
-                        facets={
-                            str(name): tuple(values)
-                            for name, values in dict(item.get("facets") or {}).items()
-                        },
-                    ),
-                    counts_toward_verdict=bool(
-                        item.get("counts_toward_verdict", True)
-                    ),
+                    controller_input=_restored_observation(item),
                 )
                 for item in self._active_search_units
             ),
@@ -3177,13 +3367,13 @@ class ProviderBinding:
         outcome = SearchOutcome.for_task(task)
         self._open_outcomes[task.id] = outcome
         search_path = (
-            (RUN_GRAIN.name, self.run_key),
-            (STRATEGY_GRAIN.name, strategy_key),
-            (SEARCH_GRAIN.name, task.id),
+            (self.run_grain.name, self.run_key),
+            (self.strategy_grain.name, strategy_key),
+            (self.search_grain.name, task.id),
         )
         search_episode_id = Episode.identity(
             self.controller.context,
-            SEARCH_GRAIN,
+            self.search_grain,
             task.id,
             parent_path=search_path[:-1],
         ).episode_id
@@ -3208,12 +3398,16 @@ class ProviderBinding:
         )
         self._open_sources[task.id] = source
         return Episode(
-            grain=SEARCH_GRAIN,
+            grain=self.search_grain,
             key=task.id,
             source=source,
             on_unit=lambda unit, contribution, record: self._on_page(
                 unit, contribution, record, outcome, strategy_key, family
             ),
+            on_close=lambda record: self._close_search(
+                record, strategy_key, family
+            ),
+            to_parent=self._search_episode_update,
         )
 
     def _make_page_item(
@@ -3303,10 +3497,10 @@ class ProviderBinding:
                 ),
             )
 
-        page_path = episode_path + ((PAGE_GRAIN.name, unit.label),)
+        page_path = episode_path + ((self.page_grain.name, unit.label),)
         page_ref = Episode.identity(
             self.controller.context,
-            PAGE_GRAIN,
+            self.page_grain,
             unit.label,
             parent_path=episode_path,
         )
@@ -3338,12 +3532,13 @@ class ProviderBinding:
             open_prompt_scope=self.open_prompt_scope,
         )
         return Episode(
-            grain=PAGE_GRAIN,
+            grain=self.page_grain,
             key=unit.label,
             source=source,
             on_unit=lambda probe, contribution, record: self._on_probe(
                 state, probe, contribution, record
             ),
+            to_parent=lambda record: self._page_episode_update(state, record),
         )
 
     def _material_leaf(self, unit: PageUnit, material: PageMaterial) -> Leaf:
@@ -3351,7 +3546,7 @@ class ProviderBinding:
             unit=unit,
             extract=lambda _unit: material,
             accept=self.accept_evidence,
-            credit=self.crediter,
+            result=self.crediter,
             label=unit.label,
         )
 
@@ -3365,10 +3560,10 @@ class ProviderBinding:
         page_episode_id: str,
         page_path: tuple[tuple[str, str], ...],
     ) -> Episode:
-        probe_path = page_path + ((LEXICAL_PROBE_GRAIN.name, probe_key),)
+        probe_path = page_path + ((self.lexical_probe_grain.name, probe_key),)
         probe_ref = Episode.identity(
             self.controller.context,
-            LEXICAL_PROBE_GRAIN,
+            self.lexical_probe_grain,
             probe_key,
             parent_path=page_path,
         )
@@ -3384,12 +3579,13 @@ class ProviderBinding:
             ),
         )
         return Episode(
-            grain=LEXICAL_PROBE_GRAIN,
+            grain=self.lexical_probe_grain,
             key=probe_key,
             source=source,
             on_unit=lambda leaf, contribution, record: self._on_chunk(
                 state, leaf, contribution, record
             ),
+            to_parent=self._episode_update,
         )
 
     def _make_chunk_leaf(
@@ -3414,7 +3610,7 @@ class ProviderBinding:
             unit=unit,
             extract=self._extract_chunk,
             accept=self.accept_evidence,
-            credit=self.crediter,
+            result=self.crediter,
             label=unit.label,
         )
 
@@ -3439,7 +3635,7 @@ class ProviderBinding:
             unit=unit,
             extract=self.fetch_extract,
             accept=self.accept_evidence,
-            credit=self.crediter,
+            result=self.crediter,
             label=unit.label,
         )
 
@@ -3538,9 +3734,10 @@ class ProviderBinding:
         unit = leaf.unit
         state.processed_chunk_ids.add(unit.label)
         state.chunk_units.append(unit)
-        material = contribution.extracted
+        material = contribution.output
         if isinstance(material, PageMaterial):
-            findings = set(contribution.credit.credits)
+            observation = _incidence_input(contribution.controller_input)
+            findings = set(observation.identities)
             new_findings = findings - state.seen_finding_ids
             repeated_findings = findings & state.seen_finding_ids
             for chunk in material.chunks:
@@ -3580,30 +3777,27 @@ class ProviderBinding:
     ) -> None:
         """Expose one probe's measured result to the next probe proposal."""
 
-        child = contribution.child
+        update = contribution.episode_update
         proposal = dict(state.probe_proposals.get(episode.key) or {})
+        context = (
+            dict(update.prompt_context)
+            if update is not None and isinstance(update.prompt_context, Mapping)
+            else {}
+        )
+        by_channel = dict(context.get("results_by_channel") or {})
+        step = _incidence_step(record)
         proposal.update(
             {
                 "probe_key": episode.key,
-                "chunks_processed": child.units_consumed if child else 0,
-                "distinct_findings": (
-                    len(child.distinct_identities) if child else 0
-                ),
-                "findings_by_channel": (
-                    {
-                        self.crediter.facet_labels.get(name, name): len(values)
-                        for name, values in child.facet_distinct.items()
-                    }
-                    if child
-                    else {}
-                ),
-                "ended_by": child.ended_by if child else "",
+                "chunks_processed": int(context.get("units_processed") or 0),
+                "distinct_findings": int(context.get("distinct_results") or 0),
+                "findings_by_channel": {
+                    self.crediter.facet_labels.get(str(name), str(name)): int(value)
+                    for name, value in by_channel.items()
+                },
+                "ended_by": str(context.get("ended_by") or ""),
                 "unprocessed_chunks": len(state.remaining_chunks()),
-                "volume_credit": (
-                    record.volume_credit.as_record()
-                    if record.volume_credit is not None
-                    else None
-                ),
+                "volume_credit": step.volume_credit.as_record(),
             }
         )
         state.probe_history.append(proposal)
@@ -4112,20 +4306,20 @@ class ProviderBinding:
         family: str,
     ) -> None:
         if isinstance(item, Episode):
-            state = self._page_states.pop(item.key, None)
-            if state is None:
+            output = contribution.output
+            self._page_states.pop(item.key, None)
+            if not isinstance(output, PageEpisodeOutput):
                 self.record_hook_failure(
                     "on_page",
                     item.key,
-                    LookupError(f"page state missing for {item.key!r}"),
+                    TypeError(f"page update missing for {item.key!r}"),
                 )
                 return
-            self._attach_page_credit(state)
-            unit = state.unit
-            material = self._page_material(state)
+            unit = output.unit
+            material = output.material
         else:
             unit = item.unit
-            material = contribution.extracted
+            material = contribution.output
         try:
             self.budget.charge(1)
             self.set_units_pulled(self.budget.spent)
@@ -4153,28 +4347,27 @@ class ProviderBinding:
         except Exception as exc:  # noqa: BLE001 - hook must not unwind the tree
             self.record_hook_failure("on_page", unit.label, exc)
 
-    def _on_search(
+    def _close_search(
         self,
-        episode: Episode,
-        contribution: Any,
-        record: Any,
+        record: EpisodeRecord,
         strategy_key: str,
         family: str,
     ) -> None:
-        child = contribution.child
+        """Finalize a search from its own trace before publishing its update."""
+
         try:
-            task_id = child.scope_key if child is not None else episode.key
+            task_id = record.scope_key
             outcome = self._open_outcomes.pop(task_id, None)
             source = self._open_sources.pop(task_id, None)
             if outcome is None:
                 return
-            if child is not None and child.ended_by == END_YIELD_STOP:
+            if record.ended_by == END_YIELD_STOP:
                 remaining = source.remaining if source is not None else 0
                 if remaining > 0:
                     outcome.skip("yield_stop", remaining)
                 self.append_control_decision(
                     self.controller.write_decision(
-                        child,
+                        record,
                         decision_point=DECISION_SEARCH_ITEM_YIELD,
                         family=family,
                     )
@@ -4192,25 +4385,47 @@ class ProviderBinding:
             self.refresh_search_memory()
             self.record_prompt_attempt_counts([outcome])
             self._pending_followup_outcomes.append(outcome)
+            observation = _episode_observation(record)
             self._active_search_units.append(
                 {
-                    "label": str(episode.label),
-                    "credits": list(contribution.credit.credits),
-                    "active": bool(contribution.credit.active),
-                    "note": str(contribution.credit.note),
+                    "label": str(record.scope_key),
+                    "credits": list(observation.identities),
+                    "active": observation.status == OBSERVATION_OBSERVED,
+                    "note": observation.note,
                     "facets": {
                         str(name): list(values)
-                        for name, values in contribution.credit.facets.items()
+                        for name, values in observation.channels.items()
                     },
-                    "counts_toward_verdict": bool(
-                        contribution.counts_toward_verdict
+                    "counts_toward_verdict": (
+                        observation.status != OBSERVATION_EXCLUDED
                     ),
                 }
             )
             if self.checkpoint_completed_search is not None:
-                self.checkpoint_completed_search(child, strategy_key, family)
+                self.checkpoint_completed_search(record, strategy_key, family)
         except Exception as exc:  # noqa: BLE001 - hook must not unwind the tree
-            self.record_hook_failure("on_search", episode.key, exc)
+            self.record_hook_failure("close_search", record.scope_key, exc)
+
+    def _close_strategy(
+        self,
+        record: EpisodeRecord,
+        strategy_key: str,
+        family: str,
+    ) -> None:
+        """Record strategy-local trace facts before publishing its update."""
+
+        try:
+            self._strategy_ends[family] = record.ended_by
+            self.append_control_decision(
+                self.controller.write_decision(
+                    record,
+                    decision_point=DECISION_STRATEGY_YIELD,
+                    family=family,
+                )
+            )
+            self.write_episode_record(record)
+        except Exception as exc:  # noqa: BLE001 - trace must not unwind the tree
+            self.record_hook_failure("close_strategy", strategy_key, exc)
 
     async def _on_strategy(
         self,
@@ -4218,54 +4433,43 @@ class ProviderBinding:
         contribution: Any,
         record: Any,
     ) -> None:
-        child = contribution.child
+        update = contribution.episode_update
         family = str(episode.key).split("#", 1)[0]
         try:
-            if child is not None:
-                self._strategy_ends[family] = child.ended_by
-                self.append_control_decision(
-                    self.controller.write_decision(
-                        child,
-                        decision_point=DECISION_STRATEGY_YIELD,
-                        family=family,
-                    )
+            if update is None:
+                raise TypeError("strategy Episode returned no EpisodeUpdate")
+            try:
+                observation = dict(update.prompt_context or {})
+                observation["volume_credit"] = (
+                    _incidence_step(record).volume_credit.as_record()
                 )
-                self.write_episode_record(child)
-                try:
-                    self._strategy_learning_history.append(
-                        self._strategy_learning_observation(
-                            strategy_key=str(episode.key),
-                            family=family,
-                            record=child,
-                            volume_credit=record.volume_credit,
-                        )
-                    )
-                except Exception as exc:  # noqa: BLE001 - memory is advisory
-                    self.record_hook_failure(
-                        "strategy_learning_observation", episode.key, exc
-                    )
-                observed = int(record.yield_record.unit_index)
-                if observed != int(self._completed_strategies):
-                    self.record_hook_failure(
-                        "strategy_unit_index",
-                        episode.key,
-                        ValueError(
-                            f"local completed-strategy count "
-                            f"{self._completed_strategies} disagrees with the "
-                            f"run episode's unit index {observed}"
-                        ),
-                    )
-            strategy_episode_id = child.episode_id if child is not None else ""
+                self._strategy_learning_history.append(observation)
+            except Exception as exc:  # noqa: BLE001 - memory is advisory
+                self.record_hook_failure(
+                    "strategy_learning_observation", episode.key, exc
+                )
+            observed = int(_incidence_step(record).unit_yield.unit_index)
+            if observed != int(self._completed_strategies):
+                self.record_hook_failure(
+                    "strategy_unit_index",
+                    episode.key,
+                    ValueError(
+                        f"local completed-strategy count "
+                        f"{self._completed_strategies} disagrees with the "
+                        f"run episode's unit index {observed}"
+                    ),
+                )
+            strategy_episode_id = update.record_id
             strategy_path = (
-                (RUN_GRAIN.name, self.run_key),
-                (STRATEGY_GRAIN.name, str(episode.key)),
+                (self.run_grain.name, self.run_key),
+                (self.strategy_grain.name, str(episode.key)),
             )
             self.set_active_strategy(strategy_episode_id, strategy_path)
             await self.post_strategy(
                 episode.key,
                 family,
                 strategy_episode_id,
-                run_unit_index=int(record.yield_record.unit_index),
+                run_unit_index=int(_incidence_step(record).unit_yield.unit_index),
             )
         except Exception as exc:  # noqa: BLE001 - hook must not unwind the tree
             self.record_hook_failure("on_strategy", episode.key, exc)
@@ -4275,15 +4479,23 @@ class ProviderBinding:
         self._completed_run_units.append(
             {
                 "label": str(episode.label),
-                "credits": list(contribution.credit.credits),
-                "active": bool(contribution.credit.active),
-                "note": str(contribution.credit.note),
+                "credits": list(
+                    _incidence_input(contribution.controller_input).identities
+                ),
+                "active": (
+                    _incidence_input(contribution.controller_input).status
+                    == OBSERVATION_OBSERVED
+                ),
+                "note": _incidence_input(contribution.controller_input).note,
                 "facets": {
                     str(name): list(values)
-                    for name, values in contribution.credit.facets.items()
+                    for name, values in _incidence_input(
+                        contribution.controller_input
+                    ).channels.items()
                 },
-                "counts_toward_verdict": bool(
-                    contribution.counts_toward_verdict
+                "counts_toward_verdict": (
+                    _incidence_input(contribution.controller_input).status
+                    != OBSERVATION_EXCLUDED
                 ),
             }
         )
@@ -4293,7 +4505,11 @@ class ProviderBinding:
         self._active_search_units = []
         if self.checkpoint_completed_strategy is not None:
             try:
-                result = self.checkpoint_completed_strategy(child, record)
+                if update is None:
+                    raise TypeError(
+                        "strategy checkpoint requires an EpisodeUpdate"
+                    )
+                result = self.checkpoint_completed_strategy(update, record)
                 if hasattr(result, "__await__"):
                     await result
             except Exception as exc:  # noqa: BLE001 - disclosed hook failure
@@ -4424,7 +4640,6 @@ class ProviderBinding:
         strategy_key: str,
         family: str,
         record: EpisodeRecord,
-        volume_credit: Any = None,
     ) -> dict[str, Any]:
         """Compress one completed strategy into measured search feedback."""
 
@@ -4438,13 +4653,9 @@ class ProviderBinding:
             episode_record: EpisodeRecord,
         ) -> dict[str, Any]:
             out: dict[str, Any] = {}
-            for channel, estimate in episode_record.facets.items():
-                if isinstance(estimate, Mapping):
-                    value: Any = dict(estimate)
-                elif hasattr(estimate, "as_record"):
-                    value = estimate.as_record()
-                else:
-                    value = estimate
+            for channel, value in _facet_estimates(
+                _incidence_state(episode_record)
+            ).items():
                 out[
                     self.crediter.facet_labels.get(
                         str(channel), str(channel)
@@ -4486,30 +4697,32 @@ class ProviderBinding:
                         search_record.ended_by if search_record is not None else ""
                     ),
                     "distinct_findings": (
-                        observed(search_record.curve)
+                        observed(
+                            _incidence_state(search_record).report.primary.as_record()
+                        )
                         if search_record is not None
                         else 0
                     ),
                     "credit_occurrences": (
                         sum(
-                            unit.yield_record.credits_observed
+                            _incidence_step(unit).unit_yield.credits_observed
                             for unit in search_record.unit_records
-                            if unit.yield_record.eligible
+                            if _incidence_step(unit).unit_yield.eligible
                         )
                         if search_record is not None
                         else 0
                     ),
                     "repeat_occurrences": (
                         sum(
-                            len(unit.yield_record.repeat_identities)
+                            len(_incidence_step(unit).unit_yield.repeat_identities)
                             for unit in search_record.unit_records
-                            if unit.yield_record.eligible
+                            if _incidence_step(unit).unit_yield.eligible
                         )
                         if search_record is not None
                         else 0
                     ),
                     "incidence_estimate": (
-                        dict(search_record.curve)
+                        _incidence_state(search_record).report.primary.as_record()
                         if search_record is not None
                         else {}
                     ),
@@ -4519,9 +4732,8 @@ class ProviderBinding:
                         else {}
                     ),
                     "volume_credit": (
-                        search_unit.volume_credit.as_record()
+                        _incidence_step(search_unit).volume_credit.as_record()
                         if search_unit is not None
-                        and search_unit.volume_credit is not None
                         else None
                     ),
                 }
@@ -4536,15 +4748,14 @@ class ProviderBinding:
             "ended_by": record.ended_by,
             "end_reason": record.end_reason,
             "searches_completed": int(record.units_consumed),
-            "distinct_findings": observed(record.curve),
-            "incidence_estimate": dict(record.curve),
-            "findings_by_column": labeled_facets(record),
-            "volume_credit": (
-                volume_credit.as_record()
-                if volume_credit is not None
-                and hasattr(volume_credit, "as_record")
-                else None
+            "distinct_findings": observed(
+                _incidence_state(record).report.primary.as_record()
             ),
+            "incidence_estimate": (
+                _incidence_state(record).report.primary.as_record()
+            ),
+            "findings_by_column": labeled_facets(record),
+            "volume_credit": None,
             "searches": searches,
             "totals": {
                 "provider_results": sum(item["provider_results"] for item in searches),
@@ -4552,7 +4763,9 @@ class ProviderBinding:
                 "unprocessed_pages": sum(item["unprocessed_pages"] for item in searches),
                 "sources_acquired": sum(item["sources_acquired"] for item in searches),
                 "duplicate_urls": sum(item["duplicate_urls"] for item in searches),
-                "distinct_findings": observed(record.curve),
+                "distinct_findings": observed(
+                    _incidence_state(record).report.primary.as_record()
+                ),
                 "credit_occurrences": sum(
                     item["credit_occurrences"] for item in searches
                 ),
@@ -4647,6 +4860,7 @@ class ProviderBinding:
         family: str,
     ) -> None:
         detail = unit.credit_detail
+        step = _incidence_step(record)
         row = {
             "unit_label": unit.label,
             "source_id": material.source_id,
@@ -4659,12 +4873,19 @@ class ProviderBinding:
             "fate": material.fate.to_dict(),
             "credit_note": material.fate.credit_note,
             "skip_reason": fate_skip_reason(material.fate),
-            "counts_toward_verdict": bool(
-                record.yield_record.counts_toward_verdict
+            "counts_toward_verdict": (
+                _incidence_input(record.controller_input).status
+                != OBSERVATION_EXCLUDED
             ),
-            "numerical_snapshot_after": record.as_record().get(
-                "numerical_snapshot_after", {}
-            ),
+            "numerical_snapshot_after": {
+                "incidence_estimate": step.report.primary.as_record(),
+                "controller_verdict": step.verdict.as_record(),
+                "facet_curves": {
+                    channel: step.report.estimates[channel].as_record()
+                    for channel in step.report.channel_schema.base_channels
+                },
+                "volume_credit": step.volume_credit.as_record(),
+            },
             "spec_digest": self.crediter.spec_digest,
             "crediter_built_at_episode_id": self.run_episode_id,
             "credit_semantics": CREDIT_SEMANTICS,
@@ -4692,7 +4913,7 @@ class ProviderBinding:
             pass
 
     def write_episode_record(self, record: EpisodeRecord) -> None:
-        if record.scope_level == STRATEGY_GRAIN.name:
+        if record.scope_level == self.strategy_grain.name:
             self._episode_records.append(window_episode_record(record.as_record()))
         try:
             self.answers_dir.mkdir(parents=True, exist_ok=True)
@@ -4705,8 +4926,11 @@ class ProviderBinding:
                         "declared_facets": list(self.crediter.declared_facets),
                         "spec_digest": self.crediter.spec_digest,
                         "grains": [
-                            grain_disclosure(grain)
-                            for grain in GRAIN_ORDER
+                            grain_disclosure(
+                                grain,
+                                self.controller.grain_controls[grain.name],
+                            )
+                            for grain in self.controller.grains
                         ],
                         "strategies": self._episode_records,
                         "run": (
@@ -4855,5 +5079,3 @@ class ProviderBinding:
             "hook_failures": [dict(item) for item in self.hook_failures()],
             "search_provider_batch": dict(self.search_provider_batch),
         }
-    "LEXICAL_PROBE_GRAIN",
-    "PAGE_GRAIN",

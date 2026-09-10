@@ -171,6 +171,9 @@ def _walk_episodes(record: Mapping[str, Any]) -> Iterator[Mapping[str, Any]]:
 def _channel_schema(record: Mapping[str, Any]) -> ChannelSchema:
     raw = record.get("channel_schema")
     if not isinstance(raw, Mapping):
+        state = record.get("controller_state")
+        raw = state.get("channel_schema") if isinstance(state, Mapping) else None
+    if not isinstance(raw, Mapping):
         raise ValueError("episode has no recorded channel_schema")
     base = tuple(str(value) for value in raw.get("base_channels") or ())
     union = str(raw.get("union_channel") or "") or None
@@ -189,6 +192,9 @@ def _channel_schema(record: Mapping[str, Any]) -> ChannelSchema:
 
 def _controller_config(record: Mapping[str, Any]) -> ControllerConfig:
     raw = record.get("controller")
+    if not isinstance(raw, Mapping) or not raw:
+        state = record.get("controller_state")
+        raw = state.get("controller") if isinstance(state, Mapping) else None
     if not isinstance(raw, Mapping) or not raw:
         final = record.get("final_verdict")
         raw = final.get("controller") if isinstance(final, Mapping) else None
@@ -216,6 +222,9 @@ def _controller_config(record: Mapping[str, Any]) -> ControllerConfig:
 def _estimator_parameters(record: Mapping[str, Any]) -> tuple[int, int, float, str]:
     curve = record.get("curve")
     if not isinstance(curve, Mapping):
+        state = record.get("controller_state")
+        curve = state.get("curve") if isinstance(state, Mapping) else None
+    if not isinstance(curve, Mapping):
         curve = {}
     diagnostics = curve.get("diagnostics")
     if not isinstance(diagnostics, Mapping):
@@ -233,6 +242,9 @@ def _estimator_parameters(record: Mapping[str, Any]) -> tuple[int, int, float, s
 
 
 def _observation_status(unit: Mapping[str, Any]) -> int:
+    controller_input = unit.get("controller_input")
+    if isinstance(controller_input, Mapping) and "status" in controller_input:
+        return int(controller_input["status"])
     explicit = unit.get("observation_status")
     if explicit is not None:
         status = int(explicit)
@@ -258,6 +270,9 @@ def _recorded_first_stop(record: Mapping[str, Any]) -> dict[str, Any] | None:
     for position, unit in enumerate(record.get("units") or (), start=1):
         snapshot = unit.get("numerical_snapshot_after")
         verdict = snapshot.get("controller_verdict") if isinstance(snapshot, Mapping) else None
+        if not isinstance(verdict, Mapping):
+            step = unit.get("controller_step")
+            verdict = step.get("verdict") if isinstance(step, Mapping) else None
         if isinstance(verdict, Mapping) and bool(verdict.get("stop")):
             return {
                 "observation_number": position,
@@ -430,10 +445,23 @@ def replay_numerical_control(
                 if unit_epoch != component.epoch:
                     component = component.transitioned(unit_epoch)
                 status = _observation_status(unit)
-                credits = tuple(str(value) for value in unit.get("credits") or ())
+                controller_input = unit.get("controller_input")
+                input_record = (
+                    controller_input
+                    if isinstance(controller_input, Mapping)
+                    else unit
+                )
+                credits = tuple(
+                    str(value)
+                    for value in input_record.get(
+                        "identities", input_record.get("credits") or ()
+                    )
+                )
                 facets = {
                     str(name): tuple(str(value) for value in values)
-                    for name, values in (unit.get("facets") or {}).items()
+                    for name, values in input_record.get(
+                        "channels", input_record.get("facets") or {}
+                    ).items()
                 }
                 # Failed/excluded units retained their accepted identities for
                 # audit, but those identities were not incidence observations.
@@ -468,7 +496,7 @@ def replay_numerical_control(
                             "unit_index": unit.get("unit_index"),
                             "unit_label": str(unit.get("unit_label") or ""),
                             "observation_status": status,
-                            "recorded_credit_count": len(unit.get("credits") or ()),
+                            "recorded_credit_count": len(credits),
                             "shadow_stop": stop_record is not None,
                             "shadow_verdict": step.verdict.as_record(),
                             "shadow_estimates": _compact_estimates(step.report),

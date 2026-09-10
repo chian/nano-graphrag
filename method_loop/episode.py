@@ -1,33 +1,19 @@
-"""The generic composable acquisition method.
+"""The generic, nestable Episode method.
 
-The class template of ``docs/ACQUISITION_LOOP.md`` §"The template", in the
-form of the operator template note: Composite, Template Method, Strategy,
-Iterator-with-feedback. Design and steward verdicts:
-``experiments/log/4E-a-episode.md``.
+``Episode`` owns one loop: pull a unit, acquire it, send its binding-produced
+value to the injected controller, publish a compact update, and then obey the
+controller's structural stop decision.  It has no knowledge of columns,
+incidence, rarefaction, hypervolume, or any other surface-specific result.
 
-- A :class:`Grain` is one level of the loop, declared once: its name, one
-  sentence each for what a unit and a credit are, and its numerical controller
-  configuration. Run-specific channel declarations are bound explicitly by
-  :class:`Context`.
-- An :class:`Acquirable` is a unit: a :class:`Leaf` (a page, a seed, bound to
-  its grain's ``extract``/``credit``) or an :class:`Episode` (a loop over
-  units). The loop calls ``item.acquire(ctx)`` and never asks which it has.
-- :class:`Episode.acquire` is where fan-up and the bound-leak rule live: the
-  child's distinct identities, each once, are the parent's credits; a child
-  that ended on a bound or a source failure remains nested but does not enter
-  the parent's incidence or stop history. The parent loop has one path and
-  never handles ``bound_hit``.
-- :meth:`Episode.run` is the fixed template method and owns the one loop body.
-  No loop is written on a surface (charter rule 1).
-- A :class:`Context` addresses scopes by ancestry path and opens each scope
-  from the ``Grain`` in hand, binding the frozen run-specific channel schema
-  before the first view or observation.
+Nested communication and tracing are deliberately separate:
 
-This module calls no model and does no I/O; it calls only the injected
-``source``, ``extract``, ``accept``, ``credit`` and hook. A model may live
-inside a ``source``, an ``extract``, or an evidence-candidate producer called
-by ``accept`` -- never in a credit, a controller, or anything that reads a
-curve.
+* :class:`EpisodeRequest` is the compact parent-to-child input.
+* :class:`EpisodeUpdate` is the compact child-to-parent output.
+* :class:`EpisodeRecord` is the complete recursive trace retained for audit.
+
+Sources and parent-unit hooks receive the compact messages.  They never receive
+a nested ``EpisodeRecord`` through the method's running view.  A child-owned
+``on_close`` hook may publish that child's complete record for audit.
 """
 
 from __future__ import annotations
@@ -36,19 +22,8 @@ import inspect
 from dataclasses import dataclass, field
 from typing import Any, Callable, Iterable, Mapping, Optional, Protocol, runtime_checkable
 
-from rarefaction import (
-    ChannelSchema,
-    ControllerConfig,
-    ControllerVerdict,
-    IncidenceEstimate,
-    OBSERVATION_EXCLUDED,
-    OBSERVATION_FAILED,
-    OBSERVATION_OBSERVED,
-    UnitYield,
-    VolumeCredit,
-)
-from .runtime import Path, Scope, ScopedYield
 from .identities import EpisodeRef, UnitRef
+from .runtime import ControllerFactory, ControllerRuntime, Path, Scope
 
 __all__ = [
     "COUNTING_ENDS",
@@ -62,13 +37,20 @@ __all__ = [
     "SOURCE_END_KINDS",
     "Acquirable",
     "Context",
+    "Contribution",
     "Episode",
+    "EpisodeRecord",
+    "EpisodeRequest",
+    "EpisodeUpdate",
     "EpisodeView",
+    "EpochMutation",
     "Grain",
     "Leaf",
     "ResumeUnit",
-    "EpochMutation",
+    "SourceEnd",
+    "UnitRecord",
     "UnitSource",
+    "UnitView",
     "leaves",
 ]
 
@@ -77,28 +59,28 @@ END_YIELD_STOP = "yield_stop"
 END_INCOMPLETE = "incomplete"
 END_BOUND_HIT = "bound_hit"
 END_SOURCE_FAILED = "source_failed"
-ENDS = (END_EXHAUSTED, END_YIELD_STOP, END_INCOMPLETE, END_BOUND_HIT, END_SOURCE_FAILED)
+ENDS = (
+    END_EXHAUSTED,
+    END_YIELD_STOP,
+    END_INCOMPLETE,
+    END_BOUND_HIT,
+    END_SOURCE_FAILED,
+)
 COUNTING_ENDS = (END_EXHAUSTED, END_YIELD_STOP)
 SOURCE_END_KINDS = (END_BOUND_HIT, END_SOURCE_FAILED)
 END_REASON_UNIT_BOUND = "unit_bound"
 
 
-@dataclass(frozen=True)
-class CreditResult:
-    credits: tuple[str, ...] = ()
-    active: bool = True
-    note: str = ""
-    facets: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
-
-    def __post_init__(self) -> None:
-        object.__setattr__(self, "credits", tuple(str(value) for value in self.credits))
-        object.__setattr__(self, "facets", {str(name): tuple(str(value) for value in values) for name, values in dict(self.facets).items()})
-
-    @classmethod
-    def disabled(cls, note: str) -> "CreditResult":
-        if not str(note).strip():
-            raise ValueError("a disabled CreditResult must say why")
-        return cls(active=False, note=str(note))
+def _record_value(value: Any) -> Any:
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if hasattr(value, "as_record"):
+        return value.as_record()
+    if isinstance(value, Mapping):
+        return {str(name): _record_value(item) for name, item in value.items()}
+    if isinstance(value, (tuple, list)):
+        return [_record_value(item) for item in value]
+    return repr(value)
 
 
 @dataclass(frozen=True)
@@ -115,11 +97,7 @@ class SourceEnd:
 
 @dataclass(frozen=True)
 class EpochMutation:
-    """A source proposal for a new, distribution-changing root epoch.
-
-    The source supplies only the already-approved stable mutation identity;
-    ``Episode`` owns whether the numerical root outcome permits the transition.
-    """
+    """A source proposal for a new root-controller epoch."""
 
     epoch: str
 
@@ -129,95 +107,127 @@ class EpochMutation:
 
 
 @dataclass(frozen=True)
+class EpisodeRequest:
+    """The compact information a parent supplies when it opens a child."""
+
+    input: Any = None
+    prompt_context: Any = None
+
+    def as_record(self) -> dict[str, Any]:
+        return {
+            "input": _record_value(self.input),
+            "prompt_context": _record_value(self.prompt_context),
+        }
+
+
+@dataclass(frozen=True)
+class EpisodeUpdate:
+    """The compact information a completed child returns to its parent."""
+
+    record_id: str
+    controller_input: Any
+    prompt_context: Any = None
+    output: Any = None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.record_id, str) or not self.record_id:
+            raise ValueError("EpisodeUpdate.record_id must be a non-empty string")
+
+    def as_record(self) -> dict[str, Any]:
+        return {
+            "record_id": self.record_id,
+            "controller_input": _record_value(self.controller_input),
+            "prompt_context": _record_value(self.prompt_context),
+        }
+
+
+@dataclass(frozen=True)
+class Contribution:
+    """The compact result visible to the containing Episode's hook."""
+
+    controller_input: Any
+    output: Any = None
+    episode_update: Optional[EpisodeUpdate] = None
+
+
+@dataclass(frozen=True)
+class _AcquiredUnit:
+    contribution: Contribution
+    child_record: Optional["EpisodeRecord"] = None
+
+
+@dataclass(frozen=True)
 class UnitRecord:
+    """The full trace of one acquired unit."""
+
     unit_label: str
-    yield_record: UnitYield
-    credit_note: str = ""
-    credits: tuple[str, ...] = ()
-    facets: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
+    controller_input: Any
+    controller_step: Any
+    epoch: str
+    unit_ref: UnitRef
+    episode_update: Optional[EpisodeUpdate] = None
     child: Optional["EpisodeRecord"] = None
-    epoch: str = ""
-    unit_ref: Optional[UnitRef] = None
-    incidence_estimate: Optional[IncidenceEstimate] = None
-    controller_verdict: Optional[ControllerVerdict] = None
-    facet_curves_after: Mapping[str, Any] = field(default_factory=dict)
-    volume_credit: Optional[VolumeCredit] = None
 
     @property
     def unit_id(self) -> str:
-        return self.unit_ref.unit_id if self.unit_ref is not None else ""
+        return self.unit_ref.unit_id
 
-    def as_record(self) -> dict:
-        out = self.yield_record.as_record()
-        if self.credit_note:
-            out["credit_note"] = self.credit_note
-        out["credits"] = list(self.credits)
-        out["facets"] = {name: list(values) for name, values in self.facets.items()}
-        if self.child is not None:
-            out["child"] = self.child.as_record()
-        out["epoch"] = self.epoch
-        out["unit_ref"] = self.unit_ref.as_record() if self.unit_ref else None
-        out["unit_id"] = self.unit_id
-        out["numerical_snapshot_after"] = {
-            "incidence_estimate": (
-                self.incidence_estimate.as_record()
-                if self.incidence_estimate is not None
+    def as_record(self) -> dict[str, Any]:
+        return {
+            "unit_label": self.unit_label,
+            "unit_ref": self.unit_ref.as_record(),
+            "unit_id": self.unit_id,
+            "epoch": self.epoch,
+            "controller_input": _record_value(self.controller_input),
+            "controller_step": _record_value(self.controller_step),
+            "episode_update": (
+                self.episode_update.as_record()
+                if self.episode_update is not None
                 else None
             ),
-            "controller_verdict": (
-                self.controller_verdict.as_record()
-                if self.controller_verdict is not None
-                else None
-            ),
-            "facet_curves": dict(self.facet_curves_after),
-            "volume_credit": (
-                self.volume_credit.as_record()
-                if self.volume_credit is not None
-                else None
-            ),
+            "child": self.child.as_record() if self.child is not None else None,
         }
-        return out
+
+
+@dataclass(frozen=True)
+class UnitView:
+    """The per-unit information visible to a post-controller hook."""
+
+    unit_label: str
+    controller_input: Any
+    controller_step: Any
+    epoch: str
+    unit_ref: UnitRef
+    episode_update: Optional[EpisodeUpdate] = None
 
 
 @dataclass(frozen=True)
 class ResumeUnit:
-    """One completed child contribution restored at a durable boundary.
-
-    Persistence belongs to the composing surface.  The generic method accepts
-    the already-validated contribution here so it can rebuild its numerical
-    parent state before pulling the next child; it performs no I/O and does not
-    infer state from artifacts.
-    """
+    """One previously completed input restored at a durable boundary."""
 
     label: str
-    credit: CreditResult
-    counts_toward_verdict: bool
+    controller_input: Any
 
     def __post_init__(self) -> None:
         if not isinstance(self.label, str) or not self.label:
             raise ValueError("ResumeUnit.label must be a non-empty string")
-        if not isinstance(self.credit, CreditResult):
-            raise TypeError("ResumeUnit.credit must be a CreditResult")
 
 
 @dataclass(frozen=True)
 class EpisodeRecord:
+    """The complete recursive trace of one Episode."""
+
     scope_level: str
     scope_key: str
     units_consumed: int
     ended_by: str
     unit_records: tuple[UnitRecord, ...]
-    final_verdict: dict
-    curve: dict
+    controller_state: Any
     safety_bound: Optional[int] = None
     path: Path = ()
     end_reason: str = ""
-    controller: dict = field(default_factory=dict)
-    facets: dict = field(default_factory=dict)
-    incidence_estimate: Optional[IncidenceEstimate] = None
-    controller_verdict: Optional[ControllerVerdict] = None
-    channel_schema: Optional[ChannelSchema] = None
     episode_ref: Optional[EpisodeRef] = None
+    request: EpisodeRequest = field(default_factory=EpisodeRequest)
 
     @property
     def episode_id(self) -> str:
@@ -227,215 +237,144 @@ class EpisodeRecord:
     def run_id(self) -> str:
         return self.episode_ref.run_id if self.episode_ref is not None else ""
 
-    @property
-    def distinct_identities(self) -> tuple[str, ...]:
-        return tuple(identity for unit in self.unit_records for identity in unit.yield_record.new_identities)
-
-    @property
-    def facet_distinct(self) -> dict[str, tuple[str, ...]]:
-        names = self.channel_schema.base_channels if self.channel_schema and self.channel_schema.union_channel else tuple({name for unit in self.unit_records for name in unit.facets})
-        out: dict[str, tuple[str, ...]] = {}
-        for name in names:
-            seen: set[str] = set()
-            values: list[str] = []
-            for unit in self.unit_records:
-                if unit.yield_record.eligible:
-                    for identity in unit.facets.get(name, ()):
-                        if identity not in seen:
-                            seen.add(identity)
-                            values.append(identity)
-            out[name] = tuple(values)
-        return out
-
-    def as_record(self) -> dict:
-        return {"scope_level": self.scope_level, "scope_key": self.scope_key, "path": [list(item) for item in self.path], "episode_ref": self.episode_ref.as_record() if self.episode_ref else None, "episode_id": self.episode_id, "run_id": self.run_id, "units_consumed": self.units_consumed, "ended_by": self.ended_by, "end_reason": self.end_reason, "safety_bound": self.safety_bound, "controller": dict(self.controller), "final_verdict": self.final_verdict, "curve": self.curve, "facets": dict(self.facets), "channel_schema": self.channel_schema.as_record() if self.channel_schema else {}, "units": [unit.as_record() for unit in self.unit_records]}
-
-
-@dataclass(frozen=True)
-class Contribution:
-    credit: CreditResult
-    counts_toward_verdict: bool
-    extracted: Any = None
-    child: Optional[EpisodeRecord] = None
-
-    def observation_status(self) -> int:
-        if not self.counts_toward_verdict:
-            return OBSERVATION_EXCLUDED
-        if not self.credit.active:
-            return OBSERVATION_FAILED
-        return OBSERVATION_OBSERVED
-
-
-def _leaf_contribution(
-    unit: Any,
-    extract: Callable[[Any], Any],
-    accept: Optional[Callable[[Any, Any], Any]],
-    credit: Callable[[Any, Any], Any],
-) -> Contribution:
-    extracted = extract(unit)
-    accepted = accept(unit, extracted) if accept is not None else extracted
-    result = credit(unit, accepted)
-    if not isinstance(result, CreditResult):
-        raise TypeError("credit() must return CreditResult")
-    return Contribution(result, True, accepted)
-
-
-async def _leaf_contribution_async(
-    unit: Any,
-    extract: Callable[[Any], Any],
-    accept: Optional[Callable[[Any, Any], Any]],
-    credit: Callable[[Any, Any], Any],
-) -> Contribution:
-    extracted = extract(unit)
-    if inspect.isawaitable(extracted):
-        extracted = await extracted
-    accepted = accept(unit, extracted) if accept is not None else extracted
-    if inspect.isawaitable(accepted):
-        accepted = await accepted
-    result = credit(unit, accepted)
-    if inspect.isawaitable(result):
-        result = await result
-    if not isinstance(result, CreditResult):
-        raise TypeError("credit() must return CreditResult")
-    return Contribution(result, True, accepted)
-
-
-# --------------------------------------------------------------------------
-# the grain -- the policy owner
-# --------------------------------------------------------------------------
+    def as_record(self) -> dict[str, Any]:
+        return {
+            "scope_level": self.scope_level,
+            "scope_key": self.scope_key,
+            "path": [list(item) for item in self.path],
+            "episode_ref": (
+                self.episode_ref.as_record() if self.episode_ref else None
+            ),
+            "episode_id": self.episode_id,
+            "run_id": self.run_id,
+            "request": self.request.as_record(),
+            "units_consumed": self.units_consumed,
+            "ended_by": self.ended_by,
+            "end_reason": self.end_reason,
+            "safety_bound": self.safety_bound,
+            "controller_state": _record_value(self.controller_state),
+            "units": [unit.as_record() for unit in self.unit_records],
+        }
 
 
 @dataclass(frozen=True)
 class Grain:
-    """One level of the loop, declared once (charter rule 4).
-
-    ``control`` is the numerical behavior declaration. The frozen channel
-    schema is run-specific and must be supplied separately to :class:`Context`;
-    the grain carries no fallback schema and nothing that touches a unit or
-    reads an estimate.
-    """
+    """One loop level and the controller function bound to that level."""
 
     name: str
     unit: str
-    credit: str
-    control: ControllerConfig
+    result: str
+    controller: ControllerFactory
 
     def __post_init__(self) -> None:
-        for field_name in ("name", "unit", "credit"):
+        for field_name in ("name", "unit", "result"):
             value = getattr(self, field_name)
             if not isinstance(value, str) or not value.strip():
                 raise ValueError(f"Grain.{field_name} must be a non-empty sentence")
-        if not isinstance(self.control, ControllerConfig):
-            raise TypeError(
-                f"Grain.control must be a ControllerConfig, got {type(self.control).__name__}"
-            )
-
-
-# --------------------------------------------------------------------------
-# the view and the source protocol
-# --------------------------------------------------------------------------
+        if not callable(self.controller):
+            raise TypeError("Grain.controller must be a controller function")
 
 
 @dataclass(frozen=True)
 class EpisodeView:
-    """Read-only running state of the episode a source feeds.
-
-    Built directly from the loop's live state. The record objects are the ones
-    that will be emitted; a source that mutates one corrupts its own episode's
-    export and nothing else.
-    """
+    """The compact running state visible to one Episode's source."""
 
     grain: Grain
     key: str
     path: Path
     units_consumed: int
     bound: Optional[int]
-    units: tuple[UnitRecord, ...]
-    curve: IncidenceEstimate
-    verdict: ControllerVerdict
+    updates: tuple[EpisodeUpdate, ...]
+    controller_state: Any
     episode_ref: EpisodeRef
+    request: EpisodeRequest
 
 
 class UnitSource(Protocol):
-    """Answers "what is the next unit" for one episode.
-
-    Returns an :class:`Acquirable`; ``None`` for exhaustion, the only
-    spelling of exhaustion; or a :class:`SourceEnd` naming why the stream
-    died. In ``run_async`` the return may be awaitable. The only place
-    besides ``extract`` a model may live: a proposer reads the view, samples
-    candidate strings, reports a distance number, and a written threshold
-    inside it accepts one.
-    """
+    """Return the next unit, ``None``, or a typed :class:`SourceEnd`."""
 
     def next(self, view: EpisodeView) -> Any: ...
 
 
-# --------------------------------------------------------------------------
-# the Composite: Leaf and Episode
-# --------------------------------------------------------------------------
-
-
 @runtime_checkable
 class Acquirable(Protocol):
-    """The Composite's Component. Implemented by :class:`Leaf` and
-    :class:`Episode` only; a surface implements ``UnitSource``, ``extract``,
-    ``credit`` and hooks, never this."""
+    """The Composite component implemented by :class:`Leaf` and Episode."""
 
     label: str
 
-    def acquire(self, ctx: "Context") -> Contribution: ...
+    def acquire(self, ctx: "Context") -> _AcquiredUnit: ...
 
-    async def acquire_async(self, ctx: "Context") -> Contribution: ...
+    async def acquire_async(self, ctx: "Context") -> _AcquiredUnit: ...
+
+
+def _leaf_acquisition(
+    unit: Any,
+    extract: Callable[[Any], Any],
+    accept: Optional[Callable[[Any, Any], Any]],
+    result: Callable[[Any, Any], Any],
+) -> _AcquiredUnit:
+    extracted = extract(unit)
+    accepted = accept(unit, extracted) if accept is not None else extracted
+    controller_input = result(unit, accepted)
+    return _AcquiredUnit(Contribution(controller_input, accepted))
+
+
+async def _leaf_acquisition_async(
+    unit: Any,
+    extract: Callable[[Any], Any],
+    accept: Optional[Callable[[Any, Any], Any]],
+    result: Callable[[Any, Any], Any],
+) -> _AcquiredUnit:
+    extracted = extract(unit)
+    if inspect.isawaitable(extracted):
+        extracted = await extracted
+    accepted = accept(unit, extracted) if accept is not None else extracted
+    if inspect.isawaitable(accepted):
+        accepted = await accepted
+    controller_input = result(unit, accepted)
+    if inspect.isawaitable(controller_input):
+        controller_input = await controller_input
+    return _AcquiredUnit(Contribution(controller_input, accepted))
 
 
 @dataclass(frozen=True)
 class Leaf:
-    """A page, a seed -- a raw unit bound to its grain's parts at construction.
-
-    ``extract`` produces observations; ``accept`` applies the bound evidence
-    policy and may persist its decision; ``credit`` is a deterministic
-    projection of accepted material onto declared targets. A leaf counts
-    toward the verdict exactly when its crediter was active. ``accept=None``
-    is the identity handoff for surfaces with no evidence boundary.
-    """
+    """A raw unit bound to extraction, acceptance, and result projection."""
 
     unit: Any
     extract: Callable[[Any], Any]
-    credit: Callable[[Any, Any], CreditResult]
+    result: Callable[[Any, Any], Any]
     label: str
     accept: Optional[Callable[[Any, Any], Any]] = None
 
-    def acquire(self, ctx: "Context") -> Contribution:
-        return _leaf_contribution(self.unit, self.extract, self.accept, self.credit)
+    def acquire(self, ctx: "Context") -> _AcquiredUnit:
+        return _leaf_acquisition(self.unit, self.extract, self.accept, self.result)
 
-    async def acquire_async(self, ctx: "Context") -> Contribution:
-        return await _leaf_contribution_async(
-            self.unit, self.extract, self.accept, self.credit
+    async def acquire_async(self, ctx: "Context") -> _AcquiredUnit:
+        return await _leaf_acquisition_async(
+            self.unit, self.extract, self.accept, self.result
         )
 
 
 @dataclass(frozen=True)
 class Episode:
-    """The Composite: one instance of one grain. A frozen declaration with no
-    run state -- "runs once" is a property of its path in the registry.
-
-    Slots are exactly the charter's swapped parts: ``source``, the hook,
-    ``bound``; ``extract``/``credit`` ride on the :class:`Leaf` a source
-    yields; the controller config is the grain's. There is no ``meter`` (charter
-    §"Cost has one owner": ``key`` and the leaf label are the cost
-    observation ids a ledger writer joins on).
-    """
+    """One instance of one Grain, composed from swappable parts."""
 
     grain: Grain
     key: str
     source: UnitSource
-    on_unit: Optional[Callable[[Any, Contribution, UnitRecord], Any]] = None
+    on_unit: Optional[Callable[[Any, Contribution, UnitView], Any]] = None
+    on_close: Optional[Callable[[EpisodeRecord], Any]] = None
+    to_parent: Optional[Callable[[EpisodeRecord], EpisodeUpdate]] = None
+    request: EpisodeRequest = field(default_factory=EpisodeRequest)
     bound: Optional[int] = None
     resume_units: tuple[ResumeUnit, ...] = ()
 
     def __post_init__(self) -> None:
         if not isinstance(self.grain, Grain):
-            raise TypeError(f"Episode.grain must be a Grain, got {type(self.grain).__name__}")
+            raise TypeError(
+                f"Episode.grain must be a Grain, got {type(self.grain).__name__}"
+            )
         if not isinstance(self.key, str) or not self.key:
             raise ValueError("Episode.key must be a non-empty string")
         if not hasattr(self.source, "next"):
@@ -443,12 +382,22 @@ class Episode:
                 "Episode.source must implement UnitSource.next(view); wrap a "
                 "plain iterable with leaves(...)"
             )
-        if self.bound is not None and (not isinstance(self.bound, int) or self.bound < 0):
-            raise ValueError(f"Episode.bound must be None or a non-negative int, got {self.bound!r}")
+        if self.to_parent is not None and not callable(self.to_parent):
+            raise TypeError("Episode.to_parent must be callable")
+        if self.on_close is not None and not callable(self.on_close):
+            raise TypeError("Episode.on_close must be callable")
+        if not isinstance(self.request, EpisodeRequest):
+            raise TypeError("Episode.request must be an EpisodeRequest")
+        if self.bound is not None and (
+            not isinstance(self.bound, int) or self.bound < 0
+        ):
+            raise ValueError(
+                "Episode.bound must be None or a non-negative integer"
+            )
         if not isinstance(self.resume_units, tuple) or any(
             not isinstance(unit, ResumeUnit) for unit in self.resume_units
         ):
-            raise TypeError("Episode.resume_units must be a tuple of ResumeUnit values")
+            raise TypeError("Episode.resume_units must contain ResumeUnit values")
 
     @property
     def label(self) -> str:
@@ -463,8 +412,6 @@ class Episode:
         *,
         parent_path: Path = (),
     ) -> EpisodeRef:
-        """Create an Episode identity from generic method structure only."""
-
         path = tuple(parent_path) + ((grain.name, str(key)),)
         return EpisodeRef(run_id=ctx.require_run_id(), path=path)
 
@@ -474,77 +421,49 @@ class Episode:
         *,
         parent_path: Optional[Path] = None,
     ) -> EpisodeRef:
-        """Return this Episode's stable identity under its structural parent."""
-
         parent = ctx.path if parent_path is None else tuple(parent_path)
         return self.identity(ctx, self.grain, self.key, parent_path=parent)
 
-    # -------------------------------------------------------------- #
-    # an Episode is a unit of its parent
-    # -------------------------------------------------------------- #
-    def _contribution(self, record: EpisodeRecord) -> Contribution:
-        """Fan-up and the bound-leak rule, defined once, beside the child.
-
-        Credits: the child's distinct identities, each once, in first-seen
-        order; per facet likewise. A child every one of whose units was
-        crediting-disabled made no judgement (``active=False``). A child
-        that ended on a bound or a source failure delivered fewer credits
-        than it would have: its nested record retains those credits, while
-        ``counts_toward_verdict=False`` excludes the whole unit from the
-        parent's incidence and stop history -- otherwise a cap one level down
-        would change the parent's sampling-unit definition.
-        """
-
-        estimate = record.incidence_estimate
-        if estimate is None:
-            # A record the loop did not build carries no typed estimate; guessing
-            # "not all disabled" here would be a silent fallback.
+    def _as_parent_unit(self, record: EpisodeRecord) -> _AcquiredUnit:
+        if self.to_parent is None:
+            raise TypeError(
+                f"nested Episode {record.path!r} has no to_parent function"
+            )
+        update = self.to_parent(record)
+        if not isinstance(update, EpisodeUpdate):
+            raise TypeError("Episode.to_parent() must return EpisodeUpdate")
+        if update.record_id != record.episode_id:
             raise ValueError(
-                f"episode record at {record.path!r} carries no typed incidence estimate; "
-                f"only a record built by Episode.run or Episode.run_async can "
-                f"be a unit of its parent"
+                "EpisodeUpdate.record_id must identify the completed child record"
             )
-        counts_toward_verdict = record.ended_by in COUNTING_ENDS
-        all_disabled = (
-            record.units_consumed > 0
-            and all(unit.yield_record.crediting_disabled for unit in record.unit_records)
-        )
-        if not counts_toward_verdict:
-            reason = f":{record.end_reason}" if record.end_reason else ""
-            credit = CreditResult.disabled(
-                f"child ended {record.ended_by}{reason}; nested evidence is "
-                "retained only in the child record"
-            )
-        elif all_disabled:
-            credit = CreditResult.disabled(
-                "child made no crediting judgement: every unit crediting-disabled"
-            )
-        else:
-            credit = CreditResult(
-                credits=record.distinct_identities,
-                facets=record.facet_distinct,
-            )
-        return Contribution(
-            credit=credit,
-            counts_toward_verdict=counts_toward_verdict,
-            child=record,
+        return _AcquiredUnit(
+            contribution=Contribution(
+                controller_input=update.controller_input,
+                output=update.output,
+                episode_update=update,
+            ),
+            child_record=record,
         )
 
-    def acquire(self, ctx: "Context") -> Contribution:
-        return self._contribution(self.run(ctx))
+    def acquire(self, ctx: "Context") -> _AcquiredUnit:
+        return self._as_parent_unit(self.run(ctx))
 
-    async def acquire_async(self, ctx: "Context") -> Contribution:
-        return self._contribution(await self.run_async(ctx))
+    async def acquire_async(self, ctx: "Context") -> _AcquiredUnit:
+        return self._as_parent_unit(await self.run_async(ctx))
 
-    # -------------------------------------------------------------- #
-    # the template method -- FINAL; one call to the kernel's loop body
-    # -------------------------------------------------------------- #
     def run(self, ctx: "Context") -> EpisodeRecord:
         if not ctx.path and not ctx.has_run_id:
             ctx.bind_run_id(self.key)
         scope = ctx.enter(self.grain, self.key)
         try:
-            return self._run_loop(ctx, scope)
+            record = self._run_loop(ctx, scope)
+            if self.on_close is not None:
+                result = self.on_close(record)
+                if inspect.isawaitable(result):
+                    raise TypeError(
+                        "an async Episode.on_close callback requires run_async()"
+                    )
+            return record
         finally:
             ctx.leave(scope)
 
@@ -553,28 +472,96 @@ class Episode:
             ctx.bind_run_id(self.key)
         scope = ctx.enter(self.grain, self.key)
         try:
-            return await self._run_loop_async(ctx, scope)
+            record = await self._run_loop_async(ctx, scope)
+            if self.on_close is not None:
+                result = self.on_close(record)
+                if inspect.isawaitable(result):
+                    await result
+            return record
         finally:
             ctx.leave(scope)
 
-    def _view(self, ctx: "Context", scope: Scope, records: list[UnitRecord]) -> EpisodeView:
+    def _view(
+        self,
+        ctx: "Context",
+        scope: Scope,
+        records: list[UnitRecord],
+    ) -> EpisodeView:
         return EpisodeView(
             grain=self.grain,
             key=self.key,
             path=scope,
             units_consumed=len(records),
             bound=self.bound,
-            units=tuple(records),
-            curve=ctx.scoped.curve(scope),
-            verdict=ctx.scoped.verdict(scope),
+            updates=tuple(
+                record.episode_update
+                for record in records
+                if record.episode_update is not None
+            ),
+            controller_state=ctx.runtime.state(scope),
             episode_ref=EpisodeRef(run_id=ctx.require_run_id(), path=scope),
+            request=self.request,
         )
 
-    def _record(self, ctx: "Context", scope: Scope, records: list[UnitRecord], ended_by: str, end_reason: str) -> EpisodeRecord:
-        curve = ctx.scoped.curve(scope)
-        verdict = ctx.scoped.verdict(scope)
+    def _record(
+        self,
+        ctx: "Context",
+        scope: Scope,
+        records: list[UnitRecord],
+        ended_by: str,
+        end_reason: str,
+    ) -> EpisodeRecord:
         path = scope
-        return EpisodeRecord(path[-1][0], path[-1][1], len(records), ended_by, tuple(records), verdict.as_record(), curve.as_record(), self.bound, path, end_reason, verdict.config.as_record(), ctx.scoped.facet_curves(scope), curve, verdict, ctx.scoped.channel_schema(scope), EpisodeRef(run_id=ctx.require_run_id(), path=path))
+        return EpisodeRecord(
+            scope_level=path[-1][0],
+            scope_key=path[-1][1],
+            units_consumed=len(records),
+            ended_by=ended_by,
+            unit_records=tuple(records),
+            controller_state=ctx.runtime.state(scope),
+            safety_bound=self.bound,
+            path=path,
+            end_reason=end_reason,
+            episode_ref=EpisodeRef(run_id=ctx.require_run_id(), path=path),
+            request=self.request,
+        )
+
+    def _append_record(
+        self,
+        ctx: "Context",
+        scope: Scope,
+        records: list[UnitRecord],
+        label: str,
+        acquired: _AcquiredUnit,
+    ) -> tuple[UnitRecord, UnitView]:
+        step = ctx.runtime.advance(
+            scope,
+            label,
+            acquired.contribution.controller_input,
+        )
+        unit_ref = UnitRef(
+            EpisodeRef(run_id=ctx.require_run_id(), path=scope).episode_id,
+            len(records),
+        )
+        record = UnitRecord(
+            unit_label=label,
+            controller_input=acquired.contribution.controller_input,
+            controller_step=step,
+            epoch=ctx.runtime.epoch(scope),
+            unit_ref=unit_ref,
+            episode_update=acquired.contribution.episode_update,
+            child=acquired.child_record,
+        )
+        view = UnitView(
+            unit_label=label,
+            controller_input=record.controller_input,
+            controller_step=record.controller_step,
+            epoch=record.epoch,
+            unit_ref=record.unit_ref,
+            episode_update=record.episode_update,
+        )
+        records.append(record)
+        return record, view
 
     def _restore_units(
         self,
@@ -582,40 +569,59 @@ class Episode:
         scope: Scope,
     ) -> list[UnitRecord]:
         records: list[UnitRecord] = []
-        episode_ref = EpisodeRef(run_id=ctx.require_run_id(), path=scope)
         for prior in self.resume_units:
-            step = ctx.scoped.advance(
+            self._append_record(
+                ctx,
                 scope,
+                records,
                 prior.label,
-                prior.credit.credits,
-                observation_status=Contribution(
-                    prior.credit,
-                    prior.counts_toward_verdict,
-                ).observation_status(),
-                facets=prior.credit.facets,
-            )
-            records.append(
-                UnitRecord(
-                    prior.label,
-                    step.unit_yield,
-                    prior.credit.note,
-                    prior.credit.credits,
-                    prior.credit.facets,
-                    None,
-                    ctx.scoped.epoch(scope),
-                    UnitRef(episode_ref.episode_id, len(records)),
-                    step.report.primary,
-                    step.verdict,
-                    ctx.scoped.facet_curves(scope),
-                    step.volume_credit,
-                )
+                _AcquiredUnit(Contribution(prior.controller_input)),
             )
         return records
+
+    @staticmethod
+    def _state_stops(state: Any) -> bool:
+        stop = getattr(state, "stop", None)
+        if not isinstance(stop, bool):
+            raise TypeError("a controller state must expose a boolean stop")
+        return stop
+
+    def _stop_end(
+        self,
+        ctx: "Context",
+        scope: Scope,
+        records: list[UnitRecord],
+        step: Any,
+    ) -> tuple[Scope, Optional[str]]:
+        if step.requests_transition and len(scope) == 1:
+            proposal = getattr(self.source, "next_epoch", None)
+            mutation = proposal(self._view(ctx, scope, records)) if proposal else None
+            if isinstance(mutation, EpochMutation):
+                return ctx.transition(scope, mutation), None
+            return scope, END_INCOMPLETE
+        return scope, END_YIELD_STOP
+
+    async def _stop_end_async(
+        self,
+        ctx: "Context",
+        scope: Scope,
+        records: list[UnitRecord],
+        step: Any,
+    ) -> tuple[Scope, Optional[str]]:
+        if step.requests_transition and len(scope) == 1:
+            proposal = getattr(self.source, "next_epoch", None)
+            mutation = proposal(self._view(ctx, scope, records)) if proposal else None
+            if inspect.isawaitable(mutation):
+                mutation = await mutation
+            if isinstance(mutation, EpochMutation):
+                return ctx.transition(scope, mutation), None
+            return scope, END_INCOMPLETE
+        return scope, END_YIELD_STOP
 
     def _run_loop(self, ctx: "Context", scope: Scope) -> EpisodeRecord:
         records = self._restore_units(ctx, scope)
         ended_by, end_reason = END_EXHAUSTED, ""
-        if records and ctx.scoped.verdict(scope).stop:
+        if records and self._state_stops(ctx.runtime.state(scope)):
             return self._record(ctx, scope, records, END_YIELD_STOP, "")
         while True:
             if self.bound is not None and len(records) >= self.bound:
@@ -627,32 +633,31 @@ class Episode:
             if isinstance(item, SourceEnd):
                 ended_by, end_reason = item.kind, item.reason
                 break
-            contribution = item.acquire(ctx)
-            if not isinstance(contribution, Contribution):
-                raise TypeError("Acquirable.acquire() must return Contribution")
-            step = ctx.scoped.advance(scope, item.label, contribution.credit.credits, observation_status=contribution.observation_status(), facets=contribution.credit.facets)
-            verdict = step.verdict
-            record = UnitRecord(item.label, step.unit_yield, contribution.credit.note, contribution.credit.credits, contribution.credit.facets, contribution.child, ctx.scoped.epoch(scope), UnitRef(EpisodeRef(run_id=ctx.require_run_id(), path=scope).episode_id, len(records)), step.report.primary, verdict, ctx.scoped.facet_curves(scope), step.volume_credit)
-            records.append(record)
+            acquired = item.acquire(ctx)
+            if not isinstance(acquired, _AcquiredUnit):
+                raise TypeError("Acquirable.acquire() returned an invalid result")
+            _, unit_view = self._append_record(
+                ctx, scope, records, item.label, acquired
+            )
             if self.on_unit is not None:
-                self.on_unit(item, contribution, record)
-            if verdict.stop:
-                if verdict.outcome == "root_incomplete" and len(scope) == 1:
-                    proposal = getattr(self.source, "next_epoch", None)
-                    mutation = proposal(self._view(ctx, scope, records)) if proposal else None
-                    if isinstance(mutation, EpochMutation):
-                        scope = ctx.transition(scope, mutation)
-                        continue
-                    ended_by = END_INCOMPLETE
-                else:
-                    ended_by = END_YIELD_STOP
+                self.on_unit(item, acquired.contribution, unit_view)
+            step = unit_view.controller_step
+            if step.stop:
+                scope, end = self._stop_end(ctx, scope, records, step)
+                if end is None:
+                    continue
+                ended_by = end
                 break
         return self._record(ctx, scope, records, ended_by, end_reason)
 
-    async def _run_loop_async(self, ctx: "Context", scope: Scope) -> EpisodeRecord:
+    async def _run_loop_async(
+        self,
+        ctx: "Context",
+        scope: Scope,
+    ) -> EpisodeRecord:
         records = self._restore_units(ctx, scope)
         ended_by, end_reason = END_EXHAUSTED, ""
-        if records and ctx.scoped.verdict(scope).stop:
+        if records and self._state_stops(ctx.runtime.state(scope)):
             return self._record(ctx, scope, records, END_YIELD_STOP, "")
         while True:
             if self.bound is not None and len(records) >= self.bound:
@@ -666,59 +671,46 @@ class Episode:
             if isinstance(item, SourceEnd):
                 ended_by, end_reason = item.kind, item.reason
                 break
-            contribution = item.acquire_async(ctx)
-            if inspect.isawaitable(contribution):
-                contribution = await contribution
-            if not isinstance(contribution, Contribution):
-                raise TypeError("Acquirable.acquire_async() must return Contribution")
-            step = ctx.scoped.advance(scope, item.label, contribution.credit.credits, observation_status=contribution.observation_status(), facets=contribution.credit.facets)
-            verdict = step.verdict
-            record = UnitRecord(item.label, step.unit_yield, contribution.credit.note, contribution.credit.credits, contribution.credit.facets, contribution.child, ctx.scoped.epoch(scope), UnitRef(EpisodeRef(run_id=ctx.require_run_id(), path=scope).episode_id, len(records)), step.report.primary, verdict, ctx.scoped.facet_curves(scope), step.volume_credit)
-            records.append(record)
+            acquired = item.acquire_async(ctx)
+            if inspect.isawaitable(acquired):
+                acquired = await acquired
+            if not isinstance(acquired, _AcquiredUnit):
+                raise TypeError("Acquirable.acquire_async() returned an invalid result")
+            _, unit_view = self._append_record(
+                ctx, scope, records, item.label, acquired
+            )
             if self.on_unit is not None:
-                result = self.on_unit(item, contribution, record)
+                result = self.on_unit(item, acquired.contribution, unit_view)
                 if inspect.isawaitable(result):
                     await result
-            if verdict.stop:
-                if verdict.outcome == "root_incomplete" and len(scope) == 1:
-                    proposal = getattr(self.source, "next_epoch", None)
-                    mutation = proposal(self._view(ctx, scope, records)) if proposal else None
-                    if inspect.isawaitable(mutation):
-                        mutation = await mutation
-                    if isinstance(mutation, EpochMutation):
-                        scope = ctx.transition(scope, mutation)
-                        continue
-                    ended_by = END_INCOMPLETE
-                else:
-                    ended_by = END_YIELD_STOP
+            step = unit_view.controller_step
+            if step.stop:
+                scope, end = await self._stop_end_async(
+                    ctx, scope, records, step
+                )
+                if end is None:
+                    continue
+                ended_by = end
                 break
         return self._record(ctx, scope, records, ended_by, end_reason)
 
 
-# --------------------------------------------------------------------------
-# sources for raw units
-# --------------------------------------------------------------------------
-
-
 class _LeafSource:
-    """Wraps each raw unit an inner source (or iterable) yields as a Leaf."""
-
     def __init__(
         self,
         inner: Any,
         extract: Callable[[Any], Any],
-        credit: Callable[[Any, Any], CreditResult],
+        result: Callable[[Any, Any], Any],
         label: Optional[Callable[[Any], str]],
         accept: Optional[Callable[[Any, Any], Any]],
     ) -> None:
-        self._pull: Callable[[EpisodeView], Any]
         if hasattr(inner, "next"):
             self._pull = inner.next
         else:
             iterator = iter(inner)
             self._pull = lambda _view: next(iterator, None)
         self._extract = extract
-        self._credit = credit
+        self._result = result
         self._label = label
         self._accept = accept
         self._index = 0
@@ -728,17 +720,19 @@ class _LeafSource:
             return unit
         if isinstance(unit, Acquirable):
             raise TypeError(
-                "leaves(...) wraps raw units; its inner source yielded an "
-                f"Acquirable ({type(unit).__name__}). A source that yields "
-                "Leaf or Episode is used directly, not through leaves(...)"
+                "leaves(...) wraps raw units; its source returned an Acquirable"
             )
-        label = str(self._label(unit)) if self._label is not None else f"unit-{self._index}"
+        label = (
+            str(self._label(unit))
+            if self._label is not None
+            else f"unit-{self._index}"
+        )
         self._index += 1
         return Leaf(
             unit=unit,
             extract=self._extract,
             accept=self._accept,
-            credit=self._credit,
+            result=self._result,
             label=label,
         )
 
@@ -755,44 +749,26 @@ class _LeafSource:
 def leaves(
     units: Any,
     extract: Callable[[Any], Any],
-    credit: Callable[[Any, Any], CreditResult],
+    result: Callable[[Any, Any], Any],
     label: Optional[Callable[[Any], str]] = None,
     accept: Optional[Callable[[Any, Any], Any]] = None,
 ) -> UnitSource:
-    """A source of :class:`Leaf` over raw units.
+    """Wrap a raw-unit source with the bound leaf operations."""
 
-    ``units`` is a plain iterable (which then ignores the view) or a
-    ``UnitSource`` yielding raw units. Each unit is bound to ``extract`` and
-    ``credit``; its label is ``label(unit)`` or ``unit-<index>``. The inner
-    source may return ``None`` and :class:`SourceEnd` as usual. It may not
-    yield an :class:`Acquirable`: that is a mis-declared composition and
-    fails by name here rather than being silently double-wrapped.
-    """
-
-    return _LeafSource(units, extract, credit, label, accept)
-
-
-# --------------------------------------------------------------------------
-# the context: path-addressed scopes, opened from the Grain in hand
-# --------------------------------------------------------------------------
+    return _LeafSource(units, extract, result, label, accept)
 
 
 class Context:
-    """The :class:`ScopedYield` plus a path stack, required frozen run-specific
-    channel bindings, and optionally the composition's declared grain order.
-    It keeps no records, observes nothing (the loop's step), and decides
-    nothing.
-    """
+    """Run identity, nesting path, and controller routing only."""
 
     def __init__(
         self,
-        scoped: Optional[ScopedYield] = None,
         *,
-        channel_schemas: Mapping[str, ChannelSchema],
         order: Optional[Iterable[Grain]] = None,
         run_id: Optional[str] = None,
+        runtime: Optional[ControllerRuntime] = None,
     ) -> None:
-        self.scoped = scoped if scoped is not None else ScopedYield()
+        self.runtime = runtime if runtime is not None else ControllerRuntime()
         self.order: Optional[tuple[Grain, ...]] = None
         if order is not None:
             grains = tuple(order)
@@ -800,25 +776,6 @@ class Context:
             if len(set(names)) != len(names):
                 raise ValueError(f"Context order names a grain twice: {names}")
             self.order = grains
-        if not isinstance(channel_schemas, Mapping):
-            raise TypeError("Context.channel_schemas must be a mapping")
-        self._channel_schemas: dict[str, ChannelSchema] = {}
-        for name, schema in channel_schemas.items():
-            grain_name = str(name)
-            if not grain_name:
-                raise ValueError("channel schema grain names must be non-empty")
-            if not isinstance(schema, ChannelSchema):
-                raise TypeError(
-                    f"channel schema for grain {grain_name!r} must be a ChannelSchema"
-                )
-            self._channel_schemas[grain_name] = schema
-        if self.order is not None:
-            undeclared = set(self._channel_schemas) - {grain.name for grain in self.order}
-            if undeclared:
-                raise ValueError(
-                    f"channel schemas name grains outside the declared order: "
-                    f"{sorted(undeclared)}"
-                )
         self._stack: list[Path] = []
         self._grains: dict[str, Grain] = {}
         self._run_id: Optional[str] = None
@@ -826,8 +783,6 @@ class Context:
             self.bind_run_id(run_id)
 
     def bind_run_id(self, run_id: str) -> None:
-        """Bind the run identity once; every Episode and unit derives from it."""
-
         if not isinstance(run_id, str) or not run_id:
             raise ValueError("Context run_id must be a non-empty string")
         if self._run_id is not None and self._run_id != run_id:
@@ -840,7 +795,9 @@ class Context:
 
     def require_run_id(self) -> str:
         if self._run_id is None:
-            raise RuntimeError("Context run_id must be bound before Episode identity is read")
+            raise RuntimeError(
+                "Context run_id must be bound before Episode identity is read"
+            )
         return self._run_id
 
     @property
@@ -854,59 +811,39 @@ class Context:
         parent_name = parent[-1][0]
         for index, grain in enumerate(self.order):
             if grain.name == parent_name:
-                return self.order[index + 1] if index + 1 < len(self.order) else None
+                return (
+                    self.order[index + 1]
+                    if index + 1 < len(self.order)
+                    else None
+                )
         return None
 
     def enter(self, grain: Grain, key: str) -> Scope:
-        """Open the scope for one episode beneath the current path.
-
-        Raises, never falls back: on a different ``Grain`` under an already
-        declared name (rule 4: every grain declared once); on a grain out of
-        the declared ``order``; on a path already open (the same episode run
-        twice under one parent). Every estimator in the selected frozen channel
-        schema is created here, before the source can receive its first view.
-        The paired numerical component is created from ``grain.control``
-        directly -- there is no name-to-component registry.
-        """
-
         if not isinstance(grain, Grain):
             raise TypeError(f"enter() needs a Grain, got {type(grain).__name__}")
         known = self._grains.get(grain.name)
         if known is not None and known is not grain and known != grain:
-            raise ValueError(
-                f"grain {grain.name!r} declared twice with different parts; "
-                f"every grain is declared once"
-            )
+            raise ValueError(f"grain {grain.name!r} was declared more than once")
         parent = self.path
         if self.order is not None:
             expected = self._expected_next(parent)
             if expected is None or expected.name != grain.name:
                 raise ValueError(
                     f"grain {grain.name!r} may not nest under "
-                    f"{parent[-1][0] if parent else 'the root'}: the declared "
-                    f"order is {[g.name for g in self.order]}"
+                    f"{parent[-1][0] if parent else 'the root'}"
                 )
         path: Path = tuple(parent) + ((grain.name, str(key)),)
-        if grain.name not in self._channel_schemas:
-            raise ValueError(
-                f"no frozen channel schema declared for grain {grain.name!r}; "
-                "Context.enter fails closed instead of selecting a default"
-            )
-        channel_schema = self._channel_schemas[grain.name]
-        scope = self.scoped.open_scope(path, grain.control, channel_schema)
+        scope = self.runtime.open_scope(path, grain.controller)
         self._grains[grain.name] = grain
         self._stack.append(scope)
         return scope
 
     def leave(self, scope: Scope) -> None:
         if not self._stack or self._stack[-1] != scope:
-            raise RuntimeError(
-                f"leave({scope!r}) does not match the open path "
-                f"{self.path!r}; episodes nest and close in order"
-            )
+            raise RuntimeError("episodes must close in nesting order")
         self._stack.pop()
 
     def transition(self, scope: Scope, mutation: EpochMutation) -> Scope:
         if scope != self.path or len(scope) != 1:
             raise ValueError("only the open root episode may transition epoch")
-        return self.scoped.transition_scope(scope, mutation.epoch)
+        return self.runtime.transition_scope(scope, mutation.epoch)
