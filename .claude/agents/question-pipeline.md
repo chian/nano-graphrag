@@ -16,13 +16,15 @@ assess gaps → search again. The public entry points are `QuestionPipeline` and
 **Governing design: `docs/ACQUISITION_LOOP.md`.** The acquisition span is a
 first-class per-unit loop — acquire unit → extract → credit against declared
 targets → count → a measured rarefaction verdict decides continue/stop/switch
-— nested at page, search, strategy, and run grain, and it is one class,
+— nested at lexical-probe, page, search, strategy, and run grains, and it is
+one class,
 `Episode`, whose template, credit rule, and composition rules are stated
 once in `docs/ACQUISITION_LOOP.md` §"The template". Build any work that
 touches acquisition sequencing as a composition of that class, to that
 section; write no loop of your own. Your surface's composition is run ⊃
-strategy ⊃ search ⊃ page, its credits are the two kinds the charter
-defines, and its policy and cost each have one owner.
+strategy ⊃ search ⊃ page ⊃ lexical probe ⊃ chunk Leaf. Accepted stable
+logical-slot identities remain separated by result column; their marginal
+hypervolume is the one method credit. Policy and cost each have one owner.
 **Do not extend the phase-batched flow** (search-all → extract-all →
 credit-at-round-end): it computed the keep-going signal after the keep-going
 decisions had passed, it is condemned and being torn down under the charter
@@ -68,32 +70,46 @@ control-layer build:
 - `costs` — per-action cost fields (phase 1B), recorded, never aggregated here.
 - `path_features`, `path_gate` — the pure route scorer (2A) and the policy
   surface that applies it at the row-to-table boundary (2B).
-- `acquisition` — the provider-surface binding of the acquisition loop
-  (phase 4C). As coded it owns the crediting rule (token projection of
-  extracted fields onto declared columns) and an `AcquisitionController`
-  the harvester consults between items, with a hand-kept fan-up to the
-  strategy grain; the loop itself is still inline in `search.py`. Phase 4E-c
-  replaces that with the composition the charter specifies; the controller
-  becomes the thing that builds the composition, holds the crediter, and
-  writes ledger decisions from episode records.
+- `acquisition` — a transitional monolith that currently contains all provider
+  Episode bindings, result projection, learning/checkpoint state, and record
+  writing. Split it according to "Episode binding ownership" below; do not add
+  another grain or cross-grain responsibility to it.
 - `provenance`, `prompt_log`, `windowing` — field-scoped evidence pointers,
   the prompt observation record, and disclosed windowing of oversized
   payloads (never silent truncation).
 
-Absent, and to be re-checked rather than assumed: `config`,
-`evidence_registry`, `expectations`, `search_planning`, and a
-`question_pipeline/rarefaction` module — the kernel is the top-level
-`rarefaction/` package, not a module here.
+Absent, and to be re-checked rather than assumed: `config`, `expectations`,
+and `search_planning`. The numerical component is the existing
+`question_pipeline/rarefaction/` package; the generic Episode method is the
+top-level `method_loop/` package.
+
+## Episode binding ownership
+
+Create one reusable module under `question_pipeline/episode_bindings/` for the
+`chunk` Leaf and each Episode type: `lexical_probe`, `page`, `web_search`,
+`strategy`, and `run`. An Episode binding owns that type's grain/controller
+declaration, source and unit types, Episode builder, local hooks, and compact
+parent update. It accepts a child builder callable and therefore does not
+choose its own child Episode type. The chunk module owns the Leaf's
+unit/extract/accept/result wiring and declares no Grain.
+
+`question_pipeline/acquisition_composition.py` is the only owner of nesting.
+It connects the child builders, declares `Context` order, builds the root, and
+runs it once. Keep table-specific projection in `result_projection.py` and
+trace/checkpoint/export formatting in `acquisition_records.py`. Do not replace
+the current large `ProviderBinding` with a large shared context object; each
+binding receives only the collaborators it calls. Future GASL query and walk
+bindings follow the same module-per-type rule and remain outside standalone
+`gasl/`.
 
 ## Required reading before non-trivial changes
 
-- `docs/MEMORY.md` — the completion and evidence contract, banner-marked as
-  describing the pruned `cd44ebb` snapshot (`AGENTS.md` §"Evidence rules at
-  baseline"): read it for the intended evidence standard — criteria consume
-  registry records and their exact joins, not ordinary graph edges; merged
-  nodes, `source_refs`, and `source_chunks` from the pre-refactor GraphML are
-  read-only traversal context, not evidence — and check the tree for what
-  exists today (there is no evidence registry yet).
+- `docs/MEMORY.md` — historical completion and evidence design, banner-marked
+  where it describes the pruned `cd44ebb` snapshot. The current durable
+  acceptance boundary is `question_pipeline/evidence_registry.py`: criteria
+  consume registry records and exact joins, not ordinary graph edges; merged
+  nodes, `source_refs`, and `source_chunks` from pre-refactor GraphML remain
+  read-only traversal context, not accepted evidence.
 - `docs/TABLE_FILL_PATH_SELECTION.md` and
   `docs/TABLE_FILL_PROMPT_MUTATION_EXPERIMENTS.md` — target-deficit search and
   prompt-mutation design.

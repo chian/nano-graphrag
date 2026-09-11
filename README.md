@@ -64,9 +64,10 @@ choose the next unit                                                  |
 ```
 
 The numerical component is attached to the method; it does not contain the
-method. `rarefaction/` owns the paired incidence estimator and numerical
-controller. `method_loop/` owns iteration, nesting, stable record keys, and the
-Episode record tree.
+method. `question_pipeline/rarefaction/` owns the paired incidence estimator
+and numerical controller used by question-pipeline Episode types.
+`method_loop/` owns iteration, nesting, stable record keys, and the Episode
+record tree.
 
 For table filling, a counted result means that one subject has an accepted
 value in one declared result column. A directly reported value and a best guess
@@ -186,7 +187,11 @@ numerical component decides whether there should be another attempt.
 ## Adding a new Episode type
 
 A new Episode type is made by connecting new work to `Episode`; it does not
-need a new loop.
+need a new loop. Put its reusable binding in its own module under
+`question_pipeline/episode_bindings/`. The binding owns that type's Grain,
+source and unit types, Episode builder, local hooks, and compact parent update.
+It does not choose its parent or concrete child type. The terminal chunk Leaf
+has its own binding module but no Grain.
 
 First, declare the level. State plainly what one turn processes and what useful
 result one turn can add:
@@ -257,8 +262,11 @@ an ordinary item:
 
 ```python
 class ChildEpisodeSource:
+    def __init__(self, build_child):
+        self._build_child = build_child
+
     def next(self, view):
-        return build_next_child_episode(view)  # or None when finished
+        return self._build_child(view)  # or None when finished
 ```
 
 The child also needs a `to_parent` function. It converts the full child trace
@@ -282,9 +290,11 @@ in the recursive trace for audit but is not placed in the parent's source view
 or prompt. Do not write a loop around either Episode; calling `run()` or
 `run_async()` on the outer Episode runs the complete nested tree.
 
-Finally, create one `Context` for the run and list the permitted nesting order
-from outermost to innermost. Controller configuration is already captured by
-each Grain's controller function; `Context` does not know its schema:
+Finally, link the binding types in `acquisition_composition.py`. That is the
+only module that chooses the parent/child nesting. It creates one `Context` for
+the run and lists the permitted order from outermost to innermost. Controller
+configuration is already captured by each Grain's controller function;
+`Context` does not know its schema:
 
 ```python
 ctx = Context(
@@ -294,6 +304,11 @@ ctx = Context(
 
 record = await run_episode.run_async(ctx)
 ```
+
+Keep accepted-table projection in `result_projection.py` and acquisition
+trace/checkpoint/export formatting in `acquisition_records.py`; neither is an
+Episode binding. Pass each binding only the collaborators it calls rather than
+placing every dependency in one shared context object.
 
 Tool calls and model calls belong in `next` or `extract`. Evidence checking and
 storage belong in `accept`. Counting must be a direct calculation from the
@@ -311,11 +326,17 @@ of `Episode`, that description is stale.
 method_loop/             generic Episode method: iteration, nesting, runtime
                          identity, scope routing, child-to-parent results,
                          and record trees
-rarefaction/             paired incidence estimator and numerical controller;
-                         threshold state and typed numerical reports
-question_pipeline/       Firecrawl/table-fill binding: search proposals,
-                         chunk retrieval, extraction, evidence acceptance,
-                         typed tables, learning context, and persistence
+question_pipeline/       Firecrawl/table-fill application and future GASL
+                         Episode integration
+  rarefaction/           paired incidence estimator and numerical controller
+  episode_bindings/      one reusable binding per acquisition level (target)
+  acquisition_composition.py
+                         the one concrete parent/child composition (target)
+  result_projection.py   accepted typed state to stable result identities
+                         (target)
+  acquisition_records.py
+                         acquisition trace/checkpoint/export formatting
+                         (target)
 run_question_pipeline.py command-line entry point
 gasl/                    graph query language and execution engine over an
                          explicitly supplied graph revision

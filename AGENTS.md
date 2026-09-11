@@ -192,6 +192,35 @@ removed `cd44ebb` module. Question-pipeline bindings import the generic method
 from `method_loop` and their numerical contracts from the local rarefaction
 package. Standalone `gasl/` imports neither.
 
+### Episode binding ownership
+
+Decompose the provider binding by acquisition level because a reusable Episode
+type must not depend on the complete acquisition composition. The target
+package is `question_pipeline/episode_bindings/`, with one module each for the
+`chunk` Leaf and the `lexical_probe`, `page`, `web_search`, `strategy`, and
+`run` Episode types. The dormant GASL query and walk Episode types follow the
+same rule when integrated. Until this migration is complete,
+`question_pipeline/acquisition.py` is transitional; do not add another Episode
+type or another cross-grain responsibility to it.
+
+Each Episode-type module owns its `Grain` declaration and controller binding,
+its unit/source types, construction of that Episode, its local hooks, and its
+compact `EpisodeUpdate`. It receives the child builder it needs as a callable;
+it does not select or construct a specific child Episode type itself. This is
+what makes the binding reusable in a different nesting. The chunk module owns
+the Leaf's unit, extract/accept/result wiring, and label; it declares no Grain.
+
+Link Episode types only in `question_pipeline/acquisition_composition.py`. That
+module declares the nesting and `Context` order, injects child builders and
+shared services, constructs the root Episode, and invokes it once. It does not
+implement extraction, evidence acceptance, result projection, numerical
+control, learning, persistence, or record formatting. Table-result projection
+belongs in `question_pipeline/result_projection.py`; acquisition trace,
+checkpoint, and export formatting belong in
+`question_pipeline/acquisition_records.py`. Do not hide the current monolith in
+one replacement context or services object handed wholesale to every binding;
+pass each binding only the collaborators it uses.
+
 ### Evidence rules at baseline
 
 `question_pipeline/evidence_registry.py` is the durable acceptance boundary.

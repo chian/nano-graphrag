@@ -157,6 +157,28 @@ observation statuses are present. The adaptive-threshold hook currently keeps
 the configured thresholds unchanged. The estimator arithmetic, controller
 statistic, uncertainty calculation, and threshold values remain unvalidated.
 
+## Binding decomposition before the next live run
+
+`question_pipeline/acquisition.py` currently combines six binding levels with
+table-result projection, learning/checkpoint state, and record writing. Split
+that file bottom-up without changing behavior:
+
+1. Move table-supported logical-slot projection into `result_projection.py`
+   and acquisition trace/checkpoint/export formatting into
+   `acquisition_records.py`.
+2. Move the chunk Leaf, lexical-probe, page, web-search, strategy, and run
+   bindings into one module per type under `episode_bindings/`. Each module
+   receives its child builder and only the collaborators it uses.
+3. Link the types only in `acquisition_composition.py`, which declares the
+   nesting and `Context` order, constructs the root Episode, and invokes it
+   once.
+4. Split the dormant GASL query/walk bindings by Episode type when they are
+   integrated; standalone `gasl/` remains independent.
+
+This is a structure-only migration. Credit identities, observation status,
+controller inputs, thresholds, hooks, checkpoint payloads, and emitted records
+remain unchanged until the split passes its live experiment.
+
 **APPROVED AND IMPLEMENTED 2026-09-06; LIVE VALIDATION PENDING.** Accepted stable table-slot identities are
 one-dimensional contributions separated by column. They form the complete
 column vector; they are not independent method credits. Every axis uses

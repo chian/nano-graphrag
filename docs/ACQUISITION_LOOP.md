@@ -49,8 +49,9 @@ THE ACQUISITION EPISODE (one generic Episode, instantiated at every surface):
       │             │                                     │
       └──── switch ─┴──── continue / stop ◄─── verdict ───┘
 
- NESTING:  item-loop  ⊂  search-loop  ⊂  strategy-loop      (provider surface)
-           iteration-loop  ⊂  walk-loop  ⊂  query-loop      (GASL surface)
+ NESTING:  chunk Leaf ⊂ lexical-probe ⊂ page ⊂ search ⊂ strategy ⊂ run
+                                                               (provider surface)
+           seed ⊂ walk ⊂ query                                (future GASL binding)
            — the same method at every grain; compact updates pass between scopes
 ```
 
@@ -482,6 +483,50 @@ Fixed in `Episode`: order of operations, identity, nesting, full trace shape,
 compact message routing, and epoch lifecycle. Rarefaction is one attached
 numerical component. It never owns the method that calls it.
 
+### Binding modules and composition
+
+Implement one acquisition level per reusable binding module. An Episode
+binding owns that type's `Grain` and controller declaration, unit/source types,
+Episode builder, local hooks, and `EpisodeUpdate` compression. When its units
+are child Episodes, it accepts a child builder callable. It does not import a
+concrete child binding and thereby choose its own place in the tree. The chunk
+module owns the Leaf's unit and extract/accept/result wiring; it does not
+declare a Grain or pretend the Leaf is an Episode.
+
+The question-pipeline target layout is:
+
+```text
+question_pipeline/
+├── rarefaction/
+│   └── incidence_control.py
+├── episode_bindings/
+│   ├── chunk.py
+│   ├── lexical_probe.py
+│   ├── page.py
+│   ├── web_search.py
+│   ├── strategy.py
+│   ├── run.py
+│   ├── gasl_walk.py       # future
+│   └── gasl_query.py      # future
+├── result_projection.py
+├── acquisition_records.py
+└── acquisition_composition.py
+```
+
+`acquisition_composition.py` is the sole owner of the concrete tree. It
+declares `Context` order, injects child builders and shared collaborators,
+constructs the root Episode, and calls it once. It contains no extraction,
+acceptance, result-projection, controller, learning, persistence, checkpoint,
+or record-formatting implementation. `result_projection.py` owns the
+table-specific accepted-state-to-logical-slot projection;
+`acquisition_records.py` owns acquisition trace, checkpoint, and export
+formatting.
+
+Do not replace a monolithic binding with a monolithic context/services object.
+Each binding receives only the collaborators it directly calls. The current
+`question_pipeline/acquisition.py` is transitional and is split bottom-up;
+new Episode types and cross-grain responsibilities do not enter it.
+
 ### Fan-up, stated
 
 A binding converts the completed child into an `EpisodeUpdate`. For the table
@@ -608,11 +653,12 @@ extended there — never by a second meter.
 
 | Surface | Composition (outer ⊃ inner) | The unit at each grain |
 | --- | --- | --- |
-| Provider (re-bound in 4E-c) | run ⊃ strategy ⊃ search ⊃ page | a proposed strategy Episode ⊃ a search Episode ⊃ one fetched page or document |
-| GASL (4B walk grain; Phase G query grain) | query ⊃ walk ⊃ seed | an operation-track unit — a walk Episode ⊃ one seed expansion for GRAPHWALK, a graph-reading Leaf otherwise; the depth steps inside a seed run to their disclosed caps (4E-b registers whether a depth-step verdict would have changed anything, and binds it if so) |
+| Provider | run ⊃ strategy ⊃ search ⊃ page ⊃ lexical probe ⊃ chunk Leaf | a proposed strategy Episode ⊃ a search Episode ⊃ a fetched page Episode ⊃ one ranked lexical probe Episode ⊃ one extracted chunk |
+| Future GASL binding | query ⊃ walk ⊃ seed | an operation-track unit ⊃ a walk Episode ⊃ one seed expansion; standalone GASL remains independent of this composition |
 
-A search returns pages, so the page is the provider surface's natural unit;
-chunks are how a page is fed to extraction, not a grain. The strategy grain
+A search returns pages, so the page is the search grain's natural unit. A page
+proposes lexical rankings; each lexical-probe Episode consumes previously
+unprocessed chunks as Leaves. A chunk is a Leaf, not another Episode grain. The strategy grain
 (4D) is the `strategy` row: a strategy is an episode of searches that ends
 by its own verdict, and the `run` source proposes the next. That is a
 change from 4D as first registered (within-round demotion of a stopped
@@ -649,14 +695,18 @@ semantics.
    extractor's behavior then depends on the effect's. 4E-b separates them,
    and a review of any binding looks for a closure that both read and
    write.
+8. **One acquisition level, one binding module.** An Episode module owns that
+   type's declaration and local behavior; the chunk module owns the terminal
+   Leaf binding. The composition file alone chooses parent and child. Shared
+   table projection and recording services are not Episode bindings and do not
+   live in one.
 
 ### Current migration sequence
 
-First place the current estimator and controller behind one rarefaction-owned
-control transition without changing their arithmetic. After that structural
-gate passes, replace the paired numerical implementation, update the bindings'
-observation input, and verify the complete composition in a live Firecrawl
-plus LLM run.
+Split the provider binding bottom-up into individual Episode-type modules,
+leaving behavior unchanged at each move. Then link those types in the dedicated
+composition module and verify the complete composition in a newly registered
+live Firecrawl plus LLM run.
 
 ## Why this is a rebuild, not an insertion
 
@@ -737,7 +787,9 @@ policy out of the graph engine itself.
 
 ## Surface bindings
 
-1. **Provider search** — `question_pipeline/acquisition.py`. Unit = one
+1. **Provider search** — currently concentrated in the transitional
+   `question_pipeline/acquisition.py`, and moving to the individual binding
+   modules plus `question_pipeline/acquisition_composition.py`. Unit = one
    fetched item (page/paper). Firecrawl may return a large batch, but the
    Episode pulls and processes buffered items one by one: fetch → relevance
    judge → extract → persist evidence → accept → incidence → estimate →
