@@ -41,6 +41,7 @@ __all__ = [
     "Episode",
     "EpisodeRecord",
     "EpisodeRequest",
+    "EpisodeTree",
     "EpisodeUpdate",
     "EpisodeView",
     "EpochMutation",
@@ -273,6 +274,102 @@ class Grain:
                 raise ValueError(f"Grain.{field_name} must be a non-empty sentence")
         if not callable(self.controller):
             raise TypeError("Grain.controller must be a controller function")
+
+
+@dataclass(frozen=True)
+class EpisodeTree:
+    """The Episode types allowed beneath each parent Episode type.
+
+    Runtime Episode instances still form an ordinary tree of paths. This
+    declaration describes which *types* may occupy each child position, so a
+    parent may choose among several child bindings without weakening nesting
+    validation.
+    """
+
+    root: Grain
+    children: Mapping[Grain, Iterable[Grain]] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.root, Grain):
+            raise TypeError("EpisodeTree.root must be a Grain")
+        normalized: dict[Grain, tuple[Grain, ...]] = {}
+        by_name: dict[str, Grain] = {self.root.name: self.root}
+        parent_by_child: dict[str, str] = {}
+
+        for parent, raw_children in self.children.items():
+            if not isinstance(parent, Grain):
+                raise TypeError("EpisodeTree parent keys must be Grain values")
+            known_parent = by_name.get(parent.name)
+            if known_parent is not None and known_parent != parent:
+                raise ValueError(
+                    f"grain {parent.name!r} has conflicting declarations"
+                )
+            by_name[parent.name] = parent
+            declared_children = tuple(raw_children)
+            child_names: set[str] = set()
+            for child in declared_children:
+                if not isinstance(child, Grain):
+                    raise TypeError("EpisodeTree children must be Grain values")
+                if child.name in child_names:
+                    raise ValueError(
+                        f"grain {child.name!r} is listed twice under {parent.name!r}"
+                    )
+                child_names.add(child.name)
+                known_child = by_name.get(child.name)
+                if known_child is not None and known_child != child:
+                    raise ValueError(
+                        f"grain {child.name!r} has conflicting declarations"
+                    )
+                by_name[child.name] = child
+                prior_parent = parent_by_child.get(child.name)
+                if prior_parent is not None and prior_parent != parent.name:
+                    raise ValueError(
+                        f"grain {child.name!r} has two parents: "
+                        f"{prior_parent!r} and {parent.name!r}"
+                    )
+                parent_by_child[child.name] = parent.name
+            normalized[parent] = declared_children
+
+        if self.root.name in parent_by_child:
+            raise ValueError("EpisodeTree.root may not also be a child")
+        reachable = {self.root.name}
+        frontier = [self.root]
+        while frontier:
+            parent = frontier.pop()
+            for child in normalized.get(parent, ()):
+                if child.name not in reachable:
+                    reachable.add(child.name)
+                    frontier.append(child)
+        unreachable = set(by_name) - reachable
+        if unreachable:
+            raise ValueError(
+                f"EpisodeTree has unreachable parent grains: {sorted(unreachable)}"
+            )
+
+        object.__setattr__(self, "children", normalized)
+        object.__setattr__(self, "_by_name", by_name)
+        object.__setattr__(self, "_parent_by_child", parent_by_child)
+
+    @classmethod
+    def linear(cls, grains: Iterable[Grain]) -> "EpisodeTree":
+        """Build the declaration for a single linear path."""
+
+        ordered = tuple(grains)
+        if not ordered:
+            raise ValueError("a linear EpisodeTree needs at least one Grain")
+        return cls(
+            root=ordered[0],
+            children={
+                parent: (child,)
+                for parent, child in zip(ordered, ordered[1:])
+            },
+        )
+
+    def allowed_children(self, parent_name: str) -> tuple[Grain, ...]:
+        parent = self._by_name.get(str(parent_name))
+        if parent is None:
+            return ()
+        return tuple(self.children.get(parent, ()))
 
 
 @dataclass(frozen=True)
@@ -765,17 +862,22 @@ class Context:
         self,
         *,
         order: Optional[Iterable[Grain]] = None,
+        tree: Optional[EpisodeTree] = None,
         run_id: Optional[str] = None,
         runtime: Optional[ControllerRuntime] = None,
     ) -> None:
+        if order is not None and tree is not None:
+            raise ValueError("Context accepts either order or tree, not both")
         self.runtime = runtime if runtime is not None else ControllerRuntime()
         self.order: Optional[tuple[Grain, ...]] = None
+        self.tree: Optional[EpisodeTree] = tree
         if order is not None:
             grains = tuple(order)
             names = [grain.name for grain in grains]
             if len(set(names)) != len(names):
                 raise ValueError(f"Context order names a grain twice: {names}")
             self.order = grains
+            self.tree = EpisodeTree.linear(grains)
         self._stack: list[Path] = []
         self._grains: dict[str, Grain] = {}
         self._run_id: Optional[str] = None
@@ -804,19 +906,11 @@ class Context:
     def path(self) -> Path:
         return self._stack[-1] if self._stack else ()
 
-    def _expected_next(self, parent: Path) -> Optional[Grain]:
-        assert self.order is not None
+    def _allowed_next(self, parent: Path) -> tuple[Grain, ...]:
+        assert self.tree is not None
         if not parent:
-            return self.order[0]
-        parent_name = parent[-1][0]
-        for index, grain in enumerate(self.order):
-            if grain.name == parent_name:
-                return (
-                    self.order[index + 1]
-                    if index + 1 < len(self.order)
-                    else None
-                )
-        return None
+            return (self.tree.root,)
+        return self.tree.allowed_children(parent[-1][0])
 
     def enter(self, grain: Grain, key: str) -> Scope:
         if not isinstance(grain, Grain):
@@ -825,12 +919,21 @@ class Context:
         if known is not None and known is not grain and known != grain:
             raise ValueError(f"grain {grain.name!r} was declared more than once")
         parent = self.path
-        if self.order is not None:
-            expected = self._expected_next(parent)
-            if expected is None or expected.name != grain.name:
+        if self.tree is not None:
+            allowed = self._allowed_next(parent)
+            declared = next(
+                (item for item in allowed if item.name == grain.name),
+                None,
+            )
+            if declared is None:
                 raise ValueError(
                     f"grain {grain.name!r} may not nest under "
-                    f"{parent[-1][0] if parent else 'the root'}"
+                    f"{parent[-1][0] if parent else 'the root'}; allowed: "
+                    f"{[item.name for item in allowed]}"
+                )
+            if declared != grain:
+                raise ValueError(
+                    f"grain {grain.name!r} differs from its EpisodeTree declaration"
                 )
         path: Path = tuple(parent) + ((grain.name, str(key)),)
         scope = self.runtime.open_scope(path, grain.controller)

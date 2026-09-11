@@ -140,8 +140,8 @@ it through `ask_json`: `schema_synthesis.py`, `strategy.py`, and `estimator.py`.
 construction — `for_tier`, `instrument_client`, `register_call_site_tier` — and
 not as a fifth `ask_json` site.) Any further consumer needs a stated reason why
 the work is not a pure function over data another module already produced.
-`acquisition.py` and `best_guess.py` deliberately receive **callables** and
-never a client, which is what keeps them exercisable in isolation.
+The Episode bindings and `best_guess.py` deliberately receive **callables**
+and never a client, which keeps them exercisable in isolation.
 
 ### Model tiering
 
@@ -194,14 +194,13 @@ package. Standalone `gasl/` imports neither.
 
 ### Episode binding ownership
 
-Decompose the provider binding by acquisition level because a reusable Episode
-type must not depend on the complete acquisition composition. The target
-package is `question_pipeline/episode_bindings/`, with one module each for the
-`chunk` Leaf and the `lexical_probe`, `page`, `web_search`, `strategy`, and
-`run` Episode types. The dormant GASL query and walk Episode types follow the
-same rule when integrated. Until this migration is complete,
-`question_pipeline/acquisition.py` is transitional; do not add another Episode
-type or another cross-grain responsibility to it.
+The provider binding is organized by acquisition level in
+`question_pipeline/episode_bindings/`, with one `*_binding.py` module each for
+the `chunk` Leaf and the `table`, `lexical_probe`, `page`, `web_search`,
+`strategy`, and `run` Episode types. Reused binding support lives under
+`episode_bindings/shared/`; the composition is linked once in
+`shared/composition.py`. The dormant GASL query and walk Episode types follow
+the same rule when integrated.
 
 Each Episode-type module owns its `Grain` declaration and controller binding,
 its unit/source types, construction of that Episode, its local hooks, and its
@@ -210,9 +209,10 @@ it does not select or construct a specific child Episode type itself. This is
 what makes the binding reusable in a different nesting. The chunk module owns
 the Leaf's unit, extract/accept/result wiring, and label; it declares no Grain.
 
-Link Episode types only in `question_pipeline/acquisition_composition.py`. That
-module declares the nesting and `Context` order, injects child builders and
-shared services, constructs the root Episode, and invokes it once. It does not
+Link Episode types only in
+`question_pipeline/episode_bindings/shared/composition.py`. That module
+declares the nesting and `Context` order, injects child builders and shared
+services, constructs the root Episode, and invokes it once. It does not
 implement extraction, evidence acceptance, result projection, numerical
 control, learning, persistence, or record formatting. Table-result projection
 belongs in `question_pipeline/result_projection.py`; acquisition trace,

@@ -96,8 +96,10 @@ run Episode
 └── strategy Episode
     └── search Episode
         └── page Episode
+            ├── table Episode
+            │   └── execute one query over parsed rows
             └── lexical-probe Episode
-                └── process one chunk
+                └── process one non-table chunk
 ```
 
 Here is the same tree using the real CATDAT document and recorded chunk
@@ -111,21 +113,21 @@ run: fatal-earthquake table
 └── strategy: search annual earthquake-loss compilations
     └── search: "CATDAT damaging earthquakes year in review"
         └── page: CATDAT 2012 report
-            ├── lexical probe: "Mw MMI USD"
-            │   ├── chunk 52 -> fills magnitude, deaths, injuries,
-            │   │              displacement, and damage fields
-            │   ├── chunk 53 -> fills more fields and repeats some findings
-            │   └── ... the numerical decision ends this probe
-            └── next lexical probe, if the page verdict requests one,
-                ranks only the chunks that remain unprocessed
+            ├── table: detected earthquake-loss table
+            │   ├── parser plan -> maps source columns to declared columns
+            │   └── row query -> accepts source rows and records its yield
+            └── lexical probe: "Mw MMI USD"
+                ├── chunk 52 -> fills fields from prose outside the table
+                └── next probe ranks only unprocessed non-table chunks
 ```
 
 Each level answers a different question with the same method:
 
 | Episode level | One unit | What ending the Episode means |
 | --- | --- | --- |
+| table | one deterministic query over parsed, unprocessed table rows | return control to the page after the table query space is exhausted or rarefied |
 | lexical probe | one previously unprocessed ranked chunk | return control to the page so it can propose another vocabulary over the remaining chunks |
-| page | one completed lexical-probe Episode | finish this document and return its distinct findings to the search |
+| page | one completed table or lexical-probe Episode | finish this document and return its distinct findings to the search |
 | search | one fetched page or document | stop consuming that Firecrawl result list |
 | strategy | one completed search Episode | stop pursuing that strategy family |
 | run | one completed strategy Episode | end the declared acquisition run |
@@ -330,9 +332,8 @@ method_loop/             generic Episode method: iteration, nesting, runtime
 question_pipeline/       Firecrawl/table-fill application and future GASL
                          Episode integration
   rarefaction/           paired incidence estimator and numerical controller
-  episode_bindings/      one reusable binding per acquisition level (target)
-  acquisition_composition.py
-                         the one concrete parent/child composition (target)
+  episode_bindings/      one *_binding.py module per acquisition level
+    shared/              reused binding support and the one composition
   result_projection.py   accepted typed state to stable result identities
                          (target)
   acquisition_records.py

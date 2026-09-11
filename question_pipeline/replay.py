@@ -40,7 +40,7 @@ from .rarefaction.incidence_control import (
     DEFAULT_WINDOW_SIZE,
 )
 
-from .acquisition import CREDIT_SEMANTICS
+from .episode_bindings import CREDIT_SEMANTICS
 from .pipeline import PIPELINE_MODE_TABLE_FILL, PipelineConfig, QuestionPipeline
 from .search import SearchTask
 

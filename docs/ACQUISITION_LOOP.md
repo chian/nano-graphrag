@@ -49,7 +49,9 @@ THE ACQUISITION EPISODE (one generic Episode, instantiated at every surface):
       │             │                                     │
       └──── switch ─┴──── continue / stop ◄─── verdict ───┘
 
- NESTING:  chunk Leaf ⊂ lexical-probe ⊂ page ⊂ search ⊂ strategy ⊂ run
+ NESTING:  table-query Leaf ⊂ table ─┐
+                                    ├─⊂ page ⊂ search ⊂ strategy ⊂ run
+           chunk Leaf ⊂ lexical-probe┘
                                                                (provider surface)
            seed ⊂ walk ⊂ query                                (future GASL binding)
            — the same method at every grain; compact updates pass between scopes
@@ -500,32 +502,35 @@ question_pipeline/
 ├── rarefaction/
 │   └── incidence_control.py
 ├── episode_bindings/
-│   ├── chunk.py
-│   ├── lexical_probe.py
-│   ├── page.py
-│   ├── web_search.py
-│   ├── strategy.py
-│   ├── run.py
-│   ├── gasl_walk.py       # future
-│   └── gasl_query.py      # future
+│   ├── chunk_binding.py
+│   ├── lexical_probe_binding.py
+│   ├── page_binding.py
+│   ├── table_binding.py
+│   ├── web_search_binding.py
+│   ├── strategy_binding.py
+│   ├── run_binding.py
+│   └── shared/
+│       ├── acquisition_support.py
+│       ├── composition.py
+│       ├── checkpoint.py
+│       ├── records.py
+│       ├── runtime.py
+│       ├── chunk_ranking.py
+│       └── table_extraction.py
 ├── result_projection.py
-├── acquisition_records.py
-└── acquisition_composition.py
+└── acquisition_records.py
 ```
 
-`acquisition_composition.py` is the sole owner of the concrete tree. It
-declares `Context` order, injects child builders and shared collaborators,
-constructs the root Episode, and calls it once. It contains no extraction,
-acceptance, result-projection, controller, learning, persistence, checkpoint,
-or record-formatting implementation. `result_projection.py` owns the
-table-specific accepted-state-to-logical-slot projection;
-`acquisition_records.py` owns acquisition trace, checkpoint, and export
-formatting.
+`episode_bindings/shared/composition.py` links the Episode-specific binding
+classes into one provider surface. The surface declares a branching `Context`
+tree: a page may open either a table Episode or a lexical-probe Episode. It
+constructs the root Episode and calls it once; it does not implement
+extraction, acceptance, result projection, numerical control, learning,
+persistence, checkpointing, or record formatting.
 
-Do not replace a monolithic binding with a monolithic context/services object.
-Each binding receives only the collaborators it directly calls. The current
-`question_pipeline/acquisition.py` is transitional and is split bottom-up;
-new Episode types and cross-grain responsibilities do not enter it.
+Do not replace episode-owned bindings with a monolithic context/services object.
+Each binding receives only the collaborators it directly calls; new Episode
+types and cross-grain responsibilities do not enter shared support.
 
 ### Fan-up, stated
 
@@ -653,12 +658,15 @@ extended there — never by a second meter.
 
 | Surface | Composition (outer ⊃ inner) | The unit at each grain |
 | --- | --- | --- |
-| Provider | run ⊃ strategy ⊃ search ⊃ page ⊃ lexical probe ⊃ chunk Leaf | a proposed strategy Episode ⊃ a search Episode ⊃ a fetched page Episode ⊃ one ranked lexical probe Episode ⊃ one extracted chunk |
+| Provider | run ⊃ strategy ⊃ search ⊃ page ⊃ (table ⊃ table-query Leaf OR lexical probe ⊃ chunk Leaf) | a proposed strategy Episode ⊃ a search Episode ⊃ a fetched page Episode ⊃ either one parsed-table query or one ranked non-table chunk |
 | Future GASL binding | query ⊃ walk ⊃ seed | an operation-track unit ⊃ a walk Episode ⊃ one seed expansion; standalone GASL remains independent of this composition |
 
 A search returns pages, so the page is the search grain's natural unit. A page
-proposes lexical rankings; each lexical-probe Episode consumes previously
-unprocessed chunks as Leaves. A chunk is a Leaf, not another Episode grain. The strategy grain
+may open table Episodes over detected structured regions and lexical-probe
+Episodes over the remaining text. Each table Episode queries parsed rows;
+each lexical-probe Episode consumes previously unprocessed chunks as Leaves.
+The two bindings share evidence acceptance and result projection, not source
+units or extraction paths. A chunk is a Leaf, not another Episode grain. The strategy grain
 (4D) is the `strategy` row: a strategy is an episode of searches that ends
 by its own verdict, and the `run` source proposes the next. That is a
 change from 4D as first registered (within-round demotion of a stopped
@@ -787,9 +795,8 @@ policy out of the graph engine itself.
 
 ## Surface bindings
 
-1. **Provider search** — currently concentrated in the transitional
-   `question_pipeline/acquisition.py`, and moving to the individual binding
-   modules plus `question_pipeline/acquisition_composition.py`. Unit = one
+1. **Provider search** — composed from the individual modules under
+   `question_pipeline/episode_bindings/`. Unit = one
    fetched item (page/paper). Firecrawl may return a large batch, but the
    Episode pulls and processes buffered items one by one: fetch → relevance
    judge → extract → persist evidence → accept → incidence → estimate →

@@ -8,7 +8,7 @@ import asyncio
 import json
 from pathlib import Path
 
-from question_pipeline.acquisition import lexical_threshold_adapter
+from question_pipeline.episode_bindings import lexical_threshold_adapter
 from question_pipeline.replay import (
     load_saved_source,
     replay_numerical_control,

@@ -20,8 +20,8 @@ from collections import Counter
 from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
-from .llm_utils import ModelTier, ask_json, register_call_site_tier
-from .table_specs import TableSpec
+from ...llm_utils import ModelTier, ask_json, register_call_site_tier
+from ...table_specs import TableSpec
 
 
 _LEXICAL_PROBE_TIER = register_call_site_tier(

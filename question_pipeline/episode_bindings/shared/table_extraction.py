@@ -18,9 +18,9 @@ import json
 from dataclasses import dataclass
 from typing import Any, Callable, Mapping, Optional, Sequence
 
-from .extraction import chunk_spans
-from .llm_utils import ModelTier, ask_json, register_call_site_tier
-from .table_specs import ColumnEvidenceRole, TableSpec
+from ...extraction import chunk_spans
+from ...llm_utils import ModelTier, ask_json, register_call_site_tier
+from ...table_specs import ColumnEvidenceRole, TableSpec
 
 
 # The V15 run is the reasoning-tier baseline for this high-volume call site.

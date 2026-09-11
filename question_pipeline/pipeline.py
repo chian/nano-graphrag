@@ -111,8 +111,21 @@ from .derived_context import source_ids_from_row
 from .evidence_registry import EvidenceRegistry
 from .evidence_acceptance import TypedEvidenceAcceptor
 from .extraction import chunk_spans, chunk_text, enrich_graph, extract_from_text
-from .table_extraction import TableSpecExtractor, extract_table_rows_from_text
-from .chunk_retrieval import page_outline, propose_lexical_probe, rank_chunks
+from .episode_bindings.shared.table_extraction import (
+    TableSpecExtractor,
+    extract_table_rows_from_text,
+)
+from .episode_bindings.shared.chunk_ranking import (
+    page_outline,
+    propose_lexical_probe,
+    rank_chunks,
+)
+from .episode_bindings.table_binding import (
+    discover_table_regions,
+    plan_table_parser,
+    propose_table_query,
+    text_without_table_regions,
+)
 from .goals import (
     FillGoalState,
     TableFillGoalTracker,
@@ -125,8 +138,8 @@ from .prompt_log import (
     open_scope as prompt_log_open,
     prompt_scope,
 )
-from . import acquisition as acq
-from .acquisition import (
+from . import episode_bindings as acq
+from .episode_bindings import (
     AcquisitionController,
     TableCreditAssigner,
     ProviderHealth,
@@ -919,9 +932,10 @@ class QuestionPipeline:
         self.source_ingestion_ledger: Dict[str, Dict[str, Any]] = {}
 
         # -- the acquisition composition (Phase 4E-c) -------------------- #
-        # run > strategy > search > page, one `Episode.run_async` call, in
-        # `run()`. docs/ACQUISITION_LOOP.md. Nothing here sequences phases and
-        # nothing consults a controller between units.
+        # run > strategy > search > page > {table | lexical probe}, one
+        # `Episode.run_async` call, in `run()`. docs/ACQUISITION_LOOP.md.
+        # Nothing here sequences phases and nothing consults a controller
+        # between units.
         #
         # The crediter is built ONCE, from the table contract as it stands now,
         # with two consequences stated rather than left to a run to discover: a
@@ -988,6 +1002,19 @@ class QuestionPipeline:
             ),
             sample_strategies=self._sample_strategies,
             post_strategy=self._run_post_strategy_body,
+            discover_table_regions=discover_table_regions,
+            text_without_table_regions=text_without_table_regions,
+            plan_table_parser=lambda region: plan_table_parser(
+                self.llm,
+                table_spec=self.table_spec,
+                region=region,
+            ),
+            propose_table_query=lambda **kwargs: propose_table_query(
+                self.llm,
+                question=self.config.question,
+                table_spec=self.table_spec,
+                **kwargs,
+            ),
             get_table_extractor=lambda: self.table_extractor,
             extract_table_text=extract_table_rows_from_text,
             page_outline=page_outline,

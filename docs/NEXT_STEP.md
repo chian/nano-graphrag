@@ -159,17 +159,17 @@ statistic, uncertainty calculation, and threshold values remain unvalidated.
 
 ## Binding decomposition before the next live run
 
-`question_pipeline/acquisition.py` currently combines six binding levels with
-table-result projection, learning/checkpoint state, and record writing. Split
-that file bottom-up without changing behavior:
+The six binding levels now live in one `*_binding.py` module per Episode type
+under `question_pipeline/episode_bindings/`. Reused ranking, extraction,
+checkpoint, record, runtime, and composition support lives under
+`episode_bindings/shared/`.
 
 1. Move table-supported logical-slot projection into `result_projection.py`
    and acquisition trace/checkpoint/export formatting into
    `acquisition_records.py`.
-2. Move the chunk Leaf, lexical-probe, page, web-search, strategy, and run
-   bindings into one module per type under `episode_bindings/`. Each module
-   receives its child builder and only the collaborators it uses.
-3. Link the types only in `acquisition_composition.py`, which declares the
+2. Keep the chunk Leaf, lexical-probe, page, web-search, strategy, and run
+   bindings in their episode-named modules.
+3. Link the types only in `episode_bindings/shared/composition.py`, which declares the
    nesting and `Context` order, constructs the root Episode, and invokes it
    once.
 4. Split the dormant GASL query/walk bindings by Episode type when they are
