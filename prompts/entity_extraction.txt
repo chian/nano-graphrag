@@ -92,14 +92,14 @@ Output:
 #############################
 Example 4:
 
-Entity_types: [country, disease, surveillance_indicator]
+Entity_types: [site, incident, monitoring_indicator]
 Text:
-In the WHO African Region for 2020, Angola had 578 AFP cases and 138 confirmed cVDPV cases. Environmental surveillance detected 4 positive samples.
+At the North Plant in 2020, operators logged 578 inspection records and 138 confirmed corrosion alerts. Environmental monitoring detected 4 positive water samples.
 #############
 Output:
-("entity"{tuple_delimiter}"Angola"{tuple_delimiter}"country"{tuple_delimiter}"Located in the WHO African Region. In 2020, Angola reported 138 confirmed cVDPV cases and 4 positive environmental samples out of 578 AFP cases."){record_delimiter}
-("entity"{tuple_delimiter}"cVDPV"{tuple_delimiter}"disease"{tuple_delimiter}"Circulating vaccine-derived poliovirus, a type of Poliovirus. Angola had 138 confirmed cases in 2020."){record_delimiter}
-("entity"{tuple_delimiter}"AFP Surveillance"{tuple_delimiter}"surveillance_indicator"{tuple_delimiter}"Acute Flaccid Paralysis surveillance is used to detect Poliovirus. Angola reported 578 AFP cases in 2020."){completion_delimiter}
+("entity"{tuple_delimiter}"North Plant"{tuple_delimiter}"site"{tuple_delimiter}"The North Plant logged 578 inspection records, 138 confirmed corrosion alerts, and 4 positive water samples in 2020."){record_delimiter}
+("entity"{tuple_delimiter}"Corrosion Alert"{tuple_delimiter}"incident"{tuple_delimiter}"Corrosion alerts are confirmed incident reports from the North Plant inspection logs in 2020."){record_delimiter}
+("entity"{tuple_delimiter}"Environmental Monitoring"{tuple_delimiter}"monitoring_indicator"{tuple_delimiter}"Environmental monitoring detected 4 positive water samples at the North Plant in 2020."){completion_delimiter}
 #############################
 -Real Data-
 ######################

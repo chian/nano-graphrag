@@ -4,144 +4,428 @@
   <img src="docs/assets/nano-graphrag-logo.png" alt="nano-graphrag logo" width="164">
 </p>
 
-`nano-graphrag` is a graph-native QA workbench with a browser UI, a
-deterministic/LLM hybrid answer path, and a live execution surface for
-graph-aware reasoning.
+`nano-graphrag` is a research workbench for iterative evidence acquisition and
+graph-guided question answering. Its current development focus is a table-fill
+pipeline that can search broadly, preserve source-level evidence, and decide
+numerically whether another unit of acquisition is likely to be useful.
 
-The product surface is the visualization and question-answering system:
+The repository keeps two search media conceptually separate:
 
-- load a GraphML graph
-- inspect nodes, neighborhoods, and salience
-- run fast RAG answers over a retrieved subgraph
-- run GASL plans over the live graph with step-by-step telemetry
-- review traces, prompts, and answer-view selection decisions
+- The current table-fill acquisition binding searches the Web through
+  Firecrawl, processes returned sources one at a time, and writes accepted
+  evidence into typed result tables.
+- GASL is a query language and execution engine for searching an explicitly
+  supplied, immutable knowledge-graph revision. It lets an LLM use graph
+  operations and interpret their results without treating the graph as a bag
+  of retrieved text.
 
-The graph-building pipeline still exists, but it is no longer the center
-of the main README. If you need ingestion and graph construction, start
-with [Graph Building](docs/GRAPH_BUILDING.md).
+Firecrawl and GASL are peer search types in the method design. Searching the
+Web does not automatically add its results to a graph, and running GASL does
+not imply that a graph was updated. The first live experiments exercise the
+Firecrawl binding so that nesting, accumulation, and search adaptation can be
+measured without graph construction confounding the result.
 
-## Product surface
+## The acquisition method
 
-![Visualization screenshot](docs/assets/visualization_screenshot.png)
+Acquisition is one generic method, implemented by `method_loop.Episode` and
+composed recursively at several levels. Each Episode chooses and processes one
+unit at a time, measures what that unit added, and uses its numerical component
+to decide whether to continue. A unit can be an ordinary item or another
+Episode.
 
-### Two query modes
+```text
+  +------------------------------------------------------------------+
+  |                                                                  |
+  v                                                                  |
+source reads this Episode's request, compact updates, and control state
+  |                                                                  |
+  v                                                                  |
+choose the next unit                                                  |
+  |                                                                  |
+  +-- no unit left ------------------------> publish Episode record   |
+  |                                                                  |
+  +-- ordinary item -> run tool -> accept and store results --+      |
+  |                                                           |      |
+  +-- child Episode -> run child loop -> receive results ------+      |
+                                                              |      |
+                                                              v      |
+                                             results from one unit   |
+                                                              |      |
+                                                              v      |
+                                      send result to bound controller |
+                                      update its numbers and decision |
+                                                              |      |
+                                                              v      |
+                                      save record; update memory      |
+                                                              |      |
+                                      +-- stop --> publish record     |
+                                      |                               |
+                                      +-- continue -------------------+
+```
 
-- **RAG mode**  
-  Fast subgraph retrieval followed by answer synthesis. Good for quick
-  lookups and broad orientation.
+The numerical component is attached to the method; it does not contain the
+method. `question_pipeline/rarefaction/` owns the paired incidence estimator
+and numerical controller used by question-pipeline Episode types.
+`method_loop/` owns iteration, nesting, stable record keys, and the Episode
+record tree.
 
-- **GASL mode**  
-  The Graph Action Specification Language. An LLM emits a bounded graph
-  plan, the executor runs it step by step against graph adapters, and
-  the browser streams the traversal, intermediate state, and final
-  answer.
+For table filling, a counted result means that one subject has an accepted
+value in one declared result column. A directly reported value and a best guess
+for that same subject and column count as the same result, so they cannot be
+double counted. Finding the same result in another source is recorded as a
+repeat.
 
-### What the UI exposes
+The table-fill numerical component keeps a separate count and estimate for
+each result column, then combines them into one hypervolume credit. The
+predicted credit from the next unit is the single number used to stop or
+continue. The per-column estimates remain visible so people and future search
+strategies can see which columns are still sparse.
 
-- graph search, entity-type filters, salience filtering
-- node details and neighborhood focusing
-- BYOK model selection in the browser
-- prompt observations and GASL replay surfaces
-- side-by-side demo scenarios for RAG vs GASL behavior
+Every attempted unit records whether it was successfully evaluated. A unit
+that was evaluated and found nothing is a real zero. A failed tool call or
+failed evaluation is not treated as evidence that no useful result existed.
 
-## System map
+## The nesting
 
-![QA system flow](docs/assets/agentic_system_flow.svg)
+An Episode can process an ordinary item or run another Episode. A child
+finishes its own loop and becomes one unit of its parent. The current
+Firecrawl table-fill binding has this shape:
 
-## Runtime architecture
+```text
+run Episode
+└── strategy Episode
+    └── search Episode
+        └── page Episode
+            └── lexical-probe Episode
+                └── process one chunk
+```
 
-### Main components
+Here is the same tree using the real CATDAT document and recorded chunk
+outcomes from the earthquake experiment. The row-native probe string was
+supplied explicitly for the numerical replay, so this example demonstrates
+the composition without claiming that the live model generated that exact
+string:
 
-- **Browser UI**  
-  [visualization/templates/viewer.html](visualization/templates/viewer.html)
+```text
+run: fatal-earthquake table
+└── strategy: search annual earthquake-loss compilations
+    └── search: "CATDAT damaging earthquakes year in review"
+        └── page: CATDAT 2012 report
+            ├── lexical probe: "Mw MMI USD"
+            │   ├── chunk 52 -> fills magnitude, deaths, injuries,
+            │   │              displacement, and damage fields
+            │   ├── chunk 53 -> fills more fields and repeats some findings
+            │   └── ... the numerical decision ends this probe
+            └── next lexical probe, if the page verdict requests one,
+                ranks only the chunks that remain unprocessed
+```
 
-- **HTTP + Socket.IO surface**  
-  [visualization/server.py](visualization/server.py)
+Each level answers a different question with the same method:
 
-- **Query orchestration**  
-  [visualization/query_engine.py](visualization/query_engine.py)
+| Episode level | One unit | What ending the Episode means |
+| --- | --- | --- |
+| lexical probe | one previously unprocessed ranked chunk | return control to the page so it can propose another vocabulary over the remaining chunks |
+| page | one completed lexical-probe Episode | finish this document and return its distinct findings to the search |
+| search | one fetched page or document | stop consuming that Firecrawl result list |
+| strategy | one completed search Episode | stop pursuing that strategy family |
+| run | one completed strategy Episode | end the declared acquisition run |
 
-- **GASL planner / executor**  
-  [gasl/executor.py](gasl/executor.py)
+The table binding's child update carries distinct accepted results by column.
+The parent treats the completed child as one unit and recalculates its own
+counts, estimates, and decision. It does not add together the child's
+hypervolume and its own. The full child record is retained only in the trace;
+the running parent receives a compact `EpisodeUpdate`.
 
-- **Answer-view compiler**  
-  [gasl/answer_layer/compiler.py](gasl/answer_layer/compiler.py),
-  [gasl/answer_layer/selector.py](gasl/answer_layer/selector.py),
-  [gasl/answer_layer/adjudicator.py](gasl/answer_layer/adjudicator.py)
+```text
+PARENT EPISODE                         CHILD EPISODE
 
-- **Graph adapters**  
-  [gasl/adapters/](gasl/adapters/)
+choose the child --------------------> run the child's own loop
+                                                |
+                                                v
+                                      write the full child trace
+                                      and build EpisodeUpdate
+                                                |
+                  <-----------------------------+
+                  |
+                  v
+       send EpisodeUpdate.controller_input to
+       the parent's own controller
+                  |
+                  v
+       update the parent's estimates and decision
+                  |
+                  v
+       expose only EpisodeUpdate.prompt_context
+       to the parent's next source call
+                  |
+             +----+----+
+             |         |
+         continue     stop
+             |         |
+             v         v
+       choose the    close this Episode and build
+       next unit     its own compact EpisodeUpdate
+```
 
-- **Prompt and trace sidecars**  
-  `gasl_artifacts/prompt_observations.jsonl`,
-  `gasl_artifacts/traces/*.jsonl`
+Information moves up one level whenever a child finishes:
 
-### How answering works
+```text
+chunk completes          -> lexical-probe view updates locally
+lexical probe closes     -> page receives its distinct results
+page closes              -> search receives its distinct results
+search closes            -> strategy receives its distinct results
+strategy closes          -> run receives its distinct results
+```
 
-1. The browser sends a question to the query server.
-2. The query engine routes to either RAG or GASL.
-3. GASL planning and execution mutate state through graph-native
-   commands such as `FIND`, `GRAPHWALK`, `PROCESS`, `AGGREGATE`, and
-   `RANK`.
-4. The answer layer compiles candidate views from current state:
-   `evidence_table`, `grouped_summary`, `distribution`, `comparison`,
-   `frontier`, `ranking`, `provenance`.
-5. Deterministic selection runs first; an LLM adjudicator only breaks
-   ties when multiple structurally valid views remain.
-6. The final answer is synthesized from the chosen view rather than from
-   a raw state dump.
+Each source sees the compact child updates and opaque controller state from its
+own Episode. It can use that history to propose different work next time. For
+example, a page can replace an unproductive lexical query with abbreviations
+found in the document, while a strategy can replace a saturated Web search
+with a different search angle. The model proposes the next string; the
+numerical component decides whether there should be another attempt.
 
-## Quick start
+## Adding a new Episode type
 
-### Run the UI
+A new Episode type is made by connecting new work to `Episode`; it does not
+need a new loop. Put its reusable binding in its own module under
+`question_pipeline/episode_bindings/`. The binding owns that type's Grain,
+source and unit types, Episode builder, local hooks, and compact parent update.
+It does not choose its parent or concrete child type. The terminal chunk Leaf
+has its own binding module but no Grain.
+
+First, declare the level. State plainly what one turn processes and what useful
+result one turn can add:
+
+```python
+grain = Grain(
+    name="document_search",
+    unit="one document returned by this search",
+    result="the binding-defined result returned by one document",
+    controller=controller_function,
+)
+```
+
+Next, write a source that uses the Episode's history to return one item at a
+time. Return `None` when there are no more items:
+
+```python
+class ToolSource:
+    def next(self, view):
+        # view.updates contains compact messages from completed children.
+        return choose_next_item(view)
+```
+
+Bind the work performed on each item:
+
+```python
+source = leaves(
+    units=ToolSource(),
+    extract=run_tool,
+    accept=validate_and_store_results,
+    result=make_controller_input,
+    label=lambda item: item.stable_name,
+)
+
+episode = Episode(
+    grain=grain,
+    key="search-1",
+    source=source,
+    on_unit=handle_completed_unit,
+)
+```
+
+These functions have separate jobs:
+
+| Function | Job |
+| --- | --- |
+| `next(view)` | choose the next item using the work already completed at this level |
+| `extract(item)` | run the tool and produce candidate results |
+| `accept(item, results)` | validate and store results that are supported by evidence |
+| `result(item, accepted)` | build the input expected by this Grain's controller |
+| `on_unit(...)` | update memory or write logs after the numerical decision has been recorded |
+| `on_close(record)` | write this Episode's own full trace or checkpoint without giving it to the parent |
+
+For the table-fill binding, `result` returns an `IncidenceObservation` whose
+identities are separated by logical result column. A different Episode type may
+bind a different result type and controller.
+When the outer Episode uses `run_async()`, the source and bound functions may
+also be asynchronous.
+
+A stable result key names a subject and result column. The same result found
+again must return the same key, so the estimator records a repeat instead of a
+new finding. For example, every supported value for the deaths field of the
+same earthquake uses the same result key whether it came from a reported value
+or an accepted best guess.
+
+To nest Episodes, make the parent's source return a child `Episode` instead of
+an ordinary item:
+
+```python
+class ChildEpisodeSource:
+    def __init__(self, build_child):
+        self._build_child = build_child
+
+    def next(self, view):
+        return self._build_child(view)  # or None when finished
+```
+
+The child also needs a `to_parent` function. It converts the full child trace
+into the compact message the parent actually needs:
+
+```python
+child = Episode(
+    grain=child_grain,
+    key="child-1",
+    source=child_source,
+    to_parent=lambda record: EpisodeUpdate(
+        record_id=record.episode_id,
+        controller_input=combine_child_results(record),
+        prompt_context=summarize_for_parent_prompt(record),
+    ),
+)
+```
+
+The parent receives that update as one unit. The full `EpisodeRecord` remains
+in the recursive trace for audit but is not placed in the parent's source view
+or prompt. Do not write a loop around either Episode; calling `run()` or
+`run_async()` on the outer Episode runs the complete nested tree.
+
+Finally, link the binding types in `acquisition_composition.py`. That is the
+only module that chooses the parent/child nesting. It creates one `Context` for
+the run and lists the Grains used by that composition from outermost to
+innermost. The names and number of levels depend on the composition; they are
+not fixed by the method. Controller configuration is already captured by each
+Grain's controller function; `Context` does not know its schema:
+
+```python
+ctx = Context(
+    run_id="run-1",
+    order=(outer_grain, child_grain),
+)
+
+record = await outer_episode.run_async(ctx)
+```
+
+Keep accepted-table projection in `result_projection.py` and acquisition
+trace/checkpoint/export formatting in `acquisition_records.py`; neither is an
+Episode binding. Pass each binding only the collaborators it calls rather than
+placing every dependency in one shared context object.
+
+Tool calls and model calls belong in `next` or `extract`. Evidence checking and
+storage belong in `accept`. Counting must be a direct calculation from the
+accepted stored results. The estimator and controller make the numerical
+continue-or-stop decision.
+
+The complete method contract is
+[docs/ACQUISITION_LOOP.md](docs/ACQUISITION_LOOP.md). Where another document
+describes a phase-batched round loop or gives the numerical component ownership
+of `Episode`, that description is stale.
+
+## Repository layout
+
+```text
+method_loop/             generic Episode method: iteration, nesting, runtime
+                         identity, scope routing, child-to-parent results,
+                         and record trees
+question_pipeline/       Firecrawl/table-fill application and future GASL
+                         Episode integration
+  rarefaction/           paired incidence estimator and numerical controller
+  episode_bindings/      one reusable binding per acquisition level (target)
+  acquisition_composition.py
+                         the one concrete parent/child composition (target)
+  result_projection.py   accepted typed state to stable result identities
+                         (target)
+  acquisition_records.py
+                         acquisition trace/checkpoint/export formatting
+                         (target)
+run_question_pipeline.py command-line entry point
+gasl/                    graph query language and execution engine over an
+                         explicitly supplied graph revision
+nano_graphrag/           graph ingestion and construction substrate
+domain_schemas/          reusable typed extraction schemas
+experiments/             registered predictions and experimental records;
+                         production code never imports from here
+question_runs/           local run artifacts; not committed to GitHub
+docs/                    design charters, build trackers, and invariants
+visualization/           dormant browser/demo surface
+```
+
+## Running a Firecrawl table-fill acquisition
 
 ```bash
-git clone https://github.com/chian/nano-graphrag.git
-cd nano-graphrag
 python3 -m venv .venv
 . .venv/bin/activate
 pip install -r requirements.txt
 
-# launch against a sample graph
-./launch_viz.sh tests/nano_graphrag_cache_TEST/graph_chunk_entity_relation.graphml
+FIRECRAWL_API_KEY=... LLM_API_KEY=... \
+  .venv/bin/python run_question_pipeline.py \
+    --pipeline-mode table-fill \
+    --question "Which fatal earthquakes since 1900 have reported magnitude, deaths, injuries, displacement, and economic damage?" \
+    --schema earthquake_impact_two_grain \
+    --output-dir question_runs/earthquake_example
 ```
 
-Open `http://127.0.0.1:5050`, paste an API key in the browser, select a
-model, and ask a question.
+Firecrawl may return many results in one provider response, but that response
+is only a buffer. The search Episode pulls, fetches, extracts, accepts, credits,
+and evaluates one source before pulling the next. There is no papers-per-query
+or rounds control.
 
-### Serve over Tailscale
+Resume a durable Episode checkpoint with:
 
 ```bash
-HOST=0.0.0.0 ./launch_viz.sh path/to/your.graphml
-tailscale serve --bg --https=443 http://localhost:5050
+.venv/bin/python run_question_pipeline.py \
+  --continue question_runs/earthquake_example
 ```
+
+The module docstring and `--help` output of `run_question_pipeline.py` are the
+authoritative CLI references. Runs write source material, evidence-registry
+records, typed tables, Episode trees, numerical verdicts, learning records,
+and `checkpoint.json` beneath their output directory. `AGENTS.md` contains the
+operator rules for live runs.
+
+## GASL
+
+GASL provides explicit graph operations rather than treating graph context as
+ordinary retrieved prose. It can traverse, connect, filter, and inspect graph
+structure, then let an LLM interpret the returned subgraph for a scientific
+question. Its value is reuse of previously structured evidence, relationship
+analysis, and inspectable graph operations. GASL uses only the graph revision
+given to it; graph enrichment is a separate, reviewable workflow.
+
+See [docs/GASL_GUIDE.md](docs/GASL_GUIDE.md) for the language and
+[docs/RUNTIME_INVARIANTS.md](docs/RUNTIME_INVARIANTS.md) for its runtime
+boundaries.
+
+## Verification stance
+
+There is no test suite in this repository, and none is to be created.
+Behavior is verified with registered live experiments on the real provider and
+model interfaces. Each experiment states its claim, numerical measurements,
+and falsifier, and reports out-of-scope failures separately from the mechanism
+being tested. Numerical-only shadow recalibration can replay immutable observed
+identities through a controller without pretending to re-run acquisition.
+
+See [docs/CONTROL_LAYER_EXPERIMENTS.md](docs/CONTROL_LAYER_EXPERIMENTS.md) and
+`experiments/README.md` for the evidence standard. Generic GASL runtime changes
+also use `.venv/bin/python tools/check_runtime_invariants.py`.
 
 ## Documentation
 
-- [Graph Building](docs/GRAPH_BUILDING.md)
-- [GASL Guide](docs/GASL_GUIDE.md)
-- [GASL Behavior Eval](docs/GASL_BEHAVIOR_EVAL.md)
-- [Runtime Invariants](docs/RUNTIME_INVARIANTS.md)
-- [Architecture Notes](docs/ARCHITECTURE.md)
+- [The Acquisition Control Loop](docs/ACQUISITION_LOOP.md) — governing method
+  and numerical-control design
+- [Next Step](docs/NEXT_STEP.md) — current implementation and experimental
+  handoff
+- [Control Layer Build Tracker](docs/CONTROL_LAYER_BUILD.md) — implementation
+  phases and gates
+- [Control Layer Experiments](docs/CONTROL_LAYER_EXPERIMENTS.md) — live-run
+  evidence requirements
+- [Runtime Invariants](docs/RUNTIME_INVARIANTS.md) — GASL layering and runtime
+  rules
+- [GASL Guide](docs/GASL_GUIDE.md) — language and commands
+- [Graph Building](docs/GRAPH_BUILDING.md) — explicit graph-ingestion substrate
 
-## Repository guide
+## Dormant visualization surface
 
-```text
-gasl/                    planner, executor, commands, answer-layer logic
-visualization/           Flask UI, query engine, browser surface
-nano_graphrag/           graph substrate helpers and storage integration
-graph_enrichment/        merge and enrichment passes for graph construction
-iterative_search/        search-driven graph growth pipeline
-tools/prompt_lab/        offline prompt-mining, verification, and GEPA flows
-docs/                    operator notes, guides, and diagrams
-```
-
-## Design stance
-
-This repo treats the graph as the substrate, not the product. The
-product is the question-answering loop built on top of the graph:
-
-- deterministic graph actions where truth should stay deterministic
-- bounded LLM use where ambiguity actually requires semantics
-- explicit sidecars for traces, prompts, and answer-view decisions
-- an operator-friendly UI instead of hidden backend-only orchestration
+`visualization/` has been dormant since 2026-06-04 and is frozen unless that
+work reopens. Its operating procedures remain available in repository history
+at `git show 92f8e64:AGENTS.md`.

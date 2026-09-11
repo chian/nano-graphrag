@@ -1,0 +1,36 @@
+{
+  "completed_chunk_ids": [
+    "pmid_11964117:0:0:885:1c531ea8bed5",
+    "pmid_22091839:0:0:789:c6642288d389",
+    "pmid_23169620:0:0:1983:41132c83ed41",
+    "pmid_23531131:0:0:1502:9b5aab7cb41b",
+    "pmid_26082125:0:0:946:0efd6b883e06",
+    "pmid_28283524:0:0:2660:d15608c9c90a",
+    "pmid_30855188:0:0:910:0e958ad5c172",
+    "pmid_32660383:0:0:1214:35809f6f344c",
+    "pmid_33490228:0:0:1000:9c5a042da350",
+    "pmid_33538382:0:0:753:6fedfb1afeec",
+    "pmid_34502250:0:0:1320:c36352e9aafb",
+    "pmid_35506695:0:0:2698:e5932379ab1c",
+    "pmid_36041628:0:0:1887:72ee387cf5c4",
+    "pmid_38991478:0:0:1485:7f0d89e4bf3b",
+    "pmid_39747067:0:0:1214:44e3996dd0ae",
+    "pmid_40499191:0:0:1065:b348a8d86465",
+    "pmid_8432743:0:0:1507:e4bcfd927c34",
+    "pmid_8464402:0:0:2161:c10c428ec9c8"
+  ],
+  "processed": 18,
+  "total": 18,
+  "summary": {
+    "shard_path": "bio_causal_kgs_20260716/shards/bacterial_sporulation/shard_000.jsonl",
+    "graph_path": "bio_causal_kgs_20260716/shard_runs/bacterial_sporulation/shard_000/local_graph.graphml",
+    "entities_path": "bio_causal_kgs_20260716/shard_runs/bacterial_sporulation/shard_000/entities.jsonl",
+    "relationships_path": "bio_causal_kgs_20260716/shard_runs/bacterial_sporulation/shard_000/relationships.jsonl",
+    "chunk_results_path": "bio_causal_kgs_20260716/shard_runs/bacterial_sporulation/shard_000/chunk_results.jsonl",
+    "chunks_total": 18,
+    "chunks_completed": 18,
+    "nodes": 216,
+    "edges": 267,
+    "elapsed_sec": 287.91
+  }
+}

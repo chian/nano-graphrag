@@ -15,25 +15,28 @@ Query: {query}{hint_text}
 
 CRITICAL: FIELD NAME REQUIREMENTS
 - You MUST use the EXACT field names shown in "🔍 AVAILABLE FIELDS" sections above. Field names not in the list do not exist. Any attempt to use field names outside the above will fail.
-- Fields are one of three types: Graph, State, and Temporary Fields (placed in ContextStore object). 
+- Fields are Graph, durable State, or action-local Context fields. Action-local Context fields are not valid cross-step inputs.
 - If you see "processed_field: boolean", use "processed_field" in your commands
 - **GRAPH FIELDS**: Access via FIND command (e.g., entity_type, description, source_id)
   - FIND creates variable fields containing graph data with these fields
   - Use FIND first to get graph data, then use other commands on the results
-- **TEMPORARY FIELDS**: Access via COUNT, AGGREGATE, PROCESS commands on existing variables
-  - These are fields that the previous command created, but have not necessarily been stored to disk
+- **ACTION-LOCAL FIELDS**: These may exist in ContextStore during one action but are not restart-durable or planner-consumable
+- **NAMED OUTPUTS**: Explicit AS targets from retained producer commands are atomically materialized in StateStore with the action cursor
 - **STATE FIELDS**: Access via commands that read from the state
   - These are compilations of information for answering the current query, not permanent additions to the graph
   - Variables are created, populated, and used within a single query session to build up the answer
   - Check "🔍 AVAILABLE FIELDS" sections above to see what fields exist
 - You MUST use the EXACT field names shown in "🔍 AVAILABLE FIELDS" sections above
 - NEVER invent field names - only use what actually exists in the data
-- When using AGGREGATE, COUNT, or other field-based commands, check the "🔍 AVAILABLE FIELDS" list first
-- If you need a field that doesn't exist, use FIND to get graph data, then PROCESS to create the field
+- When using a field-based command, check the "🔍 AVAILABLE FIELDS" list first
+- PROCESS cannot invent a semantic field. It may filter inputs or materialize a
+  field/value already backed by an exact registered source or typed-derived
+  assertion. If that binding is absent, leave the field unresolved.
 
 IMPORTANT: Before creating new variables, check if existing variables can be reused or updated. 
-- If a variable already exists with the same type, you can reuse it (it will be reset)
-- If you need different data, consider updating existing variables with UPDATE commands
+- If a variable already exists with the same type, DECLARE is idempotent and preserves its value and full producer contract, including `usable_by`
+- DECLARE returns an error when an existing durable variable has a different type
+- Reuse an existing variable only when the command contract explicitly permits it
 - Only create new variables if you need a fundamentally different data structure
 
 Execution History:
@@ -46,140 +49,98 @@ AVAILABLE GASL COMMANDS:
 
 CORE COMMANDS:
 - DECLARE <var> AS DICT|LIST|COUNTER [WITH_DESCRIPTION "desc"] - Creates new variables
-- FIND nodes|edges|paths with <criteria> [AS <var>] - Gets graph data with graph fields (entity_type, description, etc.)
-- PROCESS <var> with instruction: <task> [AS <result_var>] - CREATES NEW FIELDS in existing variables (works on context, state, or graph data stored in variables)
-- COUNT <var> [where <condition>] AS <result_var>
-  CRITICAL: Use existing field names in conditions (e.g., "where starts_with_vowel = true")
-  Examples: 
-    - COUNT person_nodes AS total_count
-    - COUNT person_nodes where starts_with_vowel = true AS vowel_count
-    - COUNT person_nodes where starts_with_vowel = false AS non_vowel_count
-- AGGREGATE <var> by <EXACT_FIELD_NAME> with count|sum|avg|min|max
-  CRITICAL: The field name must exist in the data (check "Available fields" above)
-- PROJECT <var> GRAIN node|edge|path|paper|chunk FIELDS <field1>[ AS alias],<field2>... [KEYS <field1>,<field2>...] [WEIGHT <field>] [PRESERVE_MULTIPLICITY] [AS <result_var>]
-- COLLAPSE <var> BY <field> [COUNT AS <weight_field>] [AS <result_var>]
-- UPDATE <var> with <source> [operation: replace|delete|merge|append] [where <condition>] - Modifies existing data
+- FIND nodes|edges|paths with <criteria> AS <var> - Gets graph data with graph fields (entity_type, description, etc.)
+- PROCESS <var> CONTRACT gasl_process_execution_v6 MODE <semantic_filter|eligible_materialization|exact_enrichment> CARDINALITY <zero_to_n|exactly_input> MAX_INPUT_ITEMS <N> MAX_MODEL_CALLS <N> REQUIRED_FIELDS [field_a,field_b] WITH <task> AS <result_var> - Executes one explicitly bounded, typed PROCESS action
+- PROJECT <var> GRAIN node|edge|path|paper|chunk FIELDS <field1>[ AS alias],<field2>... [KEYS <field1>,<field2>...] [WEIGHT <field>] [PRESERVE_MULTIPLICITY] AS <result_var>
+- COLLAPSE <var> BY <field> [COUNT AS <weight_field>] AS <result_var>
 
-FIELD CREATION COMMANDS:
-- PROCESS <var> with instruction: <task> - CREATES NEW FIELDS with intuitive names (e.g., "starts_with_vowel", "first_name")
-- ADD_FIELD <var> field: <field_name> = <source_var> - Adds a single field to existing data
-
-ANALYSIS:
-- CLASSIFY <var> with instruction: <classification_task>
-- RANK <var> by <field> [order desc|asc]
+FIELD MATERIALIZATION COMMANDS:
+- PROCESS must use the full gasl_process_execution_v6 contract shown above. REQUIRED_FIELDS is deterministically role-typed: semantic fields require exact active FieldAssertion bindings; observation_id/declared grain identity, registry-owned observation/source metadata, and field_evidence use nonsemantic authority roles. Unknown reserved/container fields are invalid. The actual source rows must have unique exact typed declared-grain tuples; multiplicity preservation does not create an alternate identity or row-order token.
+- eligible_materialization may emit zero or one row per exact source token; request one-to-many child rows only from an upstream producer that declares the child grain.
+- Every REQUIRED_FIELDS entry must be admitted by the exact input producer contract: identity roles must be listed in grain_keys, and registry-metadata/container roles must be listed in row_schema. Do not request observation_id from an input whose declared grain key is id.
 
 GRAPH NAVIGATION:
-- GRAPHWALK from <var> follow <relationship> [depth <n>]
-- SUBGRAPH around <var> radius <n> [include <types>]
-- GRAPHPATTERN find <pattern> in <var>
-- GRAPHCONNECT <var1> to <var2> via <relationship>
+- GRAPHWALK from <var> follow <relationship> [depth <1..8>] AS <result_var>
 
 DATA COMBINATION:
 - JOIN <var1> with <var2> on <field> AS <result>
 - MERGE <var1>,<var2>,... AS <result>
-- COMPARE <var1> with <var2> on <field> AS <result>
 
 UTILITY:
 - SHOW <var> [limit <n>] - Display variable contents
 - SELECT <var> FIELDS <field1>,<field2>,... AS <result>
-- SET <var> = <value>
 - INSPECT <var> - Analyze data structure and content
 
-MICRO-ACTION COMMANDS:
-- ITERATE <source_var> BATCH_SIZE <N> WITH <COMMAND> instruction: "<instruction>" - Process large datasets in controlled batches
-  * Use when you need explicit control over batch size
-  * Works with PROCESS, CLASSIFY, COUNT, AGGREGATE
-  * Example: ITERATE authors_list BATCH_SIZE 10 WITH PROCESS instruction: "Filter human authors"
+PROCESS CONTINUATION:
+- ITERATE is not part of the planner-visible GASL surface in this contract.
+- Continue bounded work only with a direct, fully contracted same-target PROCESS: `PROCESS <result_var>__unresolved ... AS <result_var>`.
+- Example: PROCESS prior_result__unresolved CONTRACT gasl_process_execution_v6 MODE exact_enrichment CARDINALITY exactly_input MAX_INPUT_ITEMS 72 MAX_MODEL_CALLS 8 REQUIRED_FIELDS [first_name] WITH materialize the registered first_name binding AS prior_result
+- Never consume an `__unresolved` sidecar with another command or write it to a different target. The continuation must preserve the stable family mode, cardinality, REQUIRED_FIELDS, and identity contract.
+- Never declare or write an explicit output ending in `__unresolved` or `__unsupported`; those names are reserved for the owning PROCESS bundle. An `__unsupported` sidecar is audit-only and may be read only by SHOW.
 
 
-OBJECT CREATION:
-- CREATE nodes|edges|summary from <var> [with <spec>]
-- GENERATE <content_type> from <var> [with <spec>]
-
-PATTERN ANALYSIS:
-- CLUSTER <var> with criteria: <clustering_criteria>
-- GROUP <var> by <field> [with <aggregation>]
+RESTART-SAFE EXECUTION:
+- Only the commands listed in this prompt are available in the restartable
+  planner contract. Context-only SET, field-authoring ADD_FIELD, pattern and
+  graph-mutation commands are unavailable.
+- Every reusable result must use the command's explicit AS target.
+- Consume a durable variable only when its persisted `usable_by` list names the exact command. GRAPHWALK requires a FIND-nodes-style contract with GRAPHWALK admission; FIND edges and paths are not GRAPHWALK inputs.
+- For nonempty rows, PROJECT and SELECT require every requested field, COLLAPSE requires its grouping field, and JOIN requires a non-null scalar key on both sides. Missing fields are typed errors; defined empty inputs remain successful empty outputs.
 
 CONTROL FLOW:
-- REQUIRE <var> <condition>
-- ASSERT <var> <condition>
-- ON success|error|empty do <action>
+- ON and ITERATE are not part of the restart-safe v4 planner surface. PROCESS must be a direct persisted plan step.
 
 Generate a JSON plan object with the following structure:
-{{{{
+{{
   "plan_id": "unique-plan-id",
   "why": "explanation of what this plan accomplishes",
   "commands": [
-    "DECLARE variable_name AS DICT|LIST|COUNTER WITH_DESCRIPTION \"description\"",
     "FIND nodes with entity_type=PERSON AS person_nodes",
-    "PROCESS person_nodes with instruction: extract author names AS author_names",
-    "ADD_FIELD person_nodes field: author_name = author_names",
-    "COUNT person_nodes where author_name is not null AS author_frequency",
-    "PROJECT relation_rows GRAIN edge FIELDS src_id,tgt_id,data.entity_name AS entity_name PRESERVE_MULTIPLICITY AS occurrence_rows",
-    "COLLAPSE occurrence_rows BY entity_name COUNT AS occurrence_count AS unique_entities",
-    "AGGREGATE person_nodes by id with count",
-    "CREATE_NODES from author_frequency with type: AUTHOR_GROUP",
-    "CREATE_EDGES from relationships with type: BELONGS_TO",
-    "CREATE_GROUPS from aggregated_data with type: AUTHOR_GROUP",
-    "CLASSIFY person_nodes with instruction: classify as author or not",
-    "RANK person_nodes by score order desc",
-    "JOIN person_nodes with event_nodes on author_name AS combined_data",
-    "GRAPHWALK from person_nodes follow relationship depth 2",
-    "SHOW person_nodes limit 10",
-    "SELECT person_nodes FIELDS id,author_name AS selected_authors",
-    "SET variable_name = value"
+    "PROCESS person_nodes CONTRACT gasl_process_execution_v6 MODE semantic_filter CARDINALITY zero_to_n MAX_INPUT_ITEMS 72 MAX_MODEL_CALLS 8 REQUIRED_FIELDS [] WITH retain inputs whose registered entity_type is exactly PERSON AS confirmed_person_nodes",
+    "SHOW confirmed_person_nodes limit 10"
   ],
-  "config": {{{{
-    "stop_on_error": true|false,
-    "continue_on_empty": true|false
-  }}}}
-}}}}
+  "config": {{
+    "stop_on_error": true,
+    "continue_on_empty": false
+  }}
+}}
+
+Return exactly these four top-level keys. `plan_id` must be a nonempty string,
+`why` must be a string, `commands` must be a nonempty list of nonempty GASL
+strings, and both config fields must be JSON booleans. Do not add other keys.
 
 
 DATA ACCESS PATTERNS:
-- **FIND**: Stores results in context store (memory) and sets last_nodes_result for compatibility
-- **COUNT**: Tries context store first, then state store. Does NOT use last_nodes_result fallback
-- **AGGREGATE**: Tries context store first, then state store. Does NOT use last_nodes_result fallback  
-- **PROCESS**: Tries context store first, then state store, then falls back to last_nodes_result
-- **SELECT**: Tries context store first, then state store. Does NOT use last_nodes_result fallback
-- **UPDATE**: Tries context store first, then state store. Does NOT use last_nodes_result fallback
-- **GRAPHWALK**: Tries specified variable first, then falls back to last_nodes_result
+- **FIND**: Always use `AS <var>`. Every planner-visible FIND result is a named durable StateStore variable; context-only compatibility aliases are not valid inputs.
+- **PROCESS**: Reads only the named durable StateStore variable; it never falls back to context or last_nodes_result
+- **PROJECT/COLLAPSE/SELECT/GRAPHWALK**: Read only their named durable StateStore variables and require explicit result targets
+- A defined empty FIND or pure transform output is a successful durable result. Downstream retained transforms may consume it and must materialize their own defined empty output; only missing or invalid inputs are defects.
 
 IMPORTANT GASL SYNTAX RULES:
 - DECLARE: Use quotes around descriptions: WITH_DESCRIPTION "description"
-- FIND: Results are automatically stored as last_nodes_result in context
-  To store in a specific variable, use: FIND nodes with entity_type=PERSON AS person_nodes
-  To filter FIND results, use: PROCESS last_nodes_result with instruction: filter where condition
-- CLASSIFY: Use for categorization tasks: CLASSIFY var with instruction: classify items into categories
-- UPDATE: Use for modifying existing data: UPDATE var with source_var operation: replace|delete|merge|append
-- PROCESS: Use for filtering, data processing, and complex operations beyond simple classification
-- AGGREGATE: Use for grouping and counting: AGGREGATE var by <EXACT_FIELD_NAME> with count|sum|avg
-  CRITICAL: The field name must exist in the data (check "Available fields" above)
-- RANK: Use for ranking items: RANK var by field order desc|asc
-- GRAPHWALK: Use for graph traversal: GRAPHWALK from var follow relationship depth n
-- CLUSTER: Use for clustering similar items: CLUSTER var with criteria: clustering criteria
-- GENERATE: Use for creating reports: GENERATE report from var with format: markdown
-- When you need to categorize items (e.g., human authors vs. cell types), use CLASSIFY
-- When you need to modify existing data (replace, delete, merge), use UPDATE
+- FIND: Always store the result in a named durable variable: FIND nodes with entity_type=PERSON AS person_nodes
+  To filter FIND results, use: PROCESS person_nodes CONTRACT gasl_process_execution_v6 MODE semantic_filter CARDINALITY zero_to_n MAX_INPUT_ITEMS 72 MAX_MODEL_CALLS 8 REQUIRED_FIELDS [] WITH filter where condition AS filtered_nodes
+- PROCESS: Use for bounded filtering or for materializing fields that already have exact registered bindings; it cannot author new semantic facts
+- GRAPHWALK: Always bind graph traversal with depth 1 through 8: GRAPHWALK from var follow relationship depth <1..8> AS result_var
+- GRAPHWALK deterministically caps source rows at 100, incident edges per node at 50, and queued/emitted unique rows at 10,000. Truncation is typed in the output contract and has no continuation action; narrow the declared walk instead of treating it as complete coverage.
+- GRAPHWALK rejects parallel or convergent occurrences that collide at its declared `(src_id,tgt_id,relation_type,path_depth)` grain; select a source/relation whose actual rows have unique declared tuples rather than relying on row order.
 - When you need to filter data with complex conditions (like vowel matching), use PROCESS
-- When you need to aggregate data (e.g., count publications per author), use AGGREGATE
-- When you need to rank items, use RANK
-- When you need to explore graph structure, use GRAPHWALK or SUBGRAPH
-- When you need to create reports, use GENERATE
+- When you need to explore graph structure, use GRAPHWALK
 - Only use ONE FIND command per plan - store results and process them with other commands
-- Commands end with semicolons or newlines
+- Each JSON command string contains exactly one command and no semicolon or trailing prose
 
 GRAPH-NATIVE PLANNING HEURISTICS:
 - If the query asks for "most frequent", "most common", "top", "rank", "widest range", "broadest", or graph-wide counts, prefer:
-  FIND source nodes -> GRAPHWALK exact relation_type -> AGGREGATE/COUNT -> RANK -> SHOW
-- Always bind GRAPHWALK outputs with `AS <result_var>` and use that variable in downstream AGGREGATE/PROCESS commands.
-- Use `Recently Produced Artifacts` aggressively. If an artifact lists `safe_for` and AGGREGATE is absent, or it carries a `path_warning`, do NOT aggregate it directly. Either PROJECT it to the correct grain first or choose a narrower traversal.
-- Avoid PROCESS or ITERATE over large node lists when the answer can be obtained directly from graph edges.
+  FIND source nodes -> GRAPHWALK exact relation_type -> PROJECT/COLLAPSE -> SHOW
+- Always bind GRAPHWALK outputs with `AS <result_var>` and use that durable variable downstream.
+- Use `Recently Produced Artifacts` aggressively. If an artifact carries a `path_warning`, choose a narrower traversal.
+- Avoid PROCESS over large node lists when the answer can be obtained directly from graph edges; bounded remainder must use the typed __unresolved continuation.
 - Prefer exact graph schema tokens from the query and schema (for example entity_type=RESPIRATORY_INFECTION, relation_type=AFFECTS) instead of paraphrases.
-- For multi-axis breadth questions, prefer multiple GRAPHWALK steps plus AGGREGATE over LLM processing of raw node descriptions.
-- For frequency questions, if a GRAPHWALK or PROCESS result may contain repeated occurrences, use PROJECT with GRAIN edge/path and PRESERVE_MULTIPLICITY before AGGREGATE.
+- Relation identities are typed and exact: bare `true`/`false` and numeric literals select Boolean/numeric relations. JSON-quote a string that looks Boolean/numeric, contains `,` or `|`, case-insensitively equals the reserved GRAPHWALK wildcard `a`, `an`, `any`, `all`, or `*`, or begins with the reserved `relation_type=` or `relationship_name=` assignment prefix. Preserve string case and punctuation exactly.
+- For multi-axis breadth questions, prefer multiple GRAPHWALK steps plus PROJECT/MERGE over model processing of raw node descriptions.
+- If a GRAPHWALK or PROCESS result may contain repeated occurrences, use PROJECT with GRAIN edge/path and PRESERVE_MULTIPLICITY before COLLAPSE.
 - Use COLLAPSE only when you intentionally want to deduplicate rows and carry multiplicity forward in an explicit weight field.
-- If a prior GRAPHWALK was semantically weak, repair the walk or narrow the source set before continuing. Do not hide weak traversal semantics behind later PROCESS/AGGREGATE steps.
+- If a prior GRAPHWALK was semantically weak, repair the declared walk or narrow the source set before continuing.
 - Never use broad `FIND paths with entity_type=... and relation_type ...` patterns. `FIND paths` is only allowed when the query is explicitly anchored as `source entity_type=... edge relation_type=... target entity_type=...`. Otherwise use `FIND nodes` plus `GRAPHWALK`.
 
 Use GASL commands to systematically analyze the graph and build up state to answer the query.

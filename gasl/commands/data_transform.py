@@ -6,8 +6,28 @@ from typing import Any, List, Dict
 from .base import CommandHandler
 from ..types import Command, ExecutionResult, Provenance
 from ..contracts import make_contract, merge_contract
+from ..field_resolution import (
+    UNRESOLVED_MISSING,
+    FieldResolution,
+    has_field_path,
+    observed_fields,
+    read_field_path,
+    resolve_field,
+)
+from ..provenance import (
+    WEIGHT_BASIS_CONTRACT_ROW_WEIGHT,
+    combine_bases,
+    WEIGHT_BASIS_LIST_LENGTH,
+    WEIGHT_BASIS_NO_EVIDENCE_DEFAULT,
+    WEIGHT_BASIS_RESOLVED_METRIC,
+    WEIGHT_BASIS_SOURCE_REF_COUNT_GROUP,
+    WEIGHT_BASIS_SOURCE_REF_COUNT_ROW,
+    distinct_source_refs,
+    inherited_basis,
+    is_no_evidence,
+    row_source_refs,
+)
 from ..row_identity import IdentitySpec, materialize_row_identity
-from nano_graphrag.graph_slots import get_source_refs
 
 
 class DataTransformHandler(CommandHandler):
@@ -190,28 +210,72 @@ class DataTransformHandler(CommandHandler):
         source_contract = {}
         if self.state_manager:
             source_contract = self.state_manager.get_variable_contract(variable)
-        resolved_by_field = self._resolve_aggregate_field(data, by_field, source_contract)
-        
+        by_resolution = self._resolve_aggregate_field(data, by_field, source_contract)
+
+        # A grouping field that names no column on these rows is a question this
+        # command cannot answer, and `error` is the only status that gets the
+        # planner a chance to fix it: the engine routes command-local repair on
+        # `error` and on nothing else, so a note here would be written and read
+        # by nobody. The candidate list travels in the message because the
+        # planner's next attempt needs the real column names, not the news that
+        # its guess was wrong.
+        if not by_resolution.ok:
+            return self._create_result(
+                command=command,
+                status="error",
+                error_message=(
+                    f"AGGREGATE on {by_field!r} cannot run: the grouping field does not "
+                    f"identify a column on these rows. {by_resolution.describe()}. "
+                    "Name a field that exists on the rows, or project one onto them first."
+                ),
+            )
+
+        resolved_by_field = by_resolution.resolved
         resolved_metric_field, metric_basis = self._resolve_aggregate_metric(data, operation, source_contract)
         source_row_weight_field = source_contract.get("row_weight_field", "")
+        source_row_weight_basis = source_contract.get("row_weight_basis", "")
 
         # Perform aggregation
         aggregated_data = {}
         group_counter = 0
-        
+        # Resolution proves the grouping column exists on SOME row. It never
+        # proves it exists on EVERY row, and those rows used to be swept into a
+        # bucket literally named "unknown" — an engine-chosen string occupying
+        # the same slot as values read from the data, indistinguishable from a
+        # group whose key really is the word "unknown". Rows that cannot be
+        # grouped are counted here and reported, never bucketed.
+        key_presence = {
+            "rows": len(data),
+            "key_present": 0,
+            "key_absent": 0,
+            "key_present_null": 0,
+        }
+
         for item in data:
-            group_key = self._get_nested_field(item, resolved_by_field)
-            print(f"DEBUG: AGGREGATE - item: {item}, by_field: {by_field}, resolved_by_field: {resolved_by_field}, group_key: {group_key}")
+            # `has_field_path` and a None read say different things, and only
+            # `has_field_path` can tell them apart: a column that is absent and
+            # a column that is present holding null are different facts about
+            # the producer, and `_get_nested_field` collapses both to None.
+            if not has_field_path(item, resolved_by_field):
+                key_presence["key_absent"] += 1
+                continue
+            group_key = read_field_path(item, resolved_by_field)
             if group_key is None:
-                group_key = "unknown"
-            
+                key_presence["key_present_null"] += 1
+                continue
+            key_presence["key_present"] += 1
+
             if group_key not in aggregated_data:
                 group_counter += 1
                 aggregated_data[group_key] = {
                     "group_id": f"group_{group_counter}",
                     "group_name": str(group_key),
                     "group_key": group_key,
-                    by_field: group_key,
+                    # Only the column actually grouped by is written onto the
+                    # row. Writing the REQUESTED name here too was the
+                    # masquerade: a row grouped by one column carrying the name
+                    # of another, with the substitution baked into the payload
+                    # where no disclosure could reach it.
                     resolved_by_field: group_key,
                     "items": [],
                     "item_ids": [],
@@ -219,9 +283,9 @@ class DataTransformHandler(CommandHandler):
                     "count": 0,
                     "result": 0,
                 }
-                simple_alias = by_field.split(".")[-1]
+                simple_alias = resolved_by_field.split(".")[-1]
                 aggregated_data[group_key].setdefault(simple_alias, group_key)
-            
+
             # Add item ID to tracking
             item_id = item.get("id", f"item_{len(aggregated_data[group_key]['items'])}")
             aggregated_data[group_key]["item_ids"].append(item_id)
@@ -231,14 +295,33 @@ class DataTransformHandler(CommandHandler):
             # Use an effective row weight so grouped counts remain meaningful even
             # when upstream PROCESS has already deduplicated rows down to one row
             # per entity but preserved evidence-bearing fields.
-            row_weight = self._infer_row_weight(
+            row_weight, _basis = self._infer_row_weight(
                 item,
                 resolved_metric_field=resolved_metric_field,
                 source_row_weight_field=source_row_weight_field,
+                source_row_weight_basis=source_row_weight_basis,
+                source_contract=source_contract,
             )
             aggregated_data[group_key]["count"] += row_weight
             aggregated_data[group_key]["result"] += row_weight
-        
+
+        # Every row failed to yield a key. Under the old code this produced one
+        # all-"unknown" group and reported success — 67 of the 103 "unknown"
+        # groups in the recorded traces are exactly this shape, each one a
+        # result whose entire output was that single fabricated bucket.
+        if not aggregated_data:
+            return self._create_result(
+                command=command,
+                status="error",
+                error_message=(
+                    f"AGGREGATE on {by_field!r} produced no groups: the field resolved to "
+                    f"{resolved_by_field!r}, but none of the {key_presence['rows']} rows carry a "
+                    f"usable value for it ({key_presence['key_absent']} absent, "
+                    f"{key_presence['key_present_null']} present-and-null). "
+                    f"{by_resolution.describe()}."
+                ),
+            )
+
         # Apply operation
         for group_key, group_data in aggregated_data.items():
             if operation == "count":
@@ -249,11 +332,15 @@ class DataTransformHandler(CommandHandler):
                 total = 0.0
                 for item in group_data["items"]:
                     metric_value = self._extract_numeric_metric(item, resolved_metric_field)
-                    total += metric_value if metric_value is not None else self._infer_row_weight(
-                        item,
-                        resolved_metric_field=resolved_metric_field,
-                        source_row_weight_field=source_row_weight_field,
-                    )
+                    if metric_value is None:
+                        metric_value, _basis = self._infer_row_weight(
+                            item,
+                            resolved_metric_field=resolved_metric_field,
+                            source_row_weight_field=source_row_weight_field,
+                            source_row_weight_basis=source_row_weight_basis,
+                            source_contract=source_contract,
+                        )
+                    total += metric_value
                 group_data["result"] = total
             elif operation == "avg":
                 group_data["result"] = (
@@ -272,29 +359,95 @@ class DataTransformHandler(CommandHandler):
             ),
             source_contract=source_contract,
         )
+        # Notes carry PROSE ONLY. Every typed value this command knows -- the
+        # requested and resolved grouping field, the metric field, the metric
+        # basis, the key-presence counts -- lives in `aggregate_diagnostics`
+        # below and in the typed contract fields, and none of it is restated
+        # here.
+        #
+        # The four `k=v` lines that used to sit here were a typed value
+        # serialized into free text that nothing parses: unjoinable,
+        # unqueryable, unassertable. Worse than merely useless, they were the
+        # precedent that would be cited to justify putting the next basis in
+        # notes too, which is why they go rather than merely being duplicated.
+        # The prose below is a rendering FOR A READER of numbers that are typed
+        # elsewhere, never the only home of a value.
+        aggregate_notes = []
+        # A rung below `exact` means the rows were grouped by a column the
+        # planner did not literally name. That is legitimate name resolution
+        # rather than a substituted column, but it is still a difference between
+        # what was asked and what ran, so it is stated.
+        if not by_resolution.exact:
+            aggregate_notes.append(f"by_field resolved: {by_resolution.describe()}")
+        ungroupable = key_presence["key_absent"] + key_presence["key_present_null"]
+        if ungroupable:
+            aggregate_notes.append(
+                f"{ungroupable}/{key_presence['rows']} rows carry no usable value for "
+                f"{resolved_by_field!r} and were counted, not grouped "
+                f"({key_presence['key_absent']} absent, "
+                f"{key_presence['key_present_null']} present-and-null)"
+            )
+
         aggregate_contract = merge_contract(source_contract, make_contract(
             payload_kind="grouped_rows",
             data=result_list,
             row_schema=identity_meta["row_schema"],
-            label_field=by_field.split(".")[-1] if by_field else "group_name",
+            label_field=resolved_by_field.split(".")[-1] if resolved_by_field else "group_name",
             metric_field="count" if operation == "count" else "result",
             ordered=False,
             order_basis=f"grouped by {resolved_by_field}",
             scope="current_rows_only",
             usable_by=["RANK", "PROCESS", "SHOW", "SELECT"],
-            confidence=0.95,
             grain_type=identity_meta["grain_type"],
             grain_keys=identity_meta["grain_keys"],
             multiplicity_preserved=identity_meta["multiplicity_preserved"],
             row_weight_field="count" if operation == "count" else ("result" if operation == "sum" else ""),
-            notes=[
-                f"requested_by_field={by_field}",
-                f"resolved_by_field={resolved_by_field}",
-                f"metric_basis={metric_basis}",
-                f"resolved_metric_field={resolved_metric_field}",
-            ],
+            row_weight_basis=metric_basis,
+            notes=aggregate_notes,
         ))
-        
+        # Explicit AFTER the merge, for the reason COLLAPSE sets its own fields
+        # explicitly: `merge_contract` drops empty values, so an operation that
+        # nominates no weight column would silently inherit the SOURCE
+        # contract's -- group rows carrying a weight field that described the
+        # pre-group rows, and a basis describing a derivation that did not
+        # happen here.
+        # Explicit for the same reason as the weight fields below: an empty list
+        # is dropped by `merge_contract`, so a command with no prose of its own
+        # would inherit the SOURCE contract's notes and present sentences about
+        # the pre-group rows as if they described these.
+        aggregate_contract["notes"] = aggregate_notes
+        aggregate_contract["row_weight_field"] = (
+            "count" if operation == "count" else ("result" if operation == "sum" else "")
+        )
+        aggregate_contract["row_weight_basis"] = metric_basis
+        # The columns this command minted, declared so a consumer projecting
+        # datapoints can exclude them without maintaining its own list of engine
+        # vocabulary. This replaces the rejected underscore-prefix convention.
+        aggregate_contract["engine_columns"] = sorted(
+            {
+                "group_id",
+                "group_name",
+                "group_key",
+                "items",
+                "item_ids",
+                "row_count",
+                "count",
+                "result",
+                resolved_by_field,
+                resolved_by_field.split(".")[-1],
+            }
+        )
+        aggregate_contract["aggregate_diagnostics"] = {
+            "by_field": by_resolution.as_dict(),
+            "metric_field": self._metric_resolution_dict(resolved_metric_field, metric_basis),
+            "metric_basis": metric_basis,
+            # The counted breakdown behind the deleted "unknown" bucket. Present
+            # and null is kept apart from absent because they are different
+            # facts about the producer, and only `has_field_path` can tell them
+            # apart.
+            "key_presence": dict(key_presence),
+        }
+
         # Store aggregated results
         if self.state_store.has_variable(result_variable):
             # Update existing state variable
@@ -345,20 +498,44 @@ class DataTransformHandler(CommandHandler):
         
         return result_obj
 
-    def _resolve_aggregate_field(self, data: List[Dict[str, Any]], requested_field: str, source_contract: Dict[str, Any]) -> str:
-        """Resolve the grouping field using row contents and contract metadata."""
+    def _resolve_aggregate_field(
+        self,
+        data: List[Dict[str, Any]],
+        requested_field: str,
+        source_contract: Dict[str, Any],
+    ) -> FieldResolution:
+        """Resolve the grouping field name against the fields the rows carry.
+
+        This is NAME RESOLUTION and nothing else — the same column under a
+        different spelling, via the shared ladder in `field_resolution`.
+
+        It used to do a second, different thing: when the requested name matched
+        nothing it substituted the contract's `label_field`, a genuinely
+        DIFFERENT column, and grouped by that instead. That is not resolution,
+        it is answering a question nobody asked, and it could not be repaired by
+        disclosure because the substituted column was written onto the output
+        rows under the requested name. The masquerade lived in the payload, not
+        in the summary.
+
+        The old `data.<field>` probe is gone too — as redundant rather than as
+        wrong. `resolve_field` already reaches `data.entity_name` from
+        `entity_name` at the `leaf` rung, and the probe additionally baked in
+        the adapter's row-envelope shape, which is not part of the canonical
+        graph abstraction.
+
+        Candidates come from every row at every depth, never a slice: a sampled
+        candidate list turns "available fields" in the error message into a
+        falsehood and makes a field on row 300 report as missing.
+        """
         if not requested_field:
-            return requested_field
-        if any(self._get_nested_field(item, requested_field) is not None for item in data[:25]):
-            return requested_field
-        label_field = source_contract.get("label_field", "")
-        if label_field and any(self._get_nested_field(item, label_field) is not None for item in data[:25]):
-            return label_field
-        if "." not in requested_field:
-            fallback = f"data.{requested_field}"
-            if any(self._get_nested_field(item, fallback) is not None for item in data[:25]):
-                return fallback
-        return requested_field
+            return FieldResolution(requested_field, None, UNRESOLVED_MISSING, [])
+        return resolve_field(
+            requested_field, observed_fields(data, contract=source_contract)
+        )
+
+    @staticmethod
+    def _metric_resolution_dict(resolved_metric_field: str, metric_basis: str) -> Dict[str, Any]:
+        return {"resolved": resolved_metric_field or None, "how": metric_basis}
 
     def _resolve_aggregate_metric(
         self,
@@ -366,21 +543,36 @@ class DataTransformHandler(CommandHandler):
         operation: str,
         source_contract: Dict[str, Any],
     ) -> tuple[str, str]:
-        """Resolve the best numeric/evidence metric to aggregate."""
+        """Resolve the best numeric/evidence metric to aggregate.
+
+        `metric_field` from the contract stays, and is not the same kind of
+        thing as the deleted `label_field` substitution: a contract's declared
+        metric is the PRODUCER stating a fact about its own payload, whereas
+        `label_field` was the engine guessing at what the planner must have
+        meant. The first is testimony, the second is invention.
+        """
+        candidates = observed_fields(data, contract=source_contract)
+
         metric_field = source_contract.get("metric_field", "")
-        if metric_field and any(self._extract_numeric_metric(item, metric_field) is not None for item in data[:25]):
+        if metric_field and any(
+            self._extract_numeric_metric(item, metric_field) is not None for item in data
+        ):
             return metric_field, "contract_metric"
 
-        numeric_candidates = []
-        if data:
-            sample_fields = list(data[0].keys())
-            numeric_candidates = [field for field in sample_fields if field not in {"count", "row_count", "result"}]
+        # Candidates from every row, not `data[0].keys()`. Keying off the first
+        # row alone meant a numeric column that happened to be absent from row 0
+        # did not exist as far as this resolver was concerned.
+        numeric_candidates = [
+            field
+            for field in candidates
+            if field.split(".")[-1] not in {"count", "row_count", "result"}
+        ]
         for field in numeric_candidates:
-            if any(self._extract_numeric_metric(item, field) is not None for item in data[:25]):
+            if any(self._extract_numeric_metric(item, field) is not None for item in data):
                 return field, "row_numeric_field"
 
         if source_contract.get("row_weight_field"):
-            return source_contract.get("row_weight_field", ""), "contract_row_weight"
+            return source_contract.get("row_weight_field", ""), WEIGHT_BASIS_CONTRACT_ROW_WEIGHT
 
         if operation in {"count", "sum", "avg"}:
             return "", "evidence_weight"
@@ -403,36 +595,54 @@ class DataTransformHandler(CommandHandler):
         *,
         resolved_metric_field: str = "",
         source_row_weight_field: str = "",
-    ) -> float:
-        """Infer an evidence-bearing row weight for aggregation."""
+        source_row_weight_basis: str = "",
+        source_contract: Dict[str, Any] = None,
+        source_grain_type: str = "",
+    ) -> tuple[float, str]:
+        """Infer a row weight AND say what it was derived from.
+
+        The basis is the point. This function can return `1.0` because the row
+        declared a metric of 1, because it cited exactly one source, or because
+        it carried no evidence whatsoever — three different facts wearing the
+        same number. Reward and audit read these weights, so "no signal" and
+        "no problem" arriving as the identical float is precisely the silent
+        degradation the engine is not allowed to have.
+
+        Basis tokens name their own dedup domain, so a within-row count is never
+        mistakable for an across-rows one.
+        """
         if source_row_weight_field:
             metric_value = self._extract_numeric_metric(item, source_row_weight_field)
             if metric_value is not None:
-                return float(metric_value)
+                # Carry the upstream's declared basis through rather than
+                # replacing it. `contract_row_weight` alone would erase what the
+                # upstream derived the number from, and there is a live path
+                # where that erasure matters: PROJECT writes a defaulted 1.0
+                # into a weight column and declares it, then COLLAPSE reads it
+                # back — so a row with no evidence at all would arrive at the
+                # second hop labelled as a real derivation.
+                return float(metric_value), inherited_basis(
+                    WEIGHT_BASIS_CONTRACT_ROW_WEIGHT, source_row_weight_basis
+                )
         metric_value = self._extract_numeric_metric(item, resolved_metric_field)
         if metric_value is not None:
-            return float(metric_value)
+            return float(metric_value), WEIGHT_BASIS_RESOLVED_METRIC
 
-        for list_field in ("item_ids", "items"):
-            value = item.get(list_field)
-            if isinstance(value, list) and value:
-                return float(len(value))
+        # Only read a nested row list as multiplicity when this row is NOT
+        # itself a group. A COLLAPSE over already-collapsed rows would otherwise
+        # read the inner `items` length as evidence weight and compound across
+        # passes.
+        if source_grain_type != "group":
+            for list_field in ("item_ids", "items"):
+                value = item.get(list_field)
+                if isinstance(value, list) and value:
+                    return float(len(value)), WEIGHT_BASIS_LIST_LENGTH
 
-        # Graph-linked rows often preserve evidence multiplicity in source metadata.
-        for path in ("data.source_chunks", "source_chunks"):
-            value = self._get_nested_field(item, path)
-            if isinstance(value, str) and value.strip():
-                parts = [part.strip() for part in value.split(",") if part.strip()]
-                if parts:
-                    return float(len(dict.fromkeys(parts)))
-        for container_path in ("data", ""):
-            container = self._get_nested_field(item, container_path) if container_path else item
-            if isinstance(container, dict):
-                refs = get_source_refs(container)
-                if refs:
-                    return float(len(dict.fromkeys(refs)))
+        refs = row_source_refs(item, contract=source_contract or {})
+        if refs:
+            return float(len(refs)), WEIGHT_BASIS_SOURCE_REF_COUNT_ROW
 
-        return 1.0
+        return 1.0, WEIGHT_BASIS_NO_EVIDENCE_DEFAULT
 
     def _execute_project(self, command: Command) -> ExecutionResult:
         args = command.args
@@ -451,16 +661,24 @@ class DataTransformHandler(CommandHandler):
         source_contract = self.state_manager.get_variable_contract(variable) if self.state_manager else {}
 
         projected = []
+        # Which derivations the projected weights came from. A projection whose
+        # weights are all `no_evidence_default` must not declare a weight column
+        # that reads downstream as evidence.
+        projection_weight_bases: set[str] = set()
         for item in data:
-            grain_rows = self._project_rows_for_grain(item, grain, field_specs)
+            grain_rows = self._project_rows_for_grain(item, grain, field_specs, source_contract)
             for row in grain_rows:
+                self._preserve_projection_identity(item, row, grain)
                 if not row.get("id") and item.get("id"):
                     row["id"] = item["id"]
                 if not preserve:
                     dedupe_key = tuple(row.get(key) for key in (key_specs or [alias for _, alias in field_specs]))
                     row["_collapse_key"] = dedupe_key
                 if weight_field:
-                    row[weight_field] = self._infer_row_weight(item)
+                    row[weight_field], row_weight_basis = self._infer_row_weight(
+                        item, source_contract=source_contract
+                    )
+                    projection_weight_bases.add(row_weight_basis)
                 projected.append(row)
 
         if not preserve:
@@ -493,13 +711,28 @@ class DataTransformHandler(CommandHandler):
             metric_field=weight_field,
             scope="current_rows_only",
             usable_by=["PROCESS", "AGGREGATE", "RANK", "SHOW", "SELECT", "COLLAPSE"],
-            confidence=0.98,
             grain_type=identity_meta["grain_type"],
             grain_keys=identity_meta["grain_keys"],
             multiplicity_preserved=identity_meta["multiplicity_preserved"],
             row_weight_field=weight_field,
+            # Declared beside the weight column so a downstream reader inherits
+            # what the number was derived from instead of only that some
+            # upstream called it a weight. Mixed bases are reported as mixed;
+            # collapsing them to one token would hide the weakest.
+            row_weight_basis=combine_bases(projection_weight_bases),
             notes=[f"project_from={variable}"],
         ))
+        # Explicit for the same reason as COLLAPSE below: an empty basis is
+        # dropped by `merge_contract`, and a weight column inheriting the
+        # source's basis would describe a derivation that did not happen here.
+        contract["row_weight_basis"] = combine_bases(projection_weight_bases)
+        # Columns PROJECT authored, known at authoring time rather than inferred
+        # from their names. The field aliases come from the caller's FIELDS
+        # clause and are deliberately NOT listed: they are the caller's
+        # vocabulary, not the engine's.
+        contract["engine_columns"] = sorted(
+            {"row_id", *self._default_grain_keys(grain), *([weight_field] if weight_field else [])}
+        )
 
         if self.state_manager:
             self.state_manager.store_variable_data(
@@ -526,7 +759,13 @@ class DataTransformHandler(CommandHandler):
         args = command.args
         variable = args["variable"]
         by_field = args["by_field"]
-        weight_field = args.get("weight_field") or "occurrence_count"
+        # The weight column counts CONTRIBUTING ROWS. It used to sum
+        # `_infer_row_weight` per row into `occurrence_count`, which dedupes
+        # chunk ids within one row and never across rows — so one source cited
+        # by twelve rows contributed 12, and every downstream reader saw twelve
+        # units of evidence where there was one. Repeats are propagation of one
+        # source, not independent replication.
+        weight_field = args.get("weight_field") or "contributing_rows"
         result_variable = args.get("result_variable") or variable
 
         data = self._get_variable_data(variable)
@@ -534,25 +773,72 @@ class DataTransformHandler(CommandHandler):
             return self._create_result(command=command, status="error",
                                      error_message=f"Variable {variable} not found or empty")
         source_contract = self.state_manager.get_variable_contract(variable) if self.state_manager else {}
+        source_grain_type = str(source_contract.get("grain_type") or "")
 
         collapsed = {}
-        for item in data:
+        for idx, item in enumerate(data):
             key = self._get_nested_field(item, by_field)
-            if key is None:
-                key = "unknown"
+            if self._is_missing_collapse_key(key):
+                key = self._fallback_collapse_key(item, idx)
             if key not in collapsed:
                 collapsed[key] = {
                     "group_name": str(key),
+                    "group_key": key,
                     by_field.split(".")[-1]: key,
                     "items": [],
                     weight_field: 0,
                 }
             collapsed[key]["items"].append(item)
-            collapsed[key][weight_field] += self._infer_row_weight(
-                item, source_row_weight_field=source_contract.get("row_weight_field", "")
-            )
+            collapsed[key][weight_field] += 1
 
         result_rows = list(collapsed.values())
+        # Cross-row deduplication, before any provenance-derived number leaves
+        # this command. COLLAPSE cannot tell a row that EVIDENCES the group key
+        # from one that merely rode along — it inspects no field but the key —
+        # so it reports the grain it actually has and does not invent a label
+        # it cannot justify.
+        collapse_evidence = {"groups": len(result_rows), "groups_without_evidence": 0}
+        for row in result_rows:
+            contributors = row["items"]
+            refs = distinct_source_refs(contributors, contract=source_contract)
+            no_evidence_contributors = 0
+            for contributor in contributors:
+                _weight, basis = self._infer_row_weight(
+                    contributor,
+                    source_row_weight_field=source_contract.get("row_weight_field", ""),
+                    source_row_weight_basis=source_contract.get("row_weight_basis", ""),
+                    source_contract=source_contract,
+                    source_grain_type=source_grain_type,
+                )
+                if is_no_evidence(basis):
+                    no_evidence_contributors += 1
+            # `provenance_grain` is declared on the CONTRACT, not on each row.
+            # It describes the whole payload rather than any one row, and a
+            # constant repeated onto every row is read by
+            # `question_pipeline.criteria._is_value_field` as a datapoint value,
+            # which would mint a fabricated cell reading "contributing_row" for
+            # every collapsed group. The other columns added here
+            # (`contributing_rows`, `distinct_source_ref_count`, `source_refs`,
+            # `contributors_without_evidence`) are already excluded there.
+            #
+            # A contributor with no provenance contributes no refs — adding it
+            # as one would be the propagation defect reappearing in a new field
+            # — but it is still a contributing row, and how many there were is
+            # recorded so a mixed group is not read as fully evidenced.
+            row["contributors_without_evidence"] = no_evidence_contributors
+            if refs:
+                # The deduplicated SET, not only its size. Credit joins by
+                # stable id; a bare count joins to nothing.
+                row["source_refs"] = refs
+                row["distinct_source_ref_count"] = len(refs)
+                row["distinct_source_refs_available"] = True
+            else:
+                # Explicit, at ROW level. Absence would be coerced to 0 by the
+                # `.get(field, 0)` readers downstream, turning "we could not
+                # look" into "we looked and found no sources".
+                row["distinct_source_refs_available"] = False
+                collapse_evidence["groups_without_evidence"] += 1
+
         result_rows, identity_meta = materialize_row_identity(
             result_rows,
             spec=IdentitySpec(
@@ -563,27 +849,89 @@ class DataTransformHandler(CommandHandler):
             ),
             source_contract=source_contract,
         )
+        # Every group carries a real cross-row-deduped evidence count, so that
+        # column — never the row count — is what downstream RANK/SHOW/SELECT
+        # order by.
+        evidence_is_universal = collapse_evidence["groups_without_evidence"] == 0 and result_rows
+        # When it is not universal the contract nominates NO metric field at
+        # all. Falling back to the contributing-row count would make the run
+        # rank by merge volume, which is operational throughput steering which
+        # rows get pursued one hop upstream of reward — and it would do so
+        # invisibly at every call site. No metric is the honest answer when
+        # there is no evidence metric.
+        collapse_metric_field = "distinct_source_ref_count" if evidence_is_universal else ""
+        # Prose only, as in AGGREGATE above. `provenance_grain`, the
+        # contributing-rows column name and the evidence metric are typed in
+        # `collapse_diagnostics`; the sentences here explain them to a reader
+        # and are not the only home of any of them.
+        collapse_notes = [
+            f"{weight_field} counts contributing rows, not evidence",
+            "COLLAPSE cannot distinguish a row that evidences the group key from "
+            "one that rode along on the same row, so its provenance grain is the "
+            "contributing row",
+        ]
+        if not evidence_is_universal:
+            collapse_notes.append(
+                f"{collapse_evidence['groups_without_evidence']}/{collapse_evidence['groups']} "
+                "groups have no cross-row-deduplicated source refs, so this contract "
+                "nominates no metric field; do not rank these rows by "
+                f"{weight_field!r}, which measures merge volume"
+            )
+
         contract = merge_contract(source_contract, make_contract(
             payload_kind="collapsed_rows",
             data=result_rows,
             row_schema=identity_meta["row_schema"],
             label_field=by_field.split(".")[-1],
-            metric_field=weight_field,
+            metric_field=collapse_metric_field,
             scope="current_rows_only",
             usable_by=["AGGREGATE", "RANK", "SHOW", "SELECT"],
-            confidence=0.98,
             grain_type=identity_meta["grain_type"],
             grain_keys=identity_meta["grain_keys"],
             multiplicity_preserved=identity_meta["multiplicity_preserved"],
-            row_weight_field=weight_field,
-            notes=[f"collapsed_by={by_field}"],
+            row_weight_field=collapse_metric_field,
+            row_weight_basis=(
+                WEIGHT_BASIS_SOURCE_REF_COUNT_GROUP if evidence_is_universal else ""
+            ),
+            notes=collapse_notes,
         ))
+        # Set explicitly AFTER the merge. `merge_contract` skips empty values, so
+        # nominating nothing would otherwise leave the SOURCE contract's
+        # metric_field in place — collapsed group rows inheriting a metric that
+        # described the pre-collapse rows, which is precisely the silent
+        # fallback to a wrong number that constraint forbids.
+        contract["notes"] = collapse_notes
+        contract["metric_field"] = collapse_metric_field
+        contract["row_weight_field"] = collapse_metric_field
+        contract["row_weight_basis"] = (
+            WEIGHT_BASIS_SOURCE_REF_COUNT_GROUP if evidence_is_universal else ""
+        )
+        contract["engine_columns"] = sorted(
+            {
+                "group_name",
+                "group_key",
+                "items",
+                by_field.split(".")[-1],
+                weight_field,
+                "contributors_without_evidence",
+                "distinct_source_refs_available",
+                "distinct_source_ref_count",
+                "source_refs",
+            }
+        )
+        contract["collapse_diagnostics"] = {
+            "provenance_grain": "contributing_row",
+            "groups": collapse_evidence["groups"],
+            "groups_without_evidence": collapse_evidence["groups_without_evidence"],
+            "contributing_rows_field": weight_field,
+            "evidence_metric_field": collapse_metric_field,
+        }
 
         if self.state_manager:
             self.state_manager.store_variable_data(
                 result_variable,
                 result_rows,
-                store_in_state=self.state_store.has_variable(result_variable),
+                store_in_state=True,
                 store_in_context=True,
                 description=f"Collapsed rows from {variable}",
                 contract=contract,
@@ -599,6 +947,18 @@ class DataTransformHandler(CommandHandler):
             contract=contract,
             provenance=[self._create_provenance("collapse", "collapse", variable=variable, by_field=by_field)],
         )
+
+    @staticmethod
+    def _is_missing_collapse_key(key: Any) -> bool:
+        return key is None or key == ""
+
+    @staticmethod
+    def _fallback_collapse_key(item: Dict[str, Any], idx: int) -> str:
+        for field in ("row_id", "id"):
+            value = item.get(field)
+            if value not in (None, ""):
+                return f"__missing_key__{field}:{value}"
+        return f"__missing_key__index:{idx}"
 
     @staticmethod
     def _parse_project_fields(fields_text: str) -> List[tuple[str, str]]:
@@ -629,12 +989,13 @@ class DataTransformHandler(CommandHandler):
         item: Dict[str, Any],
         grain: str,
         field_specs: List[tuple[str, str]],
+        source_contract: Dict[str, Any] = None,
     ) -> List[Dict[str, Any]]:
         base_row = {}
         for source_path, alias in field_specs:
             base_row[alias] = self._get_nested_field(item, source_path)
         if grain == "paper":
-            papers = self._extract_source_refs(item)
+            papers = self._extract_source_refs(item, source_contract)
             if not papers:
                 return [{**base_row, "paper_id": None}]
             return [{**base_row, "paper_id": paper_id} for paper_id in papers]
@@ -645,6 +1006,22 @@ class DataTransformHandler(CommandHandler):
             return [{**base_row, "chunk_id": chunk_id} for chunk_id in chunks]
         return [base_row]
 
+    def _preserve_projection_identity(
+        self,
+        source: Dict[str, Any],
+        row: Dict[str, Any],
+        grain: str,
+    ) -> None:
+        if grain not in {"edge", "path"}:
+            return
+
+        for field in ("src_id", "tgt_id", "relation_type", "path_depth", "source_chunk"):
+            if row.get(field) not in (None, ""):
+                continue
+            value = self._get_nested_field(source, field)
+            if value not in (None, ""):
+                row[field] = value
+
     def _explode_csv_field(self, item: Dict[str, Any], candidate_paths: List[str]) -> List[str]:
         for path in candidate_paths:
             value = self._get_nested_field(item, path)
@@ -652,13 +1029,10 @@ class DataTransformHandler(CommandHandler):
                 return [part.strip() for part in value.split(",") if part.strip()]
         return []
 
-    def _extract_source_refs(self, item: Dict[str, Any]) -> List[str]:
-        data_container = item.get("data")
-        if isinstance(data_container, dict):
-            refs = get_source_refs(data_container)
-            if refs:
-                return refs
-        return get_source_refs(item)
+    def _extract_source_refs(
+        self, item: Dict[str, Any], source_contract: Dict[str, Any] = None
+    ) -> List[str]:
+        return row_source_refs(item, contract=source_contract or {})
     
     def _get_nested_field(self, item: Dict, field_path: str) -> Any:
         """Get nested field value using dot notation with automatic path resolution."""

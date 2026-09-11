@@ -31,6 +31,13 @@ class DeterministicAnswerFinalizer:
                 return "; ".join(parts)
         if view.kind == "distribution":
             return f"n={view.payload.get('n')}; mean={view.payload.get('mean')}; median={view.payload.get('median')}"
+        if view.kind == "answer_bundle":
+            tables = view.payload.get("tables", [])
+            if tables:
+                return "; ".join(
+                    f"{table.get('table_name')}: {table.get('row_count', 0)} rows"
+                    for table in tables[:5]
+                )
         if view.kind == "provenance":
             refs = view.payload.get("refs", [])[:3]
             items = [ref.get("item_id") for ref in refs if ref.get("item_id")]

@@ -6,9 +6,9 @@ Commands for finding alternative mechanisms, opposing effects, and competing ent
 from typing import Any, List, Dict
 from .base import CommandHandler
 from ..types import Command, ExecutionResult, Provenance
-from ..adapters.base import GraphAdapter
+from ..adapters.base import GraphAdapter, node_entity_type
 from ..state_manager import StateManager
-from nano_graphrag.graph_slots import get_source_refs
+from ..provenance import row_source_refs
 from query_generation.graph_validator import get_causal_edge_types
 
 
@@ -64,15 +64,15 @@ class FindAlternativesHandler(CommandHandler):
                 edge_data = edge.get("data", {})
                 if source:
                     # Get source node details
-                    source_node = self.adapter.find_nodes({"id": source})
+                    source_node = self.adapter.find_nodes({"id_filter": source})
                     if source_node:
                         alternatives.append({
                             "entity": source,
-                            "entity_type": source_node[0].get("entity_type", "UNKNOWN") if source_node else "UNKNOWN",
+                            "entity_type": node_entity_type(source_node[0]) or "UNKNOWN" if source_node else "UNKNOWN",
                             "relation_type": edge_data.get("relation_type"),
                             "description": edge_data.get("description", ""),
                             "weight": edge_data.get("weight", 0),
-                            "source_refs": get_source_refs(edge_data)
+                            "source_refs": row_source_refs(edge_data)
                         })
 
             # Store result
@@ -167,7 +167,7 @@ class FindOpposingHandler(CommandHandler):
                     "target": target,
                     "description": edge_data.get("description", ""),
                     "weight": edge_data.get("weight", 0),
-                    "source_refs": get_source_refs(edge_data)
+                    "source_refs": row_source_refs(edge_data)
                 })
 
             # Find opposing pairs
@@ -366,14 +366,14 @@ class FindCompetingHandler(CommandHandler):
                     competitors_by_relation[relation_type] = []
 
                 # Get source node details
-                source_node = self.adapter.find_nodes({"id": source})
+                source_node = self.adapter.find_nodes({"id_filter": source})
 
                 competitors_by_relation[relation_type].append({
                     "entity": source,
-                    "entity_type": source_node[0].get("entity_type", "UNKNOWN") if source_node else "UNKNOWN",
+                    "entity_type": node_entity_type(source_node[0]) or "UNKNOWN" if source_node else "UNKNOWN",
                     "description": edge_data.get("description", ""),
                     "weight": edge_data.get("weight", 0),
-                    "source_refs": get_source_refs(edge_data)
+                    "source_refs": row_source_refs(edge_data)
                 })
 
             # Find relation types with multiple competitors

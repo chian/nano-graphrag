@@ -1,5 +1,13 @@
 # nano-graphrag Architecture Guide
 
+> **STATUS (2026-08-23): substrate documentation, partially stale.** This
+> describes the `nano_graphrag/` ingestion substrate and the dormant
+> visualization/query surface, largely as inherited from upstream. It does not
+> describe the active build. The active flow — the question pipeline's
+> acquisition span — is governed by `docs/ACQUISITION_LOOP.md`; the build is
+> tracked in `docs/CONTROL_LAYER_BUILD.md`. Where this file's flow diagrams
+> disagree with those, this file is the stale one.
+
 This document provides a comprehensive overview of the nano-graphrag architecture, component relationships, and data flow.
 
 ## Table of Contents

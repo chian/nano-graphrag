@@ -1,0 +1,5 @@
+{
+  "fan_in": 10,
+  "stages": [],
+  "final_graph_path": "/home/chia/repos/nano-graphrag/bio_causal_kgs_20260716/merge/c_elegans_dauer_formation/final_graph.graphml"
+}

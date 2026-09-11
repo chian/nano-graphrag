@@ -1,5 +1,6 @@
 import dspy
 from pydantic import BaseModel, Field
+from typing import Any, Dict
 from nano_graphrag._utils import clean_str
 from nano_graphrag._utils import logger
 
@@ -74,6 +75,28 @@ class Entity(BaseModel):
         le=1,
         description="Importance score of the entity. Should be between 0 and 1 with 1 being the most important.",
     )
+    attributes: Dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "Source-reported structured attributes such as value, unit, interval, "
+            "route, population, place, time, and analytical method."
+        ),
+    )
+    observation_quote: str = Field(
+        default="",
+        description=(
+            "One exact verbatim, structurally atomic source phrase that states "
+            "this observation."
+        ),
+    )
+    attribute_evidence: Dict[str, Dict[str, str]] = Field(
+        default_factory=dict,
+        description=(
+            "Field-indexed exact source evidence. Each quote is a unique exact "
+            "subphrase of the entity's observation_quote, and each nested "
+            "observation_quote equals the entity anchor."
+        ),
+    )
 
     def to_dict(self):
         return {
@@ -81,6 +104,12 @@ class Entity(BaseModel):
             "entity_type": clean_str(self.entity_type.upper()),
             "description": clean_str(self.description),
             "importance_score": float(self.importance_score),
+            "attributes": dict(self.attributes),
+            "observation_quote": self.observation_quote,
+            "attribute_evidence": {
+                str(field_name): dict(binding)
+                for field_name, binding in self.attribute_evidence.items()
+            },
         }
 
 
@@ -130,6 +159,32 @@ class CombinedExtraction(dspy.Signature):
         e). Any notable actions or events associated with the entity
     4. All entity types from the text must be included.
     5. IMPORTANT: Only use entity types from the provided 'entity_types' list. Do not introduce new entity types.
+    6. When extracting structured attributes, provide one exact verbatim
+       observation_quote that states exactly one observation. For every
+       attribute, provide attribute_evidence[field] with a quote that is one
+       unique exact subphrase containing that field's literal value, plus an
+       observation_quote exactly equal to the entity anchor. Do not combine
+       lists, table rows, parallel claims, or multiple sentences. If a valid
+       compound name or range contains "and", "or", or a numeric comma, keep
+       that entire delimited phrase in one scalar attribute literal. When an
+       entity type declares association fields, every field quote must contain
+       each association-field literal exactly once as well as the field's own
+       literal, and must not cross any other numeric claim or measure name.
+       Use an explicit conventional dose or reproduction measure name; a
+       reported_value association must contain a numeric literal or range.
+       A schema-declared reported scalar may instead be one short qualitative
+       value such as "low" or "high". Preserve exact source notation, including
+       R-subscript forms, rather than normalizing it. A relation term must be a
+       short literal asserted outcome, not a study aim, bare mention, or
+       surrounding explanation. Include its full negation, significance,
+       polarity, and modality; if no controlled full predicate is present,
+       leave the analysis candidate-only. Use "and" or
+       "but" between tuple sides only when that type declares the matching
+       binary connector policy; never use the exception for an enumeration.
+       Follow the schema-declared association constraints: narrow scopes,
+       context factors, and relation terms are independently literal subphrases,
+       never the full observation clause. Qualitative analysis types use their
+       declared tuple and do not require an invented numeric value.
 
     Relationship Guidelines:
     1. Make sure relationship descriptions are detailed and comprehensive. Use multiple complete sentences for each point below:

@@ -1,0 +1,36 @@
+{
+  "completed_chunk_ids": [
+    "pmid_12740130:0:0:2537:1f28fb912a74",
+    "pmid_16253351:0:0:1370:d93d5da5a3f7",
+    "pmid_21807105:0:0:1912:67d269453734",
+    "pmid_22334212:0:0:811:22ed210bc162",
+    "pmid_23439383:0:0:1243:50da4986f38f",
+    "pmid_26863325:0:0:793:454b12ef40f8",
+    "pmid_27207106:0:0:1453:7471ff044461",
+    "pmid_29847775:0:0:1366:df27bf5e584f",
+    "pmid_30593289:0:0:2144:37ec98252ba8",
+    "pmid_31394063:0:0:820:395a5210b9e3",
+    "pmid_32084406:0:0:1084:40eaf65ea6ac",
+    "pmid_34908526:0:0:688:8c11a4ee116a",
+    "pmid_37209532:0:0:1224:0f6bff2035ba",
+    "pmid_37290118:0:0:2715:eac907b8415d",
+    "pmid_37648853:0:0:1407:a909ced45e10",
+    "pmid_39134419:0:0:2162:2ba1289edd47",
+    "pmid_39395168:0:0:1310:6f18ba705b75",
+    "pmid_40164520:0:0:1057:a23bdcd6a3ac"
+  ],
+  "processed": 18,
+  "total": 18,
+  "summary": {
+    "shard_path": "bio_causal_kgs_20260716/shards/synaptic_ltp_ltd/shard_000.jsonl",
+    "graph_path": "bio_causal_kgs_20260716/shard_runs/synaptic_ltp_ltd/shard_000/local_graph.graphml",
+    "entities_path": "bio_causal_kgs_20260716/shard_runs/synaptic_ltp_ltd/shard_000/entities.jsonl",
+    "relationships_path": "bio_causal_kgs_20260716/shard_runs/synaptic_ltp_ltd/shard_000/relationships.jsonl",
+    "chunk_results_path": "bio_causal_kgs_20260716/shard_runs/synaptic_ltp_ltd/shard_000/chunk_results.jsonl",
+    "chunks_total": 18,
+    "chunks_completed": 18,
+    "nodes": 125,
+    "edges": 171,
+    "elapsed_sec": 268.98
+  }
+}

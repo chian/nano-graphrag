@@ -5,7 +5,7 @@ Extends the base module to support relationship typing from domain schemas
 
 import json
 from pydantic import BaseModel, Field
-from typing import List, Optional, Callable
+from typing import Any, Callable, Dict, List, Optional
 from nano_graphrag._utils import clean_str, convert_response_to_json
 from nano_graphrag.entity_extraction.module import Entity
 
@@ -33,6 +33,21 @@ class TypedRelationship(BaseModel):
         le=3,
         description="The order of the relationship. 1 for direct, 2 for second-order, 3 for third-order.",
     )
+    attributes: Dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "Source-reported structured qualifiers for this relationship, such as "
+            "time, location, population, method, or uncertainty."
+        ),
+    )
+    observation_quote: str = Field(
+        default="",
+        description="One exact verbatim source phrase for this relationship.",
+    )
+    attribute_evidence: Dict[str, Dict[str, str]] = Field(
+        default_factory=dict,
+        description="Field-indexed exact source quotes for structured qualifiers.",
+    )
 
     def to_dict(self):
         return {
@@ -42,6 +57,12 @@ class TypedRelationship(BaseModel):
             "description": clean_str(self.description),
             "weight": float(self.weight),
             "order": int(self.order),
+            "attributes": dict(self.attributes),
+            "observation_quote": self.observation_quote,
+            "attribute_evidence": {
+                str(field_name): dict(binding)
+                for field_name, binding in self.attribute_evidence.items()
+            },
         }
 
 
@@ -59,7 +80,9 @@ class DomainTypedEntityRelationshipExtractor:
         relationship_type_descriptions: str,
         llm_func: Callable,
         num_refine_turns: int = 1,
-        self_refine: bool = True
+        self_refine: bool = True,
+        entity_type_metadata: Optional[Dict[str, Dict[str, Any]]] = None,
+        relationship_type_metadata: Optional[Dict[str, Dict[str, Any]]] = None,
     ):
         self.entity_types = entity_types
         self.relationship_types = relationship_types
@@ -68,6 +91,8 @@ class DomainTypedEntityRelationshipExtractor:
         self.llm_func = llm_func
         self.num_refine_turns = num_refine_turns
         self.self_refine = self_refine
+        self.entity_type_metadata = entity_type_metadata or {}
+        self.relationship_type_metadata = relationship_type_metadata or {}
 
     async def forward(self, input_text: str):
         """Extract entities and relationships with refinement"""
@@ -77,7 +102,14 @@ class DomainTypedEntityRelationshipExtractor:
         prompt = self._build_extraction_prompt(input_text)
 
         # Call LLM (assume it's async)
-        response = await self.llm_func(prompt)
+        response = ""
+        for attempt in range(3):
+            response = await self.llm_func(prompt)
+            if response.strip():
+                break
+            if attempt < 2:
+                print("  ⚠ Empty extraction LLM response; retrying...")
+                await asyncio.sleep(2 ** attempt)
 
         print(f"\n{'='*80}")
         print("INITIAL EXTRACTION LLM RESPONSE:")
@@ -146,7 +178,7 @@ class DomainTypedEntityRelationshipExtractor:
 
         # Validate and filter entities and relationships
         entities = self._validate_entities(entities)
-        relationships = self._validate_relationships(relationships)
+        relationships = self._validate_relationships(relationships, entities)
 
         # Return simple dict (not dspy.Prediction)
         return type('Prediction', (), {'entities': entities, 'relationships': relationships})()
@@ -184,16 +216,24 @@ class DomainTypedEntityRelationshipExtractor:
 
         return valid_entities
 
-    def _validate_relationships(self, relationships: List[TypedRelationship]) -> List[TypedRelationship]:
-        """Filter relationships to only include valid relationship types"""
+    def _validate_relationships(
+        self,
+        relationships: List[TypedRelationship],
+        entities: Optional[List[Entity]] = None,
+    ) -> List[TypedRelationship]:
+        """Filter relationships by declared type and, when present, endpoints."""
         valid_relationships = []
         invalid_count = 0
         invalid_types = set()
+        entity_types_by_name = {
+            clean_str(entity.entity_name.upper()): entity.entity_type
+            for entity in (entities or [])
+        }
 
         for rel in relationships:
             # Try exact match first
             if rel.relation_type in self.relationship_types:
-                valid_relationships.append(rel)
+                normalized_type = rel.relation_type
             else:
                 # Try case-insensitive match
                 relation_type_upper = rel.relation_type.upper()
@@ -202,7 +242,7 @@ class DomainTypedEntityRelationshipExtractor:
                     if relation_type_upper == valid_type.upper():
                         # Fix the type to match schema
                         rel.relation_type = valid_type
-                        valid_relationships.append(rel)
+                        normalized_type = valid_type
                         matched = True
                         break
 
@@ -210,6 +250,27 @@ class DomainTypedEntityRelationshipExtractor:
                     invalid_count += 1
                     invalid_types.add(rel.relation_type)
                     print(f"  ⚠ Filtered relationship '{rel.src_id} -> {rel.tgt_id}' with invalid type '{rel.relation_type}'")
+                    continue
+
+            metadata = self.relationship_type_metadata.get(normalized_type, {})
+            endpoints = metadata.get("endpoints") or {}
+            source_types = set(endpoints.get("source") or [])
+            target_types = set(endpoints.get("target") or [])
+            source_type = entity_types_by_name.get(clean_str(rel.src_id.upper()))
+            target_type = entity_types_by_name.get(clean_str(rel.tgt_id.upper()))
+            if source_types and source_type not in source_types:
+                print(
+                    f"  ⚠ Filtered relationship '{rel.src_id} -> {rel.tgt_id}': "
+                    f"source type '{source_type}' is invalid for '{normalized_type}'"
+                )
+                continue
+            if target_types and target_type not in target_types:
+                print(
+                    f"  ⚠ Filtered relationship '{rel.src_id} -> {rel.tgt_id}': "
+                    f"target type '{target_type}' is invalid for '{normalized_type}'"
+                )
+                continue
+            valid_relationships.append(rel)
 
         if invalid_count > 0:
             print(f"\n  ⚠ WARNING: Filtered {invalid_count} relationships with invalid types: {invalid_types}")
@@ -239,6 +300,59 @@ Entity Guidelines:
    b). Key domain-relevant attributes
    c). Relationships to other entities
    d). Functional significance
+6. Put source-reported values for the listed structured attributes in the
+   "attributes" object. Do not infer values that the text does not state.
+7. For a source-local observation, copy one contiguous phrase or clause from
+   the source as the entity name. It must contain that type's declared
+   association tuple; measure-observation types therefore contain the reported
+   measure/value, while qualitative analysis types contain their declared
+   measure, scopes or context, and literal relation term.
+   include disease, strain, place, time, host, or route when those qualifiers
+   occur in that same contiguous phrase. Put other nearby qualifiers in
+   structured attributes, where they remain unverified context rather than
+   source-supported fields. Do not synthesize a composite name or reuse a
+   generic name such as "R0 estimate" for several distinct results. The phrase
+   must express exactly one observation: split lists, parallel enumerations,
+   and clauses joined by conjunction or contrast into separate atomic phrases.
+8. Copy that exact phrase verbatim into "observation_quote". For every entry
+   in "attributes", add an entry with the same field name to
+   "attribute_evidence". Its "quote" must be a unique exact subphrase inside
+   the observation_quote that contains the field's literal value and states
+   its association with this observation. Its nested "observation_quote" must
+   exactly equal the entity's observation_quote. Do not omit, normalize,
+   concatenate, or paraphrase these evidence strings. If a valid compound name
+   or range contains "and", "or", or a numeric comma, preserve that complete
+   delimited phrase in one scalar attribute literal.
+9. An entity type may list a "Required association tuple". Every configured
+   association field must be present as one scalar source value with its own
+   exact field quote. Every field quote for that entity must contain the exact
+   literal of every association field exactly once, plus the quoted field's own
+   literal. It must contain no other numeric claim or measure name. Select a
+   smaller atomic observation instead of quoting across another measure/value
+   tuple. Association measure fields must use an explicit conventional measure
+   name (for example ID50, HID50, R0, Rt, or reproduction number). A
+   reported_value association must contain a numeric literal or numeric range;
+   text-only reported values remain unverified candidates. A schema-declared
+   reported scalar may be one short qualitative value such as "low" or
+   "high". Preserve exact source notation, including R-subscript forms, rather
+   than normalizing it. A relation term must be a short literal predicate, not
+   a study aim, bare mention, or surrounding explanation. Include its full
+   negation, significance, polarity, and modality; if no controlled full
+   predicate is present, leave the analysis candidate-only. Use "and" or
+   "but" between tuple sides only
+   when that type declares the matching binary connector policy; never use the
+   exception for an enumeration. Follow each schema-declared association
+   constraint and connector policy exactly; do not
+   use the full observation clause as a narrow scope, context factor, or relation
+   term.
+
+Association tuple example:
+- Source phrase: "In Wuhan, the estimated R0 was 2.2"
+- attributes: {{"reproduction_number_measure": "R0", "reported_value": 2.2,
+  "location": "Wuhan"}}
+- the measure and value quotes may be "R0 was 2.2"; the location quote may be
+  the full source phrase. Each quote contains R0 and 2.2 exactly once, and the
+  location quote also contains Wuhan.
 
 Relationship Guidelines:
 1. Each relationship MUST use a relation_type from the provided relationship_types list.
@@ -263,10 +377,10 @@ TEXT:
 Extract all entities and relationships. Return JSON:
 {{
   "entities": [
-    {{"entity_name": "...", "entity_type": "...", "description": "...", "importance_score": 0.0-1.0}}
+    {{"entity_name": "...", "entity_type": "...", "description": "...", "importance_score": 0.0-1.0, "observation_quote": "exact atomic source phrase", "attributes": {{"schema_property": "source-reported value"}}, "attribute_evidence": {{"schema_property": {{"quote": "exact field subphrase containing the association tuple once", "observation_quote": "exact atomic source phrase"}}}}}}
   ],
   "relationships": [
-    {{"src_id": "...", "tgt_id": "...", "relation_type": "...", "description": "...", "weight": 0.0-1.0, "order": 1-3}}
+    {{"src_id": "...", "tgt_id": "...", "relation_type": "...", "description": "...", "weight": 0.0-1.0, "order": 1-3, "observation_quote": "exact atomic source phrase", "attributes": {{"schema_property": "source-reported value"}}, "attribute_evidence": {{"schema_property": {{"quote": "exact field subphrase", "observation_quote": "exact atomic source phrase"}}}}}}
   ]
 }}"""
 
@@ -317,6 +431,12 @@ Refinement Guidelines:
 4. Ensure all types are from the valid lists.
 5. Improve descriptions as suggested.
 6. Maintain consistency between entities and relationships.
+7. Preserve or correct the exact verbatim observation_quote and the
+   field-indexed attribute_evidence contract. Each field quote must be a unique
+   exact literal-containing subphrase of the entity's atomic observation_quote;
+   each nested observation_quote must equal that entity anchor. For entity types
+   with a Required association tuple, every field quote must contain every
+   association literal exactly once plus its own field literal.
 
 TEXT:
 {input_text}
@@ -337,10 +457,10 @@ VALID RELATIONSHIP TYPES: {', '.join(self.relationship_types)}
 Return refined extraction as JSON:
 {{
   "entities": [
-    {{"entity_name": "...", "entity_type": "...", "description": "...", "importance_score": 0.0-1.0}}
+    {{"entity_name": "...", "entity_type": "...", "description": "...", "importance_score": 0.0-1.0, "observation_quote": "exact atomic source phrase", "attributes": {{"schema_property": "source-reported value"}}, "attribute_evidence": {{"schema_property": {{"quote": "exact field subphrase containing the association tuple once", "observation_quote": "exact atomic source phrase"}}}}}}
   ],
   "relationships": [
-    {{"src_id": "...", "tgt_id": "...", "relation_type": "...", "description": "...", "weight": 0.0-1.0, "order": 1-3}}
+    {{"src_id": "...", "tgt_id": "...", "relation_type": "...", "description": "...", "weight": 0.0-1.0, "order": 1-3, "observation_quote": "exact atomic source phrase", "attributes": {{"schema_property": "source-reported value"}}, "attribute_evidence": {{"schema_property": {{"quote": "exact field subphrase", "observation_quote": "exact atomic source phrase"}}}}}}
   ]
 }}"""
 
@@ -394,6 +514,10 @@ Return refined extraction as JSON:
                         if normalized_type is None:
                             continue  # Skip entities with null type
                         e['entity_type'] = normalized_type
+                    if not isinstance(e.get('attributes'), dict):
+                        e['attributes'] = {}
+                    if not isinstance(e.get('attribute_evidence'), dict):
+                        e['attribute_evidence'] = {}
                     normalized_entities.append(e)
             entities = normalized_entities
         else:
@@ -406,6 +530,10 @@ Return refined extraction as JSON:
                     # Normalize relation_type to match schema
                     if 'relation_type' in r:
                         r['relation_type'] = self._normalize_type(r['relation_type'], self.relationship_types)
+                    if not isinstance(r.get('attributes'), dict):
+                        r['attributes'] = {}
+                    if not isinstance(r.get('attribute_evidence'), dict):
+                        r['attribute_evidence'] = {}
                     normalized_relationships.append(r)
             relationships = normalized_relationships
         else:
@@ -450,6 +578,35 @@ def create_domain_extractor_from_schema(schema, llm_func: Callable, num_refine_t
     entity_type_descriptions = loader.format_entity_types_for_prompt(schema)
     relationship_type_descriptions = loader.format_relationship_types_for_prompt(schema)
 
+    entity_type_metadata = {
+        name: {
+            "extraction_enabled": entity_type.extraction_enabled,
+            "role": entity_type.role,
+            "merge_policy": entity_type.merge_policy,
+            "properties": dict(entity_type.properties),
+            "association_fields": list(entity_type.association_fields),
+            "association_field_kinds": dict(
+                entity_type.association_field_kinds
+            ),
+            "association_connector_policy": (
+                entity_type.association_connector_policy
+            ),
+        }
+        for name, entity_type in schema.entity_types.items()
+        if entity_type.extraction_enabled
+    }
+    relationship_type_metadata = {
+        name: {
+            "extraction_enabled": relationship_type.extraction_enabled,
+            "role": relationship_type.role,
+            "merge_policy": relationship_type.merge_policy,
+            "properties": dict(relationship_type.properties),
+            "endpoints": dict(relationship_type.endpoints),
+        }
+        for name, relationship_type in schema.relationship_types.items()
+        if relationship_type.extraction_enabled
+    }
+
     return DomainTypedEntityRelationshipExtractor(
         entity_types=entity_types,
         relationship_types=relationship_types,
@@ -457,5 +614,7 @@ def create_domain_extractor_from_schema(schema, llm_func: Callable, num_refine_t
         relationship_type_descriptions=relationship_type_descriptions,
         llm_func=llm_func,
         num_refine_turns=num_refine_turns,
-        self_refine=self_refine
+        self_refine=self_refine,
+        entity_type_metadata=entity_type_metadata,
+        relationship_type_metadata=relationship_type_metadata,
     )

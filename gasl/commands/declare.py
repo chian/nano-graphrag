@@ -28,38 +28,26 @@ class DeclareHandler(CommandHandler):
             if self.state_store.has_variable(variable):
                 print(f"DEBUG: Variable {variable} already exists - reusing it")
                 
-                # Check if this is a reset (same type) or reuse (different type)
+                # DECLARE is idempotent. Later repair iterations commonly repeat
+                # declarations before reusing already materialized variables.
                 existing_var = self.state_store.get_variable(variable)
                 existing_type = None
                 if isinstance(existing_var, dict) and "_meta" in existing_var:
                     existing_type = existing_var["_meta"].get("type")
                 
                 if existing_type == var_type:
-                    # Same type - just update description and clear data
                     if description:
                         existing_var["_meta"]["description"] = description
-                    
-                    # Clear existing data based on type
-                    if var_type == "LIST":
-                        existing_var["items"] = []
-                    elif var_type == "DICT":
-                        # Clear all non-meta keys
-                        keys_to_remove = [k for k in existing_var.keys() if k != "_meta"]
-                        for key in keys_to_remove:
-                            del existing_var[key]
-                    elif var_type == "COUNTER":
-                        existing_var["value"] = 0
-                    
-                    self.state_store._save_state()
+                        self.state_store._save_state()
                     
                     return self._create_result(
                         command=command,
                         status="success",
-                        data={"variable": variable, "type": var_type, "description": description, "reset": True},
+                        data={"variable": variable, "type": var_type, "description": description, "reused": True},
                         count=1,
                         provenance=[self._create_provenance(
                             source_id="gasl-declare",
-                            method="reset_variable",
+                            method="reuse_variable",
                             variable=variable,
                             type=var_type,
                             description=description

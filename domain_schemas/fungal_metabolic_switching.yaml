@@ -1,0 +1,110 @@
+# Fungal Metabolic Switching Domain Schema
+# Focus: Candida and yeast morphogenesis, nutrient-sensing pathways,
+# quorum-sensing molecules, Hsp90/Ras1/PKA/RAM/Cdc42/NRG1/Efg1 regulation,
+# extracellular vesicles, biofilm formation, and virulence transitions.
+
+domain_name: "Fungal Metabolic Switching"
+domain_description: "Causal control of fungal yeast-to-hypha, pseudohyphal, filamentous, biofilm, and virulence transitions by carbon and nitrogen cues, quorum molecules, kinase networks, Hsp90, Ras1/PKA, RAM, Cdc42, transcriptional repressors or activators, extracellular vesicles, and metabolic reprogramming."
+
+entity_types:
+  FUNGAL_SPECIES:
+    description: "A pathogenic or model fungal species, strain, or yeast population."
+    examples: ["Candida albicans", "Candida glabrata", "Candida parapsilosis", "Saccharomyces cerevisiae"]
+
+  MORPHOTYPE:
+    description: "A yeast, hyphal, pseudohyphal, filamentous, white, opaque, or biofilm-associated cell state."
+    examples: ["yeast", "hypha", "pseudohypha", "white cell", "opaque cell"]
+
+  NUTRIENT_OR_METABOLIC_CUE:
+    description: "A carbon source, amino sugar, bacterial metabolite, food-fermentation cue, or nutrient condition."
+    examples: ["N-acetylglucosamine", "ganciclovir", "glucose", "bacterial metabolite"]
+
+  QUORUM_OR_SECRETED_SIGNAL:
+    description: "A fungal quorum-sensing molecule, extracellular vesicle, or secreted morphogenesis cue."
+    examples: ["quorum sensing molecule", "extracellular vesicle", "fermentation signal"]
+
+  KINASE_PATHWAY:
+    description: "A kinase, chaperone-linked pathway, or polarity cascade that connects nutrient sensing to morphogenesis."
+    examples: ["Ras1/PKA pathway", "RAM network", "Cdc42 signaling cascade", "Yak1", "Hsp90"]
+
+  TRANSCRIPTIONAL_REGULATOR:
+    description: "A DNA-binding regulator or repressor that controls hypha-specific or metabolic gene expression."
+    examples: ["Efg1", "NRG1", "TUP1", "MIG1", "CaNrg1"]
+
+  CELL_CYCLE_OR_POLARITY_NODE:
+    description: "A protein controlling polarized growth, endocytosis, cycle progression, or septation."
+    examples: ["Ent2", "Cdc42", "ENTH domain protein"]
+
+  METABOLIC_STATE:
+    description: "A glycolytic, gluconeogenic, respiratory, peroxisomal, or prion-based metabolic program."
+    examples: ["metabolic reprogramming", "peroxisome biogenesis", "glycolysis", "prion-based state"]
+
+  COMMUNITY_OR_HOST_STATE:
+    description: "A biofilm, host, food, fly, or infection context in which fungal switching has consequences."
+    examples: ["biofilm formation", "Drosophila larval development", "host infection"]
+
+  VIRULENCE_TRAIT:
+    description: "A pathogenic trait affected by morphogenesis and metabolic switching."
+    examples: ["virulence", "adhesion", "invasion", "pathogenicity"]
+
+relationship_types:
+  SENSES_NUTRIENT:
+    description: "A fungal cell or pathway detects a nutrient or metabolic cue."
+    inverse: "NUTRIENT_SENSED_BY"
+    examples: ["Candida albicans SENSES_NUTRIENT N-acetylglucosamine"]
+
+  ACTIVATES_PATHWAY:
+    description: "A cue or upstream regulator activates a morphogenesis pathway."
+    inverse: "PATHWAY_ACTIVATED_BY"
+    examples: ["nutrient cue ACTIVATES_PATHWAY Ras1/PKA"]
+
+  INHIBITS_PATHWAY:
+    description: "A regulator, drug, or chaperone state suppresses a kinase pathway."
+    inverse: "PATHWAY_INHIBITED_BY"
+    examples: ["Hsp90 INHIBITS_PATHWAY morphogenesis pathway"]
+
+  ACTIVATES_TRANSCRIPTION:
+    description: "A regulator increases hypha-specific, metabolic, or virulence gene expression."
+    inverse: "TRANSCRIPTION_ACTIVATED_BY"
+    examples: ["Efg1 ACTIVATES_TRANSCRIPTION hypha-specific genes"]
+
+  REPRESSES_TRANSCRIPTION:
+    description: "A regulator represses a morphogenesis or hypha-specific expression program."
+    inverse: "TRANSCRIPTION_REPRESSED_BY"
+    examples: ["NRG1 REPRESSES_TRANSCRIPTION hypha-specific genes"]
+
+  COUPLES_CELL_CYCLE:
+    description: "A morphogenesis regulator links cell-cycle progression with polarized or filamentous growth."
+    inverse: "CELL_CYCLE_COUPLED_BY"
+    examples: ["Cdc42 COUPLES_CELL_CYCLE hyphal morphogenesis"]
+
+  SWITCHES_MORPHOTYPE:
+    description: "A pathway, cue, or regulator drives conversion between fungal morphotypes."
+    inverse: "MORPHOTYPE_SWITCHED_BY"
+    examples: ["Ras1/PKA SWITCHES_MORPHOTYPE yeast-to-hypha transition"]
+
+  REPROGRAMS_METABOLISM:
+    description: "A cue or regulatory state changes carbon use, respiration, peroxisomes, or broader metabolic flux."
+    inverse: "METABOLISM_REPROGRAMMED_BY"
+    examples: ["bacteria REPROGRAMS_METABOLISM yeast prion state"]
+
+  SECRETES_SIGNAL:
+    description: "A fungal species or morphotype releases an extracellular vesicle or quorum molecule."
+    inverse: "SIGNAL_SECRETED_BY"
+    examples: ["Candida albicans SECRETES_SIGNAL extracellular vesicles"]
+
+  PROMOTES_BIOFILM:
+    description: "A signal, pathway, or morphotype increases biofilm development."
+    inverse: "BIOFILM_PROMOTED_BY"
+    examples: ["extracellular vesicles PROMOTES_BIOFILM biofilm formation"]
+
+  PROMOTES_VIRULENCE:
+    description: "A morphotype, regulator, or pathway increases pathogenicity."
+    inverse: "VIRULENCE_PROMOTED_BY"
+    examples: ["hyphal morphogenesis PROMOTES_VIRULENCE invasion"]
+
+  SUPPRESSES_MORPHOGENESIS:
+    description: "A drug, quorum molecule, or transcriptional repressor prevents a morphogenetic transition."
+    inverse: "MORPHOGENESIS_SUPPRESSED_BY"
+    examples: ["ganciclovir SUPPRESSES_MORPHOGENESIS yeast-to-hypha transition"]
+

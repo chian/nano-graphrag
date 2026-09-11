@@ -21,80 +21,61 @@ AVAILABLE GASL COMMANDS FOR STRATEGY ADAPTATION:
 
 CORE COMMANDS:
 - DECLARE <var> AS DICT|LIST|COUNTER [WITH_DESCRIPTION "desc"] - Creates new variables
-- FIND nodes|edges|paths with <criteria> [AS <var>] - Gets graph data with graph fields (entity_type, description, etc.)
-- PROCESS <var> with instruction: <task> [AS <result_var>] - CREATES NEW FIELDS in existing variables (works on context, state, or graph data stored in variables)
-- COUNT <var> [where <condition>] AS <result_var>
-  CRITICAL: Use existing field names in conditions (e.g., "where starts_with_vowel = true")
-  Examples: 
-    - COUNT person_nodes AS total_count
-    - COUNT person_nodes where starts_with_vowel = true AS vowel_count
-    - COUNT person_nodes where starts_with_vowel = false AS non_vowel_count
-- AGGREGATE <var> by <EXACT_FIELD_NAME> with count|sum|avg|min|max
-  CRITICAL: The field name must exist in the data (check "Available fields" above)
-- PROJECT <var> GRAIN node|edge|path|paper|chunk FIELDS <field1>[ AS alias],<field2>... [KEYS <field1>,<field2>...] [WEIGHT <field>] [PRESERVE_MULTIPLICITY] [AS <result_var>]
-- COLLAPSE <var> BY <field> [COUNT AS <weight_field>] [AS <result_var>]
-- UPDATE <var> with <source> [operation: replace|delete|merge|append] [where <condition>] - Modifies existing data
+- A same-type DECLARE is a no-op that preserves the existing value and full producer contract, including `usable_by`; a different type is an error.
+- FIND nodes|edges|paths with <criteria> AS <var> - Gets graph data with graph fields (entity_type, description, etc.)
+- PROCESS <var> CONTRACT gasl_process_execution_v6 MODE <semantic_filter|eligible_materialization|exact_enrichment> CARDINALITY <zero_to_n|exactly_input> MAX_INPUT_ITEMS <N> MAX_MODEL_CALLS <N> REQUIRED_FIELDS [field_a,field_b] WITH <task> AS <result_var> - Executes one explicitly bounded, typed PROCESS action
+- PROJECT <var> GRAIN node|edge|path|paper|chunk FIELDS <field1>[ AS alias],<field2>... [KEYS <field1>,<field2>...] [WEIGHT <field>] [PRESERVE_MULTIPLICITY] AS <result_var>
+- COLLAPSE <var> BY <field> [COUNT AS <weight_field>] AS <result_var>
 
-FIELD CREATION COMMANDS:
-- PROCESS <var> with instruction: <task> - CREATES NEW FIELDS with intuitive names (e.g., "starts_with_vowel", "first_name")
-- ADD_FIELD <var> field: <field_name> = <source_var> - Adds a single field to existing data
-
-ANALYSIS:
-- CLASSIFY <var> with instruction: <classification_task>
-- RANK <var> by <field> [order desc|asc]
+FIELD MATERIALIZATION COMMANDS:
+- PROCESS must use the full gasl_process_execution_v6 contract shown above; REQUIRED_FIELDS uses the deterministic semantic-binding, declared-grain identity, registry-metadata, or authoritative field_evidence-container role. Unknown reserved/container fields are invalid. PROCESS also requires actual source-row uniqueness at the exact typed declared grain; multiplicity does not authorize positional identity.
+- eligible_materialization may emit zero or one row per exact source token; request one-to-many child rows only from an upstream producer that declares the child grain.
+- REQUIRED_FIELDS must be admitted by the exact input producer contract: identity roles must be declared grain_keys and metadata/container roles must be declared row_schema fields. Do not request observation_id from FIND nodes whose grain key is id.
 
 GRAPH NAVIGATION:
-- GRAPHWALK from <var> follow <relationship> [depth <n>]
-- SUBGRAPH around <var> radius <n> [include <types>]
-- GRAPHPATTERN find <pattern> in <var>
-- GRAPHCONNECT <var1> to <var2> via <relationship>
+- GRAPHWALK from <var> follow <relationship> [depth <1..8>] AS <result_var>
+- Relation identities are typed and exact. Use bare Boolean/numeric literals only for Boolean/numeric schema values. JSON-quote a string that looks Boolean/numeric, contains `,` or `|`, case-insensitively equals the reserved GRAPHWALK wildcard `a`, `an`, `any`, `all`, or `*`, or begins with the reserved `relation_type=` or `relationship_name=` assignment prefix. Preserve exact case and punctuation.
 
 DATA COMBINATION:
 - JOIN <var1> with <var2> on <field> AS <result>
 - MERGE <var1>,<var2>,... AS <result>
-- COMPARE <var1> with <var2> on <field> AS <result>
 
 UTILITY:
 - SHOW <var> [limit <n>] - Display variable contents
 - SELECT <var> FIELDS <field1>,<field2>,... AS <result>
-- SET <var> = <value>
 - INSPECT <var> - Analyze data structure and content
 
-MICRO-ACTION COMMANDS:
-- ITERATE <source_var> BATCH_SIZE <N> WITH <COMMAND> instruction: "<instruction>" - Process large datasets in controlled batches
-  * Use when you need explicit control over batch size
-  * Works with PROCESS, CLASSIFY, COUNT, AGGREGATE
-  * Example: ITERATE authors_list BATCH_SIZE 10 WITH PROCESS instruction: "Filter human authors"
+PROCESS CONTINUATION:
+- ITERATE is not part of the planner-visible GASL surface in this contract.
+- Continue bounded work only with a direct, fully contracted same-target PROCESS: `PROCESS <result_var>__unresolved ... AS <result_var>`.
+- Example: PROCESS prior_result__unresolved CONTRACT gasl_process_execution_v6 MODE exact_enrichment CARDINALITY exactly_input MAX_INPUT_ITEMS 72 MAX_MODEL_CALLS 8 REQUIRED_FIELDS [first_name] WITH materialize the registered first_name binding AS prior_result
+- Never consume an `__unresolved` sidecar with another command or write it to a different target. Preserve the stable family mode, cardinality, REQUIRED_FIELDS, and identity contract.
+- Never declare or write an explicit output ending in `__unresolved` or `__unsupported`; those names are reserved for the owning PROCESS bundle. An `__unsupported` sidecar is audit-only and may be read only by SHOW.
 
 
-OBJECT CREATION:
-- CREATE nodes|edges|summary from <var> [with <spec>]
-- GENERATE <content_type> from <var> [with <spec>]
-
-PATTERN ANALYSIS:
-- CLUSTER <var> with criteria: <clustering_criteria>
-- GROUP <var> by <field> [with <aggregation>]
+RESTART-SAFE EXECUTION:
+- Only the commands listed here are available in the restartable planner
+  contract. Context-only SET, field-authoring ADD_FIELD, pattern and graph
+  mutation commands are unavailable.
+- Every reusable result must use an explicit AS target.
+- Defined empty FIND and pure transform outputs remain successful durable variables and may flow through later retained transforms; missing or invalid inputs remain errors.
+- Consume a durable variable only when its persisted `usable_by` list names the exact command. GRAPHWALK accepts FIND-nodes-style inputs with GRAPHWALK admission, not FIND edges or paths.
+- On nonempty inputs, PROJECT/SELECT requested fields, COLLAPSE grouping fields, and JOIN scalar keys must exist on every row; repair the producer instead of projecting null placeholders.
 
 CONTROL FLOW:
-- REQUIRE <var> <condition>
-- ASSERT <var> <condition>
-- ON success|error|empty do <action>
+- ON and ITERATE are not part of the restart-safe v4 planner surface. PROCESS must be a direct persisted plan step.
 
 Remember: 
 - The goal is to systematically explore the graph to answer the query
 - If one approach fails, try another
-- Use UPDATE to modify existing variables with new data
 - Look at the available schema to find alternative approaches
 - Try different node labels, edge types, or properties that might be relevant
 - Focus on entity_type and relationship_name properties
-- Use PROCESS command for intelligent information filtering based on content analysis (text, descriptions, classifications) and filling new fields with specific information
-- Use AGGREGATE for grouping and counting data
-- Use PROJECT when you need to make the row grain explicit before PROCESS or AGGREGATE
+- Use PROCESS for bounded semantic filtering or to materialize fields that already have exact registered bindings; it cannot fill an unregistered new semantic field
+- Use PROJECT when you need to make the row grain explicit before PROCESS or COLLAPSE
 - Use COLLAPSE only when you intentionally want to deduplicate rows while keeping multiplicity in an explicit weight field
-- Use RANK for prioritizing items
 - Use GRAPHWALK for exploring graph structure
-- Use CLUSTER for finding similar items
-- Use GENERATE for creating reports
+- GRAPHWALK deterministically caps source rows at 100, incident edges per node at 50, and queued/emitted unique rows at 10,000. Its typed truncation has no continuation action, so repair by narrowing the declared source or relationship filter.
+- GRAPHWALK rejects duplicate actual tuples at its declared edge/depth grain. Repair by selecting a unique source/relation substrate; no row-position identity is available.
 - Let the LLM analyze names, descriptions, and properties to make smart decisions
-- When you have raw data that needs intelligent filtering, use PROCESS instead of simple UPDATE
-- PROCESS is especially useful when you need to distinguish between different types of entities (e.g., human authors vs. cell types)
+- PROCESS semantic_filter is useful for selecting among already-grounded entity types; it does not author a new type label

@@ -1,0 +1,36 @@
+{
+  "completed_chunk_ids": [
+    "pmid_14660735:0:0:933:a7bc9dfc7c2c",
+    "pmid_16503194:0:0:1324:1a5b111096dc",
+    "pmid_18792689:0:0:1717:494737800ba3",
+    "pmid_25911234:0:0:1226:556576e619a4",
+    "pmid_29663554:0:0:1584:a4f10fa47e0d",
+    "pmid_33495249:0:0:2592:3be4894f091e",
+    "pmid_33620656:0:0:1789:8777266e06f0",
+    "pmid_37755996:0:0:1286:c8fc34354179",
+    "pmid_38417645:0:0:2711:0697c30552e5",
+    "pmid_39046206:0:0:2668:a1334e45907a",
+    "pmid_39277662:0:0:2467:b8d877166e5c",
+    "pmid_39405459:0:0:1201:460fd1316f17",
+    "pmid_40261038:0:0:2913:6bd26a6b94fe",
+    "pmid_40348909:0:0:1362:6bac16bcc503",
+    "pmid_40353451:0:0:1825:72b49d682894",
+    "pmid_40442328:0:0:1609:78bd6768fa13",
+    "pmid_41170650:0:0:2081:6cbd241621d6",
+    "pmid_42056714:0:0:1445:cfb0135d9dc4"
+  ],
+  "processed": 18,
+  "total": 18,
+  "summary": {
+    "shard_path": "bio_causal_kgs_20260716/shards/quorum_sensing/shard_000.jsonl",
+    "graph_path": "bio_causal_kgs_20260716/shard_runs/quorum_sensing/shard_000/local_graph.graphml",
+    "entities_path": "bio_causal_kgs_20260716/shard_runs/quorum_sensing/shard_000/entities.jsonl",
+    "relationships_path": "bio_causal_kgs_20260716/shard_runs/quorum_sensing/shard_000/relationships.jsonl",
+    "chunk_results_path": "bio_causal_kgs_20260716/shard_runs/quorum_sensing/shard_000/chunk_results.jsonl",
+    "chunks_total": 18,
+    "chunks_completed": 18,
+    "nodes": 213,
+    "edges": 240,
+    "elapsed_sec": 365.07
+  }
+}

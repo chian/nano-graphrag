@@ -16,6 +16,7 @@ Rules:
 - The active symbol scope is prefix-closed. Only materialized symbols are legal inputs.
 - The current output symbol is legal as an output, never as an input.
 - Do not invent future symbols.
+- Preserve exact typed relation literals: leave actual Boolean/numeric relations unquoted. JSON-quote a string that looks Boolean/numeric, contains `,` or `|`, case-insensitively equals the reserved GRAPHWALK wildcard `a`, `an`, `any`, `all`, or `*`, or begins with the reserved `relation_type=` or `relationship_name=` assignment prefix.
 - Use the local context:
   - previous command
   - next command

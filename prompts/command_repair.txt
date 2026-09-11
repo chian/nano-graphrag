@@ -20,5 +20,6 @@ Rules:
 - If you replace the command, emit exactly one valid GASL command.
 - Prefer preserving variable names unless the failure clearly requires a new target.
 - Do not invent graph-schema fields beyond canonical GASL graph slots.
+- Preserve exact typed relation literals: leave actual Boolean/numeric relations unquoted. JSON-quote a string that looks Boolean/numeric, contains `,` or `|`, case-insensitively equals the reserved GRAPHWALK wildcard `a`, `an`, `any`, `all`, or `*`, or begins with the reserved `relation_type=` or `relationship_name=` assignment prefix.
 - Use only information provided in the case.
 - Return strict JSON and nothing else.

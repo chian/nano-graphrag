@@ -1,0 +1,8 @@
+{
+  "inventory_path": "bio_causal_kgs_20260716/inventories_v2/plant_circadian_clock.jsonl",
+  "output_path": "bio_causal_kgs_20260716/manifests/plant_circadian_clock/chunks.jsonl",
+  "papers": 18,
+  "chunks": 18,
+  "chunk_size": 3500,
+  "overlap": 350
+}

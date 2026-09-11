@@ -1,0 +1,111 @@
+# Plant Circadian Clock Domain Schema
+# Focus: Arabidopsis CCA1/LHY/TOC1-centered feedback, PRR and ELF clock
+# components, light and temperature entrainment, chromatin regulation,
+# starch use, iron homeostasis, abiotic stress, and flowering outputs.
+
+domain_name: "Plant Circadian Clock"
+domain_description: "Causal gene-regulatory architecture of the Arabidopsis circadian oscillator and its outputs, including CCA1/LHY/TOC1 reciprocal loops, PRR and ELF components, CK1-dependent phosphorylation, chromatin and histone modification, light and twilight entrainment, stress coupling through ABF3, PIF4-mediated growth, starch mobilization, vernalization, iron homeostasis, and flowering time."
+
+entity_types:
+  PLANT_CONTEXT:
+    description: "A plant species, mutant, genotype, tissue, growth condition, or photoperiodic setting."
+    examples: ["Arabidopsis thaliana", "lhy cca1 elf3 mutant", "continuous light", "twilight"]
+
+  CLOCK_GENE:
+    description: "A core or clock-associated gene participating in circadian loops."
+    examples: ["CCA1", "LHY", "TOC1", "PRR5", "ELF3", "GI"]
+
+  CLOCK_PROTEIN:
+    description: "A clock transcription factor, pseudo-response regulator, or protein product."
+    examples: ["CCA1 protein", "LHY protein", "TOC1 protein", "PRR5"]
+
+  OSCILLATOR_LOOP:
+    description: "A negative or reciprocal feedback loop, central oscillator, rhythm, or clock phase."
+    examples: ["CCA1/LHY-TOC1 loop", "central oscillator", "circadian rhythm"]
+
+  LIGHT_INPUT:
+    description: "A photoreceptor, light quality, twilight cue, or continuous-light entrainment input."
+    examples: ["phyB", "light", "twilight length", "photoperiod"]
+
+  CHROMATIN_REGULATOR:
+    description: "A histone modifier, chromatin complex, or cis-element that gates rhythmic transcription."
+    examples: ["LDL1/2-HDA6", "histone modification complex", "vernalization-responsive cis-element"]
+
+  KINASE_OR_MODIFIER:
+    description: "A kinase, protein-stability factor, or interacting regulator that modifies clock proteins."
+    examples: ["casein kinase 1", "DET1", "ABF3", "WRKY2", "WRKY10"]
+
+  OUTPUT_GENE:
+    description: "A clock-controlled gene or pathway target outside the core oscillator."
+    examples: ["PIF4", "SVP", "VIN3", "FT", "iron homeostasis gene"]
+
+  PHYSIOLOGICAL_OUTPUT:
+    description: "A growth, flowering, starch, immunity, iron, or stress-response phenotype under clock control."
+    examples: ["flowering time", "hypocotyl elongation", "starch mobilization", "abiotic stress response"]
+
+  MEASUREMENT_OR_ASSAY:
+    description: "A rhythmic expression, chromatin, genetic, or reporter assay used to quantify clock function."
+    examples: ["transcriptional rhythm", "dynamic chromatin modification assay", "genetic linkage analysis"]
+
+relationship_types:
+  ACTIVATES_TRANSCRIPTION:
+    description: "A clock protein or regulator increases expression of a target gene."
+    inverse: "TRANSCRIPTION_ACTIVATED_BY"
+    examples: ["CCA1/LHY ACTIVATES_TRANSCRIPTION VIN3"]
+
+  REPRESSES_TRANSCRIPTION:
+    description: "A clock protein or complex represses a target gene."
+    inverse: "TRANSCRIPTION_REPRESSED_BY"
+    examples: ["TOC1 REPRESSES_TRANSCRIPTION CCA1"]
+
+  FORMS_FEEDBACK_LOOP_WITH:
+    description: "Two clock genes or proteins are linked in a reciprocal feedback loop."
+    inverse: "FORMS_FEEDBACK_LOOP_WITH"
+    symmetric: true
+    examples: ["TOC1 FORMS_FEEDBACK_LOOP_WITH CCA1/LHY"]
+
+  PHOSPHORYLATES:
+    description: "A kinase modifies a clock component by phosphorylation."
+    inverse: "PHOSPHORYLATED_BY"
+    examples: ["casein kinase 1 PHOSPHORYLATES PRR5"]
+
+  STABILIZES_PROTEIN:
+    description: "A regulator or condition increases clock-protein accumulation or stability."
+    inverse: "PROTEIN_STABILIZED_BY"
+    examples: ["LHY STABILIZES_PROTEIN SVP"]
+
+  DESTABILIZES_PROTEIN:
+    description: "A regulator or condition reduces target protein abundance."
+    inverse: "PROTEIN_DESTABILIZED_BY"
+    examples: ["light input DESTABILIZES_PROTEIN clock repressor"]
+
+  ENTRAINS_CLOCK:
+    description: "A light, thermal, or photoperiodic input sets oscillator phase."
+    inverse: "CLOCK_ENTRAINED_BY"
+    examples: ["twilight length ENTRAINS_CLOCK Arabidopsis oscillator"]
+
+  GATES_OUTPUT:
+    description: "A clock component controls time-of-day responsiveness of a downstream process."
+    inverse: "OUTPUT_GATED_BY"
+    examples: ["CCA1/LHY GATES_OUTPUT PIF4 expression"]
+
+  MODIFIES_CHROMATIN:
+    description: "A complex or clock protein changes histone marks or chromatin state at a target gene."
+    inverse: "CHROMATIN_MODIFIED_BY"
+    examples: ["LDL1/2-HDA6 MODIFIES_CHROMATIN CCA1/LHY target genes"]
+
+  CONTROLS_FLOWERING:
+    description: "A clock gene or light pathway changes flowering-time regulators."
+    inverse: "FLOWERING_CONTROLLED_BY"
+    examples: ["CCA1/LHY CONTROLS_FLOWERING FT expression"]
+
+  CONTROLS_GROWTH:
+    description: "A clock output or regulator changes hypocotyl elongation, starch use, or biomass accumulation."
+    inverse: "GROWTH_CONTROLLED_BY"
+    examples: ["PIF4 CONTROLS_GROWTH hypocotyl elongation"]
+
+  MEASURED_BY:
+    description: "A gene rhythm, chromatin state, or plant phenotype is quantified by a specific assay."
+    inverse: "MEASURES"
+    examples: ["TOC1 rhythm MEASURED_BY transcriptional reporter"]
+

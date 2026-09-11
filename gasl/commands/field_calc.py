@@ -213,7 +213,6 @@ class FieldCalcHandler(CommandHandler):
             order_direction=order,
             scope="current_rows_only",
             usable_by=["PROCESS", "SHOW", "SELECT"],
-            confidence=0.98,
         ))
         
         # Update the state variable

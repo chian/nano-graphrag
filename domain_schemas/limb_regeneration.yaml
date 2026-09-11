@@ -1,0 +1,110 @@
+# Limb Regeneration Domain Schema
+# Focus: axolotl and salamander limb blastema formation, positional memory,
+# apical epithelial cap and nerve signaling, chromatin-based segment identity,
+# mTOR-dependent translation, TGF-beta/BMP/Wnt/FGF/Shh cues, and immune inputs.
+
+domain_name: "Limb Regeneration"
+domain_description: "Causal cellular and molecular events that allow salamanders and axolotls to regenerate limbs after amputation, including wound epithelium formation, blastema convergence, positional-memory maintenance and proximalization, nerve and adrenergic signals, chromatin remodeling, mTOR translatome changes, TGF-beta/BMP/Wnt/FGF patterning, and immune modulation."
+
+entity_types:
+  REGENERATIVE_SPECIES:
+    description: "An animal species, strain, or comparative vertebrate model used to study limb regeneration."
+    examples: ["axolotl", "salamander", "mouse", "Ambystoma mexicanum"]
+
+  INJURY_CONTEXT:
+    description: "An amputation level, wound, positional coordinate, proximal-distal context, or experimental injury."
+    examples: ["limb amputation", "proximal amputation", "distal stump"]
+
+  BLASTEMA_CELL:
+    description: "A dedifferentiated, convergent, positional, fibroblast, or progenitor cell state in the blastema."
+    examples: ["blastema cell", "positional memory fibroblast", "regenerative progenitor"]
+
+  EPITHELIUM_OR_NERVE:
+    description: "A wound epidermis, apical epithelial cap, nerve, or distant/local neuro-epithelial signal source."
+    examples: ["apical epithelial cap", "wound epithelium", "nerve", "adrenergic signal"]
+
+  PATTERNING_SIGNAL:
+    description: "A developmental ligand or morphogen controlling outgrowth, anterior-posterior, dorsal-ventral, or termination cues."
+    examples: ["FGF", "Wnt", "BMP", "Tgf-beta", "Shh", "retinoic acid"]
+
+  POSITIONAL_IDENTITY:
+    description: "A segment, proximal-distal, chromatin, or transcriptional identity retained or reset during regeneration."
+    examples: ["limb segment identity", "positional memory", "proximal identity", "Lmx1b activity"]
+
+  CHROMATIN_OR_TRANSLATION_STATE:
+    description: "A chromatin code, accessibility state, or translatome program that controls regenerative gene expression."
+    examples: ["chromatin code", "mTOR-remodeled translatome", "chromatin accessibility"]
+
+  IMMUNE_COMPONENT:
+    description: "A macrophage, inflammatory response, or immune pathway shaping regeneration."
+    examples: ["macrophage", "salamander immunity", "inflammatory response"]
+
+  MORPHOGENETIC_PROCESS:
+    description: "A cellular program such as proliferation, dedifferentiation, epithelial-mesenchymal transition, or proximalization."
+    examples: ["blastema proliferation", "dedifferentiation", "epithelial-mesenchymal transition", "proximalization"]
+
+  REGENERATED_STRUCTURE:
+    description: "A restored tissue, limb segment, cartilage, digit, or complete regenerated appendage."
+    examples: ["regenerated limb", "cartilage element", "digit", "patterned limb"]
+
+relationship_types:
+  AMPUTATION_INDUCES:
+    description: "An injury context initiates a wound, blastema, immune, or signaling response."
+    inverse: "INDUCED_BY_AMPUTATION"
+    examples: ["limb amputation AMPUTATION_INDUCES blastema formation"]
+
+  DEDIFFERENTIATES_TO:
+    description: "A mature cell type or stump cell converts into a blastema progenitor state."
+    inverse: "DEDIFFERENTIATED_FROM"
+    examples: ["fibroblast DEDIFFERENTIATES_TO blastema cell"]
+
+  CONVERGES_TO:
+    description: "Different cell identities adopt a shared regenerative state."
+    inverse: "CONVERGED_FROM"
+    examples: ["connective tissue cells CONVERGES_TO blastema identity"]
+
+  SIGNALS_TO:
+    description: "An epithelium, nerve, immune component, or morphogen sends a local or long-range signal to a target."
+    inverse: "SIGNALED_BY"
+    examples: ["nerve SIGNALS_TO blastema cell"]
+
+  PATTERNS_AXIS:
+    description: "A signal or identity state specifies positional axes or segment identity."
+    inverse: "AXIS_PATTERNED_BY"
+    examples: ["Shh PATTERNS_AXIS anterior-posterior identity"]
+
+  MAINTAINS_POSITION:
+    description: "A chromatin or cellular state preserves positional memory after injury."
+    inverse: "POSITION_MAINTAINED_BY"
+    examples: ["fibroblast chromatin MAINTAINS_POSITION positional memory"]
+
+  RESETS_POSITION:
+    description: "A cue or modelled proximalization process changes the inferred positional value of blastema cells."
+    inverse: "POSITION_RESET_BY"
+    examples: ["retinoic acid RESETS_POSITION proximal identity"]
+
+  REMODELS_CHROMATIN:
+    description: "A regenerative state or signal changes chromatin accessibility or a segmental code."
+    inverse: "CHROMATIN_REMODELED_BY"
+    examples: ["blastema formation REMODELS_CHROMATIN limb segment code"]
+
+  REMODELS_TRANSLATION:
+    description: "A pathway modifies the mRNA translation program during regeneration."
+    inverse: "TRANSLATION_REMODELED_BY"
+    examples: ["mTOR REMODELS_TRANSLATION regenerative translatome"]
+
+  STIMULATES_PROLIFERATION:
+    description: "A signal or niche input increases blastema or progenitor proliferation."
+    inverse: "PROLIFERATION_STIMULATED_BY"
+    examples: ["FGF STIMULATES_PROLIFERATION blastema cell"]
+
+  TERMINATES_OUTGROWTH:
+    description: "A BMP, TGF-beta, positional, or differentiation signal ends regenerative outgrowth."
+    inverse: "OUTGROWTH_TERMINATED_BY"
+    examples: ["BMP TERMINATES_OUTGROWTH limb bud expansion"]
+
+  RESTORES_STRUCTURE:
+    description: "A regeneration process recreates a patterned tissue or limb structure."
+    inverse: "STRUCTURE_RESTORED_BY"
+    examples: ["blastema morphogenesis RESTORES_STRUCTURE regenerated limb"]
+

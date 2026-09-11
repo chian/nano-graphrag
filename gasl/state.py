@@ -123,6 +123,9 @@ class StateStore:
         self._state["final_answer_at"] = None
         self._state["final_answer_mode"] = None
         self._state["strategy_insights"] = None
+        # A new query invalidates constraints authored for the previous one.
+        # This is the ONLY clear, and it is tied to the event that genuinely
+        # makes them irrelevant.
         self._state["planner_constraints"] = []
         self._save_state()
     
@@ -327,14 +330,119 @@ class StateStore:
         """Get strategy insights from previous iteration."""
         return self._state.get("strategy_insights")
 
-    def set_planner_constraints(self, constraints: List[str]) -> None:
-        """Persist structured planner constraints for the next planning call."""
-        self._state["planner_constraints"] = list(constraints or [])
+    #: Status of a persisted planner constraint.
+    #:
+    #: There is no third state and there is deliberately no expiry rule. A
+    #: constraint does not become wrong at some age -- "use only declared
+    #: symbols" is as true on iteration 40 as on iteration 1 -- so any number of
+    #: iterations chosen as a cutoff would be an invented rule pretending to
+    #: compute a relevance the engine cannot compute. What the engine CAN
+    #: establish is provenance: which iteration authored this, and for which
+    #: query. So it discloses the age and lets the reader judge.
+    CONSTRAINT_ACTIVE = "active"
+    CONSTRAINT_UNREFRESHED = "unrefreshed"
+
+    def set_planner_constraints(
+        self,
+        constraints: List[str],
+        *,
+        authored_iteration: Optional[int] = None,
+        authored_for: str = "",
+    ) -> None:
+        """Persist planner constraints as typed authoring records.
+
+        REPLACES; it does not append. A bare list of strings could not answer
+        "when was this written, and for what", so a state file resumed without a
+        fresh `set_query` presented constraints authored for a different query,
+        in a different run, as if the current planner had just been given them.
+
+        `authored_iteration` and `authored_for` are supplied by the ENGINE and
+        never by the model. Both are in hand at every call site, and a model
+        asked to date its own output would be asserting a fact the engine
+        already knows -- an assertion where a measurement exists.
+        """
+        records = []
+        for constraint in constraints or []:
+            if isinstance(constraint, dict):
+                # Already a record (a resumed state file, or a re-write of what
+                # was read back). Keep its original authorship rather than
+                # restamping it with the current iteration, which would launder
+                # an old constraint into a fresh one.
+                text = str(constraint.get("text", "")).strip()
+                if not text:
+                    continue
+                records.append(
+                    {
+                        "text": text,
+                        "authored_iteration": constraint.get("authored_iteration"),
+                        "authored_for": constraint.get("authored_for", ""),
+                        "status": constraint.get("status", self.CONSTRAINT_ACTIVE),
+                    }
+                )
+                continue
+            text = str(constraint).strip()
+            if not text:
+                continue
+            records.append(
+                {
+                    "text": text,
+                    "authored_iteration": authored_iteration,
+                    "authored_for": authored_for,
+                    "status": self.CONSTRAINT_ACTIVE,
+                }
+            )
+        self._state["planner_constraints"] = records
         self._save_state()
 
-    def get_planner_constraints(self) -> List[str]:
-        """Get structured planner constraints for the next planning call."""
-        return list(self._state.get("planner_constraints") or [])
+    def get_planner_constraints(
+        self,
+        *,
+        current_iteration: Optional[int] = None,
+        current_for: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Planner constraints as records, with status resolved against context.
+
+        Status is recomputed on read rather than stored-and-trusted: a stored
+        status goes stale the moment the run moves on, and a stale "active" is
+        exactly the claim this mechanism exists to stop. A caller that supplies
+        no context gets the records with their stored status and the authorship
+        fields intact, so it can still show the age.
+        """
+        stored = self._state.get("planner_constraints") or []
+        records: List[Dict[str, Any]] = []
+        for entry in stored:
+            if not isinstance(entry, dict):
+                # A pre-record state file. Its authorship is genuinely unknown,
+                # and unknown authorship is reported as unknown -- not defaulted
+                # to the current iteration, which would date it to now.
+                records.append(
+                    {
+                        "text": str(entry),
+                        "authored_iteration": None,
+                        "authored_for": "",
+                        "status": self.CONSTRAINT_UNREFRESHED,
+                    }
+                )
+                continue
+            record = dict(entry)
+            record.setdefault("status", self.CONSTRAINT_ACTIVE)
+            stale = record.get("authored_iteration") is None
+            if current_iteration is not None:
+                stale = stale or record.get("authored_iteration") != current_iteration
+            if current_for is not None:
+                stale = stale or record.get("authored_for", "") != current_for
+            if stale:
+                record["status"] = self.CONSTRAINT_UNREFRESHED
+            records.append(record)
+        return records
+
+    @staticmethod
+    def planner_constraint_texts(records: List[Any]) -> List[str]:
+        """Just the text, for callers that only need the instructions."""
+        texts = []
+        for record in records or []:
+            texts.append(str(record.get("text", "")) if isinstance(record, dict) else str(record))
+        return [text for text in texts if text]
 
     def set_last_failure_summary(self, summary: Dict[str, Any]) -> None:
         """Persist the most recent structured iteration failure summary."""

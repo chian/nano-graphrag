@@ -6,18 +6,60 @@ import re
 from typing import Any, List, Dict
 from .base import CommandHandler
 from ..types import Command, ExecutionResult, Provenance
-from ..search_refinement_agent import LLMSearchRefinementAgent
-from ..adapters.base import GraphAdapter
+from ..search_refinement_agent import (
+    TRIGGER_EMPTY_PILOT,
+    LLMSearchRefinementAgent,
+    refinement_record,
+)
+from ..adapters.base import (
+    BOUND_KIND_NONE,
+    BOUND_KIND_WALK_NODE_BUDGET,
+    BOUND_KIND_WALK_SEED_BUDGET,
+    GraphAdapter,
+    complete_result,
+    completeness,
+    node_entity_type,
+)
 from ..contracts import make_contract
+from ..state_manager import StateManager
+
+
+# Bounds on the pilot walk that feeds the refinement judgement. NO MEASUREMENT
+# JUSTIFIES ANY OF THESE THREE and none is cited in the tree. They are named
+# here rather than inlined because they now travel to the planner beside the
+# hint: a judgement formed under a 60-row cap is a different claim from the same
+# judgement formed over a whole neighbourhood, and the planner could not
+# previously tell which it was reading.
+# `edge_cap` is measured -- see the citation at the fan-out cut in `_walk`. It
+# binds on under 2% of nodes and discards 15-19% of edge traversal on the three
+# benchmark graphs, because the degree distribution is heavy-tailed.
+#
+# NO MEASUREMENT JUSTIFIES `max_nodes = 60`, and none is cited in the tree. What
+# IS measured is that median node degree is 1-2, so 60 rows is roughly 30 seeds'
+# worth at depth 1 against a `source_cap` of 10 -- it does not bind at depth 1,
+# and binds progressively harder as depth rises. That is an observation about
+# when it fires, not a justification of the number.
+#
+# NO MEASUREMENT JUSTIFIES `source_cap = 10` either.
+PILOT_CAPS = {"source_cap": 10, "max_nodes": 60, "edge_cap": 15}
 
 
 class GraphNavHandler(CommandHandler):
     """Handles graph navigation commands: GRAPHWALK, GRAPHCONNECT, SUBGRAPH, GRAPHPATTERN."""
-    
-    def __init__(self, state_store, context_store, adapter: GraphAdapter, llm_func=None, state_manager=None):
-        super().__init__(state_store, context_store, state_manager)
+
+    # Cap on partial matches carried between GRAPHPATTERN hops. Registered as a
+    # stated bound, reported whenever it binds, and never tuned to move a result.
+    PATTERN_PARTIAL_BUDGET = 5000
+
+
+    def __init__(self, state_store, context_store, adapter: GraphAdapter, llm_func=None, state_manager=None, prompt_logger=None):
+        super().__init__(
+            state_store,
+            context_store,
+            state_manager or StateManager(state_store, context_store),
+        )
         self.adapter = adapter
-        self.search_refinement_agent = LLMSearchRefinementAgent(llm_func)
+        self.search_refinement_agent = LLMSearchRefinementAgent(llm_func, prompt_logger=prompt_logger)
     
     def can_handle(self, command: Command) -> bool:
         return command.command_type in ["GRAPHWALK", "GRAPHCONNECT", "SUBGRAPH", "GRAPHPATTERN"]
@@ -47,15 +89,44 @@ class GraphNavHandler(CommandHandler):
             )
     
     def _execute_graphwalk(self, command: Command) -> ExecutionResult:
-        """Execute GRAPHWALK command."""
+        """Execute GRAPHWALK command — the standalone (non-Episode) path.
+
+        The pre-walk half (`prepare_graphwalk`) and post-walk half
+        (`finish_graphwalk`) remain callable by a future Episode binding. This
+        direct path performs the graph operation without choosing a numerical
+        controller for that future composition.
+        """
+        prep = self.prepare_graphwalk(command)
+        if prep.get("status") != "ok":
+            return prep["error_result"]
+        walked_data, walk_completeness = self._walk(
+            prep["source_nodes"],
+            prep["follow_filters"],
+            prep["depth"],
+            source_cap=prep["source_cap"],
+            max_nodes=prep["max_nodes"],
+            edge_cap=prep["edge_cap"],
+        )
+        return self.finish_graphwalk(command, prep, walked_data, walk_completeness)
+
+    def prepare_graphwalk(self, command: Command) -> dict:
+        """GRAPHWALK's pre-walk half: inputs, filters, pilot, declared caps.
+
+        Accepted inputs preserved verbatim (Phase G condition G7): variable
+        resolution, the `last_nodes_result` fallback, `_normalize_follow_types`
+        permissiveness, and the pilot trigger condition are exactly the
+        handler's previous first half. Returns `{"status": "ok", ...}` with
+        everything the walk and the post-walk half need, or
+        `{"status": "error", "error_result": ...}`.
+        """
         args = command.args
         from_var = args["from_variable"]
         follow_types = args["relationship_types"]
         depth = int(args.get("depth", 1))
         result_var = args.get("result_var")
-        
+
         print(f"DEBUG: GRAPHWALK - from: {from_var}, follow: {follow_types}, depth: {depth}")
-        
+
         # Get source nodes
         source_nodes = self._get_variable_data(from_var)
         if not source_nodes:
@@ -64,40 +135,129 @@ class GraphNavHandler(CommandHandler):
                 source_nodes = self.context_store.get("last_nodes_result")
                 print(f"DEBUG: GRAPHWALK - Using last_nodes_result as fallback: {len(source_nodes)} nodes")
             else:
-                return self._create_result(command=command, status="error", 
-                                         error_message=f"Variable {from_var} not found or empty, and no last_nodes_result available")
-        
+                return {
+                    "status": "error",
+                    "error_result": self._create_result(
+                        command=command,
+                        status="error",
+                        error_message=f"Variable {from_var} not found or empty, and no last_nodes_result available",
+                    ),
+                }
+
         # Perform graph walk with memory limit
-        effective_depth = depth
-        source_cap = 100
         follow_filters = self._normalize_follow_types(follow_types)
 
         pilot_refinement = {}
+        pilot_sample_size = 0
+        pilot_empty = True
         if len(source_nodes) > 10 or depth > 1:
-            pilot = self._walk(source_nodes, follow_filters, depth, source_cap=10, max_nodes=60, edge_cap=15)
+            pilot, _pilot_completeness = self._walk(
+                source_nodes, follow_filters, depth, **PILOT_CAPS
+            )
             pilot_contract = make_contract(
                 payload_kind="walk_rows",
                 data=pilot,
                 label_field="data.entity_name",
                 scope="current_rows_only",
                 usable_by=["PROCESS", "AGGREGATE", "SHOW", "SELECT"],
-                confidence=0.9,
                 grain_type="edge",
                 grain_keys=["src_id", "tgt_id", "relation_type", "path_depth"],
                 multiplicity_preserved=True,
             )
+            # WHY THIS CALL STILL EXISTS, now that it steers nothing here.
+            #
+            # Everything in this method that once acted on the answer is gone:
+            # the depth/seed narrowing that read the hint, and the `min()` that
+            # folded the model's confidence into the contract. What remains is
+            # disclosure -- the typed record built below, carried to the planner
+            # as `refinement_hint` beside the sample size and the caps the
+            # sample was formed under.
+            #
+            # That is a real justification, not a placeholder: the planner is
+            # the component that can act on a retrieval hint, because it can
+            # re-issue the command. The engine acting on it invisibly was the
+            # defect. So the call is kept ON THE CONDITION that its output
+            # reaches the planner as data the planner weighs, and it is written
+            # down here because a call that steers nothing is exactly what gets
+            # rediscovered later and reconnected by whoever finds it useful.
+            #
+            # Two costs are open and neither is settled here: it is a large
+            # model at reasoning_effort="high" on every walk with >10 seeds or
+            # depth >1, and `gasl/` has no cost metering, so it is invisible to
+            # the cost vector reward divides by. Wiring the prompt logger below
+            # makes the call VISIBLE, not COSTED. If a measurement later shows
+            # the disclosure does not change planner behaviour, this call has no
+            # remaining defence and should go.
             pilot_refinement = self.search_refinement_agent.get_graphwalk_refinement(
                 command.args,
                 source_nodes[:10],
                 iter(pilot),
                 contract=pilot_contract,
             )
-            if depth > 1 and (not pilot or self.search_refinement_agent.should_apply_refinement(pilot_refinement, len(pilot), min_count=25)):
-                effective_depth = 1
-                source_cap = min(25, len(source_nodes))
+            pilot_sample_size = len(pilot)
+            pilot_empty = not pilot
+            # The pilot-driven adaptive reduction that stood here is DELETED.
+            # It fired on exactly two paths and neither was salvageable by
+            # retuning:
+            #
+            #   - an empty pilot, where absence of data narrowed the real walk.
+            #     The sign is backwards: finding nothing at depth N is a reason
+            #     to look further, not to cut to depth 1.
+            #   - a >=25-row pilot the model flagged, via a predicate that
+            #     answered True for `broaden` as readily as for `tighten`. A
+            #     model asking for MORE breadth caused strictly less.
+            #
+            # It could also fire on neither: the default payload written when
+            # the refinement call raised carried confidence 0.5 against a 0.55
+            # threshold, so any failure of an unlogged LLM call silently halved
+            # the walk while the planner was told the model chose to keep the
+            # strategy. Two uncited constants 0.05 apart, and nobody chose that.
+            #
+            # With it gone the walk always runs at the requested depth under
+            # the adapter's declared seed budget, so an unavailable refinement
+            # agent leaves retrieval breadth unchanged -- which is the property
+            # the typed fallback marker was going to have to police.
 
-        walked_data = self._walk(source_nodes, follow_filters, effective_depth, source_cap=source_cap, max_nodes=10000, edge_cap=50)
-        
+        # The seed budget is the adapter's declared work bound now, not a
+        # literal at the call site. None means expand every seed.
+        return {
+            "status": "ok",
+            "source_nodes": source_nodes,
+            "follow_filters": follow_filters,
+            "depth": depth,
+            "result_var": result_var,
+            "from_var": from_var,
+            "pilot_refinement": pilot_refinement,
+            "pilot_sample_size": pilot_sample_size,
+            "pilot_empty": pilot_empty,
+            "source_cap": self.adapter.capabilities.walk_seed_budget,
+            # NO MEASUREMENT JUSTIFIES EITHER NUMBER. Both are inline
+            # constants carried forward, and both are now disclosed when they
+            # fire rather than silently shortening the answer. `edge_cap=50` is
+            # looser than the pilot's 15 but the same hub-suppressing shape:
+            # p99 degree is 24-27, so it still binds at the tail.
+            "max_nodes": 10000,
+            "edge_cap": 50,
+        }
+
+    def finish_graphwalk(
+        self,
+        command: Command,
+        prep: dict,
+        walked_data: list,
+        walk_completeness: dict,
+    ) -> ExecutionResult:
+        """GRAPHWALK's post-walk half: contracts, storage, ExecutionResult.
+
+        In the direct engine it runs immediately after `_walk()`. A future
+        Episode binding can call it from its post-verdict hook so
+        `last_walk_result` and `result_var` land before the next command.
+        """
+        result_var = prep["result_var"]
+        from_var = prep["from_var"]
+        depth = prep["depth"]
+        pilot_refinement = prep["pilot_refinement"]
+
         if result_var:
             walk_contract = make_contract(
                 payload_kind="walk_rows",
@@ -105,7 +265,6 @@ class GraphNavHandler(CommandHandler):
                 label_field="data.entity_name",
                 scope="current_rows_only",
                 usable_by=["PROCESS", "AGGREGATE", "SHOW", "SELECT"],
-                confidence=0.9,
                 grain_type="edge",
                 grain_keys=["src_id", "tgt_id", "relation_type", "path_depth"],
                 multiplicity_preserved=True,
@@ -126,7 +285,6 @@ class GraphNavHandler(CommandHandler):
             label_field="data.entity_name",
             scope="current_rows_only",
             usable_by=["PROCESS", "AGGREGATE", "SHOW", "SELECT"],
-            confidence=0.9,
             grain_type="edge",
             grain_keys=["src_id", "tgt_id", "relation_type", "path_depth"],
             multiplicity_preserved=True,
@@ -148,16 +306,33 @@ class GraphNavHandler(CommandHandler):
                                                from_variable=from_var, depth=depth)]
         )
         
+        # No `refinement:` free-text notes. The reason already has a structured
+        # home under `walk_contract["refinement"]`, and the depth-adaptation
+        # note described a narrowing that no longer exists -- it was also, while
+        # it did exist, the ONLY record anywhere that the walk had been cut,
+        # encoded as prose nothing could read.
         notes = list(walk_contract.get("notes", []))
         if pilot_refinement:
-            notes.append(f"refinement: {pilot_refinement.get('refinement_reason', '').strip()}")
-            if effective_depth != depth:
-                notes.append(f"refinement: adapted GRAPHWALK depth {depth} -> {effective_depth}")
-            walk_contract["refinement"] = pilot_refinement
-            walk_contract["confidence"] = min(
-                float(walk_contract.get("confidence", 0.9)),
-                float(pilot_refinement.get("refinement_confidence", walk_contract.get("confidence", 0.9)) or 0.9),
+            # Recorded as a labelled model self-report, and nothing more. The
+            # `min()` that used to fold the model's own confidence into the
+            # contract's is gone: an LLM-emitted number may be disclosed, never
+            # compared, thresholded or aggregated by engine code, because doing
+            # so treats an assertion as a measurement.
+            walk_contract["refinement"] = refinement_record(
+                hint=pilot_refinement.get("refinement_hint", ""),
+                available=bool(pilot_refinement.get("refinement_available", True)),
+                trigger=(
+                    pilot_refinement.get("refinement_unavailable_trigger", "")
+                    or (TRIGGER_EMPTY_PILOT if prep["pilot_empty"] else "")
+                ),
+                sample_size=prep["pilot_sample_size"],
+                caps=PILOT_CAPS,
+                requested_depth=depth,
+                effective_depth=depth,
             )
+        # Emitted on every GRAPHWALK including the complete case, so a missing
+        # key can never be read as "nothing was left out".
+        walk_contract["completeness"] = walk_completeness
         walk_contract["notes"] = notes
         if result_var:
             self.context_store.set(result_var, walked_data, contract=walk_contract)
@@ -175,61 +350,191 @@ class GraphNavHandler(CommandHandler):
         follow_filters: list[str],
         depth: int,
         *,
-        source_cap: int,
+        source_cap: int | None,
         max_nodes: int,
         edge_cap: int,
-    ) -> list[dict]:
+    ) -> tuple[list[dict], dict]:
+        """Execute the standalone GASL graph operation without Episode control.
+
+        GASL supplies graph access and reports physical cuts here. An Episode
+        binding may wrap the same operation later, but the standalone engine
+        does not choose or import a question-pipeline numerical component.
+        """
         walked_data: list[dict] = []
-        visited_hops = set()
-        for node in source_nodes[:source_cap]:
+        visited_hops: set[tuple] = set()
+        seeds_total = len(source_nodes)
+        seed_limit = seeds_total if source_cap is None else min(source_cap, seeds_total)
+        seeds_attempted = 0
+        seeds_without_id = 0
+        seed_expansion_errors = 0
+        nodes_with_truncated_fanout = 0
+        edges_discarded_by_fanout_cap = 0
+        node_budget_hit = False
+
+        for node in source_nodes[:seed_limit]:
             if len(walked_data) >= max_nodes:
+                node_budget_hit = True
                 break
+            seeds_attempted += 1
             node_id = node.get("id")
             if not node_id:
+                seeds_without_id += 1
                 continue
-            current_nodes = [node]
-            for step in range(depth):
-                next_nodes = []
-                for current_node in current_nodes:
-                    if len(walked_data) >= max_nodes:
-                        break
-                    edges = self.adapter.find_edges({"source": current_node["id"]})
-                    for edge in edges[:edge_cap]:
-                        if len(walked_data) >= max_nodes:
-                            break
-                        edge_rel = (
-                            edge.get("data", {}).get("relation_type")
-                            or edge.get("data", {}).get("relationship_name")
-                            or ""
-                        )
-                        canonical_edge_rel = self._canonicalize_relation_token(edge_rel)
-                        if follow_filters and canonical_edge_rel not in follow_filters:
-                            continue
-                        target_nodes = self.adapter.find_nodes({"id_filter": edge["target"]})
-                        if not target_nodes:
-                            continue
-                        target_node = target_nodes[0]
-                        target_id = target_node["id"]
-                        hop_key = (current_node["id"], target_id, step + 1, canonical_edge_rel)
-                        if hop_key in visited_hops:
-                            continue
-                        visited_hops.add(hop_key)
-                        enriched_target = {
-                            **target_node,
-                            "src_id": current_node["id"],
-                            "tgt_id": target_id,
-                            "data": {
-                                **target_node.get("data", {}),
+            try:
+                current_nodes = [node]
+                for step in range(depth):
+                    next_nodes = []
+                    for current_node in current_nodes:
+                        edges = self._incident_edges(current_node["id"])
+                        if len(edges) > edge_cap:
+                            nodes_with_truncated_fanout += 1
+                            edges_discarded_by_fanout_cap += len(edges) - edge_cap
+                        for edge, traversal_direction in edges[:edge_cap]:
+                            edge_rel = (
+                                edge.get("data", {}).get("relation_type")
+                                or edge.get("data", {}).get("relationship_name")
+                                or ""
+                            )
+                            canonical_edge_rel = self._canonicalize_relation_token(edge_rel)
+                            if follow_filters and canonical_edge_rel not in follow_filters:
+                                continue
+                            neighbor_id = (
+                                edge["target"]
+                                if traversal_direction == "out"
+                                else edge["source"]
+                            )
+                            neighbor_nodes = self.adapter.find_nodes(
+                                {"id_filter": neighbor_id}
+                            )
+                            if not neighbor_nodes:
+                                continue
+                            neighbor_node = neighbor_nodes[0]
+                            neighbor_id = neighbor_node["id"]
+                            hop_key = (
+                                current_node["id"],
+                                edge["source"],
+                                edge["target"],
+                                step + 1,
+                                canonical_edge_rel,
+                                traversal_direction,
+                            )
+                            if hop_key in visited_hops:
+                                continue
+                            visited_hops.add(hop_key)
+                            target_data = dict(neighbor_node.get("data", {}))
+                            edge_data = dict(edge.get("data", {}))
+                            row_data = {
+                                **target_data,
                                 "src_id": current_node["id"],
-                                "tgt_id": target_id,
+                                "tgt_id": neighbor_id,
+                                "edge_src_id": edge["source"],
+                                "edge_tgt_id": edge["target"],
                                 "relation_type": edge_rel,
+                                "traversal_direction": traversal_direction,
                                 "path_depth": step + 1,
-                            },
-                        }
-                        next_nodes.append(enriched_target)
-                current_nodes = next_nodes
-            walked_data.extend(current_nodes)
-        return walked_data
+                                "edge_relation_type": edge_rel,
+                                "edge_source_refs": edge_data.get("source_refs"),
+                                "edge_source_chunks": edge_data.get("source_chunks"),
+                                "edge_source_chunk": edge_data.get("source_chunk"),
+                                "edge_description": edge_data.get("description"),
+                            }
+                            for provenance_key in (
+                                "source_refs",
+                                "source_chunks",
+                                "source_chunk",
+                            ):
+                                edge_value = edge_data.get(provenance_key)
+                                if edge_value:
+                                    row_data[provenance_key] = edge_value
+                            next_nodes.append(
+                                {
+                                    **neighbor_node,
+                                    "src_id": current_node["id"],
+                                    "tgt_id": neighbor_id,
+                                    "edge_data": edge_data,
+                                    "data": row_data,
+                                }
+                            )
+                    current_nodes = next_nodes
+                walked_data.extend(current_nodes)
+            except Exception:
+                seed_expansion_errors += 1
+
+        seeds_skipped = seeds_total - seeds_attempted
+        detail = {
+            "seeds_attempted": seeds_attempted,
+            "seeds_total": seeds_total,
+            "seeds_without_id": seeds_without_id,
+            "seed_expansion_errors": seed_expansion_errors,
+            "walk_depth": depth,
+            "nodes_with_truncated_fanout": nodes_with_truncated_fanout,
+            "edges_discarded_by_fanout_cap": edges_discarded_by_fanout_cap,
+        }
+        if node_budget_hit:
+            return walked_data, completeness(
+                complete=False,
+                returned=len(walked_data),
+                bound=max_nodes,
+                bound_kind=BOUND_KIND_WALK_NODE_BUDGET,
+                residual_known=False,
+                residual=None,
+                **detail,
+            )
+        if source_cap is not None and seeds_attempted < seeds_total:
+            return walked_data, completeness(
+                complete=False,
+                returned=len(walked_data),
+                bound=source_cap,
+                bound_kind=BOUND_KIND_WALK_SEED_BUDGET,
+                residual_known=True,
+                residual=seeds_skipped,
+                **detail,
+            )
+        if nodes_with_truncated_fanout:
+            return walked_data, completeness(
+                complete=False,
+                returned=len(walked_data),
+                bound=edge_cap,
+                bound_kind=BOUND_KIND_WALK_NODE_BUDGET,
+                residual_known=False,
+                residual=None,
+                **detail,
+            )
+        if seeds_without_id or seed_expansion_errors:
+            return walked_data, completeness(
+                complete=False,
+                returned=len(walked_data),
+                bound=None,
+                bound_kind=BOUND_KIND_NONE,
+                residual_known=True,
+                residual=seeds_without_id + seed_expansion_errors,
+                **detail,
+            )
+        return walked_data, dict(complete_result(len(walked_data)), **detail)
+
+
+    def _incident_edges(self, node_id: Any) -> list[tuple[dict, str]]:
+        edges: list[tuple[dict, str]] = []
+        seen: set[tuple[str, str, str]] = set()
+        for direction, filters in (
+            ("out", {"source": node_id}),
+            ("in", {"target": node_id}),
+        ):
+            for edge in self.adapter.find_edges(filters):
+                key = (
+                    str(edge.get("source")),
+                    str(edge.get("target")),
+                    str(
+                        edge.get("data", {}).get("relation_type")
+                        or edge.get("data", {}).get("relationship_name")
+                        or ""
+                    ),
+                )
+                if key in seen:
+                    continue
+                seen.add(key)
+                edges.append((edge, direction))
+        return edges
 
     @staticmethod
     def _normalize_follow_types(follow_types: str) -> list[str]:
@@ -242,7 +547,7 @@ class GraphNavHandler(CommandHandler):
                 text = value
         return [
             GraphNavHandler._canonicalize_relation_token(part)
-            for part in text.split(",")
+            for part in re.split(r"[,|]", text)
             if part.strip()
         ]
 
@@ -275,10 +580,14 @@ class GraphNavHandler(CommandHandler):
         for node1 in nodes1:
             for node2 in nodes2:
                 if node1.get("id") != node2.get("id"):  # Don't connect to self
-                    # Find path between nodes
+                    # Path endpoint filters are node-filter mappings. Passing a
+                    # formatted string here meant every membership test inside
+                    # the adapter ran as a substring test against that string,
+                    # matched nothing, and left both endpoints unconstrained —
+                    # so every node pair in the graph came back as "connected".
                     paths = self.adapter.find_paths({
-                        "source_filter": f"id={node1['id']}",
-                        "target_filter": f"id={node2['id']}"
+                        "source_filter": {"id_filter": node1["id"]},
+                        "target_filter": {"id_filter": node2["id"]},
                     })
                     if paths:
                         connections.append({
@@ -305,73 +614,145 @@ class GraphNavHandler(CommandHandler):
         args = command.args
         around_var = args["around_variable"]
         radius = int(args.get("radius", 1))
-        include_types = args.get("include_types", "").split(",")
-        
-        print(f"DEBUG: SUBGRAPH - around: {around_var}, radius: {radius}, include: {include_types}")
-        
+        # "".split(",") is [""], which is truthy and then matched as a substring
+        # against every candidate type. Parse to a canonical set so "no include
+        # clause" is an empty set and reads as "no constraint".
+        include_types = {
+            self._canonicalize_relation_token(part)
+            for part in (args.get("include_types") or "").split(",")
+            if part.strip()
+        }
+
+        print(f"DEBUG: SUBGRAPH - around: {around_var}, radius: {radius}, include: {sorted(include_types)}")
+
         # Get center nodes
         center_nodes = self._get_variable_data(around_var)
         if not center_nodes:
             return self._create_result(command=command, status="error",
                                      error_message=f"Variable {around_var} not found or empty")
-        
-        # Extract subgraph around center nodes
+
+        # Every way a candidate can fail to enter the subgraph is counted, so an
+        # empty or unexpanded result reports why instead of just being small.
+        skipped = {
+            "center_rows_without_id": 0,
+            "center_ids_absent_from_graph": 0,
+            "neighbors_absent_from_graph": 0,
+            "neighbors_without_entity_type": 0,
+            "neighbors_excluded_by_include_types": 0,
+        }
+        observed_types: set[str] = set()
+
         subgraph_nodes = set()
         subgraph_edges = []
-        
+        seen_edges: set[tuple] = set()
+        center_ids: set = set()
+
         for center_node in center_nodes:
-            # Add center node
-            subgraph_nodes.add(center_node["id"])
-            
-            # Find nodes within radius
-            current_nodes = [center_node]
-            for step in range(radius):
-                next_nodes = []
-                for node in current_nodes:
-                    # Find all edges connected to this node
-                    edges = self.adapter.find_edges({"source_filter": f"id={node['id']}"})
-                    edges.extend(self.adapter.find_edges({"target_filter": f"id={node['id']}"}))
-                    
-                    for edge in edges:
-                        # Check if target/source matches include types
-                        target_node = self.adapter.find_nodes({"id_filter": edge["target"]})
-                        source_node = self.adapter.find_nodes({"id_filter": edge["source"]})
-                        
-                        if target_node and (not include_types or any(t in target_node[0].get("entity_type", "") for t in include_types)):
-                            subgraph_nodes.add(edge["target"])
-                            next_nodes.extend(target_node)
+            center_id = center_node.get("id")
+            if not center_id:
+                skipped["center_rows_without_id"] += 1
+                continue
+            if not self.adapter.find_nodes({"id_filter": center_id}):
+                skipped["center_ids_absent_from_graph"] += 1
+                continue
+            subgraph_nodes.add(center_id)
+            center_ids.add(center_id)
+
+            frontier = [center_id]
+            for _step in range(radius):
+                next_frontier = []
+                for node_id in frontier:
+                    # Shared with GRAPHWALK: one definition of what "the edges
+                    # touching this node" means, so the two cannot drift. It also
+                    # carries the correct edge-surface spelling (`source`/`target`);
+                    # SUBGRAPH previously spelled it `source_filter`/`target_filter`,
+                    # which the edge surface does not accept, so the filter was
+                    # dropped and every edge in the graph came back for every node.
+                    for edge, direction in self._incident_edges(node_id):
+                        neighbor_id = edge["target"] if direction == "out" else edge["source"]
+                        neighbor_rows = self.adapter.find_nodes({"id_filter": neighbor_id})
+                        if not neighbor_rows:
+                            skipped["neighbors_absent_from_graph"] += 1
+                            continue
+                        neighbor_type = node_entity_type(neighbor_rows[0])
+                        if neighbor_type is not None:
+                            observed_types.add(neighbor_type)
+                        if include_types:
+                            if neighbor_type is None:
+                                skipped["neighbors_without_entity_type"] += 1
+                                continue
+                            if self._canonicalize_relation_token(neighbor_type) not in include_types:
+                                skipped["neighbors_excluded_by_include_types"] += 1
+                                continue
+
+                        if neighbor_id not in subgraph_nodes:
+                            next_frontier.append(neighbor_id)
+                        subgraph_nodes.add(neighbor_id)
+                        edge_key = (
+                            edge["source"],
+                            edge["target"],
+                            str(
+                                edge.get("data", {}).get("relation_type")
+                                or edge.get("data", {}).get("relationship_name")
+                                or ""
+                            ),
+                        )
+                        if edge_key not in seen_edges:
+                            seen_edges.add(edge_key)
                             subgraph_edges.append(edge)
-                        
-                        if source_node and (not include_types or any(t in source_node[0].get("entity_type", "") for t in include_types)):
-                            subgraph_nodes.add(edge["source"])
-                            next_nodes.extend(source_node)
-                            subgraph_edges.append(edge)
-                
-                current_nodes = next_nodes
-        
+
+                frontier = next_frontier
+
         # Get full node data for subgraph
         subgraph_node_data = []
         for node_id in subgraph_nodes:
             node_data = self.adapter.find_nodes({"id_filter": node_id})
             if node_data:
                 subgraph_node_data.extend(node_data)
-        
+
+        neighbors_added = len(subgraph_nodes) - len(center_ids)
+        disclosure = {
+            "center_rows": len(center_nodes),
+            "center_ids_resolved": len(center_ids),
+            "neighbors_added": neighbors_added,
+            "radius": radius,
+            "include_types": sorted(include_types),
+            "entity_types_observed_on_neighbors": sorted(observed_types),
+            "skipped": skipped,
+        }
+        if include_types and not observed_types & include_types and skipped[
+            "neighbors_excluded_by_include_types"
+        ]:
+            disclosure["warning"] = (
+                "no neighbor entity_type matched any requested include type; "
+                f"observed neighbor types were {sorted(observed_types)}"
+            )
+
         subgraph_result = {
             "nodes": subgraph_node_data,
-            "edges": subgraph_edges
+            "edges": subgraph_edges,
+            "disclosure": disclosure,
         }
-        
+
         # Store result in context
         self.context_store.set("last_subgraph_result", subgraph_result)
-        print(f"DEBUG: SUBGRAPH - extracted {len(subgraph_node_data)} nodes, {len(subgraph_edges)} edges")
-        
+        print(
+            f"DEBUG: SUBGRAPH - extracted {len(subgraph_node_data)} nodes, "
+            f"{len(subgraph_edges)} edges, disclosure={disclosure}"
+        )
+
+        # A subgraph that adds no neighbor is a degradation, and the machinery
+        # that acts on degradation is status-gated (the executor only inspects
+        # results whose status is "error" or "empty"). Reporting "success" here
+        # would leave the disclosure above accurate but unread.
         return self._create_result(
             command=command,
-            status="success",
+            status="success" if neighbors_added else "empty",
             data=subgraph_result,
             count=len(subgraph_node_data),
             provenance=[self._create_provenance("subgraph", "subgraph",
-                                               around_variable=around_var, radius=radius)]
+                                               around_variable=around_var, radius=radius,
+                                               disclosure=disclosure)]
         )
     
     def _execute_graphpattern(self, command: Command) -> ExecutionResult:
@@ -388,41 +769,169 @@ class GraphNavHandler(CommandHandler):
             return self._create_result(command=command, status="error",
                                      error_message=f"Variable {in_var} not found or empty")
         
-        # Simple pattern matching (can be enhanced later)
-        pattern_matches = []
-        
-        # Example: "Author->Publication->Author chains"
-        if "author->publication->author" in pattern_desc.lower():
-            for node in search_nodes:
-                if node.get("entity_type") == '"PERSON"':
-                    # Find publications this author is connected to
-                    pub_edges = self.adapter.find_edges({"source_filter": f"id={node['id']}"})
-                    for pub_edge in pub_edges:
-                        # Find other authors connected to this publication
-                        other_author_edges = self.adapter.find_edges({"target_filter": pub_edge["target"]})
-                        for other_edge in other_author_edges:
-                            if other_edge["source"] != node["id"]:
-                                other_author = self.adapter.find_nodes({"id_filter": other_edge["source"]})
-                                if other_author and other_author[0].get("entity_type") == '"PERSON"':
-                                    pattern_matches.append({
-                                        "pattern": "Author->Publication->Author",
-                                        "author1": node,
-                                        "publication": pub_edge["target"],
-                                        "author2": other_author[0]
-                                    })
-        
+        # The pattern is a chain of node types joined by optional relation types,
+        # read out of the command text. Previously one chain was hardcoded in
+        # runtime code and every other pattern returned success with zero
+        # matches, so "this graph has no such structure" and "this engine cannot
+        # express your pattern" were the same observable.
+        chain = self._parse_pattern_chain(pattern_desc)
+        if len(chain["node_types"]) < 2:
+            return self._create_result(
+                command=command,
+                status="error",
+                error_message=(
+                    f"GRAPHPATTERN could not read a node-type chain from {pattern_desc!r}. "
+                    "Express the pattern as (TYPE_A)-[:RELATION]->(TYPE_B)... or "
+                    "TYPE_A->TYPE_B->TYPE_C; at least two node types are required."
+                ),
+            )
+
+        node_types = chain["node_types"]
+        relation_types = chain["relation_types"]
+
+        seeds = [
+            node for node in search_nodes
+            if self._type_token(node_entity_type(node)) == node_types[0]
+        ]
+        skipped = {
+            "search_rows_without_entity_type": sum(
+                1 for node in search_nodes if node_entity_type(node) is None
+            ),
+            "search_rows_wrong_head_type": len(search_nodes) - len(seeds),
+        }
+        observed_types = sorted(
+            {self._type_token(node_entity_type(node)) for node in search_nodes} - {""}
+        )
+
+        pattern_matches: List[Dict] = []
+        partials = [([node], []) for node in seeds]
+        # Partial expansion is combinatorial and each partial costs an O(|E|)
+        # scan per hop. The budget exists so a wide graph degrades instead of
+        # hanging, and it is reported whenever it binds — a silent cap would make
+        # a truncated match set indistinguishable from a complete one.
+        budget_hit = False
+        for hop in range(len(node_types) - 1):
+            expected_type = node_types[hop + 1]
+            expected_relation = relation_types[hop] if hop < len(relation_types) else ""
+            extended = []
+            for nodes_so_far, edges_so_far in partials:
+                if len(extended) >= self.PATTERN_PARTIAL_BUDGET:
+                    budget_hit = True
+                    break
+                tail_id = nodes_so_far[-1].get("id")
+                if not tail_id:
+                    continue
+                for edge in self.adapter.find_edges({"source": tail_id}):
+                    edge_relation = self._canonicalize_relation_token(
+                        edge.get("data", {}).get("relation_type")
+                        or edge.get("data", {}).get("relationship_name")
+                        or ""
+                    )
+                    if expected_relation and edge_relation != expected_relation:
+                        continue
+                    neighbor_rows = self.adapter.find_nodes({"id_filter": edge["target"]})
+                    if not neighbor_rows:
+                        continue
+                    if self._type_token(node_entity_type(neighbor_rows[0])) != expected_type:
+                        continue
+                    extended.append((nodes_so_far + [neighbor_rows[0]], edges_so_far + [edge]))
+            partials = extended
+
+        for nodes_so_far, edges_so_far in partials:
+            pattern_matches.append({
+                "pattern": pattern_desc,
+                "node_types": node_types,
+                "relation_types": relation_types,
+                "nodes": nodes_so_far,
+                "edges": edges_so_far,
+            })
+
+        disclosure = {
+            "node_types": node_types,
+            "relation_types": relation_types,
+            "seed_rows": len(seeds),
+            "entity_types_observed_in_search_variable": observed_types,
+            "skipped": skipped,
+            "ignored_clauses": chain.get("ignored_clauses", []),
+            "partial_budget": self.PATTERN_PARTIAL_BUDGET,
+            "partial_budget_reached": budget_hit,
+        }
+        warnings = []
+        if not seeds:
+            warnings.append(
+                f"no row in {in_var} carries entity_type {node_types[0]!r}; "
+                f"observed types were {observed_types}"
+            )
+        if chain.get("ignored_clauses"):
+            warnings.append(
+                "only the first chain in the pattern was matched; these clauses were "
+                f"not applied: {chain['ignored_clauses']}"
+            )
+        if budget_hit:
+            warnings.append(
+                f"partial-match budget of {self.PATTERN_PARTIAL_BUDGET} was reached; "
+                "the match set is incomplete"
+            )
+        if warnings:
+            disclosure["warning"] = "; ".join(warnings)
+
         # Store result in context
         self.context_store.set("last_pattern_result", pattern_matches)
-        print(f"DEBUG: GRAPHPATTERN - found {len(pattern_matches)} pattern matches")
-        
+        print(f"DEBUG: GRAPHPATTERN - found {len(pattern_matches)} pattern matches, disclosure={disclosure}")
+
+        # Keep the row-shaped payload downstream commands expect; the reason a
+        # pattern found nothing rides along in provenance rather than changing
+        # the shape of the result.
         return self._create_result(
             command=command,
-            status="success",
+            status="success" if pattern_matches else "empty",
             data=pattern_matches,
             count=len(pattern_matches),
             provenance=[self._create_provenance("graph-pattern", "graphpattern",
-                                               pattern=pattern_desc, in_variable=in_var)]
+                                               pattern=pattern_desc, in_variable=in_var,
+                                               disclosure=disclosure)]
         )
+
+    @staticmethod
+    def _type_token(value: Any) -> str:
+        return GraphNavHandler._canonicalize_relation_token(value or "")
+
+    @staticmethod
+    def _parse_pattern_chain(pattern_desc: str) -> Dict[str, List[str]]:
+        """Read a node-type / relation-type chain out of the pattern text.
+
+        Accepts `(TYPE_A)-[:REL]->(TYPE_B)` and bare `TYPE_A->TYPE_B` forms. All
+        types come from the command text; none are known to this module.
+        """
+        text = str(pattern_desc or "")
+        # Only the first chain in the text is walked; `and`/`or`/`optional`
+        # clauses describe alternatives this single-chain walk cannot express.
+        # They are returned rather than dropped — a discarded constraint that
+        # nobody reports is the same fail-open class as a dropped filter.
+        clauses = re.split(r"\s+(?:and|or|optional)\s+", text, flags=re.IGNORECASE)
+        head, ignored = clauses[0], [clause.strip() for clause in clauses[1:] if clause.strip()]
+
+        node_types = [
+            GraphNavHandler._canonicalize_relation_token(match)
+            for match in re.findall(r"\(\s*([A-Za-z0-9_\- ]+?)\s*\)", head)
+        ]
+        relation_types = [
+            GraphNavHandler._canonicalize_relation_token(match)
+            for match in re.findall(r"\[\s*:?\s*([A-Za-z0-9_\- ]+?)\s*\]", head)
+        ]
+        if len(node_types) < 2:
+            bare = [
+                GraphNavHandler._canonicalize_relation_token(part)
+                for part in head.split("->")
+                if part.strip()
+            ]
+            if len(bare) >= 2:
+                node_types, relation_types = bare, []
+        return {
+            "node_types": node_types,
+            "relation_types": relation_types,
+            "ignored_clauses": ignored,
+        }
     
     def _get_variable_data(self, variable_name: str) -> List[Dict]:
         """Get data from state or context variable."""

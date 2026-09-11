@@ -1,0 +1,110 @@
+# Synaptic LTP/LTD Domain Schema
+# Focus: NMDAR-dependent calcium influx, CaMKII structural and enzymatic
+# functions, GluN2B binding, AMPAR recruitment, calcineurin/AKAP signaling,
+# dendritic spine remodeling, and disease-biased LTD.
+
+domain_name: "Synaptic LTP and LTD"
+domain_description: "Causal postsynaptic mechanisms for bidirectional synaptic plasticity, including NMDA receptor calcium influx, CaMKII activation and GluN2B-bound autonomous activity, AMPA receptor insertion, calcineurin anchoring and RCAN1 control, phosphorylation switches, dendritic spine enlargement or shrinkage, LTP phases, LTD induction, and amyloid-beta-driven synaptic impairment."
+
+entity_types:
+  NEURONAL_PREPARATION:
+    description: "A hippocampal, cultured, slice, synaptic, or disease model used to study plasticity."
+    examples: ["CA1 neuron", "cultured hippocampal neuron", "organotypic hippocampal slice", "AKAP150 knock-in mouse"]
+
+  PLASTICITY_EVENT:
+    description: "A potentiation, depression, induction, expression, maintenance, or impairment phase."
+    examples: ["LTP induction", "LTP maintenance", "intermediary LTP phase", "LTD induction"]
+
+  RECEPTOR_OR_CHANNEL:
+    description: "A postsynaptic glutamate receptor, receptor subunit, or calcium channel."
+    examples: ["NMDA receptor", "GluN2B", "AMPA receptor", "NMDAR"]
+
+  KINASE:
+    description: "A calcium/calmodulin-dependent or other kinase controlling potentiation."
+    examples: ["CaMKII", "PKA", "GSK3beta", "PKMzeta"]
+
+  PHOSPHATASE:
+    description: "A phosphatase or regulator driving LTD or opposing kinase activity."
+    examples: ["calcineurin", "CaN", "RCAN1"]
+
+  SCAFFOLD_OR_ANCHOR:
+    description: "A PSD, AKAP, actin, or receptor-associated scaffold that localizes enzymes."
+    examples: ["AKAP150", "PSD", "alpha-actinin", "densin-180"]
+
+  SECOND_MESSENGER_STATE:
+    description: "A calcium influx, calmodulin binding, autophosphorylation, or autonomous-activity state."
+    examples: ["Ca2+ influx", "Ca2+/calmodulin", "T286 autophosphorylation", "autonomous CaMKII activity"]
+
+  TRAFFICKING_EVENT:
+    description: "A receptor recruitment, insertion, removal, anchoring, or synaptic translocation event."
+    examples: ["AMPA receptor insertion", "CaMKII translocation", "AMPAR recruitment"]
+
+  SPINE_STRUCTURE:
+    description: "A dendritic spine, F-actin, synapse-size, or postsynaptic structural state."
+    examples: ["dendritic spine", "spine enlargement", "spine shrinkage", "F-actin severing"]
+
+  DISEASE_PERTURBATION:
+    description: "A pathological agent or condition that biases plasticity or impairs LTP."
+    examples: ["amyloid-beta", "Alzheimer's disease", "global cerebral ischemia", "normal aging"]
+
+relationship_types:
+  INDUCES_PLASTICITY:
+    description: "A stimulation, receptor signal, or biochemical state induces LTP or LTD."
+    inverse: "PLASTICITY_INDUCED_BY"
+    examples: ["NMDAR Ca2+ influx INDUCES_PLASTICITY LTP"]
+
+  REQUIRED_FOR:
+    description: "A kinase, scaffold, or receptor is necessary for a plasticity phase or trafficking event."
+    inverse: "REQUIRES"
+    examples: ["CaMKII REQUIRED_FOR LTP induction"]
+
+  BINDS:
+    description: "A kinase, receptor, phosphatase, or scaffold physically binds another postsynaptic component."
+    inverse: "BOUND_BY"
+    examples: ["CaMKII BINDS GluN2B"]
+
+  PHOSPHORYLATES:
+    description: "A kinase phosphorylates a postsynaptic substrate."
+    inverse: "PHOSPHORYLATED_BY"
+    examples: ["CaMKII PHOSPHORYLATES AMPA receptor auxiliary subunits"]
+
+  DEPHOSPHORYLATES:
+    description: "A phosphatase removes phosphate groups from receptors or actin regulators."
+    inverse: "DEPHOSPHORYLATED_BY"
+    examples: ["calcineurin DEPHOSPHORYLATES GluN2B"]
+
+  ANCHORS:
+    description: "A scaffold localizes an enzyme near a receptor, channel, or calcium microdomain."
+    inverse: "ANCHORED_BY"
+    examples: ["AKAP150 ANCHORS calcineurin"]
+
+  TRANSLOCATES_TO:
+    description: "A kinase or signaling protein moves into the postsynaptic density or stimulated spine."
+    inverse: "RECEIVES_TRANSLOCATION_OF"
+    examples: ["CaMKII TRANSLOCATES_TO postsynaptic density"]
+
+  INSERTS_RECEPTOR:
+    description: "A potentiation mechanism recruits or inserts AMPA receptors into the postsynaptic membrane."
+    inverse: "RECEPTOR_INSERTED_BY"
+    examples: ["CaMKII activation INSERTS_RECEPTOR AMPA receptor"]
+
+  REMOVES_RECEPTOR:
+    description: "A depression mechanism removes postsynaptic receptors or lowers synaptic calcium influx."
+    inverse: "RECEPTOR_REMOVED_BY"
+    examples: ["calcineurin signaling REMOVES_RECEPTOR AMPA receptor"]
+
+  ENLARGES_SPINE:
+    description: "A plasticity pathway increases dendritic spine size or synapse strength."
+    inverse: "SPINE_ENLARGED_BY"
+    examples: ["LTP ENLARGES_SPINE dendritic spine"]
+
+  SHRINKS_SPINE:
+    description: "A depression or disease pathway shrinks or eliminates dendritic spines."
+    inverse: "SPINE_SHRUNK_BY"
+    examples: ["amyloid-beta signaling SHRINKS_SPINE dendritic spine"]
+
+  BIASES_TOWARD_LTD:
+    description: "A pathological agent or anchored phosphatase pathway favors LTD over LTP."
+    inverse: "LTD_BIASED_BY"
+    examples: ["amyloid-beta BIASES_TOWARD_LTD NMDAR signaling"]
+

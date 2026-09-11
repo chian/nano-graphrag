@@ -1,0 +1,111 @@
+# Bacterial Chemotaxis Domain Schema
+# Focus: chemoreceptor signaling, adaptation, second-messenger crosstalk,
+# flagellar motor control, microfluidic gradient experiments, and ecological
+# or host-localization outcomes in bacterial chemotaxis abstracts.
+
+domain_name: "Bacterial Chemotaxis"
+domain_description: "Causal signaling and behavioral mechanisms by which motile bacteria sense chemoeffector gradients, process receptor-array signals through Che-family regulators and adaptation enzymes, bias flagellar motor rotation, and generate cell- or population-scale chemotactic migration."
+
+entity_types:
+  BACTERIAL_STRAIN:
+    description: "A bacterial species, strain, mutant, or motile population used as the chemotaxis system."
+    examples: ["Escherichia coli", "motile flagellated pathogen", "Tap receptor mutant"]
+
+  CHEMOEFFECTOR:
+    description: "An attractant, repellent, nutrient, toxin, host cue, or engineered ligand sensed by chemoreceptors."
+    examples: ["aspartate", "methylaspartate", "pyrimidine deoxyribonucleosides", "host-derived nutrient"]
+
+  GRADIENT_ENVIRONMENT:
+    description: "A spatial, temporal, opposing, host, or microfluidic stimulus landscape that chemotactic cells navigate."
+    examples: ["chemical gradient", "opposing attractant and nutrient gradients", "fast-changing attractant waveform"]
+
+  CHEMORECEPTOR:
+    description: "A transmembrane taxis receptor or receptor array component that detects chemoeffectors and sets signaling output."
+    examples: ["Tap", "Tar", "methyl-accepting chemoreceptor", "receptor cluster"]
+
+  CHE_SIGNALING_PROTEIN:
+    description: "A Che pathway kinase, regulator, adaptor, phosphatase, or adaptation enzyme."
+    examples: ["CheA", "CheY-P", "CheW", "CheZ", "CheR", "CheB"]
+
+  SECOND_MESSENGER:
+    description: "A bacterial second messenger or metabolic regulator that intersects with chemotaxis or motor control."
+    examples: ["c-di-GMP", "c-di-GMP::YcgR", "central metabolism signal"]
+
+  FLAGELLAR_MOTOR_STATE:
+    description: "A motor component, rotation direction, motor speed, CW bias, run/tumble state, or drift phenotype."
+    examples: ["flagellar motor", "clockwise bias", "run", "tumble", "chemotactic drift velocity"]
+
+  ADAPTATION_STATE:
+    description: "A receptor or pathway state that encodes methylation, phosphorylation, sensitivity, memory, or adaptation kinetics."
+    examples: ["CheY phosphorylation", "finite adaptation time", "receptor methylation", "log-sensing regime"]
+
+  MEASUREMENT_OR_MODEL:
+    description: "An assay, microdevice, simulation, continuum equation, or tracking method used to quantify chemotaxis."
+    examples: ["FRET assay", "microfluidic gradient generator", "Keller-Segel equation", "stochastic swimming simulation"]
+
+  ECOLOGICAL_OUTCOME:
+    description: "A downstream collective, ecological, host, or clinical consequence of chemotactic navigation."
+    examples: ["biofilm formation", "host colonization", "injury tropism", "spatial segregation"]
+
+relationship_types:
+  SENSES:
+    description: "A chemoreceptor or bacterium detects a chemoeffector or gradient."
+    inverse: "SENSED_BY"
+    examples: ["Tap SENSES pyrimidine deoxyribonucleosides", "Escherichia coli SENSES aspartate gradient"]
+
+  BINDS:
+    description: "A protein, receptor, messenger, or chemoeffector physically binds another chemotaxis component."
+    inverse: "BOUND_BY"
+    examples: ["c-di-GMP BINDS YcgR", "CheY-P BINDS flagellar motor"]
+
+  ASSEMBLES_WITH:
+    description: "A pathway component joins a receptor cluster or protein complex."
+    inverse: "ASSEMBLES_WITH"
+    symmetric: true
+    examples: ["CheW ASSEMBLES_WITH chemoreceptor array"]
+
+  PHOSPHORYLATES:
+    description: "A chemotaxis kinase transfers phosphate to a response regulator or adaptation protein."
+    inverse: "PHOSPHORYLATED_BY"
+    examples: ["CheA PHOSPHORYLATES CheY"]
+
+  DEPHOSPHORYLATES:
+    description: "A phosphatase removes phosphate and terminates or tunes chemotaxis signaling."
+    inverse: "DEPHOSPHORYLATED_BY"
+    examples: ["CheZ DEPHOSPHORYLATES CheY-P"]
+
+  METHYLATES:
+    description: "An adaptation enzyme methylates a chemoreceptor."
+    inverse: "METHYLATED_BY"
+    examples: ["CheR METHYLATES chemoreceptors"]
+
+  DEMETHYLATES:
+    description: "An adaptation enzyme removes methylation marks from a chemoreceptor."
+    inverse: "DEMETHYLATED_BY"
+    examples: ["CheB DEMETHYLATES chemoreceptors"]
+
+  MODULATES_MOTOR:
+    description: "A signaling state or effector changes flagellar speed, switching, CW bias, run length, or tumble probability."
+    inverse: "MOTOR_MODULATED_BY"
+    examples: ["c-di-GMP::YcgR MODULATES_MOTOR clockwise bias"]
+
+  TRANSDUCES_SIGNAL_TO:
+    description: "A component relays sensory information to a downstream signaling or motor state."
+    inverse: "RECEIVES_SIGNAL_FROM"
+    examples: ["chemoreceptor array TRANSDUCES_SIGNAL_TO CheA"]
+
+  ADAPTS_TO:
+    description: "A chemotaxis pathway state shifts sensitivity or memory in response to a persistent stimulus."
+    inverse: "ADAPTATION_OF"
+    examples: ["receptor methylation ADAPTS_TO attractant background"]
+
+  DRIVES_BEHAVIOR:
+    description: "A molecular or motor state causes chemotactic movement, accumulation, band formation, or ecological localization."
+    inverse: "BEHAVIOR_DRIVEN_BY"
+    examples: ["flagellar CW bias DRIVES_BEHAVIOR run-tumble motion"]
+
+  MEASURED_BY:
+    description: "A chemotaxis signal, motor state, or migration phenotype is quantified by an assay or model system."
+    inverse: "MEASURES"
+    examples: ["CheY-P concentration MEASURED_BY FRET assay"]
+

@@ -250,7 +250,12 @@ class GASLParser:
         elif command_type == "COLLAPSE":
             args["variable"] = groups[0]
             args["by_field"] = groups[1].strip()
-            args["weight_field"] = groups[2].strip() if len(groups) > 2 and groups[2] else "occurrence_count"
+            # Default renamed from `occurrence_count`, which named a number that
+            # summed per-row evidence counts and so reported one source cited by
+            # twelve rows as twelve. The column counts contributing rows and is
+            # now named for what it counts. `COUNT AS <name>` is unaffected, and
+            # every COLLAPSE that parsed before still parses.
+            args["weight_field"] = groups[2].strip() if len(groups) > 2 and groups[2] else "contributing_rows"
             if len(groups) > 3 and groups[3]:
                 args["result_variable"] = groups[3]
         

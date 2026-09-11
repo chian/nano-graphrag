@@ -50,16 +50,62 @@ For every string-key access in runtime code:
 2. Demo, benchmark, and visualization code may be graph-specific.
    Core runtime code may not.
 
+## Layering
+
+`gasl/` is the generic query engine. It must not import `nano_graphrag/`
+(ingestion), `query_generation/`, or `question_pipeline/`. The dependency runs
+the other way.
+
+This is enforced structurally by `tools/check_runtime_invariants.py`, and it is
+enforced because the literal scan could not see the defect that motivated it:
+`gasl/commands/data_transform.py` and `gasl/commands/contrastive.py` imported
+`get_source_refs` from `nano_graphrag.graph_slots`, whose fallback reads
+`source_papers` — named as forbidden in the list above. Every `COLLAPSE`,
+`PROJECT` and `AGGREGATE` reached it transitively while the checker reported a
+clean tree, because the literal lives outside the scanned paths.
+
+Provenance accessors now live in `gasl/provenance.py`, **without the legacy
+aliases**. A graph that stores provenance under another key declares where via
+the contract's `source_ref_field`; it does not get a hardcoded guess. If a
+source graph genuinely uses a different key, that mapping belongs in the
+adapter.
+
+The checker carries a frozen inventory, `KNOWN_OUTBOUND_IMPORTS`, of the
+outbound imports that predate this rule (all `nano_graphrag.prompt_system`, plus
+one `query_generation.graph_validator`). They are **not blessed** — the
+inventory exists so that a *new* outbound import fails the check rather than
+hiding among them. It may shrink. It must not grow.
+
+The current method boundary is dependency-directed: `method_loop/` owns the
+generic Episode, nesting, identity, and scope attachment;
+`question_pipeline/rarefaction/` owns the question pipeline's paired
+estimator-controller arithmetic; and question-pipeline bindings compose those
+pieces around their acquisition surfaces. Standalone `gasl/` imports neither
+package. Ingestion remains beside the pipeline and nothing imports upward. So
+the inventory is debt:
+a phase that edits a file carrying one of these imports removes the import
+as part of the phase, and the steward reviewing that phase asks why if it
+did not.
+
+Future GASL Episode integration belongs above the graph engine in a
+question-pipeline binding. That binding may import GASL interfaces,
+`method_loop`, and the local numerical component; the dependency must never be
+reversed by making `gasl/` import the question pipeline.
+
 ## Enforcement
 
 Before merging generic-runtime changes:
 
-1. run the invariant checker: `python3 tools/check_runtime_invariants.py`
+1. run the invariant checker: `.venv/bin/python tools/check_runtime_invariants.py`
    - this checker intentionally targets generic runtime paths (`gasl/` and
      selected runtime entry points), not ingestion/storage/benchmark modules
-2. run the focused invariant tests: `pytest -q tests/test_runtime_invariants.py`
-3. if the checker needs a new allowed exception, document the reason in both the
+2. if the checker needs a new allowed exception, document the reason in both the
    checker and this file
+
+(An earlier revision listed a `pytest` invariant-test step here. `tests/` has
+been deleted and no suite may be created; the static checker is the only
+mechanical check. Behavioral verification is a live run — see `CLAUDE.md`
+§Checks.)
 
 ## Variable-access rule
 

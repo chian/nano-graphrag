@@ -1,0 +1,36 @@
+{
+  "completed_chunk_ids": [
+    "pmid_16959575:0:0:1001:310ed1e5b2c1",
+    "pmid_18373649:0:0:1114:8244f4f8da38",
+    "pmid_25482764:0:0:895:8b442e4307e0",
+    "pmid_26175350:0:0:2152:01dff61c6a2a",
+    "pmid_27518594:0:0:1021:563e5b2d6f09",
+    "pmid_28722226:0:0:1577:00dc033033fc",
+    "pmid_33145840:0:0:1231:ea2d9d7d7c75",
+    "pmid_33926963:0:0:1260:c1d32276f77e",
+    "pmid_35506344:0:0:1109:d0837a23cea8",
+    "pmid_35508659:0:0:1825:507d4bce812a",
+    "pmid_35712559:0:0:1276:0ed0e38c60d9",
+    "pmid_35879859:0:0:1674:dccd0d2b4a55",
+    "pmid_36499153:0:0:2460:6f2858b7211b",
+    "pmid_38954945:0:0:1860:bce5e2940410",
+    "pmid_40208945:0:0:2050:90ffe68e595c",
+    "pmid_41182412:0:0:2005:cef41a4e00d3",
+    "pmid_41264247:0:0:1612:0f46141cf5b7",
+    "pmid_41417897:0:0:1269:f8282128586e"
+  ],
+  "processed": 18,
+  "total": 18,
+  "summary": {
+    "shard_path": "bio_causal_kgs_20260716/shards/plant_stomatal_aba_signaling/shard_000.jsonl",
+    "graph_path": "bio_causal_kgs_20260716/shard_runs/plant_stomatal_aba_signaling/shard_000/local_graph.graphml",
+    "entities_path": "bio_causal_kgs_20260716/shard_runs/plant_stomatal_aba_signaling/shard_000/entities.jsonl",
+    "relationships_path": "bio_causal_kgs_20260716/shard_runs/plant_stomatal_aba_signaling/shard_000/relationships.jsonl",
+    "chunk_results_path": "bio_causal_kgs_20260716/shard_runs/plant_stomatal_aba_signaling/shard_000/chunk_results.jsonl",
+    "chunks_total": 18,
+    "chunks_completed": 18,
+    "nodes": 219,
+    "edges": 248,
+    "elapsed_sec": 335.79
+  }
+}

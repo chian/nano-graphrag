@@ -31,8 +31,9 @@ GASL is a general QA system over knowledge graphs.
    - use graph-first retrieval, then provenance/chunk augmentation if needed
    - keep domain literals out of generic layers
 4. Before finishing:
-   - run `python3 tools/check_runtime_invariants.py`
-   - run `pytest -q tests/test_runtime_invariants.py`
+   - run `.venv/bin/python tools/check_runtime_invariants.py`
+   - run `.venv/bin/python -m pytest -q tests/test_runtime_invariants.py`
+     (`pytest` is not on `PATH`; it lives in `.venv`)
 
 ## Scope
 

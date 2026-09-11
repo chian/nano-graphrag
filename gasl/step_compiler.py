@@ -227,14 +227,15 @@ class GASLStepCompiler:
             existing = scope.get(name)
             if existing is None or self._availability_rank(availability) > self._availability_rank(existing.availability):
                 scope[name] = SymbolState(name=name, availability=availability, shape=shape)
-        if current_output:
+        consumed = set(self._consumed_vars(command))
+        if current_output and current_output not in consumed:
             produced_shape = self._infer_output_shape(command)
             scope[current_output] = SymbolState(
                 name=current_output,
                 availability="current_output",
                 shape=produced_shape,
             )
-        for consumed in self._consumed_vars(command):
+        for consumed in consumed:
             scope.setdefault(
                 consumed,
                 SymbolState(name=consumed, availability="unavailable", shape="unknown"),

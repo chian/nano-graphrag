@@ -3,47 +3,269 @@
 This file is for repository-local agent instructions. It is not end-user
 documentation.
 
-## Validation labels
+Active work is the question pipeline (`question_pipeline/`) and the GASL
+engine (`gasl/`). The visualization and demo-video layer is dormant — no
+commits since 2026-06-04 — and its procedures are not documented here. If demo
+work restarts, recover them from `git show 92f8e64:AGENTS.md`, which has the
+verified safe-launcher and cinematic-pipeline rules.
 
-Do not say a change is "fixed" unless all four are true:
+## Rules for every agent in this repo
 
-1. coded
-2. focused-tested
-3. committed
-4. corpus-validated
+These are the operator's instructions, and each agent definition under
+`.claude/agents/` restates the ones that apply to its role.
 
-Use those labels explicitly in status updates.
+- **Read files whole.** To learn what a file says, read it in full with the
+  Read tool and derive every claim from the full text; to find where
+  something lives, read the candidate files. Regex and grep searches are not
+  used on this team, because a pattern match returns the lines that fit the
+  pattern and hides the ones that did not, and the picture acted on becomes
+  the pattern's rather than the file's.
+- **Decide with numbers; use models for strings.** Every stop, continue,
+  switch, when-to-mutate, and what-counts decision is a numerical rule over
+  measured counts with a written threshold. Model calls extract values, fill
+  cells, sample new prompt and query strings, and judge semantic distance and
+  content relevance. Not numerical plus a model: a model handed a curve or a
+  count and asked to decide is on a decision edge. Charter:
+  `docs/ACQUISITION_LOOP.md` §"Decisions are numerical".
+- **Compose the loop; do not write it.** The acquisition loop is one class
+  (`Episode`) with swappable parts; a surface declares its grains and parts
+  and composes them. The template and its rules are stated once, in
+  `docs/ACQUISITION_LOOP.md` §"The template"; build and review from there,
+  not from a copy. A recurring pattern in the code is the signal to lift it
+  into a template with swappable parts, the way a team lead lays out a class
+  for the team.
+- **Use one method credit.** Accepted stable identities remain separated by
+  declared result column and form the estimator vector. Marginal dominated
+  hypervolume over that normalized vector is the sole method credit; predicted
+  future hypervolume credit is the numerical controller's sole stop statistic.
+  Per-column values remain intermediate contributions and learning context. A
+  parent receives distinct identities by column and recomputes on its own
+  scale; it never sums child hypervolumes. Charter:
+  `docs/ACQUISITION_LOOP.md` §"Credit has one owner".
+- **Run experiments in full.** Duration and spend are never a reason to
+  shrink, defer, or reorder a registered run; the stop rules decide when a
+  run ends.
+- **State what to do, and why; keep the boundary.** Instructions in this
+  repo lead with the action and its reason, and carry the boundary that goes
+  with it. A boundary alone leaves every other wrong option open; an action
+  alone drops the edge that the boundary marked. Both, in that order.
+- **Work serially.** One phase at a time, one live pipeline process at a
+  time, one step at a time — "care taken over each part". The build
+  orchestrator (`.claude/agents/build-orchestrator.md`) is dispatched as a
+  fresh agent that runs the team and is never a fork of the launching
+  session, because a fork executes directly and does not dispatch.
+- **Verify with live runs designed as experiments.** There is no test suite
+  and none is to be created; there is no replay of recorded artifacts. See
+  `CLAUDE.md` §Checks.
 
-## Demo safety
+## Question pipeline runs
 
-For visualization demo work in this repo, use the exact safe launcher and do not improvise:
+> **Runs at this commit — re-verified 2026-08-31, after the round removal.**
+> There is no round concept in the runner or the pipeline: `--max-rounds`,
+> `--queries-per-round`, `--answer-mode`, and `--best-guess-max-tasks` are
+> gone (a run that passes them fails at the parser), and the one
+> operator-declared run-wide bound is `--max-source-units` — source units
+> PULLED from result lists, default `0` meaning UNBOUNDED; a declared bound
+> that cuts a run reports `bound_hit`, never convergence. The medium-neutral
+> length flags are `--min-source-length`, `--max-source-length`, and
+> `--max-extraction-chars-per-source`. Continuation is the Episode verdicts
+> plus the typed stop conditions, and artifacts are named by Episode identity
+> (`answers/strategy_<episode_id>.json`, `graphs/<episode_id>.graphml`).
+>
+> Re-verified by building a config through the runner's own `main()` argument
+> parser and stopping at `build_config`:
+> `--question probe --pipeline-mode table-fill` yields
+> `pipeline_mode=table_fill, answer_mode=table, max_source_units=0,
+> episode_unit_safety_cap=1000000`, and `PipelineConfig` no longer carries
+> `max_rounds`, `max_papers`, or `best_guess_max_tasks`. The examples below
+> execute as written.
+>
+> Recorded because a stale banner here was actively harmful once before: it
+> told every agent that live runs were impossible, which is a false blocker on
+> exactly the work that needs authorizing. A doc that says "you cannot run"
+> is worse than no doc.
 
-- Use `./launch_demo_viz_safe.sh` only.
-- Do not run `launch_viz.sh` or `python -m visualization.examples.demo` directly unless the user explicitly overrides the demo-safe path.
-- The safe launcher precomputes and serves a single engineering-controls subset graph at `.viz_cache/graphs/haiqu_engineering_controls_topdeg1500.graphml`.
-- Do not disable or bypass the subset path for demo launches.
-- If a demo-safe visualization restart is requested, restart via the safe launcher instead of changing graphs in place.
+`run_question_pipeline.py` drives the question-driven search/extract/answer loop
+in `question_pipeline/`. Its module docstring carries current, working examples;
+prefer those over reconstructing flags.
 
-## Video generation
+- Runs write to `question_runs/<run_name>/`, containing `answers/` (`tables`,
+  `table_specs`, `goals`, `derived`), `fetched_papers/`, `graphs/`, and
+  `final_answer.json`.
+- Pass `--schema <name>` to reuse a committed schema from `domain_schemas/`
+  instead of paying for synthesis on every run.
+- `--pipeline-mode table-fill` is the aggregation loop. Continue prior work with
+  `--graph-path`, `--seed-tables-dir`, and `--seed-sources-dir` pointed at an
+  earlier run rather than starting over.
+- The documented Firecrawl binding and its foundational live experiment
+  require `FIRECRAWL_API_KEY`. This is not a restriction on the method:
+  Firecrawl and GASL remain peer search types, each composed from `Episode` and
+  each owning its own rarefaction state. GASL reads one explicitly supplied
+  immutable graph revision and never implies that provider results were added
+  to it.
 
-Use only long-form cinematic pipelines as final video makers.
+### Module boundaries
 
-- Curated final demos:
-  - single demo: `visualization/scripts/record_demo.sh <demo-id> ...`
-  - batch demos: `visualization/scripts/render_demo_batch.py`, `visualization/scripts/render_paper_style_batch.py`, `visualization/scripts/render_symbolism_shortlist_batch.py`
-- On-demand final demos from committed artifacts:
-  - `visualization/scripts/render_cinematic_demo.py <run_id> <qid> --graph-path ... --target-seconds 90`
-- Low-level capture tools:
-  - `visualization/scripts/record_viewer_url.sh` is a capture tool, not a final demo maker.
-- Any artifact run without `answer_views` is not a demo maker and must fail instead of producing a static/non-cinematic video.
-- If a committed replay video already exists under `benchmark_results/<run_id>/captures/`, prefer that asset over re-recording.
-- If the request is for the “same video as before”, verify the exact source asset or final cinematic pipeline first instead of assuming a generic replay URL recreates the previous choreography.
+The package was nineteen modules at the baseline (`92f8e64`), tabled below.
+Each docstring states its own boundary; respect them. The build has since
+added `control`, `criteria`, `costs`, `path_features`, `path_gate`,
+`acquisition`, `provenance`, `prompt_log`, and `windowing` (what each owns:
+`.claude/agents/question-pipeline.md` §"Module boundaries"). Check the
+directory before relying on either list.
+
+| Module | Lines | Owns |
+| --- | --- | --- |
+| `pipeline.py` | 4437 | Episode composition only. The round loop is **gone** (phase 4E-c): it declares the run/strategy/search parts, hosts the leaf's `extract` and telemetry/learning hooks, and calls `Episode.run_async` once. Hooks cannot mutate or propose graph changes. Changes that reintroduce phase-batched round structure are rejected |
+| `goals.py` | 1838 | Fill targets, deficits, goal-completion state |
+| `best_guess.py` | 1359 | Derived candidate values |
+| `search.py` | 1308 | Task, frontier, and page-acquisition mechanics. Holds **no loop over units**: the harvest loops and `SearchBatch` are deleted, the frontier gained `next_for(family)` and lost `next_wave`/`requeue_front`, and a search episode is the frontier's consumer |
+| `estimator.py` | 1153 | Universe and count estimation |
+| `table_specs.py` | 841 | Table contracts (serialized as version 1) |
+| `search_memory.py` | 840 | Durable per-target memory |
+| `strategy_state.py` | 758 | Mutation state and arm records |
+| `numeric_candidates.py` | 678 | Numeric candidate extraction |
+| `reward.py` | 554 | Scoring (`REWARD_VERSION = "criterion_yield_v1"`) |
+| `completion.py` | 548 | Completeness state |
+| `strategy.py` | 454 | Mutation routing |
+| `derived_context.py` | 442 | Assessment inputs |
+| `schema_synthesis.py` | 378 | Schema generation |
+| `tables.py` | 247 | Table materialization |
+| `extraction.py` | 166 | Text to typed records |
+| `__init__.py` | 113 | Package surface |
+| `llm_utils.py` | 65 | The provider boundary |
+
+`llm_utils.py` is the only module holding provider access. Three modules consume
+it through `ask_json`: `schema_synthesis.py`, `strategy.py`, and `estimator.py`.
+(`pipeline.py` imports it too, for tiering and client
+construction — `for_tier`, `instrument_client`, `register_call_site_tier` — and
+not as a fifth `ask_json` site.) Any further consumer needs a stated reason why
+the work is not a pure function over data another module already produced.
+`acquisition.py` and `best_guess.py` deliberately receive **callables** and
+never a client, which is what keeps them exercisable in isolation.
+
+### Model tiering
+
+A call site never names a model. It declares a `ModelTier` — a typed default
+next to the call, registered through `llm_utils.register_call_site_tier` — and
+`ask_json` resolves that tier to a client. Which concrete model fills each tier
+is configuration: `--model` for `REASONING`, `--fast-model` for `FAST`, both
+carried on `PipelineConfig` and resolved once in `QuestionPipeline.__init__`.
+
+A tier is set by experiment, never by judgement about which call "looks easy".
+The 0M campaign ran one equivalence experiment per call site — same inputs,
+only the model varying, semantic comparison by a blind third-model comparator
+with its own sensitivity controls — and each site's number, threshold and
+decision is in `experiments/log/0M-<site>.md`, indexed by
+`experiments/log/0M-campaign.md`. A call site not named there is untested and
+stays on `REASONING`: leaving a call site alone needs no evidence, only moving
+it does.
+
+Every run records what actually served it in
+`final_answer.json["model_tiers"]`. A run's costs are uninterpretable without
+that block, so do not drop it.
+
+### Modules that do not exist at baseline
+
+**This list is no longer accurate and is corrected inline.** `criteria`,
+`control`, and `reward` now EXIST in the tree — `question_pipeline/criteria.py`
+is the row-to-criterion projection with stable criterion and snapshot IDs, and
+downstream joins depend on it. Two agents reasoned from the false "absent"
+listing and lost work; verify against the tree before relying on any entry here.
+
+Still absent as `question_pipeline` modules, and to be re-checked rather than
+trusted: `expectations` and `search_planning`. These were written in the WIP snapshot `cd44ebb` and
+removed by the prune back to `92f8e64`.
+
+Their design intent is readable at `git show cd44ebb:question_pipeline/<name>.py`
+and may be consulted as reference. Do not restore them wholesale — that code is
+unvalidated, and reintroducing it silently undoes the prune. A module from that
+list enters the tree only as the deliverable of a build phase that owns it, with
+its own charter and tracker row.
+
+**The generic method is top-level; the question-pipeline numerical component
+is not.** `method_loop/` owns `Episode`, nesting, runtime identity, scope state,
+and routing to an attached numerical component.
+`question_pipeline/rarefaction/` owns the paired incidence estimator and
+numerical controller used by question-pipeline Episode types, including
+threshold state, its adapter hook, and typed numeric output. It is not the
+removed `cd44ebb` module. Question-pipeline bindings import the generic method
+from `method_loop` and their numerical contracts from the local rarefaction
+package. Standalone `gasl/` imports neither.
+
+### Episode binding ownership
+
+Decompose the provider binding by acquisition level because a reusable Episode
+type must not depend on the complete acquisition composition. The target
+package is `question_pipeline/episode_bindings/`, with one module each for the
+`chunk` Leaf and the `lexical_probe`, `page`, `web_search`, `strategy`, and
+`run` Episode types. The dormant GASL query and walk Episode types follow the
+same rule when integrated. Until this migration is complete,
+`question_pipeline/acquisition.py` is transitional; do not add another Episode
+type or another cross-grain responsibility to it.
+
+Each Episode-type module owns its `Grain` declaration and controller binding,
+its unit/source types, construction of that Episode, its local hooks, and its
+compact `EpisodeUpdate`. It receives the child builder it needs as a callable;
+it does not select or construct a specific child Episode type itself. This is
+what makes the binding reusable in a different nesting. The chunk module owns
+the Leaf's unit, extract/accept/result wiring, and label; it declares no Grain.
+
+Link Episode types only in `question_pipeline/acquisition_composition.py`. That
+module declares the nesting and `Context` order, injects child builders and
+shared services, constructs the root Episode, and invokes it once. It does not
+implement extraction, evidence acceptance, result projection, numerical
+control, learning, persistence, or record formatting. Table-result projection
+belongs in `question_pipeline/result_projection.py`; acquisition trace,
+checkpoint, and export formatting belong in
+`question_pipeline/acquisition_records.py`. Do not hide the current monolith in
+one replacement context or services object handed wholesale to every binding;
+pass each binding only the collaborators it uses.
+
+### Evidence rules at baseline
+
+`question_pipeline/evidence_registry.py` is the durable acceptance boundary.
+It commits the exact source blob plus source/version/chunk/span/assertion
+candidates before appending deterministic direct acceptances. Acquisition and
+criteria may credit only identities whose complete accepted chain resolves in
+that registry.
+
+**Criteria snapshots DO exist and this paragraph previously denied it.**
+`CriteriaSnapshot`, `criteria_snapshot`, and `snapshot_id` are live in
+`question_pipeline/criteria.py` and are the join key the control ledger, the
+reward chain, and path selection all use. The claim below that `criteria` are
+merely goal-completion flags describes `goals.py` only, and must not be read as
+a statement about the package.
+
+Graph content, raw values, `source_refs`, and best guesses do not mint
+incidence. Best guesses have a stable cell address; their derivation and
+acceptance route is a later phase.
+
+`docs/MEMORY.md` describes the registry contract and version 3/4 table specs as
+current. That describes `cd44ebb`, not this tree; the sections are banner-marked
+accordingly. Read it as design intent for work not yet done.
+
+Keep the design generic. Search prompts and runtime code derive task-specific
+vocabulary from the question, table specs, criteria snapshot, accepted sources,
+and observed deficits — never from question-specific words baked into code.
+
+Design context: `docs/ACQUISITION_LOOP.md` is the governing design for the
+acquisition span — the flow is a first-class per-unit loop
+(acquire → extract → credit → count → verdict), not phase-batched rounds, and
+`pipeline.py`'s "orchestration and round structure" role in the table above is
+being rebuilt into episode composition under that charter.
+`docs/TABLE_FILL_PATH_SELECTION.md` and
+`docs/TABLE_FILL_PROMPT_MUTATION_EXPERIMENTS.md` remain the design context for
+path scoring and prompt mutation; where they assume the phase-batched round
+shape, `docs/ACQUISITION_LOOP.md` wins.
 
 ## Stable corpus run procedure
 
 In this environment, use this exact detached launch method unless the repo
 itself changes in a way that invalidates it. Choose transport explicitly with
-`--transport direct` or `--transport shim`; do not rely on shell env:
+`--transport direct` or `--transport shim`; do not rely on shell env. (As of
+2026-08-24 the shim's upstream tunnel is down and the operator has set it
+aside; `direct` with `LLM_API_KEY` in `.env` is the working transport for the
+question pipeline. Confirm with a one-token completion before a long run.)
 
 ```bash
 run_id=corpus_YYYYMMDD_view_balanced_72
@@ -115,8 +337,14 @@ Do not treat out-of-scope defects as evidence against the target mechanism.
 
 Before creating, using, or writing into any existing directory in this repo:
 
-- Read every file already present in that directory first.
-- Do not infer the directory's purpose from its name alone.
+- Establish the directory's purpose from its contents, not its name. List it
+  first. If it holds 20 files or fewer, read them. If it holds more — 
+  `question_runs/` and `benchmark_results/` each hold well over a hundred — read
+  a sample of at least five spanning oldest and newest, plus any README,
+  manifest, or summary file, and stop there. Do not read a run-output directory
+  exhaustively; it is a context sink and tells you nothing the sample does not.
 - Do not repurpose an existing directory unless its contents confirm the intended use.
-- If the directory's purpose is unclear after reading all files already in it, create a new neutral directory instead.
+- If the purpose is still unclear after that sampling, create a new neutral
+  directory instead. Ambiguity resolves toward a new directory, never toward
+  more reading.
 - In status updates before writing files, state which directory will be used and what existing-file evidence justified that choice.

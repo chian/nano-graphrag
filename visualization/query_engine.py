@@ -9,6 +9,7 @@ Mode 2 – GaslQueryEngine: GASL hypothesis-driven graph traversal with live
 import sys
 import threading
 import json
+import tempfile
 from pathlib import Path
 from typing import Dict, List, Any, Tuple, Optional
 
@@ -347,7 +348,13 @@ class GaslQueryEngine:
             llm = ArgoBridgeLLM(model=runtime_cfg.model or model, api_key=runtime_cfg.api_key,
                                 base_url=runtime_cfg.base_url,
                                 reasoning_effort=reasoning_effort)
-            executor = GASLExecutor(adapter, llm, job_id=job_id)
+            run_root = Path(tempfile.mkdtemp(prefix="nano-graphrag-gasl-viz-"))
+            executor = GASLExecutor(
+                adapter,
+                llm,
+                state_file=str(run_root / "gasl_state.json"),
+                job_id=job_id,
+            )
 
             # Attach visualization patch
             patch = _VisualizingPatch(executor, self.socketio, job_id)

@@ -1,0 +1,36 @@
+{
+  "completed_chunk_ids": [
+    "pmid_11204167:0:0:1291:96593c46cad4",
+    "pmid_11532938:0:0:1397:ca796f410354",
+    "pmid_12213913:0:0:2135:35539fad47ee",
+    "pmid_1474890:0:0:1458:9871c0e077cb",
+    "pmid_17055773:0:0:1137:0fe09a488c76",
+    "pmid_19662416:0:0:1316:addcadbd9d2f",
+    "pmid_22544903:0:0:1088:3701dc1857a5",
+    "pmid_26972663:0:0:1322:47495c6fd3f1",
+    "pmid_30101372:0:0:2070:813ffdbe7e01",
+    "pmid_31437265:0:0:1199:0642985812d3",
+    "pmid_35420476:0:0:2613:82589c492e82",
+    "pmid_36809010:0:0:2653:e7cd3e000619",
+    "pmid_37399670:0:0:1024:93e888a35b39",
+    "pmid_38015416:0:0:1252:8ea9bdd225e2",
+    "pmid_38789908:0:0:1920:951c5719bea6",
+    "pmid_3883103:0:0:2037:112a0309cf42",
+    "pmid_39234635:0:0:1418:8c04803e8ce3",
+    "pmid_41170998:0:0:2836:d16da5705db6"
+  ],
+  "processed": 18,
+  "total": 18,
+  "summary": {
+    "shard_path": "bio_causal_kgs_20260716/shards/fungal_metabolic_switching/shard_000.jsonl",
+    "graph_path": "bio_causal_kgs_20260716/shard_runs/fungal_metabolic_switching/shard_000/local_graph.graphml",
+    "entities_path": "bio_causal_kgs_20260716/shard_runs/fungal_metabolic_switching/shard_000/entities.jsonl",
+    "relationships_path": "bio_causal_kgs_20260716/shard_runs/fungal_metabolic_switching/shard_000/relationships.jsonl",
+    "chunk_results_path": "bio_causal_kgs_20260716/shard_runs/fungal_metabolic_switching/shard_000/chunk_results.jsonl",
+    "chunks_total": 18,
+    "chunks_completed": 18,
+    "nodes": 251,
+    "edges": 291,
+    "elapsed_sec": 332.5
+  }
+}

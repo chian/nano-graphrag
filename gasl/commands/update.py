@@ -94,34 +94,33 @@ class UpdateHandler(CommandHandler):
                     error_message=f"Source data {source_var} is not a list"
                 )
             
+            if not self.state_store.has_variable(variable) and not self.context_store.has(variable):
+                return self._create_result(
+                    command=command,
+                    status="error",
+                    error_message=f"Target variable {variable} not found in context or state"
+                )
+
             # Apply operation based on type
             if operation == "replace":
                 # For replace operation, use all data
-                filtered_data = source_data
+                filtered_data = list(source_data)
                 print(f"DEBUG: UPDATE - replace operation: using all {len(filtered_data)} items")
+            elif operation == "append":
+                target_data = self._get_target_list(variable)
+                filtered_data = list(target_data) + list(source_data)
+                print(
+                    "DEBUG: UPDATE - append operation: "
+                    f"combined {len(target_data)} target items with "
+                    f"{len(source_data)} source items into {len(filtered_data)} items"
+                )
             else:
                 # Apply filter based on condition
                 filtered_data = self._apply_filter(source_data, condition)
                 print(f"DEBUG: UPDATE - filter operation: filtered {len(source_data)} items to {len(filtered_data)} items")
             
             # Update state variable with filtered data
-            # For LIST variables, we need to replace the items, not extend
-            if self.state_store.has_variable(variable):
-                var_data = self.state_store.get_variable(variable)
-                if isinstance(var_data, dict) and "items" in var_data:
-                    # Replace the items list
-                    var_data["items"] = filtered_data
-                    self.state_store._save_state()
-                    print(f"DEBUG: UPDATE - replaced items in {variable} with {len(filtered_data)} items")
-                else:
-                    # Fallback to update_variable
-                    self.state_store.update_variable(variable, filtered_data, [])
-            else:
-                return self._create_result(
-                    command=command,
-                    status="error",
-                    error_message=f"Target variable {variable} not found in state"
-                )
+            self._store_list_data(variable, filtered_data)
             
             # Create provenance for update
             update_provenance = [
@@ -198,6 +197,43 @@ class UpdateHandler(CommandHandler):
         
         # Default: return all data if no recognized condition
         return data
+
+    def _get_target_list(self, variable: str) -> List[Any]:
+        if self.context_store.has(variable):
+            data = self.context_store.get(variable)
+            if isinstance(data, list):
+                return data
+
+        if self.state_store.has_variable(variable):
+            var_data = self.state_store.get_variable(variable)
+            if isinstance(var_data, dict) and "items" in var_data:
+                return var_data["items"]
+            if isinstance(var_data, list):
+                return var_data
+
+        return []
+
+    def _store_list_data(self, variable: str, data: List[Any]) -> None:
+        if self.state_manager is not None:
+            self.state_manager.store_variable_data(
+                variable,
+                data,
+                store_in_state=True,
+                store_in_context=True,
+                description=f"Updated data for {variable}",
+            )
+            print(f"DEBUG: UPDATE - stored {len(data)} items in {variable}")
+            return
+
+        self.context_store.set(variable, data)
+        if self.state_store.has_variable(variable):
+            var_data = self.state_store.get_variable(variable)
+            if isinstance(var_data, dict) and "items" in var_data:
+                var_data["items"] = data
+                self.state_store._save_state()
+            else:
+                self.state_store.update_variable(variable, data, [])
+        print(f"DEBUG: UPDATE - stored {len(data)} items in {variable}")
     
     def _apply_delete(self, data: list, condition: str) -> list:
         """Apply delete operation based on condition."""

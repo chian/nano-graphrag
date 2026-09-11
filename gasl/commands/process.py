@@ -8,11 +8,16 @@ from typing import Any, List, Dict, Optional
 from .base import CommandHandler
 from ..types import Command, ExecutionResult, Provenance
 from ..utils import normalize_node_id
+from ..json_utils import extract_json
 from ..state_manager import StateManager
 from ..process_runtime import (
     CandidateSelector,
     DerivedArtifactRegistry,
+    normalize_table_items,
     ProcessSubtypeRouter,
+    recover_row_container,
+    requires_input_row_preservation,
+    requires_row_materialization,
 )
 from ..command_repair_agent import LLMCommandRepairAgent, CommandFailureEnvelope, ProcessAlignmentRequest
 from ..contracts import make_contract, merge_contract
@@ -37,6 +42,11 @@ class ProcessHandler(CommandHandler):
         "nine": 9,
         "ten": 10,
     }
+    TARGET_TABLE_PATTERN = re.compile(
+        r"\b(?:materiali[sz]e|populate|emit|produce|return)\s+"
+        r"([A-Za-z_][A-Za-z0-9_]*_table)\b",
+        flags=re.IGNORECASE,
+    )
 
     def __init__(
         self,
@@ -75,7 +85,11 @@ class ProcessHandler(CommandHandler):
         args = command.args
         variable = args["variable"]
         instruction = args["instruction"]
-        target_variable = args.get("target_variable", variable)  # Default to same variable
+        target_variable = (
+            args.get("target_variable")
+            or self._infer_target_variable(instruction)
+            or variable
+        )
         
         print(f"🔍 PROCESS DEBUG: execute called with variable='{variable}', target_variable='{target_variable}', instruction='{instruction[:100]}...'")
         
@@ -108,6 +122,16 @@ class ProcessHandler(CommandHandler):
             if isinstance(data, list) and data
             else None
         )
+        row_preserving = self._is_row_preserving_instruction(
+            instruction,
+            interpretation,
+            target_variable=target_variable,
+            incoming_contract=incoming_contract,
+        )
+        row_materializing = requires_row_materialization(
+            instruction,
+            target_variable,
+        )
 
         selection = (
             self.selector.select(
@@ -117,13 +141,18 @@ class ProcessHandler(CommandHandler):
                 subtype=initial_subtype,
                 strategy_hint="stratified",
             )
-            if isinstance(data, list)
+            if isinstance(data, list) and not row_preserving and not row_materializing
             else None
         )
 
-        diagnostics = selection.diagnostics if selection else {"strategy": "single"}
+        diagnostics = selection.diagnostics if selection else {"strategy": "all_rows" if row_preserving else "single"}
+        diagnostics["row_preserving"] = row_preserving
+        diagnostics["row_materializing"] = row_materializing
         subtype = initial_subtype
-        final_instruction = self._apply_interpretation(instruction, interpretation)
+        final_instruction = self._apply_target_table_constraint(
+            self._apply_interpretation(instruction, interpretation),
+            target_variable,
+        )
         final_data = data
         diagnostics["routed_model"] = getattr(self._llm_for_subtype(initial_subtype), "model", getattr(self.llm_func, "model", None))
         if interpretation:
@@ -135,9 +164,17 @@ class ProcessHandler(CommandHandler):
                 instruction,
                 subtype=subtype,
                 phase="probe",
+                target_variable=target_variable,
             )
             subtype = self.subtype_router.confirm_from_result(initial_subtype, probe_result)
-            final_instruction = self.selector.refine_instruction(instruction, probe_result, subtype)
+            final_instruction = self._apply_target_table_constraint(
+                self.selector.refine_instruction(
+                    instruction,
+                    probe_result,
+                    subtype,
+                ),
+                target_variable,
+            )
             diagnostics["confirmed_subtype"] = subtype
             diagnostics["refined_instruction"] = final_instruction
             diagnostics["probe_result_count"] = len(
@@ -166,6 +203,7 @@ class ProcessHandler(CommandHandler):
                 incoming_contract=incoming_contract,
                 probe_result=probe_result,
                 stage="probe",
+                alignment=alignment,
             )
             repair = None
             if failure is not None:
@@ -183,7 +221,10 @@ class ProcessHandler(CommandHandler):
                 )
             if repair:
                 diagnostics["repair"] = repair
-                final_instruction = repair.get("refined_instruction") or final_instruction
+                final_instruction = self._apply_target_table_constraint(
+                    repair.get("refined_instruction") or final_instruction,
+                    target_variable,
+                )
                 selector_hint = repair.get("selector_hint", "keep_current")
                 if selector_hint not in {"keep_current", ""}:
                     selection = self.selector.select(
@@ -199,6 +240,7 @@ class ProcessHandler(CommandHandler):
                         final_instruction,
                         subtype=subtype,
                         phase="repair_probe",
+                        target_variable=target_variable,
                     )
                     diagnostics["repair_probe_result_count"] = len(
                         probe_result.get("filtered_items") or probe_result.get("processed_items") or []
@@ -222,6 +264,11 @@ class ProcessHandler(CommandHandler):
         elif selection:
             final_data = selection.final_items
 
+        final_instruction = self._apply_target_table_constraint(
+            final_instruction,
+            target_variable,
+        )
+
         # Use MicroActionFramework for batching if available
         if self.micro_framework and isinstance(final_data, list) and len(final_data) > self.MICROACTION_THRESHOLD:
             print(f"DEBUG: PROCESS - Using MicroActionFramework for {len(final_data)} items")
@@ -233,20 +280,54 @@ class ProcessHandler(CommandHandler):
                     command_type="PROCESS",
                     instruction=final_instruction,
                     batch_size=None,
-                    target_variable=target_variable
+                    target_variable=target_variable,
+                    preserve_input_count=row_preserving,
+                    store_target=False,
                 )
             finally:
                 self.micro_framework.llm_func = original_llm
             identity_rows, identity_meta = materialize_row_identity(
-                result.data.get("processed_items", []),
+                self._filter_target_table_items(
+                    result.data.get("processed_items", []),
+                    target_variable,
+                ),
                 spec=IdentitySpec(
                     mode="preserve",
                     grain_type=incoming_contract.get("grain_type", "row"),
                     preserve_multiplicity=bool(incoming_contract.get("multiplicity_preserved", True)),
                 ),
                 source_contract=incoming_contract,
-                source_rows=final_data if isinstance(final_data, list) else [],
+                source_rows=self._identity_source_rows(
+                    final_data,
+                    preserve_input_count=row_preserving,
+                ),
             )
+            if not identity_rows:
+                print(
+                    f"DEBUG: PROCESS - Preserving {target_variable}; "
+                    "empty PROCESS output is not committed"
+                )
+                result.status = "empty"
+                result.data["processed_items"] = []
+                result.count = 0
+                result.contract = self._build_process_contract(
+                    source_contract=incoming_contract,
+                    interpretation=interpretation,
+                    output_data=[],
+                    subtype=subtype,
+                    strategy=diagnostics.get("strategy", ""),
+                )
+                self._record_artifact_candidate(
+                    variable=variable,
+                    target_variable=target_variable,
+                    instruction=instruction,
+                    subtype=subtype,
+                    diagnostics=diagnostics,
+                    final_result=result,
+                    source_size=len(data) if isinstance(data, list) else 1,
+                    final_size=len(final_data) if isinstance(final_data, list) else 1,
+                )
+                return result
             result.data["processed_items"] = identity_rows
             if self.context_store:
                 self.context_store.set(target_variable, identity_rows)
@@ -258,7 +339,14 @@ class ProcessHandler(CommandHandler):
                 strategy=diagnostics.get("strategy", ""),
             )
             process_contract = merge_contract(process_contract, identity_meta)
-            self.state_manager.store_variable_contract(target_variable, process_contract, store_in_state=True, store_in_context=True)
+            self.state_manager.store_variable_data(
+                target_variable,
+                identity_rows,
+                store_in_state=True,
+                store_in_context=True,
+                description=f"Processed data from {target_variable}",
+                contract=process_contract,
+            )
             result.contract = process_contract
             self._record_artifact_candidate(
                 variable=variable,
@@ -273,7 +361,14 @@ class ProcessHandler(CommandHandler):
             return result
 
         print(f"DEBUG: PROCESS - Processing {len(final_data) if isinstance(final_data, list) else 1} items normally")
-        result = self._execute_single_batch(final_data, final_instruction, command, target_variable, subtype=subtype)
+        result = self._execute_single_batch(
+            final_data,
+            final_instruction,
+            command,
+            target_variable,
+            subtype=subtype,
+            preserve_input_count=row_preserving,
+        )
         self._record_artifact_candidate(
             variable=variable,
             target_variable=target_variable,
@@ -294,11 +389,89 @@ class ProcessHandler(CommandHandler):
         target_variable: str,
         *,
         subtype: str,
+        preserve_input_count: bool = False,
     ) -> ExecutionResult:
         """Execute PROCESS on a single batch (original logic)."""
-        result = self._run_process_batch(data, instruction, subtype=subtype, phase="main")
+        result = self._run_process_batch(
+            data,
+            instruction,
+            subtype=subtype,
+            phase="main",
+            target_variable=target_variable,
+        )
+        if (
+            result.get("processing_method") == "filter"
+            and requires_row_materialization(instruction, target_variable)
+        ):
+            incoming_contract = self.state_manager.get_variable_contract(command.args["variable"], fallback_to_last_nodes=True)
+            error_contract = self._build_process_contract(
+                source_contract=incoming_contract,
+                interpretation=None,
+                output_data=[],
+                subtype=subtype,
+                strategy="row_materialization",
+            )
+            return self._create_result(
+                command=command,
+                status="error",
+                data=[],
+                count=len(result.get("filtered_items") or []),
+                error_message=(
+                    "PROCESS was required to materialize row objects but "
+                    "returned filter decisions."
+                ),
+                provenance=[
+                    self._create_provenance(
+                        source_id="llm-process",
+                        method="process",
+                        variable=command.args["variable"],
+                        instruction=instruction,
+                        model="llm",
+                        process_subtype=subtype,
+                    )
+                ],
+                contract=error_contract,
+            )
+
         normalized_items = self._normalized_items(result)
+        normalized_items = self._filter_target_table_items(
+            normalized_items,
+            target_variable,
+        )
         incoming_contract = self.state_manager.get_variable_contract(command.args["variable"], fallback_to_last_nodes=True)
+        if (
+            preserve_input_count
+            and isinstance(data, list)
+            and len(normalized_items) != len(data)
+        ):
+            error_contract = self._build_process_contract(
+                source_contract=incoming_contract,
+                interpretation=None,
+                output_data=[],
+                subtype=subtype,
+                strategy="row_preserving",
+            )
+            return self._create_result(
+                command=command,
+                status="error",
+                data=[],
+                count=len(normalized_items),
+                error_message=(
+                    "Row-preserving PROCESS expected "
+                    f"{len(data)} output rows but produced {len(normalized_items)}"
+                ),
+                provenance=[
+                    self._create_provenance(
+                        source_id="llm-process",
+                        method="process",
+                        variable=command.args["variable"],
+                        instruction=instruction,
+                        model="llm",
+                        process_subtype=subtype,
+                    )
+                ],
+                contract=error_contract,
+            )
         normalized_items, identity_meta = materialize_row_identity(
             normalized_items,
             spec=IdentitySpec(
@@ -307,8 +480,40 @@ class ProcessHandler(CommandHandler):
                 preserve_multiplicity=bool(incoming_contract.get("multiplicity_preserved", True)),
             ),
             source_contract=incoming_contract,
-            source_rows=data if isinstance(data, list) else [],
+            source_rows=self._identity_source_rows(
+                data,
+                preserve_input_count=preserve_input_count,
+            ),
         )
+        if not normalized_items:
+            print(
+                f"DEBUG: PROCESS - Preserving {target_variable}; "
+                "empty PROCESS output is not committed"
+            )
+            empty_contract = self._build_process_contract(
+                source_contract=incoming_contract,
+                interpretation=None,
+                output_data=[],
+                subtype=subtype,
+                strategy="single_batch",
+            )
+            return self._create_result(
+                command=command,
+                status="empty",
+                data=[],
+                count=0,
+                provenance=[
+                    self._create_provenance(
+                        source_id="llm-process",
+                        method="process",
+                        variable=command.args["variable"],
+                        instruction=instruction,
+                        model="llm",
+                        process_subtype=subtype,
+                    )
+                ],
+                contract=empty_contract,
+            )
         print(f"🔍 PROCESS DEBUG: Parsed result keys: {list(result.keys())}")
         print(f"🔍 PROCESS DEBUG: processed_items length: {len(normalized_items)}")
         print(f"🔍 PROCESS DEBUG: processing_method: {result.get('processing_method', 'unknown')}")
@@ -368,12 +573,20 @@ class ProcessHandler(CommandHandler):
             return result.get("filtered_items", [])
         return result.get("processed_items", [])
 
-    def _run_process_batch(self, data: Any, instruction: str, *, subtype: str, phase: str) -> Dict[str, Any]:
+    def _run_process_batch(
+        self,
+        data: Any,
+        instruction: str,
+        *,
+        subtype: str,
+        phase: str,
+        target_variable: Optional[str] = None,
+    ) -> Dict[str, Any]:
         prompt = self._create_process_prompt(data, instruction)
         llm = self._llm_for_subtype(subtype)
         llm_response = llm.call(prompt)
         print(f"DEBUG: PROCESS ({phase}/{subtype}) - LLM Response:\n{llm_response}\n")
-        return self._parse_process_response(llm_response, data)
+        return self._parse_process_response(llm_response, data, target_variable)
 
     def _llm_for_subtype(self, subtype: str):
         if hasattr(self.llm_func, "clone"):
@@ -437,6 +650,61 @@ class ProcessHandler(CommandHandler):
             return instruction
         return f"{instruction}\nContract: {contract}"
 
+    @staticmethod
+    def _apply_target_table_constraint(
+        instruction: str,
+        target_variable: str,
+    ) -> str:
+        if not target_variable or not target_variable.endswith("_table"):
+            return instruction
+        if f"Target table variable: {target_variable}" in instruction:
+            return instruction
+        return (
+            f"{instruction}\n"
+            f"Target table variable: {target_variable}. Return only rows for "
+            f"{target_variable}; do not emit rows for sibling tables."
+        )
+
+    @staticmethod
+    def _filter_target_table_items(
+        items: List[Dict[str, Any]],
+        target_variable: str,
+    ) -> List[Dict[str, Any]]:
+        return normalize_table_items(items, target_variable)
+
+    @classmethod
+    def _infer_target_variable(cls, instruction: str) -> Optional[str]:
+        """Infer a missing PROCESS target only for explicit table materializers."""
+        match = cls.TARGET_TABLE_PATTERN.search(instruction or "")
+        if match:
+            return match.group(1)
+        return None
+
+    @staticmethod
+    def _identity_source_rows(
+        data: Any,
+        *,
+        preserve_input_count: bool,
+    ) -> List[Dict[str, Any]]:
+        if preserve_input_count and isinstance(data, list):
+            return data
+        return []
+
+    @staticmethod
+    def _is_row_preserving_instruction(
+        instruction: str,
+        interpretation: Optional[Dict[str, Any]] = None,
+        *,
+        target_variable: Optional[str] = None,
+        incoming_contract: Optional[Dict[str, Any]] = None,
+    ) -> bool:
+        return requires_input_row_preservation(
+            instruction,
+            interpretation,
+            target_variable=target_variable,
+            source_contract=incoming_contract,
+        )
+
     def _build_process_failure_envelope(
         self,
         *,
@@ -446,6 +714,7 @@ class ProcessHandler(CommandHandler):
         incoming_contract: Dict[str, Any],
         probe_result: Dict[str, Any],
         stage: str,
+        alignment: Optional[Dict[str, Any]] = None,
     ) -> Optional[CommandFailureEnvelope]:
         output_items = probe_result.get("filtered_items") or probe_result.get("processed_items") or []
         processing_method = str(probe_result.get("processing_method", "") or "")
@@ -453,7 +722,13 @@ class ProcessHandler(CommandHandler):
         input_count = len(data)
         error_type = ""
         error_message = ""
-        if processing_method == "error":
+        if alignment and alignment.get("aligned") is False:
+            error_type = "misaligned_output"
+            error_message = str(
+                alignment.get("alignment_reason")
+                or "PROCESS probe output is misaligned with the requested instruction."
+            )
+        elif processing_method == "error":
             error_type = "parse_or_model_error"
             error_message = str((probe_result.get("summary") or {}).get("error", "PROCESS batch error"))
         elif input_count > 0 and output_count == 0:
@@ -605,7 +880,21 @@ Data to process (list of nodes):
 
 Instructions:
 1. Analyze each node's content (name, description, properties) according to the instruction
-2. If the instruction asks to FILTER or SELECT nodes, return a JSON object with this structure:
+2. If the instruction asks to create, emit, produce, materialize, transform, normalize, derive, calculate, count, or add fields to rows, return a JSON object with this structure:
+{{
+  "processed_items": [
+    {{"id": "node_id", "name": "node_name", "new_field": "value", "reason": "explanation"}},
+    ...
+  ],
+  "summary": {{
+    "total_processed": 0,
+    "processing_type": "description of what was processed",
+    "fields_created": ["list", "of", "fields"]
+  }}
+}}
+
+3. If the instruction asks for row objects, a table, exact output fields, or a target table variable, do not return included/excluded decisions. Omit ineligible inputs and return only processed_items shaped like the requested rows.
+4. If the instruction only asks to FILTER or SELECT existing nodes without creating new row fields, return a JSON object with this structure:
 {{
   "included": [
     {{"id": "node_id", "name": "node_name", "reason": "why included"}},
@@ -620,19 +909,6 @@ Instructions:
     "included_count": 0,
     "excluded_count": 0,
     "categories_found": []
-  }}
-}}
-
-3. If the instruction asks to CALCULATE, COUNT, or ADD FIELDS, return a JSON object with this structure:
-{{
-  "processed_items": [
-    {{"id": "node_id", "name": "node_name", "calculated_field": "value", "reason": "explanation"}},
-    ...
-  ],
-  "summary": {{
-    "total_processed": 0,
-    "calculation_type": "description of what was calculated",
-    "fields_added": ["list", "of", "new", "fields"]
   }}
 }}
 
@@ -759,6 +1035,14 @@ Rules:
                     yield next_prefix, value
                 elif isinstance(value, dict):
                     yield from ProcessHandler._iter_scalar_fields(value, next_prefix, depth=depth + 1, max_depth=max_depth)
+                elif isinstance(value, list):
+                    for index, entry in enumerate(value[:2]):
+                        yield from ProcessHandler._iter_scalar_fields(
+                            entry,
+                            f"{next_prefix}[{index}]",
+                            depth=depth + 1,
+                            max_depth=max_depth,
+                        )
         elif isinstance(item, (str, int, float, bool)):
             yield prefix or "value", item
 
@@ -932,25 +1216,26 @@ Rules:
             order_direction=(interpretation or {}).get("order_direction", source_contract.get("order_direction", "unknown")),
             scope=(interpretation or {}).get("scope", "current_rows_only"),
             usable_by=["PROCESS", "AGGREGATE", "RANK", "SHOW", "SELECT"],
-            confidence=(interpretation or {}).get("confidence", 0.8),
             strategy=strategy,
         )
         return merge_contract(source_contract, inferred)
     
     @staticmethod
     def _strip_json_fences(text: str) -> str:
-        import re
-        text = text.strip()
-        match = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```', text)
-        return match.group(1).strip() if match else text
+        return extract_json(text)
 
-    def _parse_process_response(self, llm_response: str, original_data: Any) -> Dict[str, Any]:
+    def _parse_process_response(
+        self,
+        llm_response: str,
+        original_data: Any,
+        target_variable: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """Parse LLM response for PROCESS command."""
         try:
             import json
 
             response_data = json.loads(self._strip_json_fences(llm_response))
-            
+
             # Handle different response formats
             if "included" in response_data and "excluded" in response_data:
                 # Filtering response format
@@ -967,21 +1252,27 @@ Rules:
                     "summary": response_data.get("summary", {}),
                     "processing_method": "process"
                 }
-            elif "extracted_authors" in response_data:
-                # Special case for author extraction
+
+            # The model named the row container after the output it was asked
+            # to produce rather than after the canonical key. Recover the rows
+            # instead of wrapping the whole envelope as a single bogus row.
+            recovered = recover_row_container(response_data, target_variable)
+            if recovered is not None:
                 return {
-                    "processed_items": response_data.get("extracted_authors", []),
-                    "summary": response_data.get("summary", {}),
-                    "processing_method": "extract_authors"
+                    "processed_items": recovered,
+                    "summary": response_data.get("summary", {})
+                    if isinstance(response_data, dict)
+                    else {},
+                    "processing_method": "process",
                 }
-            else:
-                # Fallback - treat as processed items
-                return {
-                    "processed_items": [response_data] if isinstance(response_data, dict) else [],
-                    "summary": {"total_processed": 1},
-                    "processing_method": "fallback"
-                }
-                
+
+            # Fallback - treat a bare object as a single processed row.
+            return {
+                "processed_items": [response_data] if isinstance(response_data, dict) else [],
+                "summary": {"total_processed": 1},
+                "processing_method": "fallback"
+            }
+
         except json.JSONDecodeError:
             # If JSON parsing fails, try to extract information from text
             return {

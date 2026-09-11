@@ -5,6 +5,7 @@ from typing import Any, Literal
 
 
 AnswerViewKind = Literal[
+    "answer_bundle",
     "evidence_table",
     "grouped_summary",
     "distribution",
@@ -12,6 +13,8 @@ AnswerViewKind = Literal[
     "frontier",
     "ranking",
     "provenance",
+    "ranked_subjects",
+    "subject_measure",
 ]
 
 
