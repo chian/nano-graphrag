@@ -102,7 +102,8 @@ complete.
 ## Execution order
 
 1. Correct the ownership boundary while preserving the current estimator and
-   controller arithmetic. The combined component moves under `rarefaction/`;
+   controller arithmetic. The combined component moves under
+   `question_pipeline/rarefaction/`;
    `method_loop` retains Episode execution, nesting, scope routing, identity,
    and records.
 2. Verify that identical observations produce identical counts and verdicts

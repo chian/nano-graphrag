@@ -12,12 +12,16 @@ from ..search_refinement_agent import (
     refinement_record,
 )
 from ..adapters.base import (
+    BOUND_KIND_NONE,
+    BOUND_KIND_WALK_NODE_BUDGET,
+    BOUND_KIND_WALK_SEED_BUDGET,
     GraphAdapter,
+    complete_result,
+    completeness,
     node_entity_type,
 )
 from ..contracts import make_contract
 from ..state_manager import StateManager
-from ..query_binding import GraphWalkBinding
 
 
 # Bounds on the pilot walk that feeds the refinement judgement. NO MEASUREMENT
@@ -26,8 +30,7 @@ from ..query_binding import GraphWalkBinding
 # hint: a judgement formed under a 60-row cap is a different claim from the same
 # judgement formed over a whole neighbourhood, and the planner could not
 # previously tell which it was reading.
-# `edge_cap` is measured -- see the citation at the fan-out cut in
-# `GraphWalkBinding.walk`. It
+# `edge_cap` is measured -- see the citation at the fan-out cut in `_walk`. It
 # binds on under 2% of nodes and discards 15-19% of edge traversal on the three
 # benchmark graphs, because the degree distribution is heavy-tailed.
 #
@@ -56,11 +59,6 @@ class GraphNavHandler(CommandHandler):
             state_manager or StateManager(state_store, context_store),
         )
         self.adapter = adapter
-        self.walk_binding = GraphWalkBinding(
-            adapter,
-            incident_edges=self._incident_edges,
-            canonicalize_relation_token=self._canonicalize_relation_token,
-        )
         self.search_refinement_agent = LLMSearchRefinementAgent(llm_func, prompt_logger=prompt_logger)
     
     def can_handle(self, command: Command) -> bool:
@@ -94,15 +92,14 @@ class GraphNavHandler(CommandHandler):
         """Execute GRAPHWALK command — the standalone (non-Episode) path.
 
         The pre-walk half (`prepare_graphwalk`) and post-walk half
-        (`finish_graphwalk`) are the same functions the query binding calls
-        when it nests the walk as a child Episode; this method keeps the
-        handler working for any caller outside that composition, walking
-        through the standalone `walk()` path with its own Context.
+        (`finish_graphwalk`) remain callable by a future Episode binding. This
+        direct path performs the graph operation without choosing a numerical
+        controller for that future composition.
         """
         prep = self.prepare_graphwalk(command)
         if prep.get("status") != "ok":
             return prep["error_result"]
-        walked_data, walk_completeness = self.walk_binding.walk(
+        walked_data, walk_completeness = self._walk(
             prep["source_nodes"],
             prep["follow_filters"],
             prep["depth"],
@@ -154,7 +151,7 @@ class GraphNavHandler(CommandHandler):
         pilot_sample_size = 0
         pilot_empty = True
         if len(source_nodes) > 10 or depth > 1:
-            pilot, _pilot_completeness = self.walk_binding.walk(
+            pilot, _pilot_completeness = self._walk(
                 source_nodes, follow_filters, depth, **PILOT_CAPS
             )
             pilot_contract = make_contract(
@@ -252,11 +249,9 @@ class GraphNavHandler(CommandHandler):
     ) -> ExecutionResult:
         """GRAPHWALK's post-walk half: contracts, storage, ExecutionResult.
 
-        Exactly the handler's previous second half. Standalone it runs
-        immediately after `walk()`; nested it runs in the query episode's
-        post-verdict `on_unit` hook, which the kernel guarantees fires before
-        the next command is pulled, so `last_walk_result`/`result_var` land
-        before the next command executes (G7).
+        In the direct engine it runs immediately after `_walk()`. A future
+        Episode binding can call it from its post-verdict hook so
+        `last_walk_result` and `result_var` land before the next command.
         """
         result_var = prep["result_var"]
         from_var = prep["from_var"]
@@ -348,6 +343,174 @@ class GraphNavHandler(CommandHandler):
         result_obj.contract = walk_contract
         
         return result_obj
+
+    def _walk(
+        self,
+        source_nodes: list[dict],
+        follow_filters: list[str],
+        depth: int,
+        *,
+        source_cap: int | None,
+        max_nodes: int,
+        edge_cap: int,
+    ) -> tuple[list[dict], dict]:
+        """Execute the standalone GASL graph operation without Episode control.
+
+        GASL supplies graph access and reports physical cuts here. An Episode
+        binding may wrap the same operation later, but the standalone engine
+        does not choose or import a question-pipeline numerical component.
+        """
+        walked_data: list[dict] = []
+        visited_hops: set[tuple] = set()
+        seeds_total = len(source_nodes)
+        seed_limit = seeds_total if source_cap is None else min(source_cap, seeds_total)
+        seeds_attempted = 0
+        seeds_without_id = 0
+        seed_expansion_errors = 0
+        nodes_with_truncated_fanout = 0
+        edges_discarded_by_fanout_cap = 0
+        node_budget_hit = False
+
+        for node in source_nodes[:seed_limit]:
+            if len(walked_data) >= max_nodes:
+                node_budget_hit = True
+                break
+            seeds_attempted += 1
+            node_id = node.get("id")
+            if not node_id:
+                seeds_without_id += 1
+                continue
+            try:
+                current_nodes = [node]
+                for step in range(depth):
+                    next_nodes = []
+                    for current_node in current_nodes:
+                        edges = self._incident_edges(current_node["id"])
+                        if len(edges) > edge_cap:
+                            nodes_with_truncated_fanout += 1
+                            edges_discarded_by_fanout_cap += len(edges) - edge_cap
+                        for edge, traversal_direction in edges[:edge_cap]:
+                            edge_rel = (
+                                edge.get("data", {}).get("relation_type")
+                                or edge.get("data", {}).get("relationship_name")
+                                or ""
+                            )
+                            canonical_edge_rel = self._canonicalize_relation_token(edge_rel)
+                            if follow_filters and canonical_edge_rel not in follow_filters:
+                                continue
+                            neighbor_id = (
+                                edge["target"]
+                                if traversal_direction == "out"
+                                else edge["source"]
+                            )
+                            neighbor_nodes = self.adapter.find_nodes(
+                                {"id_filter": neighbor_id}
+                            )
+                            if not neighbor_nodes:
+                                continue
+                            neighbor_node = neighbor_nodes[0]
+                            neighbor_id = neighbor_node["id"]
+                            hop_key = (
+                                current_node["id"],
+                                edge["source"],
+                                edge["target"],
+                                step + 1,
+                                canonical_edge_rel,
+                                traversal_direction,
+                            )
+                            if hop_key in visited_hops:
+                                continue
+                            visited_hops.add(hop_key)
+                            target_data = dict(neighbor_node.get("data", {}))
+                            edge_data = dict(edge.get("data", {}))
+                            row_data = {
+                                **target_data,
+                                "src_id": current_node["id"],
+                                "tgt_id": neighbor_id,
+                                "edge_src_id": edge["source"],
+                                "edge_tgt_id": edge["target"],
+                                "relation_type": edge_rel,
+                                "traversal_direction": traversal_direction,
+                                "path_depth": step + 1,
+                                "edge_relation_type": edge_rel,
+                                "edge_source_refs": edge_data.get("source_refs"),
+                                "edge_source_chunks": edge_data.get("source_chunks"),
+                                "edge_source_chunk": edge_data.get("source_chunk"),
+                                "edge_description": edge_data.get("description"),
+                            }
+                            for provenance_key in (
+                                "source_refs",
+                                "source_chunks",
+                                "source_chunk",
+                            ):
+                                edge_value = edge_data.get(provenance_key)
+                                if edge_value:
+                                    row_data[provenance_key] = edge_value
+                            next_nodes.append(
+                                {
+                                    **neighbor_node,
+                                    "src_id": current_node["id"],
+                                    "tgt_id": neighbor_id,
+                                    "edge_data": edge_data,
+                                    "data": row_data,
+                                }
+                            )
+                    current_nodes = next_nodes
+                walked_data.extend(current_nodes)
+            except Exception:
+                seed_expansion_errors += 1
+
+        seeds_skipped = seeds_total - seeds_attempted
+        detail = {
+            "seeds_attempted": seeds_attempted,
+            "seeds_total": seeds_total,
+            "seeds_without_id": seeds_without_id,
+            "seed_expansion_errors": seed_expansion_errors,
+            "walk_depth": depth,
+            "nodes_with_truncated_fanout": nodes_with_truncated_fanout,
+            "edges_discarded_by_fanout_cap": edges_discarded_by_fanout_cap,
+        }
+        if node_budget_hit:
+            return walked_data, completeness(
+                complete=False,
+                returned=len(walked_data),
+                bound=max_nodes,
+                bound_kind=BOUND_KIND_WALK_NODE_BUDGET,
+                residual_known=False,
+                residual=None,
+                **detail,
+            )
+        if source_cap is not None and seeds_attempted < seeds_total:
+            return walked_data, completeness(
+                complete=False,
+                returned=len(walked_data),
+                bound=source_cap,
+                bound_kind=BOUND_KIND_WALK_SEED_BUDGET,
+                residual_known=True,
+                residual=seeds_skipped,
+                **detail,
+            )
+        if nodes_with_truncated_fanout:
+            return walked_data, completeness(
+                complete=False,
+                returned=len(walked_data),
+                bound=edge_cap,
+                bound_kind=BOUND_KIND_WALK_NODE_BUDGET,
+                residual_known=False,
+                residual=None,
+                **detail,
+            )
+        if seeds_without_id or seed_expansion_errors:
+            return walked_data, completeness(
+                complete=False,
+                returned=len(walked_data),
+                bound=None,
+                bound_kind=BOUND_KIND_NONE,
+                residual_known=True,
+                residual=seeds_without_id + seed_expansion_errors,
+                **detail,
+            )
+        return walked_data, dict(complete_result(len(walked_data)), **detail)
 
 
     def _incident_edges(self, node_id: Any) -> list[tuple[dict, str]]:

@@ -91,7 +91,7 @@ from method_loop import (
     UnitRecord,
     UnitView,
 )
-from rarefaction import (
+from .rarefaction import (
     OBSERVATION_EXCLUDED,
     OBSERVATION_FAILED,
     OBSERVATION_OBSERVED,

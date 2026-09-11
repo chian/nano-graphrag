@@ -1,9 +1,13 @@
-"""Bind the GASL query surface to the generic acquisition Episode.
+"""Future bindings from GASL graph operations to acquisition Episodes.
+
+This module is deliberately not imported by the standalone GASL executor or
+the current provider acquisition composition. It preserves the query and walk
+Episode types for a later composition that chooses GASL as a search surface.
 
 The surface vocabulary and nesting live here, at the binding boundary
 (phase G; design: experiments/log/phase-G-gasl-query-binding.md §1):
 
-    gasl-query Episode                        [NEW: bound by this phase]
+    gasl-query Episode
       unit: one completed GASL operation track
       credit: distinct opaque identities the operation contributed (kernel fan-up)
       └── operation unit
@@ -19,15 +23,12 @@ The surface vocabulary and nesting live here, at the binding boundary
     nesting: walk Episode ⊂ query Episode; FIND/SUBGRAPH/GRAPHCONNECT/
              GRAPHPATTERN are Leaves of the query Episode (no scope of their own)
 
-Only the query and walk grains are bound. Per-depth encounter disclosure
-preserves the seed-grain observations needed to evaluate that later binding
-without claiming that a seed Episode currently runs. The command handlers
-supply the graph adapter and remain responsible for command parsing and
-result storage; the executor injects its existing planner, track, repair,
-and adaptation machinery through :class:`QueryBindingServices` — this module
-adds no machinery of its own, it wires the existing parts into one
-composition (the Phase G operator ruling: binding layers to Episodes, that
-is all).
+Only the query and walk grains are defined. Per-depth encounter disclosure
+preserves the seed-grain observations needed to evaluate a later binding
+without claiming that a seed Episode currently runs. When this is integrated,
+the composition layer must inject the graph adapter, planner, execution,
+repair, and persistence callables through :class:`QueryBindingServices`.
+The GASL engine does not import this module.
 """
 
 import json
@@ -52,7 +53,7 @@ from method_loop import (
     UnitView,
     leaves,
 )
-from rarefaction import (
+from .rarefaction import (
     OBSERVATION_FAILED,
     ChannelSchema,
     ControlStep,
@@ -62,7 +63,7 @@ from rarefaction import (
     bind_controller,
 )
 
-from .adapters.base import (
+from gasl.adapters.base import (
     BOUND_KIND_NONE,
     BOUND_KIND_WALK_NODE_BUDGET,
     BOUND_KIND_WALK_SEED_BUDGET,

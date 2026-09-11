@@ -173,8 +173,7 @@ downstream joins depend on it. Two agents reasoned from the false "absent"
 listing and lost work; verify against the tree before relying on any entry here.
 
 Still absent as `question_pipeline` modules, and to be re-checked rather than
-trusted: `evidence_registry`, `expectations`, `rarefaction`, and
-`search_planning`. These were written in the WIP snapshot `cd44ebb` and
+trusted: `expectations` and `search_planning`. These were written in the WIP snapshot `cd44ebb` and
 removed by the prune back to `92f8e64`.
 
 Their design intent is readable at `git show cd44ebb:question_pipeline/<name>.py`
@@ -183,14 +182,15 @@ unvalidated, and reintroducing it silently undoes the prune. A module from that
 list enters the tree only as the deliverable of a build phase that owns it, with
 its own charter and tracker row.
 
-**The generic method and numerical component are separate top-level
-packages.** `method_loop/` owns `Episode`, nesting, runtime identity, scope
-state, and routing to an attached numerical component. `rarefaction/` owns the
-paired incidence estimator and numerical controller, threshold state and
-adapter hook, and their typed numeric output. Neither is a
-`question_pipeline` module or a restoration of the `cd44ebb` file. Surface
-bindings import the generic method from `method_loop` and numerical contracts
-from `rarefaction`.
+**The generic method is top-level; the question-pipeline numerical component
+is not.** `method_loop/` owns `Episode`, nesting, runtime identity, scope state,
+and routing to an attached numerical component.
+`question_pipeline/rarefaction/` owns the paired incidence estimator and
+numerical controller used by question-pipeline Episode types, including
+threshold state, its adapter hook, and typed numeric output. It is not the
+removed `cd44ebb` module. Question-pipeline bindings import the generic method
+from `method_loop` and their numerical contracts from the local rarefaction
+package. Standalone `gasl/` imports neither.
 
 ### Evidence rules at baseline
 

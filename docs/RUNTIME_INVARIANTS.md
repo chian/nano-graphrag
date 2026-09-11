@@ -76,27 +76,21 @@ one `query_generation.graph_validator`). They are **not blessed** — the
 inventory exists so that a *new* outbound import fails the check rather than
 hiding among them. It may shrink. It must not grow.
 
-The current method boundary is dependency-directed: `rarefaction/` owns only
-the paired estimator-controller arithmetic; `method_loop/` owns Episode,
-nesting, identity, and scope attachment; `gasl/` and `question_pipeline/`
-compose those lower packages without either lower package importing a surface.
-Ingestion remains beside the pipeline and nothing imports upward. So the
-inventory is debt:
+The current method boundary is dependency-directed: `method_loop/` owns the
+generic Episode, nesting, identity, and scope attachment;
+`question_pipeline/rarefaction/` owns the question pipeline's paired
+estimator-controller arithmetic; and question-pipeline bindings compose those
+pieces around their acquisition surfaces. Standalone `gasl/` imports neither
+package. Ingestion remains beside the pipeline and nothing imports upward. So
+the inventory is debt:
 a phase that edits a file carrying one of these imports removes the import
 as part of the phase, and the steward reviewing that phase asks why if it
 did not.
 
-**Permitted lower layer (phase 4A, landed 2026-08-24):** `gasl/` may import
-the `rarefaction/` package. This is not growth of the outbound inventory and
-not a weakening of this rule: the rule keeps the engine from importing the
-ingestion and control layers *above* it, and `rarefaction/` is a *lower*
-layer — pure stdlib numerical control over opaque identity tokens, importing
-nothing, schema-agnostic by construction. The checker carries an explicit
-permitted-lower-layer entry for it, with this paragraph as the documented
-reason. Charter: `docs/ACQUISITION_LOOP.md`. The binding that uses it is
-`gasl/query_binding.py`: the GASL surface composes `method_loop.Episode`, passes
-opaque identities into the attached numerical component, and quits on its
-scalar hypervolume verdict, so the engine stays schema-agnostic.
+Future GASL Episode integration belongs above the graph engine in a
+question-pipeline binding. That binding may import GASL interfaces,
+`method_loop`, and the local numerical component; the dependency must never be
+reversed by making `gasl/` import the question pipeline.
 
 ## Enforcement
 

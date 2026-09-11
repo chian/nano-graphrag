@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterator, Mapping, Sequence
 
-from rarefaction import (
+from .rarefaction import (
     CHANNEL_SCHEMA_VERSION,
     CONTROLLER_VERSION,
     INCIDENCE_ESTIMATOR_VERSION,
@@ -33,7 +33,7 @@ from rarefaction import (
     EstimatorController,
     ThresholdAdapter,
 )
-from rarefaction.method import (
+from .rarefaction.incidence_control import (
     DEFAULT_ALPHA,
     DEFAULT_EPOCH,
     DEFAULT_SUBSAMPLE_SIZE,

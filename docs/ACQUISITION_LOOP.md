@@ -696,16 +696,17 @@ Three structural facts made insertion impossible and mandated the rebuild:
 no model calls. A surface composes its source, extraction, acceptance,
 post-verdict learning, persistence, and safety bindings around `Episode`.
 
-`rarefaction/` owns the paired incidence estimator, its matching numerical
-controller, threshold state and adaptation hook, and their typed numeric
-contract. It does not own Episode identity, scope lifecycle, nesting, memory,
-persistence, or a surface.
+`question_pipeline/rarefaction/` owns the paired incidence estimator, its
+matching numerical controller, threshold state and adaptation hook used by
+question-pipeline Episode types, and their typed numeric contract. It does not
+own Episode identity, scope lifecycle, nesting, memory, persistence, or a
+surface.
 
 | Module | Owns |
 | --- | --- |
 | `method_loop/episode.py` | The single composable loop, Episode/unit identities, compact `EpisodeRequest`/`EpisodeUpdate` routing, and the full recursive `EpisodeRecord` trace |
 | `method_loop/runtime.py` | Path routing that opens and calls the controller function supplied by each `Grain`; it knows no controller schema |
-| `rarefaction/method.py` | One optional controller implementation: incidence observation, paired estimator-controller transition, numeric report, threshold adapter, and estimator-specific arithmetic |
+| `question_pipeline/rarefaction/incidence_control.py` | The question pipeline's controller implementation: incidence observation, paired estimator-controller transition, numeric report, threshold adapter, and estimator-specific arithmetic |
 
 `stop_rule.py` is removed when the upgraded `accumulator.py` and
 `controller.py` are wired. `Episode` is the sole owner of the composed loop
@@ -728,13 +729,11 @@ Semantics the kernel enforces, all of which are standing rules of this repo:
 
 ## Layering
 
-`gasl/` may import `method_loop/` for the generic Episode method and
-`rarefaction/` for its estimator contract. This is not a weakening of the
-layering rule in `docs/RUNTIME_INVARIANTS.md`: both are lower, schema-agnostic
-layers over opaque identity tokens. The
-frozen-inventory checker (`tools/check_runtime_invariants.py`) was amended in
-phase 4A to admit `rarefaction` as a permitted lower layer; the
-`nano_graphrag`/`question_pipeline` prohibition is unchanged.
+Standalone `gasl/` is an independent graph query engine and imports neither
+`method_loop` nor `question_pipeline`. The future question-pipeline GASL
+Episode bindings import the generic method, the local rarefaction component,
+and GASL's graph interfaces from above those packages. This keeps numerical
+policy out of the graph engine itself.
 
 ## Surface bindings
 
@@ -746,12 +745,12 @@ phase 4A to admit `rarefaction` as a permitted lower layer; the
    per-strategy verdict decides when to switch strategy; the root verdict is
    the only convergence of the whole run. Graph enrichment is a post-verdict
    side effect. No page count or search count is the method stop rule.
-2. **GASL walking** — `gasl/commands/graph_nav.py`. Unit = one seed
-   expansion. Credits = the distinct opaque node identities encountered by
-   that eligible seed expansion; recurrence across expansions supplies
-   incidence. The GASL binding moves through the same Episode
-   estimator/controller boundary. GASL stays schema-agnostic: it counts opaque identities; it
-   never knows what a result column is.
+2. **Future GASL search episodes** —
+   `question_pipeline/gasl_bindings.py`. These bindings can present GASL graph
+   operations as nested Episode types and attach the same question-pipeline
+   numerical boundary. They are not connected to the current acquisition
+   composition. `gasl/commands/graph_nav.py` remains a direct graph operation
+   and knows nothing about rarefaction or result columns.
 3. **Strategy grain** — phase 4D. A strategy is an Episode whose units are
    search Episodes; credits = the identities each search contributed. Its
    verdict ends the strategy, recorded as a `PolicyDecision` in the control

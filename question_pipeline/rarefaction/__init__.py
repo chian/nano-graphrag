@@ -6,7 +6,7 @@ own the Episode loop, nesting, runtime identity, scope lifecycle, memory,
 persistence, or any acquisition surface.
 """
 
-from .method import (
+from .incidence_control import (
     CHANNEL_SCHEMA_VERSION,
     INCIDENCE_ESTIMATOR_VERSION,
     NUMERIC_BAND_VERSION,
