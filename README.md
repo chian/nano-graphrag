@@ -64,8 +64,8 @@ choose the next unit                                                  |
 ```
 
 The numerical component is attached to the method; it does not contain the
-method. `question_pipeline/rarefaction/` owns the paired incidence estimator
-and numerical controller used by question-pipeline Episode types.
+method. `question_pipeline/utilities/rarefaction.py` owns the paired incidence
+estimator and numerical controller used by question-pipeline Episode types.
 `method_loop/` owns iteration, nesting, stable record keys, and the Episode
 record tree.
 
@@ -190,7 +190,7 @@ numerical component decides whether there should be another attempt.
 
 A new Episode type is made by connecting new work to `Episode`; it does not
 need a new loop. Put its reusable binding in its own module under
-`question_pipeline/episode_bindings/`. The binding owns that type's Grain,
+`question_pipeline/episode_binding/`. The binding owns that type's Grain,
 source and unit types, Episode builder, local hooks, and compact parent update.
 It does not choose its parent or concrete child type. The terminal chunk Leaf
 has its own binding module but no Grain.
@@ -292,12 +292,12 @@ in the recursive trace for audit but is not placed in the parent's source view
 or prompt. Do not write a loop around either Episode; calling `run()` or
 `run_async()` on the outer Episode runs the complete nested tree.
 
-Finally, link the binding types in `acquisition_composition.py`. That is the
-only module that chooses the parent/child nesting. It creates one `Context` for
-the run and lists the Grains used by that composition from outermost to
-innermost. The names and number of levels depend on the composition; they are
-not fixed by the method. Controller configuration is already captured by each
-Grain's controller function; `Context` does not know its schema:
+Finally, export the binding type from `episode_binding/__init__.py` and connect
+it in `pipeline.py`. The package initializer assembles the provider binding;
+the pipeline entry point supplies the configured collaborators and starts the
+root Episode once. The names and number of levels depend on the composition;
+they are not fixed by the method. Controller configuration is already captured
+by each Grain's controller function; `Context` does not know its schema:
 
 ```python
 ctx = Context(
@@ -308,10 +308,10 @@ ctx = Context(
 record = await outer_episode.run_async(ctx)
 ```
 
-Keep accepted-table projection in `result_projection.py` and acquisition
-trace/checkpoint/export formatting in `acquisition_records.py`; neither is an
-Episode binding. Pass each binding only the collaborators it calls rather than
-placing every dependency in one shared context object.
+Keep accepted-table projection in `utilities/tables.py` and evidence records in
+`utilities/evidence.py`; neither is an Episode binding. Pass each binding only
+the collaborators it calls rather than placing every dependency in one shared
+context object.
 
 Tool calls and model calls belong in `next` or `extract`. Evidence checking and
 storage belong in `accept`. Counting must be a direct calculation from the
@@ -331,14 +331,11 @@ method_loop/             generic Episode method: iteration, nesting, runtime
                          and record trees
 question_pipeline/       Firecrawl/table-fill application and future GASL
                          Episode integration
-  rarefaction/           paired incidence estimator and numerical controller
-  episode_bindings/      one *_binding.py module per acquisition level
-    shared/              reused binding support and the one composition
-  result_projection.py   accepted typed state to stable result identities
-                         (target)
-  acquisition_records.py
-                         acquisition trace/checkpoint/export formatting
-                         (target)
+  pipeline.py            visible composition entry point
+  episode_binding/       one *_binding.py module per Episode type
+  utilities/             one module per supporting responsibility:
+                         acquisition, evidence, extraction, model,
+                         rarefaction, replay, search, and tables
 run_question_pipeline.py command-line entry point
 gasl/                    graph query language and execution engine over an
                          explicitly supplied graph revision

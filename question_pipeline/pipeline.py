@@ -1,12 +1,9 @@
-"""Question-driven GraphRAG pipeline Episode composition.
+"""Question-pipeline entry point and Episode composition.
 
-The default answer mode tries to produce one well-supported answer. Nested
-strategy and search Episodes acquire evidence, extend a typed knowledge graph,
-answer the question with GASL, and use identified gaps to steer later work.
-
-The table-fill mode treats the answer tables as the deliverable. It estimates
-the searched answer universe, keeps a durable search frontier, and searches to
-fill missing final-table rows until the count targets are covered.
+``QuestionPipeline`` wires the configured utilities and Episode bindings,
+starts the root Episode once, and publishes the run-level outputs. Concrete
+Episode behavior lives in :mod:`question_pipeline.episode_binding`; supporting
+implementations live in :mod:`question_pipeline.utilities`.
 """
 
 from __future__ import annotations
@@ -51,38 +48,36 @@ from paper_fetching.firecrawl_client import (
     search_papers,
 )
 
-from . import schema_synthesis, strategy
-from .best_guess import (
-    BEST_GUESS_CANDIDATE_COLUMNS,
-    BEST_GUESS_CONTEXT_COLUMNS,
-    best_guess_context_by_row_key,
-    page_best_guess,
-    run_best_guess_recovery,
+from question_pipeline import episode_binding as acq
+from question_pipeline.episode_binding import (
+    AcquisitionController,
+    ProviderHealth,
+    RunTermination,
+    SourceBudget,
+    TableCreditAssigner,
 )
-from .completion import (
-    completion_update_from_critique,
-    completion_update_from_estimate,
-    completion_scope_actionable,
-    load_seed_completion_state,
-    merge_completion_state,
-    scope_probe_context,
+from question_pipeline.episode_binding.table_binding import (
+    discover_table_regions,
+    plan_table_parser,
+    propose_table_query,
+    text_without_table_regions,
 )
-from .checkpoint import (
-    ActiveParent,
-    CompletedEpisode,
-    EpisodeCheckpoint,
-    NextEpisode,
-    load_checkpoint,
-    resolve_checkpoint_path,
-    write_checkpoint,
-)
-from .control import (
+from question_pipeline.utilities import extraction as schema_synthesis
+from question_pipeline.utilities import search as strategy
+from question_pipeline.utilities.acquisition import (
     CONTROL_VOCABULARY_VERSION,
+    COST_ACCOUNTING_VERSION,
     ActionCandidate,
     ActionOrigin,
+    ActiveParent,
     AttemptRef,
+    CompletedEpisode,
     ControlSurface,
+    CostRecord,
     DecisionContext,
+    EpisodeCheckpoint,
+    NextEpisode,
+    ObservationKind,
     OperatorRef,
     PolicyDecision,
     PromptArmRef,
@@ -91,122 +86,112 @@ from .control import (
     StopContext,
     StopDecision,
     TargetRef,
+    classify_error,
+    cost_scope,
+    load_checkpoint,
+    orphan_meter,
+    resolve_checkpoint_path,
     resolve_stop_decision,
     stable_id,
+    write_checkpoint,
+    zero_cost,
 )
-from .criteria import (
-    CRITERIA_PROJECTION_VERSION,
-    CriteriaSnapshot,
-    datapoint_fields,
-    empty_snapshot,
-    is_missing_value,
-    missing_tokens as criteria_missing_tokens,
-    project_rows,
+from question_pipeline.utilities.evidence import (
+    CHUNK_PARAMS_FIELD,
+    FIELD_PROVENANCE_SUFFIX,
+    EvidenceRegistry,
+    TypedEvidenceAcceptor,
+    derive_field_provenance,
 )
-from .path_features import PathScoringContext, build_context
-from .path_gate import PathGateResult, PathGateSettings, gate_rows
-from .estimator import estimate_count_expectations
-from .derived_context import context_slots_from_count_targets
-from .derived_context import source_ids_from_row
-from .evidence_registry import EvidenceRegistry
-from .evidence_acceptance import TypedEvidenceAcceptor
-from .extraction import chunk_spans, chunk_text, enrich_graph, extract_from_text
-from .episode_bindings.shared.table_extraction import (
+from question_pipeline.utilities.extraction import (
     TableSpecExtractor,
+    chunk_spans,
+    chunk_text,
+    enrich_graph,
+    extract_from_text,
     extract_table_rows_from_text,
-)
-from .episode_bindings.shared.chunk_ranking import (
     page_outline,
     propose_lexical_probe,
     rank_chunks,
 )
-from .episode_bindings.table_binding import (
-    discover_table_regions,
-    plan_table_parser,
-    propose_table_query,
-    text_without_table_regions,
-)
-from .goals import (
-    FillGoalState,
-    TableFillGoalTracker,
-    compact_estimate_for_prompt,
-    merge_universe_estimates,
-    normalize_universe_estimate,
-)
-from .prompt_log import (
-    close_scope as prompt_log_close,
-    open_scope as prompt_log_open,
-    prompt_scope,
-)
-from . import episode_bindings as acq
-from .episode_bindings import (
-    AcquisitionController,
-    TableCreditAssigner,
-    ProviderHealth,
-    RunTermination,
-    SourceBudget,
-)
-from .provenance import (
-    CHUNK_PARAMS_FIELD,
-    FIELD_PROVENANCE_SUFFIX,
-    derive_field_provenance,
-)
-from .costs import (
-    COST_ACCOUNTING_VERSION,
-    CostRecord,
-    ObservationKind,
-    classify_error,
-    cost_scope,
-    orphan_meter,
-    zero_cost,
-)
-from .llm_utils import (
+from question_pipeline.utilities.model import (
     DEFAULT_FAST_MODEL,
     ModelTier,
     TierPolicy,
     attach_tier_policy,
+    close_scope as prompt_log_close,
     describe_tiers,
     for_tier,
     instrument_client,
+    open_scope as prompt_log_open,
+    prompt_scope,
     register_call_site_tier,
 )
-from .search import (
+from question_pipeline.utilities.search import (
+    QUERY_OPERATORS,
+    REWARD_COMPONENT_COLUMNS,
+    PathGateResult,
+    PathGateSettings,
+    PathScoringContext,
     SearchFrontier,
     SearchHarvester,
+    SearchMemory,
     SearchOutcome,
     SearchTask,
+    build_context,
+    estimate_count_expectations,
+    fallback_query_for_operator,
+    gate_rows,
+    load_seed_best_guess_rows,
     load_seed_frontier_tasks,
     load_seed_search_outcomes,
     load_seed_source_records,
     load_seen_urls,
+    merge_best_guess_rows,
+    report_assigned_credit,
+    route_next_family,
     search_result_observation,
     summarize_prompt_arms,
     table_gap_search_tasks,
 )
-from .search_memory import SearchMemory
-from .tables import SeedTables, TypedTableStore, load_seed_tables, merge_rows_by_table
-from .numeric_candidates import (
+from question_pipeline.utilities.tables import (
+    BEST_GUESS_CANDIDATE_COLUMNS,
+    BEST_GUESS_CONTEXT_COLUMNS,
+    CRITERIA_PROJECTION_VERSION,
     NUMERIC_CANDIDATE_COLUMNS,
-    numeric_candidates_from_tables,
-)
-from .reward import (
-    REWARD_COMPONENT_COLUMNS,
-    load_seed_best_guess_rows,
-    merge_best_guess_rows,
-    report_assigned_credit,
-)
-from .strategy_state import (
-    QUERY_OPERATORS,
-    fallback_query_for_operator,
-    route_next_family,
-)
-from .table_specs import (
+    CriteriaSnapshot,
+    FillGoalState,
+    SeedTables,
+    TableFillGoalTracker,
     TableSpec,
+    TypedTableStore,
+    best_guess_context_by_row_key,
+    compact_estimate_for_prompt,
+    completion_scope_actionable,
+    completion_update_from_critique,
+    completion_update_from_estimate,
+    context_slots_from_count_targets,
+    datapoint_fields,
     dump_table_spec_yaml,
+    empty_snapshot,
+    is_missing_value,
+    load_seed_completion_state,
+    load_seed_tables,
     load_table_spec,
     load_table_spec_with_seed_tables,
+    merge_completion_state,
+    merge_rows_by_table,
     merge_table_specs,
+    merge_universe_estimates,
+    missing_tokens as criteria_missing_tokens,
+    normalize_universe_estimate,
+    numeric_candidates_from_tables,
     observed_table_spec,
+    page_best_guess,
+    project_rows,
+    run_best_guess_recovery,
+    scope_probe_context,
+    source_ids_from_row,
     synthesize_table_spec,
 )
 

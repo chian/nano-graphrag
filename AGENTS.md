@@ -106,47 +106,31 @@ prefer those over reconstructing flags.
 
 ### Module boundaries
 
-The package was nineteen modules at the baseline (`92f8e64`), tabled below.
-Each docstring states its own boundary; respect them. The build has since
-added `control`, `criteria`, `costs`, `path_features`, `path_gate`,
-`acquisition`, `provenance`, `prompt_log`, and `windowing` (what each owns:
-`.claude/agents/question-pipeline.md` §"Module boundaries"). Check the
-directory before relying on either list.
+The package root deliberately highlights one entry point. Supporting code is
+grouped by responsibility and concrete Episode behavior is grouped by Episode
+type; do not recreate a flat collection of narrowly sliced utility modules.
 
-| Module | Lines | Owns |
-| --- | --- | --- |
-| `pipeline.py` | 4437 | Episode composition only. The round loop is **gone** (phase 4E-c): it declares the run/strategy/search parts, hosts the leaf's `extract` and telemetry/learning hooks, and calls `Episode.run_async` once. Hooks cannot mutate or propose graph changes. Changes that reintroduce phase-batched round structure are rejected |
-| `goals.py` | 1838 | Fill targets, deficits, goal-completion state |
-| `best_guess.py` | 1359 | Derived candidate values |
-| `search.py` | 1308 | Task, frontier, and page-acquisition mechanics. Holds **no loop over units**: the harvest loops and `SearchBatch` are deleted, the frontier gained `next_for(family)` and lost `next_wave`/`requeue_front`, and a search episode is the frontier's consumer |
-| `estimator.py` | 1153 | Universe and count estimation |
-| `table_specs.py` | 841 | Table contracts (serialized as version 1) |
-| `search_memory.py` | 840 | Durable per-target memory |
-| `strategy_state.py` | 758 | Mutation state and arm records |
-| `numeric_candidates.py` | 678 | Numeric candidate extraction |
-| `reward.py` | 554 | Scoring (`REWARD_VERSION = "criterion_yield_v1"`) |
-| `completion.py` | 548 | Completeness state |
-| `strategy.py` | 454 | Mutation routing |
-| `derived_context.py` | 442 | Assessment inputs |
-| `schema_synthesis.py` | 378 | Schema generation |
-| `tables.py` | 247 | Table materialization |
-| `extraction.py` | 166 | Text to typed records |
-| `__init__.py` | 113 | Package surface |
-| `llm_utils.py` | 65 | The provider boundary |
+| Location | Owns |
+| --- | --- |
+| `pipeline.py` | `PipelineConfig`, `QuestionPipeline`, component wiring, root Episode launch, and final run output |
+| `episode_binding/` | one `*_binding.py` module per Episode type, plus the provider binding that supplies their shared vocabulary and composition operations |
+| `utilities/acquisition.py` | numerical policy vocabulary, cost accounting, and durable checkpoints |
+| `utilities/evidence.py` | evidence candidates, acceptance, registry, and provenance |
+| `utilities/extraction.py` | graph, table, and chunk extraction plus source-text ranking |
+| `utilities/model.py` | the single LLM provider boundary, model tiers, prompt records, and call instrumentation |
+| `utilities/rarefaction.py` | the paired incidence estimator and numerical controller |
+| `utilities/replay.py` | numerical shadow replay and saved-source replay functions |
+| `utilities/search.py` | acquisition mechanics, search memory, strategy, reward, and path selection |
+| `utilities/tables.py` | table contracts, result projection, completion, goals, and best guesses |
 
-`llm_utils.py` is the only module holding provider access. Three modules consume
-it through `ask_json`: `schema_synthesis.py`, `strategy.py`, and `estimator.py`.
-(`pipeline.py` imports it too, for tiering and client
-construction — `for_tier`, `instrument_client`, `register_call_site_tier` — and
-not as a fifth `ask_json` site.) Any further consumer needs a stated reason why
-the work is not a pure function over data another module already produced.
-The Episode bindings and `best_guess.py` deliberately receive **callables**
-and never a client, which keeps them exercisable in isolation.
+`utilities/model.py` is the only module holding provider access. Code that
+uses `ask_json` imports it from there; any new consumer needs a stated reason
+why the work is not a pure function over data already produced elsewhere.
 
 ### Model tiering
 
 A call site never names a model. It declares a `ModelTier` — a typed default
-next to the call, registered through `llm_utils.register_call_site_tier` — and
+next to the call, registered through `utilities.model.register_call_site_tier` — and
 `ask_json` resolves that tier to a client. Which concrete model fills each tier
 is configuration: `--model` for `REASONING`, `--fast-model` for `FAST`, both
 carried on `PipelineConfig` and resolved once in `QuestionPipeline.__init__`.
@@ -166,11 +150,10 @@ that block, so do not drop it.
 
 ### Modules that do not exist at baseline
 
-**This list is no longer accurate and is corrected inline.** `criteria`,
-`control`, and `reward` now EXIST in the tree — `question_pipeline/criteria.py`
-is the row-to-criterion projection with stable criterion and snapshot IDs, and
-downstream joins depend on it. Two agents reasoned from the false "absent"
-listing and lost work; verify against the tree before relying on any entry here.
+`criteria`, `control`, and `reward` exist inside their current responsibility
+modules: `utilities/tables.py`, `utilities/acquisition.py`, and
+`utilities/search.py`, respectively. The criteria projection supplies the
+stable criterion and snapshot IDs used by downstream joins.
 
 Still absent as `question_pipeline` modules, and to be re-checked rather than
 trusted: `expectations` and `search_planning`. These were written in the WIP snapshot `cd44ebb` and
@@ -185,7 +168,7 @@ its own charter and tracker row.
 **The generic method is top-level; the question-pipeline numerical component
 is not.** `method_loop/` owns `Episode`, nesting, runtime identity, scope state,
 and routing to an attached numerical component.
-`question_pipeline/rarefaction/` owns the paired incidence estimator and
+`question_pipeline/utilities/rarefaction.py` owns the paired incidence estimator and
 numerical controller used by question-pipeline Episode types, including
 threshold state, its adapter hook, and typed numeric output. It is not the
 removed `cd44ebb` module. Question-pipeline bindings import the generic method
@@ -195,12 +178,12 @@ package. Standalone `gasl/` imports neither.
 ### Episode binding ownership
 
 The provider binding is organized by acquisition level in
-`question_pipeline/episode_bindings/`, with one `*_binding.py` module each for
+`question_pipeline/episode_binding/`, with one `*_binding.py` module each for
 the `chunk` Leaf and the `table`, `lexical_probe`, `page`, `web_search`,
-`strategy`, and `run` Episode types. Reused binding support lives under
-`episode_bindings/shared/`; the composition is linked once in
-`shared/composition.py`. The dormant GASL query and walk Episode types follow
-the same rule when integrated.
+`strategy`, and `run` Episode types. Provider-wide binding vocabulary and
+composition operations live in `provider_binding.py`; the package initializer
+assembles the concrete provider binding once. The dormant GASL query and walk
+Episode types follow the same rule when integrated.
 
 Each Episode-type module owns its `Grain` declaration and controller binding,
 its unit/source types, construction of that Episode, its local hooks, and its
@@ -209,21 +192,17 @@ it does not select or construct a specific child Episode type itself. This is
 what makes the binding reusable in a different nesting. The chunk module owns
 the Leaf's unit, extract/accept/result wiring, and label; it declares no Grain.
 
-Link Episode types only in
-`question_pipeline/episode_bindings/shared/composition.py`. That module
-declares the nesting and `Context` order, injects child builders and shared
-services, constructs the root Episode, and invokes it once. It does not
-implement extraction, evidence acceptance, result projection, numerical
-control, learning, persistence, or record formatting. Table-result projection
-belongs in `question_pipeline/result_projection.py`; acquisition trace,
-checkpoint, and export formatting belong in
-`question_pipeline/acquisition_records.py`. Do not hide the current monolith in
-one replacement context or services object handed wholesale to every binding;
-pass each binding only the collaborators it uses.
+Link the binding classes in `question_pipeline/episode_binding/__init__.py` and
+connect the assembled provider from `pipeline.py`. Table-result projection
+lives in `utilities/tables.py`; evidence records live in
+`utilities/evidence.py`; checkpoints and cost records live in
+`utilities/acquisition.py`. Do not hide dependencies in one context or services
+object handed wholesale to every binding; pass each binding only the
+collaborators it uses.
 
 ### Evidence rules at baseline
 
-`question_pipeline/evidence_registry.py` is the durable acceptance boundary.
+`question_pipeline/utilities/evidence.py` is the durable acceptance boundary.
 It commits the exact source blob plus source/version/chunk/span/assertion
 candidates before appending deterministic direct acceptances. Acquisition and
 criteria may credit only identities whose complete accepted chain resolves in
@@ -231,7 +210,7 @@ that registry.
 
 **Criteria snapshots DO exist and this paragraph previously denied it.**
 `CriteriaSnapshot`, `criteria_snapshot`, and `snapshot_id` are live in
-`question_pipeline/criteria.py` and are the join key the control ledger, the
+`question_pipeline/utilities/tables.py` and are the join key the control ledger, the
 reward chain, and path selection all use. The claim below that `criteria` are
 merely goal-completion flags describes `goals.py` only, and must not be read as
 a statement about the package.

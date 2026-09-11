@@ -35,7 +35,7 @@ removed.
 switch, when-to-mutate, and what-counts decision in this package is a
 numerical rule over measured counts with a written threshold. LLM calls
 extract values, fill cells, sample new query and prompt strings, and judge
-semantic distance and content relevance — and go through `llm_utils.py`.
+semantic distance and content relevance — and go through `utilities/model.py`.
 Charter: `docs/ACQUISITION_LOOP.md` §"Decisions are numerical".
 
 ## Two modes
@@ -49,43 +49,21 @@ Charter: `docs/ACQUISITION_LOOP.md` §"Decisions are numerical".
 
 ## Module boundaries
 
-The table-fill refactor split this package into modules with deliberately
-narrow contracts. Each docstring states its own boundary; honor it rather than
-reaching across. Check the directory before relying on any list, including
-this one (verified against the tree 2026-08-24).
+`question_pipeline/pipeline.py` is the visible entry point and owns
+configuration, composition, root launch, and final output. Concrete Episode
+types live one-per-module in `question_pipeline/episode_binding/`. Supporting
+implementation is grouped by responsibility in `question_pipeline/utilities/`:
+`acquisition`, `evidence`, `extraction`, `model`, `rarefaction`, `replay`,
+`search`, and `tables`. Do not recreate the prior flat collection of narrowly
+sliced utility modules.
 
-The baseline modules and what each owns are tabled in `AGENTS.md` §"Module
-boundaries" (`pipeline`, `goals`, `best_guess`, `search`, `estimator`,
-`table_specs`, `search_memory`, `strategy_state`, `numeric_candidates`,
-`reward`, `completion`, `strategy`, `derived_context`, `schema_synthesis`,
-`tables`, `progress_judge`, `extraction`, `llm_utils`). Added by the
-control-layer build:
-
-- `control` — policy-facing contracts (candidates, decisions, stop records)
-  with no dependency on prompts, graph execution, search providers, or
-  persistence. Do not add one.
-- `criteria` — the single boundary that interprets table rows as task
-  progress. Rows are transport. Goal, reward, policy, and attribution code
-  consumes this projection instead of re-reading rows.
-- `costs` — per-action cost fields (phase 1B), recorded, never aggregated here.
-- `path_features`, `path_gate` — the pure route scorer (2A) and the policy
-  surface that applies it at the row-to-table boundary (2B).
-- `acquisition` — a transitional monolith that currently contains all provider
-  Episode bindings, result projection, learning/checkpoint state, and record
-  writing. Split it according to "Episode binding ownership" below; do not add
-  another grain or cross-grain responsibility to it.
-- `provenance`, `prompt_log`, `windowing` — field-scoped evidence pointers,
-  the prompt observation record, and disclosed windowing of oversized
-  payloads (never silent truncation).
-
-Absent, and to be re-checked rather than assumed: `config`, `expectations`,
-and `search_planning`. The numerical component is the existing
-`question_pipeline/rarefaction/` package; the generic Episode method is the
-top-level `method_loop/` package.
+The generic Episode method remains the top-level `method_loop/` package. The
+question-pipeline numerical component is `utilities/rarefaction.py`; it is an
+attached implementation and does not own Episode.
 
 ## Episode binding ownership
 
-Create one reusable module under `question_pipeline/episode_bindings/` for the
+Create one reusable module under `question_pipeline/episode_binding/` for the
 `chunk` Leaf and each Episode type: `lexical_probe`, `page`, `web_search`,
 `strategy`, and `run`. An Episode binding owns that type's grain/controller
 declaration, source and unit types, Episode builder, local hooks, and compact
@@ -93,20 +71,19 @@ parent update. It accepts a child builder callable and therefore does not
 choose its own child Episode type. The chunk module owns the Leaf's
 unit/extract/accept/result wiring and declares no Grain.
 
-`question_pipeline/acquisition_composition.py` is the only owner of nesting.
-It connects the child builders, declares `Context` order, builds the root, and
-runs it once. Keep table-specific projection in `result_projection.py` and
-trace/checkpoint/export formatting in `acquisition_records.py`. Do not replace
-the current large `ProviderBinding` with a large shared context object; each
-binding receives only the collaborators it calls. Future GASL query and walk
-bindings follow the same module-per-type rule and remain outside standalone
-`gasl/`.
+The package initializer assembles the provider binding from those types;
+`pipeline.py` connects its configured collaborators and starts the root once.
+Keep table projection in `utilities/tables.py`, evidence records in
+`utilities/evidence.py`, and checkpoints in `utilities/acquisition.py`. Do not
+replace explicit collaborators with a shared context object handed wholesale
+to every binding. Future GASL query and walk bindings follow the same
+module-per-type rule and remain outside standalone `gasl/`.
 
 ## Required reading before non-trivial changes
 
 - `docs/MEMORY.md` — historical completion and evidence design, banner-marked
   where it describes the pruned `cd44ebb` snapshot. The current durable
-  acceptance boundary is `question_pipeline/evidence_registry.py`: criteria
+acceptance boundary is `question_pipeline/utilities/evidence.py`: criteria
   consume registry records and exact joins, not ordinary graph edges; merged
   nodes, `source_refs`, and `source_chunks` from pre-refactor GraphML remain
   read-only traversal context, not accepted evidence.

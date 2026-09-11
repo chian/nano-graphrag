@@ -495,13 +495,12 @@ concrete child binding and thereby choose its own place in the tree. The chunk
 module owns the Leaf's unit and extract/accept/result wiring; it does not
 declare a Grain or pretend the Leaf is an Episode.
 
-The question-pipeline target layout is:
+The question-pipeline layout is:
 
 ```text
 question_pipeline/
-├── rarefaction/
-│   └── incidence_control.py
-├── episode_bindings/
+├── pipeline.py
+├── episode_binding/
 │   ├── chunk_binding.py
 │   ├── lexical_probe_binding.py
 │   ├── page_binding.py
@@ -509,24 +508,23 @@ question_pipeline/
 │   ├── web_search_binding.py
 │   ├── strategy_binding.py
 │   ├── run_binding.py
-│   └── shared/
-│       ├── acquisition_support.py
-│       ├── composition.py
-│       ├── checkpoint.py
-│       ├── records.py
-│       ├── runtime.py
-│       ├── chunk_ranking.py
-│       └── table_extraction.py
-├── result_projection.py
-└── acquisition_records.py
+│   └── provider_binding.py
+└── utilities/
+    ├── acquisition.py
+    ├── evidence.py
+    ├── extraction.py
+    ├── model.py
+    ├── rarefaction.py
+    ├── replay.py
+    ├── search.py
+    └── tables.py
 ```
 
-`episode_bindings/shared/composition.py` links the Episode-specific binding
-classes into one provider surface. The surface declares a branching `Context`
-tree: a page may open either a table Episode or a lexical-probe Episode. It
-constructs the root Episode and calls it once; it does not implement
-extraction, acceptance, result projection, numerical control, learning,
-persistence, checkpointing, or record formatting.
+`episode_binding/__init__.py` links the Episode-specific binding classes into
+one provider surface. `pipeline.py` supplies the configured collaborators and
+starts the root Episode once. A page may open either a table Episode or a
+lexical-probe Episode. Extraction, evidence, table projection, numerical
+control, search, and checkpoints remain in their named utility modules.
 
 Do not replace episode-owned bindings with a monolithic context/services object.
 Each binding receives only the collaborators it directly calls; new Episode
@@ -647,7 +645,7 @@ identity, attribution, and cost contract; it never scores raw incidence volume.
 
 ### Cost has one owner
 
-Cost is metered by `question_pipeline/costs.py` (phase 1B) at the
+Cost is metered by `question_pipeline/utilities/acquisition.py` (phase 1B) at the
 `SOURCE`/`SEARCH` scopes, which are the provider surface's units; the
 episode carries no meter of its own. A ledger writer joins a unit's cost
 record to its `UnitRecord` by scope key. `gasl/` has no cost metering
@@ -754,7 +752,7 @@ Three structural facts made insertion impossible and mandated the rebuild:
 no model calls. A surface composes its source, extraction, acceptance,
 post-verdict learning, persistence, and safety bindings around `Episode`.
 
-`question_pipeline/rarefaction/` owns the paired incidence estimator, its
+`question_pipeline/utilities/rarefaction.py` owns the paired incidence estimator, its
 matching numerical controller, threshold state and adaptation hook used by
 question-pipeline Episode types, and their typed numeric contract. It does not
 own Episode identity, scope lifecycle, nesting, memory, persistence, or a
@@ -764,7 +762,7 @@ surface.
 | --- | --- |
 | `method_loop/episode.py` | The single composable loop, Episode/unit identities, compact `EpisodeRequest`/`EpisodeUpdate` routing, and the full recursive `EpisodeRecord` trace |
 | `method_loop/runtime.py` | Path routing that opens and calls the controller function supplied by each `Grain`; it knows no controller schema |
-| `question_pipeline/rarefaction/incidence_control.py` | The question pipeline's controller implementation: incidence observation, paired estimator-controller transition, numeric report, threshold adapter, and estimator-specific arithmetic |
+| `question_pipeline/utilities/rarefaction.py` | The question pipeline's controller implementation: incidence observation, paired estimator-controller transition, numeric report, threshold adapter, and estimator-specific arithmetic |
 
 `stop_rule.py` is removed when the upgraded `accumulator.py` and
 `controller.py` are wired. `Episode` is the sole owner of the composed loop
@@ -796,7 +794,7 @@ policy out of the graph engine itself.
 ## Surface bindings
 
 1. **Provider search** — composed from the individual modules under
-   `question_pipeline/episode_bindings/`. Unit = one
+   `question_pipeline/episode_binding/`. Unit = one
    fetched item (page/paper). Firecrawl may return a large batch, but the
    Episode pulls and processes buffered items one by one: fetch → relevance
    judge → extract → persist evidence → accept → incidence → estimate →
@@ -805,7 +803,7 @@ policy out of the graph engine itself.
    the only convergence of the whole run. Graph enrichment is a post-verdict
    side effect. No page count or search count is the method stop rule.
 2. **Future GASL search episodes** —
-   `question_pipeline/gasl_bindings.py`. These bindings can present GASL graph
+   `question_pipeline/episode_binding/gasl_binding.py`. These bindings can present GASL graph
    operations as nested Episode types and attach the same question-pipeline
    numerical boundary. They are not connected to the current acquisition
    composition. `gasl/commands/graph_nav.py` remains a direct graph operation
@@ -824,21 +822,24 @@ policy out of the graph engine itself.
   (search-all → ingest-all → credit-at-round-end) is replaced by episode
   composition. `pipeline.py` composes episodes; it no longer sequences
   phases.
-- The harvester's inline item loop in `question_pipeline/search.py` and the
+- The harvester's inline item loop now recorded in
+  `question_pipeline/utilities/search.py` and the
   hand-kept fan-up in `AcquisitionController` (`_search_new`,
   `close_search`) — 4C's first binding — are replaced by an `Episode`
   composition (phase 4E). The controller survives as the thing that builds
   the composition and writes ledger decisions from episode records.
 - The historical `rarefaction/stop_rule.py` and its exports and configuration fields are
   deleted in the atomic Episode migration.
-- `question_pipeline/reward.py` stops re-deriving credit at round end and
+- The reward section of `question_pipeline/utilities/search.py` stops
+  re-deriving credit at round end and
   consumes episode ledgers. The reward's definition of a datapoint (real,
   evidenced, never operational volume) is unchanged.
 
 What survives, deliberately: the per-source extraction ledger in
 `_ingest_papers` — the recorded distinction between "extraction ran and found
 nothing" and "extraction never ran" — is necessary to determine sample
-eligibility. The acceptance/relevance machinery in `question_pipeline/search.py`
+eligibility. The acceptance/relevance machinery in
+`question_pipeline/utilities/search.py`
 survives as unit acquisition.
 
 ## What this does not change

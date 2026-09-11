@@ -48,8 +48,8 @@ content-addressed over criterion states on purpose, which is what makes
 "nothing changed" observable as an identity rather than as an empty diff of two
 distinct ids.  Folding request options into it would trade a join defect for a
 signal defect and invalidate every id already stamped into a decision -- so the
-pair key exists instead, and the content half of that pair arrives from
-``criteria.py`` untouched.
+pair key exists instead, and the content half of that pair arrives from the
+criteria projection in ``question_pipeline/utilities/tables.py`` untouched.
 """
 
 from __future__ import annotations
@@ -184,7 +184,7 @@ def fingerprint(payload: Any) -> str:
     Why this is **not** called ``stable_id``
     ----------------------------------------
 
-    ``question_pipeline/control.py`` (lines 1417 and 1434) exports a function
+    ``question_pipeline/utilities/acquisition.py`` exports a function
     named ``stable_id`` which is **SHA-1 truncated to a 16-character hex
     prefix**.  This one is full-width SHA-256.  Two functions sharing a name
     across the boundary while differing in algorithm *and* in width is an
@@ -211,7 +211,7 @@ def fingerprint(payload: Any) -> str:
     are a coincidence of the current moment, not evidence of one concept.
 
     This distinction cannot be enforced by a test.  Asserting anything about
-    ``control.stable_id`` from here would require importing
+    ``utilities.acquisition.stable_id`` from here would require importing
     ``question_pipeline``, which V1 forbids outright -- so this docstring is the
     only available guard, and it is load-bearing rather than decorative.
     """
@@ -225,7 +225,7 @@ def default_query_tokens(query: str) -> tuple[str, ...]:
     Lowercase, split on word shape, and that is all.  No stopword list, no
     domain vocabulary, no length filter, and -- emphatically -- no truncation.
 
-    ``question_pipeline/search_memory.py::_query_terms`` must not be copied
+    ``question_pipeline/utilities/search.py::_query_terms`` must not be copied
     here.  It ends in ``[:12]``, so a key computed from it collapses two
     different long queries onto one value.  That is a correctness bug in an
     index key, not a truncation-policy preference.

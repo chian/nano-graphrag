@@ -102,8 +102,8 @@ complete.
 ## Execution order
 
 1. Correct the ownership boundary while preserving the current estimator and
-   controller arithmetic. The combined component moves under
-   `question_pipeline/rarefaction/`;
+   controller arithmetic. The combined component lives in
+   `question_pipeline/utilities/rarefaction.py`;
    `method_loop` retains Episode execution, nesting, scope routing, identity,
    and records.
 2. Verify that identical observations produce identical counts and verdicts
@@ -157,27 +157,19 @@ observation statuses are present. The adaptive-threshold hook currently keeps
 the configured thresholds unchanged. The estimator arithmetic, controller
 statistic, uncertainty calculation, and threshold values remain unvalidated.
 
-## Binding decomposition before the next live run
+## Current code organization before the next live run
 
-The six binding levels now live in one `*_binding.py` module per Episode type
-under `question_pipeline/episode_bindings/`. Reused ranking, extraction,
-checkpoint, record, runtime, and composition support lives under
-`episode_bindings/shared/`.
+`question_pipeline/pipeline.py` is the visible entry point. Episode behavior
+lives one type per module under `question_pipeline/episode_binding/`; its
+package initializer assembles the provider binding. Supporting implementation
+is grouped by responsibility under `question_pipeline/utilities/`:
+acquisition, evidence, extraction, model, rarefaction, replay, search, and
+tables. Standalone `gasl/` remains independent.
 
-1. Move table-supported logical-slot projection into `result_projection.py`
-   and acquisition trace/checkpoint/export formatting into
-   `acquisition_records.py`.
-2. Keep the chunk Leaf, lexical-probe, page, web-search, strategy, and run
-   bindings in their episode-named modules.
-3. Link the types only in `episode_bindings/shared/composition.py`, which declares the
-   nesting and `Context` order, constructs the root Episode, and invokes it
-   once.
-4. Split the dormant GASL query/walk bindings by Episode type when they are
-   integrated; standalone `gasl/` remains independent.
-
-This is a structure-only migration. Credit identities, observation status,
+The organization change is structural. Credit identities, observation status,
 controller inputs, thresholds, hooks, checkpoint payloads, and emitted records
-remain unchanged until the split passes its live experiment.
+are intended to remain unchanged and still require the registered live
+validation described above.
 
 **APPROVED AND IMPLEMENTED 2026-09-06; LIVE VALIDATION PENDING.** Accepted stable table-slot identities are
 one-dimensional contributions separated by column. They form the complete

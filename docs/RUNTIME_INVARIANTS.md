@@ -78,7 +78,7 @@ hiding among them. It may shrink. It must not grow.
 
 The current method boundary is dependency-directed: `method_loop/` owns the
 generic Episode, nesting, identity, and scope attachment;
-`question_pipeline/rarefaction/` owns the question pipeline's paired
+`question_pipeline/utilities/rarefaction.py` owns the question pipeline's paired
 estimator-controller arithmetic; and question-pipeline bindings compose those
 pieces around their acquisition surfaces. Standalone `gasl/` imports neither
 package. Ingestion remains beside the pipeline and nothing imports upward. So

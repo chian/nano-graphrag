@@ -8,8 +8,7 @@ import asyncio
 import json
 from pathlib import Path
 
-from question_pipeline.episode_bindings import lexical_threshold_adapter
-from question_pipeline.replay import (
+from question_pipeline.utilities.replay import (
     load_saved_source,
     replay_numerical_control,
     replay_saved_source,
@@ -109,6 +108,13 @@ def main() -> None:
 
     output_dir = _require_new_output(parser, args.output_dir)
     if args.command == "numerical":
+        lexical_threshold_adapter = None
+        if args.current_binding_thresholds:
+            from question_pipeline.episode_binding import (
+                lexical_threshold_adapter as current_threshold_adapter,
+            )
+
+            lexical_threshold_adapter = current_threshold_adapter
         try:
             gamma_overrides = _gamma_overrides(args.gamma_override)
         except argparse.ArgumentTypeError as exc:

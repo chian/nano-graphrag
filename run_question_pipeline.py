@@ -49,7 +49,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from question_pipeline import PipelineConfig, QuestionPipeline
-from question_pipeline.checkpoint import load_checkpoint, resolve_checkpoint_path
+from question_pipeline.utilities.acquisition import load_checkpoint, resolve_checkpoint_path
 
 
 def build_config(args: argparse.Namespace) -> PipelineConfig:
