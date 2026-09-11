@@ -248,6 +248,8 @@ experiments/runs/*/*/graphs/
 /experiments/runs/
 /experiments/log/
 /experiments/partial-run/
+/analysis_outputs/
+/deliverables/
 
 # run_store derived index -- a build artifact, never tracked.
 # question_runs/ is already 13,160 tracked files across 36 GB; a committed

@@ -206,10 +206,17 @@ def _write_manifest(scope: PromptScope) -> None:
 # llm_utils.py
 # ============================================================================
 
+import asyncio
 import functools
+import math
+import random
 import sys
 import threading
+import time
+from collections import deque
 from dataclasses import dataclass
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -245,6 +252,197 @@ DEFAULT_FAST_MODEL = "gpt-5.4-mini"
 
 
 @dataclass(frozen=True)
+class RatePolicy:
+    """Numeric limits applied to every question-pipeline model call.
+
+    A mapping may be ingested with :meth:`from_config`; unknown keys fail
+    immediately so a misspelled limit cannot silently disable pacing. Zero
+    disables the corresponding rolling-window limit, while 429 retries and
+    the concurrency bound remain active.
+    """
+
+    requests_per_minute: int = 0
+    tokens_per_minute: int = 0
+    max_concurrent_requests: int = 1
+    estimated_output_tokens: int = 2048
+    max_rate_limit_retries: int = 6
+    initial_backoff_seconds: float = 2.0
+    max_backoff_seconds: float = 120.0
+    jitter_fraction: float = 0.1
+
+    def __post_init__(self) -> None:
+        integer_bounds = {
+            "requests_per_minute": (self.requests_per_minute, 0),
+            "tokens_per_minute": (self.tokens_per_minute, 0),
+            "max_concurrent_requests": (self.max_concurrent_requests, 1),
+            "estimated_output_tokens": (self.estimated_output_tokens, 0),
+            "max_rate_limit_retries": (self.max_rate_limit_retries, 0),
+        }
+        for name, (value, minimum) in integer_bounds.items():
+            if isinstance(value, bool) or not isinstance(value, int) or value < minimum:
+                raise ValueError(f"{name} must be an integer >= {minimum}")
+        if self.initial_backoff_seconds <= 0:
+            raise ValueError("initial_backoff_seconds must be > 0")
+        if self.max_backoff_seconds < self.initial_backoff_seconds:
+            raise ValueError(
+                "max_backoff_seconds must be >= initial_backoff_seconds"
+            )
+        if not 0 <= self.jitter_fraction <= 1:
+            raise ValueError("jitter_fraction must be between 0 and 1")
+
+    @classmethod
+    def from_config(
+        cls, config: "RatePolicy | Mapping[str, Any] | None"
+    ) -> "RatePolicy":
+        """Build a policy from a typed policy or a plain configuration map."""
+
+        if config is None:
+            return cls()
+        if isinstance(config, cls):
+            return config
+        if not isinstance(config, Mapping):
+            raise TypeError("rate policy config must be a RatePolicy or mapping")
+        allowed = set(cls.__dataclass_fields__)
+        unknown = sorted(str(key) for key in config if key not in allowed)
+        if unknown:
+            raise ValueError(f"unknown rate policy fields: {', '.join(unknown)}")
+        return cls(**dict(config))
+
+    def to_dict(self) -> dict[str, int | float]:
+        return {
+            "requests_per_minute": self.requests_per_minute,
+            "tokens_per_minute": self.tokens_per_minute,
+            "max_concurrent_requests": self.max_concurrent_requests,
+            "estimated_output_tokens": self.estimated_output_tokens,
+            "max_rate_limit_retries": self.max_rate_limit_retries,
+            "initial_backoff_seconds": self.initial_backoff_seconds,
+            "max_backoff_seconds": self.max_backoff_seconds,
+            "jitter_fraction": self.jitter_fraction,
+        }
+
+
+@dataclass
+class _RateReservation:
+    started_at: float
+    tokens: int
+
+
+class RateGate:
+    """One process-local rolling-window gate shared by all model tiers."""
+
+    _WINDOW_SECONDS = 60.0
+
+    def __init__(self, policy: RatePolicy):
+        self.policy = policy
+        self._semaphore = asyncio.Semaphore(policy.max_concurrent_requests)
+        self._lock = asyncio.Lock()
+        self._history: deque[_RateReservation] = deque()
+        self._blocked_until = 0.0
+        self._total_wait_seconds = 0.0
+        self._rate_limit_events = 0
+        self._rate_limit_retries = 0
+
+    def estimate_tokens(self, prompt: str, system_prompt: str | None) -> int:
+        # Four characters per token is deliberately conservative enough for
+        # pacing, while the post-call reconciliation uses provider totals.
+        input_tokens = math.ceil((len(prompt) + len(system_prompt or "")) / 4)
+        estimate = input_tokens + self.policy.estimated_output_tokens
+        if self.policy.tokens_per_minute:
+            # A single oversized request must remain runnable. The provider is
+            # the authority on whether it fits; a local rolling window cannot
+            # split it and must not wait forever for impossible capacity.
+            return min(estimate, self.policy.tokens_per_minute)
+        return estimate
+
+    def _prune(self, now: float) -> None:
+        cutoff = now - self._WINDOW_SECONDS
+        while self._history and self._history[0].started_at <= cutoff:
+            self._history.popleft()
+
+    def _token_wait(self, now: float, requested_tokens: int) -> float:
+        limit = self.policy.tokens_per_minute
+        if not limit:
+            return 0.0
+        excess = sum(item.tokens for item in self._history) + requested_tokens - limit
+        if excess <= 0:
+            return 0.0
+        released = 0
+        for item in self._history:
+            released += item.tokens
+            if released >= excess:
+                return max(
+                    0.0,
+                    item.started_at + self._WINDOW_SECONDS - now,
+                )
+        return 0.0
+
+    async def acquire(self, estimated_tokens: int) -> _RateReservation:
+        await self._semaphore.acquire()
+        try:
+            while True:
+                async with self._lock:
+                    now = time.monotonic()
+                    self._prune(now)
+                    wait_seconds = max(0.0, self._blocked_until - now)
+                    request_limit = self.policy.requests_per_minute
+                    if request_limit and len(self._history) >= request_limit:
+                        wait_seconds = max(
+                            wait_seconds,
+                            self._history[0].started_at
+                            + self._WINDOW_SECONDS
+                            - now,
+                        )
+                    wait_seconds = max(
+                        wait_seconds,
+                        self._token_wait(now, estimated_tokens),
+                    )
+                    if wait_seconds <= 0:
+                        reservation = _RateReservation(
+                            started_at=now,
+                            tokens=max(0, int(estimated_tokens)),
+                        )
+                        self._history.append(reservation)
+                        return reservation
+                started = time.monotonic()
+                await asyncio.sleep(wait_seconds)
+                self._total_wait_seconds += max(0.0, time.monotonic() - started)
+        except BaseException:
+            self._semaphore.release()
+            raise
+
+    async def reconcile(
+        self, reservation: _RateReservation, actual_tokens: int
+    ) -> None:
+        async with self._lock:
+            reservation.tokens = max(0, int(actual_tokens))
+
+    def release(self) -> None:
+        self._semaphore.release()
+
+    async def register_rate_limit(
+        self,
+        wait_seconds: float,
+        *,
+        will_retry: bool,
+    ) -> None:
+        async with self._lock:
+            self._rate_limit_events += 1
+            if will_retry:
+                self._rate_limit_retries += 1
+                self._blocked_until = max(
+                    self._blocked_until,
+                    time.monotonic() + max(0.0, wait_seconds),
+                )
+
+    def snapshot(self) -> dict[str, int | float]:
+        return {
+            "total_wait_seconds": round(self._total_wait_seconds, 6),
+            "rate_limit_events": self._rate_limit_events,
+            "rate_limit_retries": self._rate_limit_retries,
+        }
+
+
+@dataclass(frozen=True)
 class TierPolicy:
     """Which concrete model serves each tier, for one pipeline run."""
 
@@ -277,6 +475,7 @@ def for_tier(llm: Any, tier: ModelTier) -> Any:
     one — are carried across instead of bypassed. Clones are memoized on the
     client, because a fresh HTTP client per call would churn connections.
     """
+    rate_gate = _rate_gate_for(llm)
     policy = getattr(llm, "tier_policy", None)
     if policy is None or tier is ModelTier.REASONING:
         return llm
@@ -292,9 +491,14 @@ def for_tier(llm: Any, tier: ModelTier) -> Any:
         try:
             llm._tier_clients = cache
         except Exception:  # noqa: BLE001 - a client that refuses attributes still works
-            return clone(model=target)
+            served = attach_tier_policy(clone(model=target), policy)
+            _set_rate_gate(served, rate_gate)
+            if is_instrumented(llm):
+                instrument_client(served)
+            return served
     if target not in cache:
         served = attach_tier_policy(clone(model=target), policy)
+        _set_rate_gate(served, rate_gate)
         # A tier clone keeps its own `usage` accumulator, so a clone that is not
         # instrumented is spend that no per-call event ever reports. Instrument
         # it iff the client it was cloned from was.
@@ -370,7 +574,57 @@ def _innermost_client(llm: Any) -> Any:
         current = inner
 
 
-def instrument_client(llm: Any) -> Any:
+def _set_rate_gate(llm: Any, gate: RateGate) -> None:
+    """Attach one gate to a client and its concrete provider client."""
+
+    for target in (llm, _innermost_client(llm)):
+        try:
+            target._rate_gate = gate
+        except Exception:  # noqa: BLE001 - immutable wrappers remain callable
+            continue
+
+
+def _attached_rate_gate(llm: Any) -> RateGate | None:
+    for target in (llm, _innermost_client(llm)):
+        gate = getattr(target, "_rate_gate", None)
+        if isinstance(gate, RateGate):
+            return gate
+    return None
+
+
+def attach_rate_policy(
+    llm: Any,
+    config: RatePolicy | Mapping[str, Any] | None = None,
+) -> Any:
+    """Ingest one rate configuration and share it across this client's tiers."""
+
+    if llm is None:
+        return llm
+    gate = RateGate(RatePolicy.from_config(config))
+    _set_rate_gate(llm, gate)
+    for client in getattr(llm, "_tier_clients", {}).values():
+        _set_rate_gate(client, gate)
+    return llm
+
+
+def _rate_gate_for(llm: Any) -> RateGate:
+    gate = _attached_rate_gate(llm)
+    if gate is None:
+        attach_rate_policy(llm)
+        gate = _attached_rate_gate(llm)
+    if gate is None:
+        # A client that refuses attributes still receives rate control for this
+        # call path; it simply cannot share the gate with separately cloned
+        # clients unless its wrapper permits attachment.
+        gate = RateGate(RatePolicy())
+    return gate
+
+
+def instrument_client(
+    llm: Any,
+    *,
+    rate_policy: RatePolicy | Mapping[str, Any] | None = None,
+) -> Any:
     """Record every model call this client serves, as it serves it.
 
     Purely additive: the wrapper forwards arguments untouched, returns the
@@ -381,6 +635,10 @@ def instrument_client(llm: Any) -> Any:
     """
     if llm is None:
         return llm
+    if rate_policy is not None:
+        attach_rate_policy(llm, rate_policy)
+    else:
+        _rate_gate_for(llm)
     target = _innermost_client(llm)
     if getattr(target, "_cost_instrumented", False):
         return llm
@@ -432,9 +690,12 @@ def describe_tiers(llm: Any) -> dict[str, Any]:
     """
     policy = getattr(llm, "tier_policy", None)
     resolved = policy.to_dict() if policy is not None else {}
+    gate = _rate_gate_for(llm)
     return {
         "tier_models": resolved,
         "base_model": getattr(llm, "model", ""),
+        "rate_policy": gate.policy.to_dict(),
+        "rate_state": gate.snapshot(),
         "call_sites": {
             site: tier.value for site, tier in sorted(CALL_SITE_TIERS.items())
         },
@@ -442,15 +703,114 @@ def describe_tiers(llm: Any) -> dict[str, Any]:
     }
 
 
+def _status_code(exc: BaseException) -> int | None:
+    for source in (exc, getattr(exc, "response", None)):
+        value = getattr(source, "status_code", None)
+        if value is None:
+            continue
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
+def _retry_after_seconds(exc: BaseException) -> float | None:
+    explicit = getattr(exc, "retry_after", None)
+    if explicit is not None:
+        try:
+            return max(0.0, float(explicit))
+        except (TypeError, ValueError):
+            pass
+    for source in (getattr(exc, "response", None), exc):
+        headers = getattr(source, "headers", None)
+        if headers is None:
+            continue
+        value = headers.get("retry-after") or headers.get("Retry-After")
+        if value is None:
+            continue
+        try:
+            return max(0.0, float(value))
+        except (TypeError, ValueError):
+            try:
+                retry_at = parsedate_to_datetime(str(value))
+                if retry_at.tzinfo is None:
+                    retry_at = retry_at.replace(tzinfo=timezone.utc)
+                return max(
+                    0.0,
+                    (retry_at - datetime.now(timezone.utc)).total_seconds(),
+                )
+            except (TypeError, ValueError, OverflowError):
+                continue
+    return None
+
+
+def _backoff_seconds(policy: RatePolicy, retry_index: int) -> float:
+    base = min(
+        policy.max_backoff_seconds,
+        policy.initial_backoff_seconds * (2**retry_index),
+    )
+    jitter = base * policy.jitter_fraction * random.random()
+    return min(policy.max_backoff_seconds, base + jitter)
+
+
+async def _rate_limited_call(
+    llm: Any,
+    prompt: str,
+    *,
+    system_prompt: str | None,
+) -> str:
+    gate = _rate_gate_for(llm)
+    estimate = gate.estimate_tokens(prompt, system_prompt)
+    target = _innermost_client(llm)
+
+    for retry_index in range(gate.policy.max_rate_limit_retries + 1):
+        reservation = await gate.acquire(estimate)
+        before = _usage_totals(getattr(target, "usage", None))
+        try:
+            result = await llm.call_async(prompt, system_prompt=system_prompt)
+        except Exception as exc:
+            after = _usage_totals(getattr(target, "usage", None))
+            actual = max(0, after[0] - before[0]) + max(0, after[1] - before[1])
+            await gate.reconcile(reservation, actual)
+            if _status_code(exc) != 429:
+                raise
+            wait_seconds = _retry_after_seconds(exc)
+            if wait_seconds is None:
+                wait_seconds = _backoff_seconds(gate.policy, retry_index)
+            will_retry = retry_index < gate.policy.max_rate_limit_retries
+            await gate.register_rate_limit(
+                wait_seconds,
+                will_retry=will_retry,
+            )
+            if not will_retry:
+                raise
+            record_retry()
+        else:
+            after = _usage_totals(getattr(target, "usage", None))
+            actual = max(0, after[0] - before[0]) + max(0, after[1] - before[1])
+            await gate.reconcile(reservation, actual or estimate)
+            return result
+        finally:
+            gate.release()
+    raise RuntimeError("unreachable rate-limit retry state")
+
+
 async def _call_llm(llm, prompt: str, *, system_prompt: str | None = None) -> str:
     try:
-        return await llm.call_async(prompt, system_prompt=system_prompt)
+        return await _rate_limited_call(
+            llm,
+            prompt,
+            system_prompt=system_prompt,
+        )
     except TypeError as exc:
         if system_prompt is None or "system_prompt" not in str(exc):
             raise
         record_retry()
-        return await llm.call_async(
-            f"SYSTEM:\n{system_prompt}\n\nUSER:\n{prompt}"
+        return await _rate_limited_call(
+            llm,
+            f"SYSTEM:\n{system_prompt}\n\nUSER:\n{prompt}",
+            system_prompt=None,
         )
 
 

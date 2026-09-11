@@ -407,6 +407,7 @@ class ArgoBridgeLLM:
                         status_code=response.status_code,
                         original_type="HTTPStatusError",
                         fatal=response.status_code >= 500,
+                        retry_after=response.headers.get("retry-after"),
                     )
                 body = response.json()
                 result = (((body.get("choices") or [{}])[0].get("message") or {}).get("content")) or ""
@@ -488,6 +489,8 @@ class ArgoBridgeLLM:
                 fatal=True,
             )
         except (RateLimitError, InternalServerError) as e:
+            response = getattr(e, "response", None)
+            headers = getattr(response, "headers", None)
             raise LLMError(
                 f"LLM call failed: {e}",
                 "argo_bridge",
@@ -496,6 +499,7 @@ class ArgoBridgeLLM:
                 status_code=getattr(e, "status_code", None),
                 original_type=type(e).__name__,
                 fatal=True,
+                retry_after=(headers or {}).get("retry-after"),
             )
         except APIStatusError as e:
             code = getattr(e, "status_code", None)
