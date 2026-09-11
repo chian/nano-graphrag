@@ -230,7 +230,7 @@ episode = Episode(
     grain=grain,
     key="search-1",
     source=source,
-    on_unit=update_search_memory,
+    on_unit=handle_completed_unit,
 )
 ```
 
@@ -292,17 +292,18 @@ or prompt. Do not write a loop around either Episode; calling `run()` or
 
 Finally, link the binding types in `acquisition_composition.py`. That is the
 only module that chooses the parent/child nesting. It creates one `Context` for
-the run and lists the permitted order from outermost to innermost. Controller
-configuration is already captured by each Grain's controller function;
-`Context` does not know its schema:
+the run and lists the Grains used by that composition from outermost to
+innermost. The names and number of levels depend on the composition; they are
+not fixed by the method. Controller configuration is already captured by each
+Grain's controller function; `Context` does not know its schema:
 
 ```python
 ctx = Context(
     run_id="run-1",
-    order=(run_grain, strategy_grain, search_grain),
+    order=(outer_grain, child_grain),
 )
 
-record = await run_episode.run_async(ctx)
+record = await outer_episode.run_async(ctx)
 ```
 
 Keep accepted-table projection in `result_projection.py` and acquisition
