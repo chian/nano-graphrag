@@ -26,14 +26,12 @@ from .identities import EpisodeRef, UnitRef
 from .runtime import ControllerFactory, ControllerRuntime, Path, Scope
 
 __all__ = [
-    "COUNTING_ENDS",
     "END_BOUND_HIT",
     "END_EXHAUSTED",
     "END_INCOMPLETE",
     "END_REASON_UNIT_BOUND",
     "END_SOURCE_FAILED",
     "END_YIELD_STOP",
-    "ENDS",
     "SOURCE_END_KINDS",
     "Acquirable",
     "Context",
@@ -60,14 +58,6 @@ END_YIELD_STOP = "yield_stop"
 END_INCOMPLETE = "incomplete"
 END_BOUND_HIT = "bound_hit"
 END_SOURCE_FAILED = "source_failed"
-ENDS = (
-    END_EXHAUSTED,
-    END_YIELD_STOP,
-    END_INCOMPLETE,
-    END_BOUND_HIT,
-    END_SOURCE_FAILED,
-)
-COUNTING_ENDS = (END_EXHAUSTED, END_YIELD_STOP)
 SOURCE_END_KINDS = (END_BOUND_HIT, END_SOURCE_FAILED)
 END_REASON_UNIT_BOUND = "unit_bound"
 
@@ -348,7 +338,6 @@ class EpisodeTree:
 
         object.__setattr__(self, "children", normalized)
         object.__setattr__(self, "_by_name", by_name)
-        object.__setattr__(self, "_parent_by_child", parent_by_child)
 
     @classmethod
     def linear(cls, grains: Iterable[Grain]) -> "EpisodeTree":
@@ -511,15 +500,6 @@ class Episode:
     ) -> EpisodeRef:
         path = tuple(parent_path) + ((grain.name, str(key)),)
         return EpisodeRef(run_id=ctx.require_run_id(), path=path)
-
-    def reference(
-        self,
-        ctx: "Context",
-        *,
-        parent_path: Optional[Path] = None,
-    ) -> EpisodeRef:
-        parent = ctx.path if parent_path is None else tuple(parent_path)
-        return self.identity(ctx, self.grain, self.key, parent_path=parent)
 
     def _as_parent_unit(self, record: EpisodeRecord) -> _AcquiredUnit:
         if self.to_parent is None:
@@ -861,23 +841,14 @@ class Context:
     def __init__(
         self,
         *,
-        order: Optional[Iterable[Grain]] = None,
-        tree: Optional[EpisodeTree] = None,
+        tree: EpisodeTree,
         run_id: Optional[str] = None,
         runtime: Optional[ControllerRuntime] = None,
     ) -> None:
-        if order is not None and tree is not None:
-            raise ValueError("Context accepts either order or tree, not both")
+        if not isinstance(tree, EpisodeTree):
+            raise TypeError("Context.tree must be an EpisodeTree")
         self.runtime = runtime if runtime is not None else ControllerRuntime()
-        self.order: Optional[tuple[Grain, ...]] = None
-        self.tree: Optional[EpisodeTree] = tree
-        if order is not None:
-            grains = tuple(order)
-            names = [grain.name for grain in grains]
-            if len(set(names)) != len(names):
-                raise ValueError(f"Context order names a grain twice: {names}")
-            self.order = grains
-            self.tree = EpisodeTree.linear(grains)
+        self.tree = tree
         self._stack: list[Path] = []
         self._grains: dict[str, Grain] = {}
         self._run_id: Optional[str] = None
@@ -907,7 +878,6 @@ class Context:
         return self._stack[-1] if self._stack else ()
 
     def _allowed_next(self, parent: Path) -> tuple[Grain, ...]:
-        assert self.tree is not None
         if not parent:
             return (self.tree.root,)
         return self.tree.allowed_children(parent[-1][0])
@@ -919,22 +889,21 @@ class Context:
         if known is not None and known is not grain and known != grain:
             raise ValueError(f"grain {grain.name!r} was declared more than once")
         parent = self.path
-        if self.tree is not None:
-            allowed = self._allowed_next(parent)
-            declared = next(
-                (item for item in allowed if item.name == grain.name),
-                None,
+        allowed = self._allowed_next(parent)
+        declared = next(
+            (item for item in allowed if item.name == grain.name),
+            None,
+        )
+        if declared is None:
+            raise ValueError(
+                f"grain {grain.name!r} may not nest under "
+                f"{parent[-1][0] if parent else 'the root'}; allowed: "
+                f"{[item.name for item in allowed]}"
             )
-            if declared is None:
-                raise ValueError(
-                    f"grain {grain.name!r} may not nest under "
-                    f"{parent[-1][0] if parent else 'the root'}; allowed: "
-                    f"{[item.name for item in allowed]}"
-                )
-            if declared != grain:
-                raise ValueError(
-                    f"grain {grain.name!r} differs from its EpisodeTree declaration"
-                )
+        if declared != grain:
+            raise ValueError(
+                f"grain {grain.name!r} differs from its EpisodeTree declaration"
+            )
         path: Path = tuple(parent) + ((grain.name, str(key)),)
         scope = self.runtime.open_scope(path, grain.controller)
         self._grains[grain.name] = grain

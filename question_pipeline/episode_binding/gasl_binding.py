@@ -14,6 +14,7 @@ from method_loop import (
     Contribution,
     Episode,
     EpisodeRecord,
+    EpisodeTree,
     EpisodeUpdate,
     Grain,
     Leaf,
@@ -896,7 +897,7 @@ class GraphWalkBinding:
             nested=False,
         )
         record = comp.episode.run(
-            Context(order=(comp.episode.grain,))
+            Context(tree=EpisodeTree.linear((comp.episode.grain,)))
         )
         return self.interpret(comp, record)
 
@@ -1637,7 +1638,9 @@ class GaslQueryBinding:
             # count, so it is the SOURCE's typed cut (design §5).
             bound=None,
         )
-        context = Context(order=(query_grain, walk_grain))
+        context = Context(
+            tree=EpisodeTree.linear((query_grain, walk_grain))
+        )
         return QueryComposition(episode=episode, context=context, source=source)
 
     def summarize(
