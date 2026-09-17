@@ -1,9 +1,16 @@
 # Rollout fan-out deck
 
 Three slide readings of the nested acquisition-episode tree recorded by six of
-the longest-standing runs in `question_runs/`. Open `index.html` in a browser;
-it loads `data.js` from the same directory, so keep the two together and open
-them from disk rather than viewing the HTML on GitHub, which shows source text.
+the longest-standing runs in `question_runs/`.
+
+**The slides are the PNGs in `slides/`** — 1600x900 at 2x, one image per run per
+slide per theme, viewable directly on GitHub. Names read
+`<run>__<slide>__<theme>.png`, so `quake_v22_learning__1_tree__light.png` is the
+tree slide for `earthquake_firecrawl_live_20260904_v22_learning`.
+
+`index.html` is the same deck as an interactive page, with a run selector and
+hover detail on every band. It loads `data.js` from the same directory, so keep
+the two together and open them from disk — GitHub shows the HTML as source text.
 
 These files are force-added past the `/analysis_outputs/` rule in `.gitignore`
 so the deck can be shared through the repo. The directory as a whole is still
@@ -23,7 +30,16 @@ untracked — add nothing else here without the same deliberate `git add -f`.
    estimated remaining on one log axis, with search boundaries marked. The
    curve resets at each boundary because saturation is judged per scope.
 
-## Rebuilding
+## Re-rendering the slides
+
+    ./render_slides.sh
+
+Drives headless Chromium over `index.html#export/<run>/<slide>` — a mode that
+hides the chrome and fixes the stage at 1600x900 — and writes every combination
+into `slides/`. The page is staged under `$HOME` first because Chromium here is
+a snap and cannot read `/tmp` or dotted directories.
+
+## Rebuilding the data
 
 Run from the repository root, against whichever runs you want in the deck:
 

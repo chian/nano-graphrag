@@ -1,7 +1,4 @@
-<!doctype html>
-<html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>html{color-scheme:light}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style></head>
-<body>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><style>html{color-scheme:light}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style></head><body style="margin:0">
 <title>Rollout Fan-Out</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -82,6 +79,23 @@ select.chip { max-width: 330px; }
 }
 .slide { display: none; }
 .slide[data-on] { display: block; }
+
+/* ---------- export: one fixed 16:9 slide, no chrome ---------- */
+body.export { background: var(--stage); }
+body.export .bar { display: none; }
+body.export .stage {
+  width: 1600px; height: 900px; margin: 0; border: 0; border-radius: 0;
+  box-shadow: none; display: flex; flex-direction: column;
+}
+body.export .slide[data-on] { display: flex; flex-direction: column; height: 900px; }
+body.export .head { padding: 34px 44px 22px; }
+body.export .head h2 { font-size: 34px; }
+body.export .body { padding: 24px 44px 28px; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+body.export .ice-wrap { flex: 1; display: flex; align-items: center; }
+body.export .ladder { width: 100%; }
+body.export #s2grid { flex: 1; align-items: center; }
+body.export details.tv { display: none; }
+body.export .note { margin-top: auto; padding-top: 16px; }
 
 .head { padding: 26px 34px 20px; border-bottom: 1px solid var(--rule); display: grid; grid-template-columns: 1fr auto; gap: 26px; align-items: end; }
 .eyebrow { font: 500 10px/1 "IBM Plex Mono", monospace; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-3); }
@@ -385,7 +399,10 @@ details.tv > summary:focus-visible { outline: 2px solid var(--s1); outline-offse
 
   function drawIcicle(run) {
     var rows = flatten(run);
-    var W = 1280, RH = 46, GAP = 8;
+    var W = 1280, GAP = 8;
+    var RH = document.body.classList.contains("export")
+      ? Math.floor(Math.min(96, Math.max(46, 430 / rows.length)))
+      : 46;
     var H = rows.length * RH;
     var svg = el("svg", { viewBox: "0 0 " + W + " " + H, width: "100%", height: H, role: "img",
       "aria-label": "Icicle of the run's episode tree, " + rows.length + " grains deep" });
@@ -756,7 +773,23 @@ details.tv > summary:focus-visible { outline: 2px solid var(--s1); outline-offse
       }).join("") + "</tbody>";
   }
 
+  /* Export mode — "#export/<runIndex>/<slideIndex>" renders one fixed slide
+     with the chrome hidden, for screenshotting to an image. */
+  var m = /^#export\/(\d+)\/(\d+)$/.exec(location.hash || "");
+  if (m) {
+    cur = Math.min(DATA.length - 1, +m[1]);
+    slide = Math.min(2, +m[2]);
+    document.body.classList.add("export");
+    if (/[?&]theme=dark/.test(location.search)) {
+      document.documentElement.setAttribute("data-theme", "dark");
+    }
+  }
+
   render();
+
+  if (m) {
+    document.documentElement.setAttribute("data-render", "ready");
+  }
 
   addEventListener("keydown", function (e) {
     if (e.target.tagName === "SELECT") return;
