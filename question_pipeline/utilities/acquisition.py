@@ -1927,10 +1927,19 @@ from typing import Any, Mapping, Optional
 
 from method_loop import EpisodeRef, StructuralPath, normalize_structural_path
 
-CHECKPOINT_VERSION = "episode_checkpoint_v1"
+CHECKPOINT_VERSION = "episode_checkpoint_v2"
 CHECKPOINT_FILENAME = "checkpoint.json"
 STATE_ROLES = frozenset(
-    {"config", "episode", "evidence", "frontier", "memory", "policy", "table"}
+    {
+        "config",
+        "episode",
+        "evidence",
+        "frontier",
+        "memory",
+        "policy",
+        "sources",
+        "table",
+    }
 )
 REQUIRED_STATE_ROLES = STATE_ROLES
 
@@ -1960,6 +1969,133 @@ def _relative_json_path(name: str, value: object) -> str:
             f"{name} must be a normalized relative JSON or JSONL path"
         )
     return path.as_posix()
+
+
+def _relative_artifact_path(name: str, value: object) -> str:
+    text = _checkpoint_text(name, value)
+    if "\\" in text:
+        raise CheckpointError(f"{name} must use POSIX path separators")
+    path = PurePosixPath(text)
+    if (
+        path.is_absolute()
+        or not path.parts
+        or any(part in {"", ".", ".."} for part in path.parts)
+    ):
+        raise CheckpointError(f"{name} must be a normalized relative path")
+    return path.as_posix()
+
+
+@dataclass(frozen=True)
+class ArtifactFingerprint:
+    """The exact bytes one checkpoint verified for a file or directory tree."""
+
+    path: str
+    kind: str
+    sha256: str
+    bytes: int
+    files: int
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "path",
+            _relative_artifact_path("artifact path", self.path),
+        )
+        if self.kind not in {"file", "directory"}:
+            raise CheckpointError("artifact kind must be 'file' or 'directory'")
+        digest = _checkpoint_text("artifact sha256", self.sha256).lower()
+        if len(digest) != 64 or any(ch not in "0123456789abcdef" for ch in digest):
+            raise CheckpointError("artifact sha256 must be a 64-character hex digest")
+        object.__setattr__(self, "sha256", digest)
+        for name, value in (("bytes", self.bytes), ("files", self.files)):
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                raise CheckpointError(f"artifact {name} must be a non-negative integer")
+        if self.kind == "file" and self.files != 1:
+            raise CheckpointError("a file artifact must report exactly one file")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "path": self.path,
+            "kind": self.kind,
+            "sha256": self.sha256,
+            "bytes": self.bytes,
+            "files": self.files,
+        }
+
+    @classmethod
+    def from_dict(cls, value: object) -> "ArtifactFingerprint":
+        expected = {"path", "kind", "sha256", "bytes", "files"}
+        if not isinstance(value, Mapping) or set(value) != expected:
+            raise CheckpointError("artifact fingerprint has unknown or missing fields")
+        return cls(
+            path=value["path"],
+            kind=value["kind"],
+            sha256=value["sha256"],
+            bytes=value["bytes"],
+            files=value["files"],
+        )
+
+
+def fingerprint_artifact(
+    root: str | Path,
+    relative: str | Path,
+) -> ArtifactFingerprint:
+    """Hash one run-relative file or directory without following symlinks."""
+
+    root_path = Path(root).expanduser().resolve()
+    relative_path = _relative_artifact_path("artifact path", str(relative))
+    target = root_path / relative_path
+    if target.is_symlink():
+        raise CheckpointError(f"checkpoint artifact may not be a symlink: {relative_path}")
+    if target.is_file():
+        data = target.read_bytes()
+        return ArtifactFingerprint(
+            path=relative_path,
+            kind="file",
+            sha256=hashlib.sha256(data).hexdigest(),
+            bytes=len(data),
+            files=1,
+        )
+    if not target.is_dir():
+        raise CheckpointError(f"checkpoint artifact does not exist: {relative_path}")
+
+    digest = hashlib.sha256()
+    total_bytes = 0
+    file_count = 0
+    for path in sorted(target.rglob("*")):
+        if path.is_symlink():
+            raise CheckpointError(
+                f"checkpoint artifact may not contain a symlink: "
+                f"{path.relative_to(root_path).as_posix()}"
+            )
+        if not path.is_file():
+            continue
+        local = path.relative_to(target).as_posix().encode("utf-8")
+        data = path.read_bytes()
+        digest.update(len(local).to_bytes(8, "big"))
+        digest.update(local)
+        digest.update(len(data).to_bytes(8, "big"))
+        digest.update(hashlib.sha256(data).digest())
+        total_bytes += len(data)
+        file_count += 1
+    return ArtifactFingerprint(
+        path=relative_path,
+        kind="directory",
+        sha256=digest.hexdigest(),
+        bytes=total_bytes,
+        files=file_count,
+    )
+
+
+def _verify_fingerprint(root: Path, expected: ArtifactFingerprint) -> None:
+    actual = fingerprint_artifact(root, expected.path)
+    if actual != expected:
+        raise CheckpointError(
+            "checkpoint artifact changed after its committed Episode boundary: "
+            f"{expected.path} expected "
+            f"sha256={expected.sha256}, bytes={expected.bytes}, files={expected.files}; "
+            f"found sha256={actual.sha256}, bytes={actual.bytes}, files={actual.files}"
+        )
 
 
 @dataclass(frozen=True)
@@ -2071,10 +2207,13 @@ class EpisodeCheckpoint:
 
     run_id: str
     lineage_id: str
+    commit_id: str
     last_completed_episode: Optional[CompletedEpisode]
     active_parent: Optional[ActiveParent]
     next_episode: Optional[NextEpisode]
     state_files: Mapping[str, str]
+    state_fingerprints: Mapping[str, ArtifactFingerprint]
+    live_artifacts: Mapping[str, ArtifactFingerprint]
     version: str = CHECKPOINT_VERSION
 
     def __post_init__(self) -> None:
@@ -2082,6 +2221,7 @@ class EpisodeCheckpoint:
             raise CheckpointError(f"unsupported checkpoint version {self.version!r}")
         object.__setattr__(self, "run_id", _checkpoint_text("run_id", self.run_id))
         object.__setattr__(self, "lineage_id", _checkpoint_text("lineage_id", self.lineage_id))
+        object.__setattr__(self, "commit_id", _checkpoint_text("commit_id", self.commit_id))
         if self.last_completed_episode is not None:
             if not isinstance(self.last_completed_episode, CompletedEpisode):
                 raise TypeError(
@@ -2128,6 +2268,23 @@ class EpisodeCheckpoint:
                 f"unknown={sorted(unknown)}, missing={sorted(missing)}"
             )
         object.__setattr__(self, "state_files", normalized)
+        fingerprints = _coerce_fingerprint_map(
+            "state_fingerprints", self.state_fingerprints
+        )
+        if set(fingerprints) != set(normalized):
+            raise CheckpointError(
+                "state_fingerprints must name exactly the checkpoint state roles"
+            )
+        for role, path in normalized.items():
+            if fingerprints[role].path != path:
+                raise CheckpointError(
+                    f"state fingerprint {role!r} does not name {path!r}"
+                )
+        object.__setattr__(self, "state_fingerprints", fingerprints)
+        live = _coerce_fingerprint_map("live_artifacts", self.live_artifacts)
+        if not live:
+            raise CheckpointError("live_artifacts must not be empty")
+        object.__setattr__(self, "live_artifacts", live)
 
     @property
     def complete(self) -> bool:
@@ -2138,6 +2295,7 @@ class EpisodeCheckpoint:
             "checkpoint_version": self.version,
             "run_id": self.run_id,
             "lineage_id": self.lineage_id,
+            "commit_id": self.commit_id,
             "last_completed_episode": (
                 self.last_completed_episode.to_dict()
                 if self.last_completed_episode is not None
@@ -2154,20 +2312,39 @@ class EpisodeCheckpoint:
                 else None
             ),
             "state_files": dict(sorted(self.state_files.items())),
+            "state_fingerprints": {
+                role: fingerprint.to_dict()
+                for role, fingerprint in sorted(self.state_fingerprints.items())
+            },
+            "live_artifacts": {
+                role: fingerprint.to_dict()
+                for role, fingerprint in sorted(self.live_artifacts.items())
+            },
         }
 
     @classmethod
     def from_dict(cls, value: object) -> "EpisodeCheckpoint":
+        if not isinstance(value, Mapping):
+            raise CheckpointError("checkpoint must be a JSON object")
+        version = value.get("checkpoint_version")
+        if version != CHECKPOINT_VERSION:
+            raise CheckpointError(
+                f"unsupported checkpoint version {version!r}; "
+                f"this code requires {CHECKPOINT_VERSION!r}"
+            )
         expected = {
             "checkpoint_version",
             "run_id",
             "lineage_id",
+            "commit_id",
             "last_completed_episode",
             "active_parent",
             "next_episode",
             "state_files",
+            "state_fingerprints",
+            "live_artifacts",
         }
-        if not isinstance(value, Mapping) or set(value) != expected:
+        if set(value) != expected:
             raise CheckpointError("checkpoint has unknown or missing fields")
         completed = value["last_completed_episode"]
         active_parent = value["active_parent"]
@@ -2176,6 +2353,7 @@ class EpisodeCheckpoint:
             version=value["checkpoint_version"],
             run_id=value["run_id"],
             lineage_id=value["lineage_id"],
+            commit_id=value["commit_id"],
             last_completed_episode=(
                 CompletedEpisode.from_dict(completed)
                 if completed is not None
@@ -2192,7 +2370,69 @@ class EpisodeCheckpoint:
                 else None
             ),
             state_files=value["state_files"],
+            state_fingerprints=value["state_fingerprints"],
+            live_artifacts=value["live_artifacts"],
         )
+
+
+def _coerce_fingerprint_map(
+    name: str,
+    value: object,
+) -> dict[str, ArtifactFingerprint]:
+    if not isinstance(value, Mapping):
+        raise CheckpointError(f"{name} must be a mapping")
+    out: dict[str, ArtifactFingerprint] = {}
+    for raw_key, raw_value in value.items():
+        key = _checkpoint_text(f"{name} key", raw_key)
+        if key in out:
+            raise CheckpointError(f"duplicate {name} key {key!r}")
+        out[key] = (
+            raw_value
+            if isinstance(raw_value, ArtifactFingerprint)
+            else ArtifactFingerprint.from_dict(raw_value)
+        )
+    return out
+
+
+_VERIFIED_CHECKPOINT_TOKEN = object()
+
+
+@dataclass(frozen=True, init=False)
+class VerifiedCheckpoint:
+    """A checkpoint whose shared commit and referenced bytes were verified.
+
+    Construction is intentionally private. Runtime restoration accepts this
+    type rather than a path so no caller can skip the verification boundary by
+    deserializing a plausible-looking mapping itself.
+    """
+
+    path: Path
+    checkpoint: EpisodeCheckpoint
+
+    def __init__(
+        self,
+        path: Path,
+        checkpoint: EpisodeCheckpoint,
+        *,
+        _token: object,
+    ) -> None:
+        if _token is not _VERIFIED_CHECKPOINT_TOKEN:
+            raise TypeError("VerifiedCheckpoint values come from verify_checkpoint()")
+        object.__setattr__(self, "path", path)
+        object.__setattr__(self, "checkpoint", checkpoint)
+
+    def read_role(self, role: str) -> dict[str, Any]:
+        if role not in self.checkpoint.state_files:
+            raise CheckpointError(f"checkpoint has no state role {role!r}")
+        path = self.path.parent / self.checkpoint.state_files[role]
+        value = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(value, dict):
+            raise CheckpointError(f"checkpoint state {role!r} must be an object")
+        if value.get("checkpoint_commit_id") != self.checkpoint.commit_id:
+            raise CheckpointError(
+                f"checkpoint state {role!r} belongs to a different commit"
+            )
+        return value
 
 
 def resolve_checkpoint_path(source: str | Path) -> Path:
@@ -2207,7 +2447,7 @@ def resolve_checkpoint_path(source: str | Path) -> Path:
 
 
 def load_checkpoint(source: str | Path) -> EpisodeCheckpoint:
-    """Load the checkpoint and verify every referenced state file exists."""
+    """Parse one checkpoint pointer without authorizing restoration."""
 
     path = resolve_checkpoint_path(source)
     try:
@@ -2226,6 +2466,26 @@ def load_checkpoint(source: str | Path) -> EpisodeCheckpoint:
     return checkpoint
 
 
+def verify_checkpoint(source: str | Path) -> VerifiedCheckpoint:
+    """Authorize continuation only from one coherent committed generation."""
+
+    path = resolve_checkpoint_path(source)
+    checkpoint = load_checkpoint(path)
+    root = path.parent
+    for fingerprint in checkpoint.state_fingerprints.values():
+        _verify_fingerprint(root, fingerprint)
+    for fingerprint in checkpoint.live_artifacts.values():
+        _verify_fingerprint(root, fingerprint)
+    verified = VerifiedCheckpoint(
+        path,
+        checkpoint,
+        _token=_VERIFIED_CHECKPOINT_TOKEN,
+    )
+    for role in checkpoint.state_files:
+        verified.read_role(role)
+    return verified
+
+
 def write_checkpoint(
     checkpoint: EpisodeCheckpoint,
     directory: str | Path,
@@ -2241,12 +2501,15 @@ def write_checkpoint(
             raise CheckpointError(
                 f"cannot checkpoint before state file {role!r} exists: {relative}"
             )
+        _verify_fingerprint(root, checkpoint.state_fingerprints[role])
     if checkpoint.last_completed_episode is not None:
         record_file = checkpoint.last_completed_episode.record_file
         if not (root / record_file).is_file():
             raise CheckpointError(
                 f"cannot checkpoint before Episode record exists: {record_file}"
             )
+    for fingerprint in checkpoint.live_artifacts.values():
+        _verify_fingerprint(root, fingerprint)
 
     payload = json.dumps(
         checkpoint.to_dict(),

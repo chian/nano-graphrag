@@ -20,6 +20,7 @@ class StrategySearches:
         make_search: Callable[[Any], Episode],
         budget: SourceBudget,
         health: ProviderHealth,
+        resume_search: Optional[Episode] = None,
     ) -> None:
         self._strategy_key = strategy_key
         self._family = family
@@ -27,12 +28,17 @@ class StrategySearches:
         self._make_search = make_search
         self._budget = budget
         self._health = health
+        self._resume_search = resume_search
 
     def next(self, view: EpisodeView) -> Episode | None | SourceEnd:
         if self._health.fatal:
             return SourceEnd(END_SOURCE_FAILED, FATAL_SEARCH_ERROR)
         if self._budget.exhausted:
             return SourceEnd(END_BOUND_HIT, BOUND_KIND_RUN_SOURCE_BUDGET)
+        if self._resume_search is not None:
+            episode = self._resume_search
+            self._resume_search = None
+            return episode
         task = self._next_task(self._family)
         if task is None:
             return None
@@ -53,7 +59,7 @@ class StrategyBinding:
         resuming = bool(
             self._active_strategy_key
             and self._active_strategy_key == strategy_key
-            and self._active_search_units
+            and (self._active_search_units or self._resume_search_state)
         )
         if seeds and not resuming:
             self._strategy_seed_queries[strategy_key] = list(seeds)
@@ -68,6 +74,22 @@ class StrategyBinding:
         self._active_strategy_key = str(strategy_key)
         self._active_strategy_family = str(family)
         self._active_strategy_seeds = [str(seed) for seed in seeds]
+        resume_search = None
+        if self._resume_search_state:
+            raw_task = self._resume_search_state.get("task") or {}
+            if not isinstance(raw_task, Mapping):
+                raise TypeError("active search task must be a mapping")
+            allowed = set(SearchTask.__dataclass_fields__)
+            task = SearchTask(
+                **{key: value for key, value in raw_task.items() if key in allowed}
+            )
+            resume_search = self._build_search_episode(
+                task,
+                strategy_key,
+                family,
+                resume_state=self._resume_search_state,
+            )
+            self._resume_search_state = {}
         return Episode(
             grain=self.strategy_grain,
             key=strategy_key,
@@ -80,6 +102,7 @@ class StrategyBinding:
                 ),
                 budget=self.budget,
                 health=self.health,
+                resume_search=resume_search,
             ),
             on_close=lambda record: self._close_strategy(
                 record, strategy_key, family

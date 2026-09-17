@@ -96,8 +96,8 @@ run Episode
 └── strategy Episode
     └── search Episode
         └── page Episode
-            ├── table Episode
-            │   └── execute one query over parsed rows
+            ├── source-table Episode
+            │   └── execute one query over parsed source rows
             └── lexical-probe Episode
                 └── process one non-table chunk
 ```
@@ -113,9 +113,10 @@ run: fatal-earthquake table
 └── strategy: search annual earthquake-loss compilations
     └── search: "CATDAT damaging earthquakes year in review"
         └── page: CATDAT 2012 report
-            ├── table: detected earthquake-loss table
-            │   ├── parser plan -> maps source columns to declared columns
-            │   └── row query -> accepts source rows and records its yield
+            ├── source table: detected earthquake-loss table
+            │   ├── table-language program -> interprets rows plus table context
+            │   ├── entity mentions -> resolve duplicates and apply typed admission
+            │   └── source-table query -> submits admitted entities to the Goal
             └── lexical probe: "Mw MMI USD"
                 ├── chunk 52 -> fills fields from prose outside the table
                 └── next probe ranks only unprocessed non-table chunks
@@ -125,14 +126,14 @@ Each level answers a different question with the same method:
 
 | Episode level | One unit | What ending the Episode means |
 | --- | --- | --- |
-| table | one deterministic query over parsed, unprocessed table rows | return control to the page after the table query space is exhausted or rarefied |
+| source table | one deterministic query over parsed, unprocessed source rows | return control to the page after the source-table query space is exhausted or rarefied |
 | lexical probe | one previously unprocessed ranked chunk | return control to the page so it can propose another vocabulary over the remaining chunks |
-| page | one completed table or lexical-probe Episode | finish this document and return its distinct findings to the search |
+| page | one completed source-table or lexical-probe Episode | finish this document and return its distinct findings to the search |
 | search | one fetched page or document | stop consuming that Firecrawl result list |
 | strategy | one completed search Episode | stop pursuing that strategy family |
 | run | one completed strategy Episode | end the declared acquisition run |
 
-The table binding's child update carries distinct accepted results by column.
+The source-table binding's child update carries distinct accepted Goal results.
 The parent treats the completed child as one unit and recalculates its own
 counts, estimates, and decision. It does not add together the child's
 hypervolume and its own. The full child record is retained only in the trace;
@@ -185,6 +186,49 @@ example, a page can replace an unproductive lexical query with abbreviations
 found in the document, while a strategy can replace a saturated Web search
 with a different search angle. The model proposes the next string; the
 numerical component decides whether there should be another attempt.
+
+### The table language
+
+`source_table_language/` is a reusable source-table interpreter, separate from both
+the question pipeline and the generic Episode method. It detects tables in
+HTML, Markdown, delimited text, and fixed-width text; exposes addressable rows
+and nearby headings, legends, units, and footnotes; validates a small program
+written by the model; and executes that program deterministically.
+
+```text
+source document
+      |
+      v
+detect table region + address its surrounding context
+      |
+      v
+model writes a validated table-language program
+      |
+      v
+parse rows -> map source columns/context to semantic entity fields
+      |
+      v
+source-local mentions --candidate links--> semantic community resolution
+      |
+      v
+apply the target's typed admission rules
+      |
+      v
+admitted, evidence-linked mentions
+      |
+      v
+source-table binding -> evidence acceptance -> current Goal storage -> credit
+```
+
+The target defines each semantic field once. Reported and best-guess storage
+columns may point to the same field, subject-key columns mark its identity
+role, and admission rules also refer to that field. A date field can therefore
+be projected into the answer, help identify an event, and enforce a question's
+time boundary without creating a second qualification-only field. The reusable
+language emits source-local mentions and candidate co-reference links. Only
+the question-pipeline binding knows how to submit those mentions to the current
+Goal implementation, which today is a typed result table. Source tables and
+the tabular Goal are different objects even when the former fills the latter.
 
 ## Adding a new Episode type
 
@@ -329,6 +373,8 @@ of `Episode`, that description is stale.
 method_loop/             generic Episode method: iteration, nesting, runtime
                          identity, scope routing, child-to-parent results,
                          and record trees
+source_table_language/   reusable source-table language, deterministic
+                         executor, and mention-community boundary
 question_pipeline/       Firecrawl/table-fill application and future GASL
                          Episode integration
   pipeline.py            visible composition entry point
@@ -374,6 +420,14 @@ Resume a durable Episode checkpoint with:
 .venv/bin/python run_question_pipeline.py \
   --continue question_runs/earthquake_example
 ```
+
+Continuation is accepted only when `checkpoint.json`, its state generation,
+and the run's Goal, evidence, source, and completed-Episode artifacts all match
+one recorded commit. Validation occurs before the pipeline is constructed. A
+changed or incomplete run is refused rather than combined with checkpoint
+state. Seed arguments start a new run from imported results; they do not resume
+an interrupted Episode. Checkpoints from before `episode_checkpoint_v2` do not
+carry this guarantee and cannot be continued by the current runner.
 
 The module docstring and `--help` output of `run_question_pipeline.py` are the
 authoritative CLI references. Runs write source material, evidence-registry

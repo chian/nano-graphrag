@@ -112,6 +112,7 @@ type; do not recreate a flat collection of narrowly sliced utility modules.
 
 | Location | Owns |
 | --- | --- |
+| `source_table_language/` | reusable source-table discovery, addressable context, validated programs, deterministic execution, and source-local mention communities; no Episodes, Goal storage, or numerical control |
 | `pipeline.py` | `PipelineConfig`, `QuestionPipeline`, component wiring, root Episode launch, and final run output |
 | `episode_binding/` | one `*_binding.py` module per Episode type, plus the provider binding that supplies their shared vocabulary and composition operations |
 | `utilities/acquisition.py` | numerical policy vocabulary, cost accounting, and durable checkpoints |
@@ -179,7 +180,7 @@ package. Standalone `gasl/` imports neither.
 
 The provider binding is organized by acquisition level in
 `question_pipeline/episode_binding/`, with one `*_binding.py` module each for
-the `chunk` Leaf and the `table`, `lexical_probe`, `page`, `web_search`,
+the `chunk` Leaf and the `source_table`, `lexical_probe`, `page`, `web_search`,
 `strategy`, and `run` Episode types. Provider-wide binding vocabulary and
 composition operations live in `provider_binding.py`; the package initializer
 assembles the concrete provider binding once. The dormant GASL query and walk
@@ -193,12 +194,18 @@ what makes the binding reusable in a different nesting. The chunk module owns
 the Leaf's unit, extract/accept/result wiring, and label; it declares no Grain.
 
 Link the binding classes in `question_pipeline/episode_binding/__init__.py` and
-connect the assembled provider from `pipeline.py`. Table-result projection
-lives in `utilities/tables.py`; evidence records live in
+connect the assembled provider from `pipeline.py`. The current tabular Goal's
+contracts, state, and result projection live in `utilities/tables.py`; evidence records live in
 `utilities/evidence.py`; checkpoints and cost records live in
 `utilities/acquisition.py`. Do not hide dependencies in one context or services
 object handed wholesale to every binding; pass each binding only the
 collaborators it uses.
+
+The source-table Episode binding may import the reusable `source_table_language/` package.
+That package interprets source tables into evidence-linked semantic mentions;
+the binding alone connects those mentions to evidence acceptance, current Goal
+storage, credit, and the Episode hierarchy. Do not move an Episode, controller,
+provider client, or question-pipeline Goal-storage rule into `source_table_language/`.
 
 ### Evidence rules at baseline
 

@@ -1,12 +1,20 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 from typing import Any
 
 from method_loop import Leaf
 
 from question_pipeline.utilities.acquisition import ObservationKind, classify_error
-from question_pipeline.episode_binding.provider_binding import EXTRACT_OK, EXTRACT_RAISED, FATE_NO_EXTRACTOR, ChunkUnit, PageMaterial, PageRunState, page_fate
+from question_pipeline.episode_binding.provider_binding import EXTRACT_OK, EXTRACT_RAISED, FATE_NO_EXTRACTOR, ChunkUnit, GoalTransition, PageMaterial, PageRunState, page_fate
+
+
+@dataclass(frozen=True)
+class ChunkResult:
+    """The goal transition produced by one processed chunk."""
+
+    goal_transition: GoalTransition
 
 class ChunkBinding:
     """Methods owned by the chunk Episode."""
@@ -33,9 +41,18 @@ class ChunkBinding:
             unit=unit,
             extract=self._extract_chunk,
             accept=self.accept_evidence,
-            result=self.crediter,
+            result=self._chunk_result,
             label=unit.label,
         )
+
+    def _chunk_result(
+        self,
+        unit: ChunkUnit,
+        material: PageMaterial,
+    ) -> Any:
+        transition = self.crediter(unit, material)
+        unit.attach_result(ChunkResult(goal_transition=transition))
+        return transition.observation
 
     async def _extract_chunk(self, unit: ChunkUnit) -> PageMaterial:
         """Extract one selected chunk; no other chunk is touched by this pull."""

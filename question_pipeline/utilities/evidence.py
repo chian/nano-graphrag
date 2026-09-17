@@ -12,9 +12,14 @@ import json
 import os
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Iterable, Mapping
+from typing import TYPE_CHECKING, Any, Callable, Iterable, Mapping, Sequence
 
 from question_pipeline.utilities.acquisition import stable_id
+from question_pipeline.utilities.model import (
+    ModelTier,
+    ask_json,
+    register_call_site_tier,
+)
 if TYPE_CHECKING:
     pass
     from question_pipeline.utilities.tables import ColumnEvidenceRole
@@ -32,6 +37,13 @@ SUPPORTED_ACCEPTANCE_BATCH_VERSIONS = frozenset(
 
 def _sha256(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _read_text_exact(path: Path) -> str:
+    """Read persisted source text without translating its line endings."""
+
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        return handle.read()
 
 
 def _canonical(value: Any) -> str:
@@ -591,6 +603,9 @@ class EvidenceRegistry:
             raise ValueError(
                 "acceptance decision must resolve every staged candidate exactly once"
             )
+        decisions_by_id = {
+            item.candidate_id: item for item in decision.candidates
+        }
         accepted_direct_ids = decision.accepted_ids("reported")
         accepted_best_guess_ids = decision.accepted_ids("best_guess")
         accepted_cells: list[AcceptedCell] = []
@@ -603,10 +618,11 @@ class EvidenceRegistry:
                 continue
             if not span or not candidate.subject_bound:
                 raise ValueError("acceptor accepted an invalid reported evidence type")
+            rule_version = decisions_by_id[candidate.id].rule_version
             acceptance = AcceptanceRecord(
                 id=stable_id(
                     {
-                        "version": DIRECT_ACCEPTANCE_RULE_VERSION,
+                        "version": rule_version,
                         "assertion_id": candidate.id,
                     }
                 ),
@@ -617,6 +633,7 @@ class EvidenceRegistry:
                 chunk_id=candidate.chunk_id,
                 span_id=candidate.span_id,
                 supporting_text_sha256=str(span["text_sha256"]),
+                rule_version=rule_version,
             )
             cell = AcceptedCell(
                 id=stable_id(
@@ -644,6 +661,7 @@ class EvidenceRegistry:
                 chunk_id=candidate.chunk_id,
                 span_id=candidate.span_id,
                 supporting_text_sha256=str(span["text_sha256"]),
+                acceptance_rule_version=rule_version,
             )
             accepted_cells.append(cell)
             acceptance_rows.append(
@@ -664,10 +682,11 @@ class EvidenceRegistry:
                 or any(chunk_id not in chunks for chunk_id in candidate.supporting_chunk_ids)
             ):
                 raise ValueError("acceptor accepted an invalid best-guess evidence type")
+            rule_version = decisions_by_id[candidate.id].rule_version
             acceptance = BestGuessAcceptanceRecord(
                 id=stable_id(
                     {
-                        "version": BEST_GUESS_ACCEPTANCE_RULE_VERSION,
+                        "version": rule_version,
                         "assertion_id": candidate.id,
                     }
                 ),
@@ -678,6 +697,7 @@ class EvidenceRegistry:
                 supporting_chunk_ids=candidate.supporting_chunk_ids,
                 reasoning_basis=candidate.reasoning_basis,
                 confidence=candidate.confidence,
+                rule_version=rule_version,
             )
             cell = AcceptedBestGuessCell(
                 id=stable_id(
@@ -706,6 +726,7 @@ class EvidenceRegistry:
                 reasoning_basis=candidate.reasoning_basis,
                 confidence=candidate.confidence,
                 reasoning_operator=candidate.reasoning_operator,
+                acceptance_rule_version=rule_version,
             )
             accepted_best_guess_cells.append(cell)
             best_guess_rows.append(
@@ -827,7 +848,7 @@ class EvidenceRegistry:
         if root != blob_path and root not in blob_path.parents:
             raise ValueError("source batch blob path escapes the evidence registry")
         try:
-            content = blob_path.read_text(encoding="utf-8")
+            content = _read_text_exact(blob_path)
         except OSError as exc:
             raise ValueError("accepted source blob is missing or unreadable") from exc
         if SourceVersion.create(document.id, content) != version:
@@ -918,9 +939,15 @@ class EvidenceRegistry:
 
         raw_decision = dict(batch.get("acceptance_decision") or {})
         decision = AcceptanceDecision.create(
-            CandidateDecision(**dict(item))
-            for item in raw_decision.get("candidates") or ()
-            if isinstance(item, Mapping)
+            (
+                CandidateDecision(**dict(item))
+                for item in raw_decision.get("candidates") or ()
+                if isinstance(item, Mapping)
+            ),
+            policy_version=str(
+                raw_decision.get("policy_version")
+                or LEGACY_ACCEPTANCE_POLICY_VERSION
+            ),
         )
         if raw_decision != decision.to_dict():
             raise ValueError("acceptance decision does not match its typed identity")
@@ -929,6 +956,9 @@ class EvidenceRegistry:
             *best_guess_candidates,
         }:
             raise ValueError("acceptance decision does not resolve the staged candidates")
+        decisions_by_id = {
+            item.candidate_id: item for item in decision.candidates
+        }
 
         commit = self._commit_from_acceptance_batch(batch)
         accepted_rows = list(batch.get("accepted") or ())
@@ -943,10 +973,11 @@ class EvidenceRegistry:
             span = spans.get(cell.span_id)
             if candidate is None or span is None or not candidate.subject_bound:
                 raise ValueError("accepted cell does not resolve its assertion and span")
+            rule_version = decisions_by_id[candidate.id].rule_version
             expected_acceptance = AcceptanceRecord(
                 id=stable_id(
                     {
-                        "version": DIRECT_ACCEPTANCE_RULE_VERSION,
+                        "version": rule_version,
                         "assertion_id": candidate.id,
                     }
                 ),
@@ -957,6 +988,7 @@ class EvidenceRegistry:
                 chunk_id=candidate.chunk_id,
                 span_id=candidate.span_id,
                 supporting_text_sha256=span.text_sha256,
+                rule_version=rule_version,
             )
             expected_cell = AcceptedCell(
                 id=stable_id(
@@ -984,6 +1016,7 @@ class EvidenceRegistry:
                 chunk_id=candidate.chunk_id,
                 span_id=candidate.span_id,
                 supporting_text_sha256=span.text_sha256,
+                acceptance_rule_version=rule_version,
             )
             if acceptance != expected_acceptance or cell != expected_cell:
                 raise ValueError("accepted cell does not match deterministic acceptance")
@@ -1005,10 +1038,11 @@ class EvidenceRegistry:
             candidate = best_guess_candidates.get(cell.assertion_id)
             if candidate is None or not candidate.subject_bound:
                 raise ValueError("accepted best guess does not resolve its candidate")
+            rule_version = decisions_by_id[candidate.id].rule_version
             expected_acceptance = BestGuessAcceptanceRecord(
                 id=stable_id(
                     {
-                        "version": BEST_GUESS_ACCEPTANCE_RULE_VERSION,
+                        "version": rule_version,
                         "assertion_id": candidate.id,
                     }
                 ),
@@ -1019,6 +1053,7 @@ class EvidenceRegistry:
                 supporting_chunk_ids=candidate.supporting_chunk_ids,
                 reasoning_basis=candidate.reasoning_basis,
                 confidence=candidate.confidence,
+                rule_version=rule_version,
             )
             expected_cell = AcceptedBestGuessCell(
                 id=stable_id(
@@ -1047,6 +1082,7 @@ class EvidenceRegistry:
                 reasoning_basis=candidate.reasoning_basis,
                 confidence=candidate.confidence,
                 reasoning_operator=candidate.reasoning_operator,
+                acceptance_rule_version=rule_version,
             )
             if acceptance != expected_acceptance or cell != expected_cell:
                 raise ValueError("accepted best guess does not match its typed chain")
@@ -1114,11 +1150,11 @@ class EvidenceRegistry:
     @staticmethod
     def _write_blob(path: Path, content: str) -> None:
         if path.exists():
-            if path.read_text(encoding="utf-8") != content:
+            if _read_text_exact(path) != content:
                 raise ValueError(f"content-addressed evidence blob conflicts at {path}")
             return
         temporary = path.with_suffix(f".tmp.{os.getpid()}")
-        with temporary.open("x", encoding="utf-8") as handle:
+        with temporary.open("x", encoding="utf-8", newline="") as handle:
             handle.write(content)
             handle.flush()
             os.fsync(handle.fileno())
@@ -1155,7 +1191,22 @@ from typing import Iterable, Mapping, Protocol, runtime_checkable
 
 from question_pipeline.utilities.acquisition import stable_id
 
-ACCEPTANCE_POLICY_VERSION = "typed_evidence_acceptor_v1"
+LEGACY_ACCEPTANCE_POLICY_VERSION = "typed_evidence_acceptor_v1"
+ACCEPTANCE_POLICY_VERSION = "goal_evidence_acceptor_v2"
+DIRECT_GOAL_ACCEPTANCE_RULE_VERSION = "direct_exact_span_plus_goal_semantic_v1"
+BEST_GUESS_GOAL_ACCEPTANCE_RULE_VERSION = (
+    "best_guess_anchored_reasoning_plus_goal_semantic_v1"
+)
+
+_GOAL_EVIDENCE_JUDGMENT_TIER = register_call_site_tier(
+    "goal-evidence-semantic-judgment",
+    ModelTier.REASONING,
+)
+
+# One call judges at most this many complete subject groups. A subject is never
+# split between calls because table admission and field meaning must be judged
+# over all of that subject's proposed assignments together.
+GOAL_EVIDENCE_SUBJECTS_PER_CALL = 20
 
 
 @dataclass(frozen=True)
@@ -1184,17 +1235,23 @@ class AcceptanceDecision:
 
     @classmethod
     def create(
-        cls, candidates: Iterable[CandidateDecision]
+        cls,
+        candidates: Iterable[CandidateDecision],
+        *,
+        policy_version: str = ACCEPTANCE_POLICY_VERSION,
     ) -> "AcceptanceDecision":
         rows = tuple(candidates)
         if len({row.candidate_id for row in rows}) != len(rows):
             raise ValueError("acceptance decision contains duplicate candidate ids")
+        version = str(policy_version or "").strip()
+        if not version:
+            raise ValueError("acceptance policy version must be non-empty")
         payload = {
-            "policy_version": ACCEPTANCE_POLICY_VERSION,
+            "policy_version": version,
             "candidates": [row.to_dict() for row in rows],
         }
         return cls(
-            policy_version=ACCEPTANCE_POLICY_VERSION,
+            policy_version=version,
             candidates=rows,
             id=stable_id({"acceptance_decision": payload}),
         )
@@ -1220,7 +1277,7 @@ class EvidenceAcceptor(Protocol):
 
     version: str
 
-    def evaluate(
+    async def evaluate(
         self,
         *,
         direct_candidates: Iterable[DirectAssertionCandidate],
@@ -1230,12 +1287,27 @@ class EvidenceAcceptor(Protocol):
     ) -> AcceptanceDecision: ...
 
 
-class TypedEvidenceAcceptor:
-    """Accept reported exact matches and anchored numeric LLM best guesses."""
+class GoalEvidenceAcceptor:
+    """Accept only source-grounded candidates that semantically fit the Goal.
+
+    Exact reported-value and anchored-best-guess checks remain deterministic.
+    Candidates that pass those checks are then judged against the Goal contract,
+    together with their subject's other proposed fields and exact source chunks.
+    This model call is necessary because field meaning and entity membership are
+    semantic questions; it makes no numerical control or stopping decision.
+    """
 
     version = ACCEPTANCE_POLICY_VERSION
 
-    def evaluate(
+    def __init__(
+        self,
+        llm: Any,
+        goal_contract: Callable[[], Mapping[str, Any]],
+    ) -> None:
+        self._llm = llm
+        self._goal_contract = goal_contract
+
+    async def evaluate(
         self,
         *,
         direct_candidates: Iterable[DirectAssertionCandidate],
@@ -1243,32 +1315,275 @@ class TypedEvidenceAcceptor:
         spans: Iterable[TextSpan],
         chunks: Iterable[SourceChunk],
     ) -> AcceptanceDecision:
+        direct = tuple(direct_candidates)
+        best_guesses = tuple(best_guess_candidates)
         spans_by_id = {span.id: span for span in spans}
         chunks_by_id = {chunk.id: chunk for chunk in chunks}
-        rows: list[CandidateDecision] = []
-        for candidate in direct_candidates:
+
+        deterministic: dict[str, tuple[bool, str, str]] = {}
+        for candidate in direct:
             accepted, reason = self._direct(candidate, spans_by_id)
-            rows.append(
-                CandidateDecision(
-                    candidate_id=candidate.id,
-                    evidence_kind="reported",
-                    accepted=accepted,
-                    rule_version=DIRECT_ACCEPTANCE_RULE_VERSION,
-                    reason=reason,
-                )
+            deterministic[candidate.id] = (
+                accepted,
+                reason,
+                DIRECT_ACCEPTANCE_RULE_VERSION,
             )
-        for candidate in best_guess_candidates:
+        for candidate in best_guesses:
             accepted, reason = self._best_guess(candidate, chunks_by_id)
+            deterministic[candidate.id] = (
+                accepted,
+                reason,
+                BEST_GUESS_ACCEPTANCE_RULE_VERSION,
+            )
+
+        eligible = [
+            (candidate, "reported")
+            for candidate in direct
+            if deterministic[candidate.id][0]
+        ] + [
+            (candidate, "best_guess")
+            for candidate in best_guesses
+            if deterministic[candidate.id][0]
+        ]
+        semantic = await self._semantic_decisions(
+            eligible,
+            spans=spans_by_id,
+            chunks=chunks_by_id,
+        )
+
+        rows: list[CandidateDecision] = []
+        for candidate, kind in [
+            *((item, "reported") for item in direct),
+            *((item, "best_guess") for item in best_guesses),
+        ]:
+            passed, reason, deterministic_version = deterministic[candidate.id]
+            if not passed:
+                rows.append(
+                    CandidateDecision(
+                        candidate_id=candidate.id,
+                        evidence_kind=kind,
+                        accepted=False,
+                        rule_version=deterministic_version,
+                        reason=reason,
+                    )
+                )
+                continue
+            semantic_accepted, semantic_reason = semantic[candidate.id]
             rows.append(
                 CandidateDecision(
                     candidate_id=candidate.id,
-                    evidence_kind="best_guess",
-                    accepted=accepted,
-                    rule_version=BEST_GUESS_ACCEPTANCE_RULE_VERSION,
-                    reason=reason,
+                    evidence_kind=kind,
+                    accepted=semantic_accepted,
+                    rule_version=(
+                        DIRECT_GOAL_ACCEPTANCE_RULE_VERSION
+                        if kind == "reported"
+                        else BEST_GUESS_GOAL_ACCEPTANCE_RULE_VERSION
+                    ),
+                    reason=semantic_reason,
                 )
             )
         return AcceptanceDecision.create(rows)
+
+    async def _semantic_decisions(
+        self,
+        eligible: Sequence[
+            tuple[DirectAssertionCandidate | BestGuessAssertionCandidate, str]
+        ],
+        *,
+        spans: Mapping[str, TextSpan],
+        chunks: Mapping[str, SourceChunk],
+    ) -> dict[str, tuple[bool, str]]:
+        if not eligible:
+            return {}
+
+        grouped: dict[tuple[str, str], list[tuple[Any, str]]] = {}
+        for candidate, kind in eligible:
+            grouped.setdefault(
+                (candidate.table, candidate.subject_id), []
+            ).append((candidate, kind))
+
+        subjects = [
+            self._subject_payload(table, subject_id, assignments, spans, chunks)
+            for (table, subject_id), assignments in grouped.items()
+        ]
+        decisions: dict[str, tuple[bool, str]] = {}
+        for start in range(0, len(subjects), GOAL_EVIDENCE_SUBJECTS_PER_CALL):
+            batch = subjects[start : start + GOAL_EVIDENCE_SUBJECTS_PER_CALL]
+            decisions.update(await self._judge_batch(batch))
+        expected = {candidate.id for candidate, _kind in eligible}
+        if set(decisions) != expected:
+            raise ValueError(
+                "semantic Goal judgment must resolve every eligible candidate "
+                "exactly once"
+            )
+        return decisions
+
+    @staticmethod
+    def _subject_payload(
+        table: str,
+        subject_id: str,
+        assignments: Sequence[tuple[Any, str]],
+        spans: Mapping[str, TextSpan],
+        chunks: Mapping[str, SourceChunk],
+    ) -> dict[str, Any]:
+        evidence_ids: list[str] = []
+        rows: list[dict[str, Any]] = []
+        for candidate, kind in assignments:
+            if kind == "reported":
+                supporting_ids = [candidate.chunk_id]
+                exact_text = spans[candidate.span_id].text
+                basis = ""
+                source_field = candidate.field_name
+            else:
+                supporting_ids = list(candidate.supporting_chunk_ids)
+                exact_text = ""
+                basis = candidate.reasoning_basis
+                source_field = ""
+            evidence_ids.extend(supporting_ids)
+            rows.append(
+                {
+                    "candidate_id": candidate.id,
+                    "evidence_kind": kind,
+                    "target_field": candidate.column,
+                    "proposed_value": json.loads(candidate.value_json),
+                    "source_field": source_field,
+                    "exact_reported_text": exact_text,
+                    "reasoning_basis": basis,
+                    "supporting_evidence_ids": supporting_ids,
+                }
+            )
+        unique_evidence = tuple(dict.fromkeys(evidence_ids))
+        return {
+            "subject_id": subject_id,
+            "target_table": table,
+            "assignments": rows,
+            "supporting_evidence": [
+                {"evidence_id": item, "text": chunks[item].text}
+                for item in unique_evidence
+            ],
+        }
+
+    async def _judge_batch(
+        self,
+        subjects: Sequence[Mapping[str, Any]],
+    ) -> dict[str, tuple[bool, str]]:
+        contract = dict(self._goal_contract())
+        prompt = f"""GOAL CONTRACT:
+{json.dumps(contract, ensure_ascii=False, sort_keys=True, default=str)}
+
+PROPOSED SUBJECTS AND FIELD ASSIGNMENTS:
+{json.dumps(list(subjects), ensure_ascii=False, default=str)}
+
+Judge the proposed assignments before any value enters the Goal. For each
+subject, first decide whether the supplied evidence establishes that it belongs
+to the declared target, including its row grain and every admission rule. Then
+judge whether each proposed value is actually about that subject and supports
+the meaning of its particular target field. Similar words, a copied number, or
+verbatim presence alone are not semantic support. A statement about deaths does
+not support injuries, displacement, or economic damage. A best guess must also
+be supported by its stated reasoning and cited evidence.
+
+Do not rewrite values, invent evidence, fill missing fields, or make any search,
+credit, stopping, or numerical-control decision. Return every supplied subject
+and candidate id exactly once.
+
+Return exactly:
+{{
+  "subjects": [
+    {{
+      "subject_id": "supplied subject id",
+      "admitted": true,
+      "reason": "brief evidence-grounded reason",
+      "assignments": [
+        {{
+          "candidate_id": "supplied candidate id",
+          "accepted": true,
+          "reason": "brief field-specific reason"
+        }}
+      ]
+    }}
+  ]
+}}"""
+        payload = await ask_json(
+            self._llm,
+            prompt,
+            system_prompt=(
+                "You are the semantic acceptance boundary for a structured "
+                "research Goal. Judge only whether supplied, source-grounded "
+                "evidence belongs to the declared subject and target field. "
+                "Return one JSON object."
+            ),
+            tier=_GOAL_EVIDENCE_JUDGMENT_TIER,
+            call_site="goal-evidence-semantic-judgment",
+        )
+        if not isinstance(payload, Mapping):
+            raise ValueError("semantic Goal judgment must return an object")
+        raw_subjects = payload.get("subjects")
+        if not isinstance(raw_subjects, Sequence) or isinstance(
+            raw_subjects, (str, bytes)
+        ):
+            raise ValueError("semantic Goal judgment requires a subjects list")
+
+        expected_subjects = {
+            str(subject["subject_id"]): {
+                str(item["candidate_id"])
+                for item in subject.get("assignments") or ()
+            }
+            for subject in subjects
+        }
+        seen_subjects: set[str] = set()
+        decisions: dict[str, tuple[bool, str]] = {}
+        for raw_subject in raw_subjects:
+            if not isinstance(raw_subject, Mapping):
+                raise ValueError("semantic Goal subject verdict must be an object")
+            subject_id = str(raw_subject.get("subject_id") or "")
+            if subject_id not in expected_subjects or subject_id in seen_subjects:
+                raise ValueError("semantic Goal judgment returned an unknown or repeated subject")
+            admitted = raw_subject.get("admitted")
+            if not isinstance(admitted, bool):
+                raise ValueError("semantic Goal subject admission must be boolean")
+            raw_assignments = raw_subject.get("assignments")
+            if not isinstance(raw_assignments, Sequence) or isinstance(
+                raw_assignments, (str, bytes)
+            ):
+                raise ValueError("semantic Goal judgment requires assignment verdicts")
+            seen_candidates: set[str] = set()
+            subject_reason = str(raw_subject.get("reason") or "").strip()
+            for raw_assignment in raw_assignments:
+                if not isinstance(raw_assignment, Mapping):
+                    raise ValueError("semantic assignment verdict must be an object")
+                candidate_id = str(raw_assignment.get("candidate_id") or "")
+                if (
+                    candidate_id not in expected_subjects[subject_id]
+                    or candidate_id in seen_candidates
+                ):
+                    raise ValueError(
+                        "semantic Goal judgment returned an unknown or repeated candidate"
+                    )
+                accepted = raw_assignment.get("accepted")
+                if not isinstance(accepted, bool):
+                    raise ValueError("semantic field acceptance must be boolean")
+                field_reason = str(raw_assignment.get("reason") or "").strip()
+                final = admitted and accepted
+                reason = field_reason if admitted else subject_reason
+                decisions[candidate_id] = (
+                    final,
+                    (
+                        "goal_semantic_match"
+                        if final
+                        else "goal_semantic_rejected"
+                    )
+                    + (f": {reason}" if reason else ""),
+                )
+                seen_candidates.add(candidate_id)
+            if seen_candidates != expected_subjects[subject_id]:
+                raise ValueError(
+                    "semantic Goal judgment omitted an assignment verdict"
+                )
+            seen_subjects.add(subject_id)
+        if seen_subjects != set(expected_subjects):
+            raise ValueError("semantic Goal judgment omitted a subject verdict")
+        return decisions
 
     @staticmethod
     def _direct(

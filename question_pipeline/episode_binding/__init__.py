@@ -9,7 +9,7 @@ from .lexical_probe_binding import LexicalProbeBinding
 from .page_binding import PageBinding
 from .run_binding import RunBinding, StrategyProposer
 from .strategy_binding import StrategyBinding, StrategySearches
-from .table_binding import TableBinding
+from .source_table_binding import SourceTableBinding
 from .web_search_binding import PageSource, WebSearchBinding
 
 
@@ -19,7 +19,7 @@ class ProviderBinding(
     StrategyBinding,
     WebSearchBinding,
     PageBinding,
-    TableBinding,
+    SourceTableBinding,
     LexicalProbeBinding,
     ChunkBinding,
     CheckpointBinding,

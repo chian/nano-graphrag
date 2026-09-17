@@ -66,6 +66,38 @@ class PageSource:
             "unprocessed_results": self.remaining,
         }
 
+    def checkpoint_state(self) -> dict[str, Any]:
+        """The exact provider buffer position after one completed page unit."""
+
+        return {
+            "results": [dict(item) for item in self._results],
+            "next_rank": self._next_rank,
+            "issued": self._issued,
+            "cost": dict(self.cost) if self.cost is not None else None,
+        }
+
+    def restore_checkpoint_state(self, state: Mapping[str, Any]) -> None:
+        """Resume the saved buffer without issuing the provider search again."""
+
+        results = state.get("results") or ()
+        if not isinstance(results, Sequence) or isinstance(results, (str, bytes)):
+            raise TypeError("active search results must be a sequence")
+        restored = [dict(item) for item in results if isinstance(item, Mapping)]
+        next_rank = state.get("next_rank")
+        if (
+            isinstance(next_rank, bool)
+            or not isinstance(next_rank, int)
+            or not 0 <= next_rank <= len(restored)
+        ):
+            raise ValueError("active search next_rank is outside its saved buffer")
+        if not bool(state.get("issued")):
+            raise ValueError("a checkpointed active search must have issued its provider call")
+        self._results = restored
+        self._next_rank = next_rank
+        self._issued = True
+        cost = state.get("cost")
+        self.cost = dict(cost) if isinstance(cost, Mapping) else None
+
     def next(self, view: EpisodeView) -> Any:
         if self._health.fatal:
             # The run already knows the provider refused. A search must not pay
@@ -135,13 +167,15 @@ class WebSearchBinding:
         state: PageRunState,
         record: EpisodeRecord,
     ) -> EpisodeUpdate:
-        self._attach_page_credit(state)
+        result = self._attach_page_result(state)
         return self._episode_update(
             record,
             output=PageEpisodeOutput(
                 unit=state.unit,
                 material=self._page_material(state),
+                result=result,
             ),
+            retain_trace=self.checkpoint_completed_page is not None,
         )
 
     def _build_search_episode(
@@ -149,8 +183,21 @@ class WebSearchBinding:
         task: SearchTask,
         strategy_key: str,
         family: str,
+        resume_state: Optional[Mapping[str, Any]] = None,
     ) -> Episode:
-        outcome = SearchOutcome.for_task(task)
+        if resume_state is None:
+            outcome = SearchOutcome.for_task(task)
+        else:
+            raw_outcome = resume_state.get("outcome") or {}
+            if not isinstance(raw_outcome, Mapping):
+                raise TypeError("active search outcome must be a mapping")
+            allowed = set(SearchOutcome.__dataclass_fields__)
+            values = {
+                key: value for key, value in raw_outcome.items() if key in allowed
+            }
+            outcome = SearchOutcome(**values)
+            if outcome.task_id != task.id:
+                raise ValueError("active search outcome does not match its task")
         self._open_outcomes[task.id] = outcome
         search_path = (
             (self.run_grain.name, self.run_key),
@@ -182,7 +229,21 @@ class WebSearchBinding:
             on_error=self._note_search_error,
             is_fatal=is_fatal_search_error,
         )
+        if resume_state is not None:
+            source_state = resume_state.get("source") or {}
+            if not isinstance(source_state, Mapping):
+                raise TypeError("active search source state must be a mapping")
+            source.restore_checkpoint_state(source_state)
         self._open_sources[task.id] = source
+        resume_units = tuple(
+            ResumeUnit(
+                label=str(item["label"]),
+                controller_input=_restored_observation(item),
+            )
+            for item in (
+                (resume_state or {}).get("completed_page_units") or ()
+            )
+        )
         return Episode(
             grain=self.search_grain,
             key=task.id,
@@ -194,6 +255,7 @@ class WebSearchBinding:
                 record, strategy_key, family
             ),
             to_parent=self._search_episode_update,
+            resume_units=resume_units,
         )
 
     def _on_page(
@@ -244,6 +306,33 @@ class WebSearchBinding:
                 self._write_page_detail(
                     unit, record, material, strategy_key, family
                 )
+                observation = _incidence_input(contribution.controller_input)
+                self._active_page_units.append(
+                    {
+                        "label": str(unit.label),
+                        "credits": list(observation.identities),
+                        "active": observation.status == OBSERVATION_OBSERVED,
+                        "note": observation.note,
+                        "facets": {
+                            str(name): list(values)
+                            for name, values in observation.channels.items()
+                        },
+                        "counts_toward_verdict": (
+                            observation.status != OBSERVATION_EXCLUDED
+                        ),
+                    }
+                )
+                if self.checkpoint_completed_page is not None:
+                    if contribution.episode_update is None:
+                        raise TypeError("page checkpoint requires an EpisodeUpdate")
+                    page_record = self.take_episode_record(
+                        contribution.episode_update.record_id
+                    )
+                    self.checkpoint_completed_page(
+                        page_record,
+                        strategy_key,
+                        family,
+                    )
         except Exception as exc:  # noqa: BLE001 - hook must not unwind the tree
             self.record_hook_failure("on_page", unit.label, exc)
 
@@ -303,6 +392,8 @@ class WebSearchBinding:
             )
             if self.checkpoint_completed_search is not None:
                 self.checkpoint_completed_search(record, strategy_key, family)
+            self._active_page_units = []
+            self._resume_search_state = {}
         except Exception as exc:  # noqa: BLE001 - hook must not unwind the tree
             self.record_hook_failure("close_search", record.scope_key, exc)
 

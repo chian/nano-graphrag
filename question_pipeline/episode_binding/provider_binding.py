@@ -27,7 +27,12 @@ from typing import (
     Mapping,
     Optional,
     Sequence,
+    TYPE_CHECKING,
 )
+
+if TYPE_CHECKING:
+    from question_pipeline.episode_binding.strategy_binding import StrategyProposer
+    from question_pipeline.episode_binding.web_search_binding import PageSource
 from method_loop import (
     END_BOUND_HIT,
     END_EXHAUSTED,
@@ -89,9 +94,9 @@ DEFAULT_PAGE_CONTROL = ControllerConfig.uniform(
     ("overall",), gamma=0.0, rho=0.0, streak_length=4
 )
 
-#: Table-query policy inside one detected source table. Its units are query
+#: Source-table-query policy inside one detected source table. Its units are query
 #: result sets, not chunks, and it owns separate estimator/controller state.
-DEFAULT_TABLE_CONTROL = ControllerConfig.uniform(
+DEFAULT_SOURCE_TABLE_CONTROL = ControllerConfig.uniform(
     ("overall",), gamma=0.0, rho=0.0, streak_length=4
 )
 
@@ -111,7 +116,7 @@ RUN_GRAIN_NAME = "run"
 STRATEGY_GRAIN_NAME = "strategy"
 SEARCH_GRAIN_NAME = "search"
 PAGE_GRAIN_NAME = "page"
-TABLE_GRAIN_NAME = "table"
+SOURCE_TABLE_GRAIN_NAME = "source_table"
 LEXICAL_PROBE_GRAIN_NAME = "lexical_probe"
 
 
@@ -144,10 +149,10 @@ def _acquisition_grains(
             DEFAULT_PAGE_CONTROL,
         ),
         (
-            TABLE_GRAIN_NAME,
+            SOURCE_TABLE_GRAIN_NAME,
             "one deterministic query over one parsed source table",
-            "the accepted result identities returned by that table query",
-            DEFAULT_TABLE_CONTROL,
+            "the accepted goal-result identities returned by that source-table query",
+            DEFAULT_SOURCE_TABLE_CONTROL,
         ),
         (
             LEXICAL_PROBE_GRAIN_NAME,
@@ -590,12 +595,12 @@ class PageUnit:
     """One pulled page. The Leaf's unit -- NOT an ``Acquirable``.
 
     Constructed fresh on every pull and never reused across leaves, which is
-    what makes :attr:`credit_detail`'s raise-on-second-write a guard rather than
+    what makes :attr:`result`'s raise-on-second-write a guard rather than
     a latent crash.
     """
 
     task: Any
-    result: Mapping[str, Any]
+    provider_result: Mapping[str, Any]
     rank: int
     episode_id: str
     episode_path: tuple[tuple[str, str], ...]
@@ -607,19 +612,19 @@ class PageUnit:
     #: ``observation_id``, so every page including the ones refused before a
     #: source id exists has one joinable cost record.
     label: str = ""
-    #: Written exactly once by the crediter and read by the hook. ``extract``
+    #: Written exactly once by the page binding and read by its hook. ``extract``
     #: neither reads nor writes it, and nothing anywhere branches on its
     #: contents: the rule labels it carries are counted and recorded, never
     #: compared to steer anything.
-    credit_detail: Optional["PageCredit"] = None
+    result: Optional[Any] = None
 
-    def attach_credit(self, detail: "PageCredit") -> None:
-        if self.credit_detail is not None:
+    def attach_result(self, result: Any) -> None:
+        if self.result is not None:
             raise ValueError(
-                f"credit detail already attached to page {self.label!r}; a "
-                f"PageUnit is constructed fresh per pull and credited once"
+                f"result already attached to page {self.label!r}; a PageUnit "
+                f"is constructed fresh per pull and produces one result"
             )
-        object.__setattr__(self, "credit_detail", detail)
+        object.__setattr__(self, "result", result)
 
 
 @dataclass(frozen=True)
@@ -633,14 +638,12 @@ class ChunkUnit:
     episode_path: tuple[tuple[str, str], ...]
     probe_key: str
     label: str
-    credit_detail: Optional["PageCredit"] = None
+    result: Optional[Any] = None
 
-    def attach_credit(self, detail: "PageCredit") -> None:
-        if self.credit_detail is not None:
-            raise ValueError(
-                f"credit detail already attached to chunk {self.label!r}"
-            )
-        object.__setattr__(self, "credit_detail", detail)
+    def attach_result(self, result: Any) -> None:
+        if self.result is not None:
+            raise ValueError(f"result already attached to chunk {self.label!r}")
+        object.__setattr__(self, "result", result)
 
 
 @dataclass
@@ -658,8 +661,8 @@ class PageRunState:
     probe_proposals: dict[str, Mapping[str, Any]] = field(default_factory=dict)
     probe_history: list[dict[str, Any]] = field(default_factory=list)
     chunk_units: list[ChunkUnit] = field(default_factory=list)
-    table_units: list[Any] = field(default_factory=list)
-    table_history: list[dict[str, Any]] = field(default_factory=list)
+    source_table_units: list[Any] = field(default_factory=list)
+    source_table_history: list[dict[str, Any]] = field(default_factory=list)
     materials: list["PageMaterial"] = field(default_factory=list)
 
     def chunk_id(self, span: Any) -> str:
@@ -677,11 +680,13 @@ class PageRunState:
 class PageMaterial:
     """What ``extract`` returns. Facts only -- no ``active`` flag, no fate.
 
-    ``records`` are the extracted records the assertion-candidate builder iterates, each
-    ``{"table", "index", "values", "source_chunks"}``: kind-2 credits are a
-    property of ONE extracted record, and a stream that flattens every entity's
-    attributes together cannot say whether one subject carried six columns or
-    six subjects carried one each.
+    ``records`` are candidates projected toward the current goal-result table,
+    each ``{"table", "index", "values", "source_chunks"}``. The ``table`` key
+    names a goal collection; it is unrelated to whether the source was parsed
+    as a table or as prose. Kind-2 credits are a property of one extracted
+    record, and a stream that flattens every entity's attributes together
+    cannot say whether one subject carried six columns or six subjects carried
+    one each.
     """
 
     source_id: str = ""
@@ -704,7 +709,7 @@ class PageMaterial:
     evidence_commit: Optional[EvidenceCommit] = None
     evidence_commits: Sequence[EvidenceCommit] = ()
     probe_history: Sequence[Mapping[str, Any]] = ()
-    table_history: Sequence[Mapping[str, Any]] = ()
+    source_table_history: Sequence[Mapping[str, Any]] = ()
 
 
 @dataclass(frozen=True)
@@ -713,6 +718,7 @@ class PageEpisodeOutput:
 
     unit: PageUnit
     material: PageMaterial
+    result: Any
 
 
 # ==========================================================================
@@ -1013,41 +1019,40 @@ class _AcceptedProjection:
 
 
 @dataclass(frozen=True)
-class PageCredit:
-    """The typed breakdown the crediter writes onto the unit it was handed.
+class GoalTransition:
+    """One leaf's verified goal-state transition and controller observation.
 
-    It travels on the unit rather than on ``CreditResult`` because a credit
-    identity is a dedupe key -- appending the rule that matched it would make
-    one value matched two ways two identities -- and because adding an opaque
-    payload to a kernel type that was deliberately kept minimal is worse than a
-    declared object on this surface's own unit. Written once by the crediter,
-    read by the hook, ordered by the kernel's fixed credit -> observe -> hook
-    step rather than by a convention.
+    This is the replaceable goal boundary seen by acquisition bindings.  Its
+    current detail fields describe the present tabular Goal implementation;
+    they never describe a parsed source table. Episode result types wrap this
+    transition rather than pretending those details are a second numeric
+    credit.
     """
 
+    observation: IncidenceObservation
     attributions: tuple[CreditAttribution, ...]
     row_completions: tuple[RowCompletionDetail, ...]
     row_completion_unavailable: Mapping[str, str]
     declared_facets: tuple[str, ...]
-    chunk_encounters: tuple[Mapping[str, Any], ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         return {
+            "observation": self.observation.as_record(),
             "attributions": [item.to_dict() for item in self.attributions],
             "row_completions": [item.to_dict() for item in self.row_completions],
             "row_completion_unavailable": dict(self.row_completion_unavailable),
             "declared_facets": list(self.declared_facets),
-            "chunk_encounters": [dict(item) for item in self.chunk_encounters],
         }
 
 
 class TableCreditAssigner:
-    """The single what-counts rule: typed table state -> incidence channels.
+    """The tabular Goal's single what-counts rule and transition boundary.
 
-    Evidence acceptance is necessary but not sufficient. The accepted cells
-    are first materialized by ``TypedTableStore``; only cells present in the
-    resulting typed table state receive an assignment. These exact
-    assignments feed Episode incidence and later yield reporting.
+    This class operates on the goal-result table, never on a table parsed from
+    an acquired source. Evidence acceptance is necessary but not sufficient.
+    Accepted cells are first materialized by ``TypedTableStore``; only cells
+    present in that Goal state receive an assignment. These exact assignments
+    feed Episode incidence and later yield reporting.
 
     CONSTRUCTED ONCE PER RUN, with two consequences stated rather than left to a
     run to discover: a column the planner adds to the observed spec mid-run
@@ -1383,8 +1388,8 @@ class TableCreditAssigner:
         self,
         unit: PageUnit,
         material: PageMaterial,
-    ) -> IncidenceObservation:
-        """Project accepted table state into this binding's controller input."""
+    ) -> GoalTransition:
+        """Apply accepted material to the goal and return its one transition."""
 
         fate = material.fate
         commit = material.evidence_commit if fate.judged else None
@@ -1395,28 +1400,29 @@ class TableCreditAssigner:
         )
         projected = self._accepted_identities(unit, commit, mutation)
         self._assignments.extend(projected.attributions)
-        detail = PageCredit(
+        if not self._basis.columns and not self._basis.tables:
+            observation = IncidenceObservation.failed(
+                "no declared, deliverable contract columns exist; zero credits "
+                "here means 'could not judge', not 'barren page'"
+            )
+        elif not fate.judged:
+            observation = IncidenceObservation.failed(fate.disclosure)
+        else:
+            identities = tuple(
+                dict.fromkeys(item.identity for item in projected.attributions)
+            )
+            facets = self._facets(projected)
+            observation = IncidenceObservation(
+                identities=identities,
+                channels=facets,
+            )
+        return GoalTransition(
+            observation=observation,
             attributions=projected.attributions,
             row_completions=projected.row_completions,
             row_completion_unavailable=self.row_completion_unavailable,
             declared_facets=self._declared_facets,
-            chunk_encounters=tuple(dict(item) for item in material.chunks),
         )
-        unit.attach_credit(detail)
-
-        if not self._basis.columns and not self._basis.tables:
-            return IncidenceObservation.failed(
-                "no declared, deliverable contract columns exist; zero credits "
-                "here means 'could not judge', not 'barren page'"
-            )
-        if not fate.judged:
-            return IncidenceObservation.failed(fate.disclosure)
-
-        identities = tuple(
-            dict.fromkeys(item.identity for item in projected.attributions)
-        )
-        facets = self._facets(projected)
-        return IncidenceObservation(identities=identities, channels=facets)
 
     def _accepted_identities(
         self,
@@ -1973,7 +1979,7 @@ class AcquisitionController:
                         self.grain_by_name[PAGE_GRAIN_NAME],
                     ),
                     self.grain_by_name[PAGE_GRAIN_NAME]: (
-                        self.grain_by_name[TABLE_GRAIN_NAME],
+                        self.grain_by_name[SOURCE_TABLE_GRAIN_NAME],
                         self.grain_by_name[LEXICAL_PROBE_GRAIN_NAME],
                     ),
                 },
@@ -2122,6 +2128,22 @@ class CheckpointBinding:
     def checkpoint_state(self) -> dict[str, Any]:
         """Return provider-owned state at a completed strategy boundary."""
 
+        active_search: dict[str, Any] = {}
+        if self._open_sources:
+            if len(self._open_sources) != 1:
+                raise ValueError("serial provider binding has multiple active searches")
+            task_id, source = next(iter(self._open_sources.items()))
+            outcome = self._open_outcomes.get(task_id)
+            if outcome is None:
+                raise ValueError("active search has no SearchOutcome")
+            active_search = {
+                "strategy_key": self._active_strategy_key,
+                "family": self._active_strategy_family,
+                "task": source._task.to_dict(),
+                "outcome": outcome.to_dict(),
+                "source": source.checkpoint_state(),
+                "completed_page_units": list(self._active_page_units),
+            }
         return {
             "completed_run_units": list(self._completed_run_units),
             "completed_strategies": self._completed_strategies,
@@ -2145,6 +2167,7 @@ class CheckpointBinding:
                 "seeds": list(self._active_strategy_seeds),
                 "completed_search_units": list(self._active_search_units),
             },
+            "active_search": active_search,
         }
 
     def restore_checkpoint_state(self, state: Mapping[str, Any]) -> None:
@@ -2187,6 +2210,16 @@ class CheckpointBinding:
         self._active_search_units = [
             dict(item) for item in (active.get("completed_search_units") or ())
         ]
+        restored_search = state.get("active_search") or {}
+        if not isinstance(restored_search, Mapping):
+            raise TypeError("checkpoint active_search must be a mapping")
+        self._resume_search_state = dict(restored_search)
+        self._active_page_units = [
+            dict(item)
+            for item in (
+                self._resume_search_state.get("completed_page_units") or ()
+            )
+        ]
 
 
 # ============================================================================
@@ -2204,7 +2237,7 @@ class RecordBinding:
         strategy_key: str,
         family: str,
     ) -> None:
-        detail = unit.credit_detail
+        detail = unit.result
         step = _incidence_step(record)
         row = {
             "unit_label": unit.label,
@@ -2247,8 +2280,8 @@ class RecordBinding:
             "lexical_probes": [
                 dict(item) for item in material.probe_history
             ],
-            "table_queries": [
-                dict(item) for item in material.table_history
+            "source_table_queries": [
+                dict(item) for item in material.source_table_history
             ],
             **(detail.to_dict() if detail is not None else {}),
         }
@@ -2459,10 +2492,10 @@ class ProviderRuntime:
             Awaitable[Sequence[Mapping[str, Any]]],
         ],
         post_strategy: Callable[..., Awaitable[None]],
-        discover_table_regions: Callable[[str], Sequence[Any]],
-        text_without_table_regions: Callable[[str, Sequence[Any]], str],
-        plan_table_parser: Callable[..., Awaitable[Any]],
-        propose_table_query: Callable[..., Awaitable[Any]],
+        discover_source_table_regions: Callable[[str], Sequence[Any]],
+        text_without_source_table_regions: Callable[[str, Sequence[Any]], str],
+        interpret_source_table_region: Callable[..., Awaitable[Any]],
+        propose_source_table_query: Callable[..., Awaitable[Any]],
         get_table_extractor: Callable[[], Any],
         extract_table_text: Callable[..., Awaitable[list[dict[str, Any]]]],
         page_outline: Callable[[str, str], Mapping[str, Any]],
@@ -2513,13 +2546,18 @@ class ProviderRuntime:
         checkpoint_completed_search: Optional[
             Callable[[Optional[EpisodeRecord], str, str], Any]
         ] = None,
+        checkpoint_completed_page: Optional[
+            Callable[[EpisodeRecord, str, str], Any]
+        ] = None,
     ) -> None:
         self.controller = controller
         self.run_grain = controller.grain_by_name[RUN_GRAIN_NAME]
         self.strategy_grain = controller.grain_by_name[STRATEGY_GRAIN_NAME]
         self.search_grain = controller.grain_by_name[SEARCH_GRAIN_NAME]
         self.page_grain = controller.grain_by_name[PAGE_GRAIN_NAME]
-        self.table_grain = controller.grain_by_name[TABLE_GRAIN_NAME]
+        self.source_table_grain = controller.grain_by_name[
+            SOURCE_TABLE_GRAIN_NAME
+        ]
         self.lexical_probe_grain = controller.grain_by_name[
             LEXICAL_PROBE_GRAIN_NAME
         ]
@@ -2546,10 +2584,10 @@ class ProviderRuntime:
         self.open_prompt_scope = open_prompt_scope
         self.sample_strategies = sample_strategies
         self.post_strategy = post_strategy
-        self.discover_table_regions = discover_table_regions
-        self.text_without_table_regions = text_without_table_regions
-        self.plan_table_parser = plan_table_parser
-        self.propose_table_query = propose_table_query
+        self.discover_source_table_regions = discover_source_table_regions
+        self.text_without_source_table_regions = text_without_source_table_regions
+        self.interpret_source_table_region = interpret_source_table_region
+        self.propose_source_table_query = propose_source_table_query
         self.get_table_extractor = get_table_extractor
         self.extract_table_text = extract_table_text
         self.page_outline = page_outline
@@ -2596,6 +2634,7 @@ class ProviderRuntime:
         self.missing_tokens = missing_tokens
         self.checkpoint_completed_strategy = checkpoint_completed_strategy
         self.checkpoint_completed_search = checkpoint_completed_search
+        self.checkpoint_completed_page = checkpoint_completed_page
 
         self._strategy_ends: dict[str, str] = {}
         self._strategy_seed_queries: dict[str, list[str]] = {}
@@ -2620,9 +2659,50 @@ class ProviderRuntime:
         self._active_strategy_family = ""
         self._active_strategy_seeds: list[str] = []
         self._active_search_units: list[dict[str, Any]] = []
+        self._active_page_units: list[dict[str, Any]] = []
+        self._resume_search_state: dict[str, Any] = {}
         self.proposer: Optional[StrategyProposer] = None
         self._page_detail_path = self.answers_dir / "acquisition_page_detail.jsonl"
         self._episodes_path = self.answers_dir / "acquisition_episodes.json"
+
+    def rebind_controller(self, controller: AcquisitionController) -> None:
+        """Replace the pre-run numerical composition after contract synthesis.
+
+        Automatic table-contract synthesis changes the channel schema before
+        the root Episode is built. The provider must therefore replace the
+        controller, Context, and every Grain reference as one operation; moving
+        only ``controller`` leaves Episodes bound to the old tree declaration.
+        """
+
+        if not isinstance(controller, AcquisitionController):
+            raise TypeError("provider controller must be AcquisitionController")
+        if (
+            controller.budget is not self.budget
+            or controller.health is not self.health
+            or controller.termination is not self.termination
+        ):
+            raise ValueError(
+                "replacement controller must retain the provider's run state"
+            )
+        self.controller = controller
+        self.run_grain = controller.grain_by_name[RUN_GRAIN_NAME]
+        self.strategy_grain = controller.grain_by_name[STRATEGY_GRAIN_NAME]
+        self.search_grain = controller.grain_by_name[SEARCH_GRAIN_NAME]
+        self.page_grain = controller.grain_by_name[PAGE_GRAIN_NAME]
+        self.source_table_grain = controller.grain_by_name[
+            SOURCE_TABLE_GRAIN_NAME
+        ]
+        self.lexical_probe_grain = controller.grain_by_name[
+            LEXICAL_PROBE_GRAIN_NAME
+        ]
+        self.crediter = controller.crediter
+        controller.context.bind_run_id(self.run_key)
+        self.run_path = ((self.run_grain.name, self.run_key),)
+        self.run_episode_id = Episode.identity(
+            controller.context,
+            self.run_grain,
+            self.run_key,
+        ).episode_id
 
     def _episode_update(
         self,

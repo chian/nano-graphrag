@@ -49,9 +49,9 @@ THE ACQUISITION EPISODE (one generic Episode, instantiated at every surface):
       │             │                                     │
       └──── switch ─┴──── continue / stop ◄─── verdict ───┘
 
- NESTING:  table-query Leaf ⊂ table ─┐
-                                    ├─⊂ page ⊂ search ⊂ strategy ⊂ run
-           chunk Leaf ⊂ lexical-probe┘
+ NESTING:  source-table-query Leaf ⊂ source-table ─┐
+                                                  ├─⊂ page ⊂ search ⊂ strategy ⊂ run
+                 chunk Leaf ⊂ lexical-probe ──────┘
                                                                (provider surface)
            seed ⊂ walk ⊂ query                                (future GASL binding)
            — the same method at every grain; compact updates pass between scopes
@@ -477,9 +477,10 @@ I/O — whether an injected `extract` fetches a page is invisible to it.
 Bound at the method level: `source`, `extract`, the result projector, the
 controller function, compact request/update construction, the post-controller
 hook, and an explicit safety boundary. The controller owns its input shape,
-statistics, thresholds, and arithmetic. The table binding supplies incidence
-vectors and hypervolume; another binding may supply an entirely different
-numeric controller without changing `Episode` or `Context`.
+statistics, thresholds, and arithmetic. The current tabular Goal boundary
+supplies incidence vectors; the attached numerical component derives
+hypervolume. Another Goal may supply a different controller input and numerical
+component without changing `Episode` or `Context`.
 
 Fixed in `Episode`: order of operations, identity, nesting, full trace shape,
 compact message routing, and epoch lifecycle. Rarefaction is one attached
@@ -498,13 +499,20 @@ declare a Grain or pretend the Leaf is an Episode.
 The question-pipeline layout is:
 
 ```text
+source_table_language/
+├── source.py
+├── program.py
+├── executor.py
+├── resolution.py
+└── types.py
+
 question_pipeline/
 ├── pipeline.py
 ├── episode_binding/
 │   ├── chunk_binding.py
 │   ├── lexical_probe_binding.py
 │   ├── page_binding.py
-│   ├── table_binding.py
+│   ├── source_table_binding.py
 │   ├── web_search_binding.py
 │   ├── strategy_binding.py
 │   ├── run_binding.py
@@ -522,9 +530,17 @@ question_pipeline/
 
 `episode_binding/__init__.py` links the Episode-specific binding classes into
 one provider surface. `pipeline.py` supplies the configured collaborators and
-starts the root Episode once. A page may open either a table Episode or a
+starts the root Episode once. A page may open either a source-table Episode or a
 lexical-probe Episode. Extraction, evidence, table projection, numerical
 control, search, and checkpoints remain in their named utility modules.
+
+`source_table_language/` is below the source-table Episode binding and outside the question
+pipeline. It owns source-table discovery, addressable surrounding context, the
+validated command vocabulary, deterministic program execution, and
+source-local mention communities. It imports neither `method_loop` nor
+`question_pipeline`. The source-table binding supplies its model calls and
+submits admitted mentions to the current Goal boundary. The source table is an
+acquired object; the tabular Goal is result state. They are not the same table.
 
 Do not replace episode-owned bindings with a monolithic context/services object.
 Each binding receives only the collaborators it directly calls; new Episode
@@ -532,7 +548,7 @@ types and cross-grain responsibilities do not enter shared support.
 
 ### Fan-up, stated
 
-A binding converts the completed child into an `EpisodeUpdate`. For the table
+A binding converts the completed child into an `EpisodeUpdate`. For the source-table
 binding, its controller input contains the eligible child's **distinct accepted
 identities by channel**, each once. It does not carry child-scale hypervolume.
 The parent updates its own per-column vector and recomputes marginal
@@ -656,12 +672,12 @@ extended there — never by a second meter.
 
 | Surface | Composition (outer ⊃ inner) | The unit at each grain |
 | --- | --- | --- |
-| Provider | run ⊃ strategy ⊃ search ⊃ page ⊃ (table ⊃ table-query Leaf OR lexical probe ⊃ chunk Leaf) | a proposed strategy Episode ⊃ a search Episode ⊃ a fetched page Episode ⊃ either one parsed-table query or one ranked non-table chunk |
+| Provider | run ⊃ strategy ⊃ search ⊃ page ⊃ (source table ⊃ source-table-query Leaf OR lexical probe ⊃ chunk Leaf) | a proposed strategy Episode ⊃ a search Episode ⊃ a fetched page Episode ⊃ either one parsed-source-table query or one ranked prose chunk |
 | Future GASL binding | query ⊃ walk ⊃ seed | an operation-track unit ⊃ a walk Episode ⊃ one seed expansion; standalone GASL remains independent of this composition |
 
 A search returns pages, so the page is the search grain's natural unit. A page
-may open table Episodes over detected structured regions and lexical-probe
-Episodes over the remaining text. Each table Episode queries parsed rows;
+may open source-table Episodes over detected structured regions and lexical-probe
+Episodes over the remaining text. Each source-table Episode queries parsed rows;
 each lexical-probe Episode consumes previously unprocessed chunks as Leaves.
 The two bindings share evidence acceptance and result projection, not source
 units or extraction paths. A chunk is a Leaf, not another Episode grain. The strategy grain
@@ -815,6 +831,37 @@ policy out of the graph engine itself.
    distant strategy (§"The switch edge is a source"). The verdict decides
    *that* a big mutation is due; the model does the string work of sampling
    it (`prompt-mutation-steward` reviews that boundary).
+
+## Durable continuation
+
+Continue a run from one verified Episode boundary, because combining state
+from different moments changes both what was found and what the numerical
+controller saw. The provider binding writes a checkpoint after each completed
+page unit and again when its enclosing search or strategy closes. A checkpoint
+generation records the exact provider result-buffer position, completed child
+updates, estimator-controller state, search memory and frontier, accepted Goal
+state, source identities, evidence registry, and fetched-source store.
+
+Every file in one generation carries the same commit identity. The checkpoint
+pointer records the path, byte count, file count, and digest of every required
+state file and live artifact. `--continue` first converts that pointer into a
+`VerifiedCheckpoint`; `QuestionPipeline` accepts continuation state only
+through that type. Verification happens before pipeline construction, and any
+missing, mixed, or changed artifact refuses continuation rather than combining
+it with current files.
+
+Seeding is a different operation. Seed tables, sources, graphs, and frontiers
+import prior results into a new run; they do not restore an interrupted Episode
+or its controller. `--continue` restores only the generation named by the
+verified checkpoint and does not reload the run directory as seed input.
+
+The current Firecrawl binding's smallest durable boundary is one completed
+page. An interruption after that checkpoint resumes the saved Firecrawl result
+buffer at its next unprocessed rank. An interruption during a page may leave a
+live artifact newer than the checkpoint; verification detects that condition
+and refuses to continue from a mixed state. Older checkpoint versions lack the
+shared commit and artifact fingerprints and are therefore not continuation
+inputs for this implementation.
 
 ## Teardown
 

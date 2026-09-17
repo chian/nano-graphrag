@@ -9,11 +9,11 @@ from question_pipeline.utilities.evidence import (
     EvidenceAcceptor,
     EvidenceCommit,
     EvidenceRegistry,
+    GoalEvidenceAcceptor,
     SourceChunk,
     SourceDocument,
     SourceVersion,
     TextSpan,
-    TypedEvidenceAcceptor,
 )
 from question_pipeline.utilities.search import (
     REWARD_COMPONENT_COLUMNS,

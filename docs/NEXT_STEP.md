@@ -12,6 +12,26 @@ The current work is review of the structure-first replacement of the numerical
 control component used by `Episode`. The governing method design is
 `docs/ACQUISITION_LOOP.md`.
 
+## Continuation safety
+
+**IMPLEMENTED; LIVE INTERRUPT-AND-CONTINUE VALIDATION PENDING 2026-09-16.**
+Continuation now requires a `VerifiedCheckpoint` before `QuestionPipeline` is
+constructed. One checkpoint generation uses one commit identity and records
+fingerprints for every state file plus the live Goal, evidence, source, and
+completed-Episode artifacts. The Firecrawl binding checkpoints each completed
+page with its exact provider result buffer and next rank, so continuation does
+not repeat the search call or replay already completed pages. Seed imports are
+not continuation state and are no longer loaded on the continuation path.
+
+The previous `episode_checkpoint_v1` artifacts cannot establish this
+coherence and are refused. The known mixed-state earthquake run was used only
+for a non-mutating rejection check: the new gate rejected it before pipeline
+construction and its checkpoint hash did not change. The remaining validation
+is one newly registered real Firecrawl run, interrupted after a page
+checkpoint and continued from that same checkpoint. It must preserve the Goal
+row count and evidence identities, resume at the recorded next result rank,
+and keep the controller history continuous.
+
 ## Approved structure
 
 One opaque estimator-controller component owns the complete numerical

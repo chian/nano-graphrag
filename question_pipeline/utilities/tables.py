@@ -1,4 +1,9 @@
-"""Typed table contracts, projection, completion, goals, and best guesses."""
+"""The current tabular Goal implementation: contracts, state, and projection.
+
+These tables are the result being filled. They are not tables discovered in a
+source document; source-table parsing lives in ``source_table_language`` and
+its Episode adapter lives in ``episode_binding/source_table_binding.py``.
+"""
 
 from __future__ import annotations
 
@@ -13,7 +18,7 @@ import re
 from dataclasses import dataclass, field, replace
 from enum import Enum
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Mapping, Sequence
 
 import yaml
 
@@ -190,6 +195,33 @@ class TableColdStartAnchorSpec:
 
 
 @dataclass(frozen=True)
+class TableAdmissionRuleSpec:
+    """One typed condition deciding whether an entity belongs in a table.
+
+    ``field`` names a semantic ``value_slot``, not one physical reported or
+    best-guess column. The same field definition therefore serves output,
+    identity, completion, and admission without a second field namespace.
+    """
+
+    rule_id: str
+    field: str
+    operator: str
+    value: Any
+    basis: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        out = {
+            "rule_id": self.rule_id,
+            "field": self.field,
+            "operator": self.operator,
+            "value": self.value,
+        }
+        if self.basis:
+            out["basis"] = self.basis
+        return out
+
+
+@dataclass(frozen=True)
 class TableTargetSpec:
     name: str
     description: str = ""
@@ -205,6 +237,7 @@ class TableTargetSpec:
     #: attributable.
     subject_key_columns: tuple[str, ...] = ()
     columns: tuple[TableColumnSpec, ...] = ()
+    admission_rules: tuple[TableAdmissionRuleSpec, ...] = ()
     cold_start_anchors: tuple[TableColdStartAnchorSpec, ...] = ()
     keep_existing_rows: bool = True
 
@@ -268,6 +301,10 @@ class TableTargetSpec:
             out["key_columns"] = list(self.key_columns)
         if self.subject_key_columns:
             out["subject_key_columns"] = list(self.subject_key_columns)
+        if self.admission_rules:
+            out["admission_rules"] = [
+                rule.to_dict() for rule in self.admission_rules
+            ]
         if self.cold_start_anchors:
             out["cold_start_anchors"] = [
                 anchor.to_dict() for anchor in self.cold_start_anchors
@@ -518,6 +555,14 @@ def load_table_spec(
     return _coerce_table_spec(payload)
 
 
+def table_spec_from_dict(payload: Mapping[str, Any]) -> TableSpec:
+    """Restore the declared table contract stored in a verified checkpoint."""
+
+    if not isinstance(payload, Mapping):
+        raise TypeError("checkpoint table_spec must be a mapping")
+    return _coerce_table_spec(dict(payload))
+
+
 async def synthesize_table_spec(llm: Any, question: str) -> TableSpec:
     """Derive the table-fill contract from the question before acquisition."""
 
@@ -554,6 +599,13 @@ Rules:
   scales; otherwise state the unit.
 - aliases and field_hints should contain ordinary source-language labels that
   help extracted fields map to the declared column.
+- When the question limits which entities belong in a table, declare each
+  limit once in admission_rules. A rule's field is a value_slot already
+  declared by the columns; do not create qualification-only fields. Operators
+  are eq, neq, gt, gte, lt, or lte. Rule values must use the field's declared
+  type. All declared rules must be satisfied before an entity enters the
+  result table. Leave admission_rules empty when the question has no such
+  restriction.
 - Do not include workflow, scoring, search, provenance, or evidence-management
   columns. Provenance is carried separately by the evidence registry.
 - Do not include migrations or any result rows.
@@ -580,6 +632,15 @@ Return exactly this JSON shape:
           "unit": ""
         }}
       }},
+      "admission_rules": [
+        {{
+          "rule_id": "stable_snake_case_name",
+          "field": "declared value_slot",
+          "operator": "gte",
+          "value": 0,
+          "basis": "brief statement of the question requirement"
+        }}
+      ],
       "keep_existing_rows": true
     }}
   }},
@@ -709,6 +770,7 @@ def _make_unrequested_seed_tables_non_deliverable(
                 key_columns=table.key_columns,
                 subject_key_columns=table.subject_key_columns,
                 columns=table.columns,
+                admission_rules=table.admission_rules,
                 cold_start_anchors=table.cold_start_anchors,
                 keep_existing_rows=table.keep_existing_rows,
             )
@@ -888,6 +950,9 @@ def observed_table_spec(
                 [column.name for column in columns],
             ),
             columns=columns,
+            admission_rules=(
+                base_table.admission_rules if base_table else ()
+            ),
             cold_start_anchors=(
                 base_table.cold_start_anchors if base_table else ()
             ),
@@ -1156,6 +1221,16 @@ def _coerce_table(fallback_name: Any, raw: Any) -> TableTargetSpec | None:
             ),
         ],
     )
+    admission_rules = _coerce_admission_rules(raw.get("admission_rules"))
+    value_slots = {column.value_slot for column in columns}
+    invalid_rule_fields = sorted(
+        {rule.field for rule in admission_rules if rule.field not in value_slots}
+    )
+    if invalid_rule_fields:
+        raise ValueError(
+            f"table {name!r} admission_rules reference undeclared "
+            "value_slot(s): " + ", ".join(invalid_rule_fields)
+        )
     return TableTargetSpec(
         name=name,
         description=str(raw.get("description") or "").strip(),
@@ -1167,9 +1242,52 @@ def _coerce_table(fallback_name: Any, raw: Any) -> TableTargetSpec | None:
             [column.name for column in columns],
         ),
         columns=columns,
+        admission_rules=admission_rules,
         cold_start_anchors=cold_start_anchors,
         keep_existing_rows=bool(raw.get("keep_existing_rows", True)),
     )
+
+
+_ADMISSION_OPERATORS = frozenset({"eq", "neq", "gt", "gte", "lt", "lte"})
+
+
+def _coerce_admission_rules(raw: Any) -> tuple[TableAdmissionRuleSpec, ...]:
+    if raw is None:
+        return ()
+    if not isinstance(raw, list):
+        raise ValueError("admission_rules must be a list")
+
+    rules: list[TableAdmissionRuleSpec] = []
+    seen: set[str] = set()
+    for index, item in enumerate(raw):
+        if not isinstance(item, Mapping):
+            raise ValueError(f"admission_rules[{index}] must be a mapping")
+        rule_id = str(item.get("rule_id") or "").strip()
+        field = str(item.get("field") or "").strip()
+        operator = str(item.get("operator") or "").strip().lower()
+        if not rule_id or not field or not operator or "value" not in item:
+            raise ValueError(
+                f"admission_rules[{index}] requires rule_id, field, operator, "
+                "and value"
+            )
+        if rule_id in seen:
+            raise ValueError(f"duplicate admission rule_id {rule_id!r}")
+        if operator not in _ADMISSION_OPERATORS:
+            raise ValueError(
+                f"admission rule {rule_id!r} uses unsupported operator "
+                f"{operator!r}"
+            )
+        seen.add(rule_id)
+        rules.append(
+            TableAdmissionRuleSpec(
+                rule_id=rule_id,
+                field=field,
+                operator=operator,
+                value=item.get("value"),
+                basis=str(item.get("basis") or "").strip(),
+            )
+        )
+    return tuple(rules)
 
 
 def _coerce_cold_start_anchors(
@@ -4363,13 +4481,14 @@ class TableMutation:
 
 
 class TypedTableStore:
-    """Materialize only registry-accepted cells into a declared table state.
+    """Materialize accepted cells into the current tabular Goal state.
 
     The store decides no credit and calls no model. It owns the typed state
-    mutation that must precede the single credit assigner. Rows remain grouped
-    by the table contract's stable subject identity; conflicting accepted
-    values are retained as separate partial observations of that same subject
-    so the criteria projection can preserve, rather than overwrite, evidence.
+    mutation that must precede the single credit assigner. This is goal-result
+    storage, not a parsed source-table workspace. Rows remain grouped by the
+    goal contract's stable subject identity; conflicting accepted values are
+    retained as separate partial observations of that same subject so the
+    criteria projection can preserve, rather than overwrite, evidence.
     """
 
     def __init__(
@@ -4377,11 +4496,14 @@ class TypedTableStore:
         table_spec: Any,
         evidence_registry: Any,
         rows_by_name: dict[str, list[dict[str, Any]]],
+        *,
+        on_change: Callable[[TableMutation], None] | None = None,
     ) -> None:
         self.table_spec = table_spec
         self.result_contract = result_contract(table_spec)
         self.evidence_registry = evidence_registry
         self._rows = rows_by_name
+        self._on_change = on_change
         self._supported_cells: dict[
             str, AcceptedCell | AcceptedBestGuessCell
         ] = {}
@@ -4549,13 +4671,19 @@ class TypedTableStore:
             if self._store_cell(cell, source_row) and self._cell_present(cell):
                 candidate_ids.add(cell.id)
                 self._supported_cells[cell.id] = cell
-        return TableMutation(
+        mutation = TableMutation(
             before_state_id=before_state_id,
             after_state_id=self._state_id(),
             before_projection=before_projection,
             after_projection=self.logical_projection(),
             admitted_cell_ids=frozenset(candidate_ids),
         )
+        if (
+            self._on_change is not None
+            and mutation.before_state_id != mutation.after_state_id
+        ):
+            self._on_change(mutation)
+        return mutation
 
     def _deliverable_tables(self) -> tuple[str, ...]:
         tables = getattr(self.table_spec, "tables", None) or {}

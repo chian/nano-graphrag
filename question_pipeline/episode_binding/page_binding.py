@@ -1,17 +1,51 @@
 from __future__ import annotations
 
-from question_pipeline.episode_binding.table_binding import TableRegion
+from dataclasses import dataclass
+
+from source_table_language import TableRegion
 from question_pipeline.episode_binding.provider_binding import *
 
+
+@dataclass(frozen=True)
+class PageResult:
+    """The leaf goal transitions and source encounters within one page."""
+
+    goal_transitions: tuple[GoalTransition, ...]
+    chunk_encounters: tuple[Mapping[str, Any], ...] = ()
+
+    def to_dict(self) -> dict[str, Any]:
+        unavailable: dict[str, str] = {}
+        declared_facets: list[str] = []
+        for transition in self.goal_transitions:
+            unavailable.update(transition.row_completion_unavailable)
+            for facet in transition.declared_facets:
+                if facet not in declared_facets:
+                    declared_facets.append(facet)
+        return {
+            "attributions": [
+                item.to_dict()
+                for transition in self.goal_transitions
+                for item in transition.attributions
+            ],
+            "row_completions": [
+                item.to_dict()
+                for transition in self.goal_transitions
+                for item in transition.row_completions
+            ],
+            "row_completion_unavailable": unavailable,
+            "declared_facets": declared_facets,
+            "chunk_encounters": [dict(item) for item in self.chunk_encounters],
+        }
+
 class PageChildSource:
-    """Open table Episodes, then lexical probes over non-table text."""
+    """Open source-table Episodes, then lexical probes over prose text."""
 
     def __init__(
         self,
         *,
         state: PageRunState,
-        table_regions: Sequence[TableRegion],
-        make_table: Callable[[TableRegion], Episode],
+        source_table_regions: Sequence[TableRegion],
+        make_source_table: Callable[[TableRegion], Episode],
         propose: Callable[..., Awaitable[Any]],
         rank: Callable[[Sequence[Any], str], Sequence[Any]],
         make_probe: Callable[[str, Any, Sequence[Any]], Episode],
@@ -23,9 +57,9 @@ class PageChildSource:
         ],
     ) -> None:
         self._state = state
-        self._table_regions = tuple(table_regions)
-        self._make_table = make_table
-        self._next_table = 0
+        self._source_table_regions = tuple(source_table_regions)
+        self._make_source_table = make_source_table
+        self._next_source_table = 0
         self._propose = propose
         self._rank = rank
         self._make_probe = make_probe
@@ -33,10 +67,10 @@ class PageChildSource:
         self._open_prompt_scope = open_prompt_scope
 
     async def next(self, view: EpisodeView) -> Episode | None:
-        if self._next_table < len(self._table_regions):
-            region = self._table_regions[self._next_table]
-            self._next_table += 1
-            return self._make_table(region)
+        if self._next_source_table < len(self._source_table_regions):
+            region = self._source_table_regions[self._next_source_table]
+            self._next_source_table += 1
+            return self._make_source_table(region)
 
         remaining = self._state.remaining_chunks()
         # Physical exhaustion is authoritative. No model call and no
@@ -90,11 +124,11 @@ class PageBinding:
         episode_id: str,
         episode_path: tuple[tuple[str, str], ...],
     ) -> Any:
-        """Return a page Episode that routes disjoint table and prose regions.
+        """Return a page Episode that routes source tables and prose separately.
 
-        Graph extraction remains a separate binding path. Table-fill pages use
-        the nested bindings whenever the table extractor is available; this is
-        selected by the composed capability rather than a mode flag.
+        Source-table parsing is an acquisition path. The current tabular Goal
+        implementation supplies the extractor that enables this nested page
+        path; neither concept is the other.
         """
 
         if self.get_table_extractor() is None:
@@ -108,7 +142,7 @@ class PageBinding:
 
         unit = PageUnit(
             task=task,
-            result=result,
+            provider_result=result,
             rank=rank,
             episode_id=episode_id,
             episode_path=episode_path,
@@ -154,8 +188,11 @@ class PageBinding:
             )
 
         text = str(source_record.get("text") or "")
-        table_regions = tuple(self.discover_table_regions(text))
-        prose_text = self.text_without_table_regions(text, table_regions)
+        source_table_regions = tuple(self.discover_source_table_regions(text))
+        prose_text = self.text_without_source_table_regions(
+            text,
+            source_table_regions,
+        )
         spans = tuple(
             span
             for span in self.chunk_spans(
@@ -165,7 +202,7 @@ class PageBinding:
             )
             if str(span.text).strip()
         )
-        if not spans and not table_regions:
+        if not spans and not source_table_regions:
             return self._material_leaf(
                 unit,
                 PageMaterial(
@@ -199,8 +236,8 @@ class PageBinding:
         self._page_states[unit.label] = state
         source = PageChildSource(
             state=state,
-            table_regions=table_regions,
-            make_table=lambda region: self._make_table_episode(
+            source_table_regions=source_table_regions,
+            make_source_table=lambda region: self._make_source_table_episode(
                 state,
                 region,
                 page_path=page_path,
@@ -233,7 +270,7 @@ class PageBinding:
             unit=unit,
             extract=lambda _unit: material,
             accept=self.accept_evidence,
-            result=self.crediter,
+            result=self._page_result,
             label=unit.label,
         )
 
@@ -248,7 +285,7 @@ class PageBinding:
     ) -> Leaf:
         unit = PageUnit(
             task=task,
-            result=result,
+            provider_result=result,
             rank=rank,
             episode_id=episode_id,
             episode_path=episode_path,
@@ -258,9 +295,22 @@ class PageBinding:
             unit=unit,
             extract=self.fetch_extract,
             accept=self.accept_evidence,
-            result=self.crediter,
+            result=self._page_result,
             label=unit.label,
         )
+
+    def _page_result(
+        self,
+        unit: PageUnit,
+        material: PageMaterial,
+    ) -> Any:
+        transition = self.crediter(unit, material)
+        result = PageResult(
+            goal_transitions=(transition,),
+            chunk_encounters=tuple(dict(item) for item in material.chunks),
+        )
+        unit.attach_result(result)
+        return transition.observation
 
     def _on_page_child(
         self,
@@ -269,9 +319,9 @@ class PageBinding:
         contribution: Any,
         record: Any,
     ) -> None:
-        """Expose a lexical probe result; table queries update their own source."""
+        """Expose a lexical-probe result; source-table queries update locally."""
 
-        if episode.grain.name == self.table_grain.name:
+        if episode.grain.name == self.source_table_grain.name:
             return
 
         update = contribution.episode_update
@@ -336,40 +386,33 @@ class PageBinding:
             text_chars=len(str(state.source_record.get("text") or "")),
             evidence_commits=commits,
             probe_history=tuple(dict(item) for item in state.probe_history),
-            table_history=tuple(dict(item) for item in state.table_history),
+            source_table_history=tuple(
+                dict(item) for item in state.source_table_history
+            ),
         )
 
-    def _attach_page_credit(self, state: PageRunState) -> None:
-        if state.unit.credit_detail is not None:
-            return
-        details = [
-            unit.credit_detail
-            for unit in (*state.table_units, *state.chunk_units)
-            if unit.credit_detail is not None
-        ]
-        state.unit.attach_credit(
-            PageCredit(
-                attributions=tuple(
-                    item
-                    for detail in details
-                    for item in detail.attributions
-                ),
-                row_completions=tuple(
-                    item
-                    for detail in details
-                    for item in detail.row_completions
-                ),
-                row_completion_unavailable=(
-                    self.crediter.row_completion_unavailable
-                ),
-                declared_facets=self.crediter.declared_facets,
-                chunk_encounters=tuple(
-                    dict(chunk)
-                    for material in state.materials
-                    for chunk in material.chunks
-                ),
+    def _attach_page_result(self, state: PageRunState) -> PageResult:
+        if isinstance(state.unit.result, PageResult):
+            return state.unit.result
+        transitions = [
+            unit.result.goal_transition
+            for unit in (*state.source_table_units, *state.chunk_units)
+            if getattr(unit, "result", None) is not None
+            and isinstance(
+                getattr(unit.result, "goal_transition", None),
+                GoalTransition,
             )
+        ]
+        result = PageResult(
+            goal_transitions=tuple(transitions),
+            chunk_encounters=tuple(
+                dict(chunk)
+                for material in state.materials
+                for chunk in material.chunks
+            ),
         )
+        state.unit.attach_result(result)
+        return result
 
     async def fetch_extract(self, unit: PageUnit) -> PageMaterial:
         task = unit.task
@@ -394,7 +437,7 @@ class PageBinding:
     ) -> PageMaterial:
         task = unit.task
         prepared = self.harvester.prepare_page(
-            task, dict(unit.result), outcome, rank=unit.rank
+            task, dict(unit.provider_result), outcome, rank=unit.rank
         )
         if prepared.candidate is None:
             return PageMaterial(
@@ -602,12 +645,19 @@ class PageBinding:
                 candidates=direct_candidates,
                 best_guess_candidates=best_guess_candidates,
             )
-            decision = self.evidence_acceptor.evaluate(
-                direct_candidates=direct_candidates,
-                best_guess_candidates=best_guess_candidates,
-                spans=spans,
-                chunks=source_chunks,
-            )
+            with self.open_prompt_scope(unit.episode_id, unit.episode_path):
+                with self.open_cost_scope(
+                    ObservationKind.SOURCE.value,
+                    f"{unit.label}#goal-judgment",
+                    unit.episode_id,
+                    unit.episode_path,
+                ):
+                    decision = await self.evidence_acceptor.evaluate(
+                        direct_candidates=direct_candidates,
+                        best_guess_candidates=best_guess_candidates,
+                        spans=spans,
+                        chunks=source_chunks,
+                    )
             evidence_commit = self.evidence_registry.commit_acceptance(
                 source_batch_id,
                 decision,
@@ -638,7 +688,7 @@ class PageBinding:
                 chunks=tuple(chunks),
                 evidence_commit=evidence_commit,
             )
-        except (OSError, ValueError, LookupError, TypeError) as exc:
+        except Exception as exc:  # noqa: BLE001 - one leaf fails closed
             error_class = classify_error(exc)
             ingestion.update(
                 {
