@@ -96,11 +96,6 @@ class ArgoBridgeLLM:
         client_kwargs = {"api_key": runtime_cfg.api_key or ""}
         if runtime_cfg.base_url:
             client_kwargs["base_url"] = runtime_cfg.base_url
-        if self._transport == "shim":
-            client_kwargs["default_headers"] = {
-                **client_kwargs.get("default_headers", {}),
-                "x-api-key": client_kwargs.get("api_key", ""),
-            }
         # Store credentials for creating loop-local clients. Reusing a single
         # AsyncOpenAI instance across different event loops causes transport
         # issues, but creating a brand-new client per request causes excessive
@@ -366,7 +361,6 @@ class ArgoBridgeLLM:
                 )
                 last_response: httpx.Response | None = None
                 async with httpx.AsyncClient(
-                    headers={"x-api-key": self._client_kwargs.get("api_key", "")},
                     timeout=httpx.Timeout(
                         connect=self._connect_timeout_sec,
                         read=self._read_timeout_sec,
