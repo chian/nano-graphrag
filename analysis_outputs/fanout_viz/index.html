@@ -1,0 +1,801 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><style>html{color-scheme:light}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style></head><body style="margin:0">
+<title>Rollout Fan-Out</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root {
+  color-scheme: light;
+  --ground:       #f2f3f5;
+  --stage:        #fbfbfc;
+  --panel:        #f6f7f9;
+  --ink:          #14161a;
+  --ink-2:        #52565e;
+  --ink-3:        #8b8f98;
+  --rule:         #dfe1e6;
+  --hair:         #e9eaee;
+  --s1: #2a78d6;  --s2: #eb6834;  --s3: #1baf7a;  --s4: #eda100;  --s5: #e87ba4;
+  --drop:         #b9bdc6;
+  --critical:     #d03b3b;
+  --good:         #0ca30c;
+  --shadow:       0 1px 2px rgba(20,22,26,.06), 0 8px 28px rgba(20,22,26,.07);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground: #0b0c0e; --stage: #15171b; --panel: #1b1e23;
+    --ink: #f4f5f7; --ink-2: #b2b7c0; --ink-3: #777c86;
+    --rule: #2b2f36; --hair: #23262c;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181;
+    --drop: #3c4149; --critical: #e06a6a; --good: #35b535;
+    --shadow: 0 1px 2px rgba(0,0,0,.5), 0 10px 32px rgba(0,0,0,.45);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground: #0b0c0e; --stage: #15171b; --panel: #1b1e23;
+  --ink: #f4f5f7; --ink-2: #b2b7c0; --ink-3: #777c86;
+  --rule: #2b2f36; --hair: #23262c;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181;
+  --drop: #3c4149; --critical: #e06a6a; --good: #35b535;
+  --shadow: 0 1px 2px rgba(0,0,0,.5), 0 10px 32px rgba(0,0,0,.45);
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--ground); color: var(--ink);
+  font: 400 14px/1.5 "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3 { margin: 0; font-family: "IBM Plex Sans Condensed", "IBM Plex Sans", system-ui, sans-serif; font-weight: 600; text-wrap: balance; }
+.mono { font-family: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric: tabular-nums; }
+
+/* ---------- chrome ---------- */
+.bar {
+  position: sticky; top: 0; z-index: 30;
+  display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+  padding: 10px 22px; background: var(--stage);
+  border-bottom: 1px solid var(--rule);
+}
+.brand { display: flex; align-items: baseline; gap: 10px; margin-right: auto; }
+.brand strong { font-family: "IBM Plex Sans Condensed", sans-serif; font-weight: 700; font-size: 15px; letter-spacing: .01em; }
+.brand span { font-size: 11px; color: var(--ink-3); letter-spacing: .09em; text-transform: uppercase; }
+.group { display: flex; align-items: center; gap: 6px; }
+.group > label { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); margin-right: 2px; }
+button.chip, select.chip {
+  font: 500 12px/1 "IBM Plex Sans", sans-serif; color: var(--ink-2);
+  background: var(--panel); border: 1px solid var(--rule); border-radius: 3px;
+  padding: 7px 11px; cursor: pointer;
+}
+button.chip[aria-pressed="true"] { background: var(--ink); color: var(--stage); border-color: var(--ink); }
+button.chip:focus-visible, select.chip:focus-visible { outline: 2px solid var(--s1); outline-offset: 2px; }
+select.chip { max-width: 330px; }
+
+/* ---------- stage ---------- */
+.stage {
+  width: min(1420px, calc(100vw - 44px)); margin: 22px auto 40px;
+  background: var(--stage); border: 1px solid var(--rule); border-radius: 4px;
+  box-shadow: var(--shadow); overflow: hidden;
+}
+.slide { display: none; }
+.slide[data-on] { display: block; }
+
+/* ---------- export: one fixed 16:9 slide, no chrome ---------- */
+body.export { background: var(--stage); }
+body.export .bar { display: none; }
+body.export .stage {
+  width: 1600px; height: 900px; margin: 0; border: 0; border-radius: 0;
+  box-shadow: none; display: flex; flex-direction: column;
+}
+body.export .slide[data-on] { display: flex; flex-direction: column; height: 900px; }
+body.export .head { padding: 34px 44px 22px; }
+body.export .head h2 { font-size: 34px; }
+body.export .body { padding: 24px 44px 28px; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+body.export .ice-wrap { flex: 1; display: flex; align-items: center; }
+body.export .ladder { width: 100%; }
+body.export #s2grid { flex: 1; align-items: center; }
+body.export details.tv { display: none; }
+body.export .note { margin-top: auto; padding-top: 16px; }
+
+.head { padding: 26px 34px 20px; border-bottom: 1px solid var(--rule); display: grid; grid-template-columns: 1fr auto; gap: 26px; align-items: end; }
+.eyebrow { font: 500 10px/1 "IBM Plex Mono", monospace; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-3); }
+.head h2 { font-size: 30px; line-height: 1.12; margin-top: 10px; letter-spacing: -.012em; }
+.head p { margin: 9px 0 0; max-width: 62ch; color: var(--ink-2); font-size: 13.5px; }
+.runtag { text-align: right; font-size: 11px; color: var(--ink-3); line-height: 1.7; }
+.runtag b { display: block; font: 500 12px/1.5 "IBM Plex Mono", monospace; color: var(--ink-2); }
+
+.body { padding: 24px 34px 32px; }
+
+/* ---------- legend ---------- */
+.legend { display: flex; flex-wrap: wrap; gap: 6px 20px; align-items: center; }
+.key { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: var(--ink-2); }
+.key i { width: 11px; height: 11px; border-radius: 2px; display: block; flex: none; }
+.key.line i { height: 3px; width: 17px; border-radius: 2px; }
+
+/* ---------- slide 1: icicle ---------- */
+.ice-wrap { overflow-x: auto; }
+.ladder { display: grid; grid-template-columns: 104px 1fr; gap: 0 14px; align-items: stretch; }
+.rung { display: flex; flex-direction: column; justify-content: center; padding: 3px 0; border-top: 1px solid var(--hair); }
+.rung:first-child { border-top: 0; }
+.rung .lv { font: 600 11px/1.2 "IBM Plex Sans Condensed", sans-serif; letter-spacing: .05em; text-transform: uppercase; }
+.rung .ct { font: 400 10.5px/1.3 "IBM Plex Mono", monospace; color: var(--ink-3); }
+
+/* ---------- tiles ---------- */
+.tiles { display: grid; gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: 3px; overflow: hidden; }
+.tile { background: var(--stage); padding: 14px 16px; }
+.tile .lab { font-size: 11px; color: var(--ink-3); letter-spacing: .04em; }
+.tile .val { font: 600 26px/1.15 "IBM Plex Sans", sans-serif; margin-top: 5px; }
+.tile .sub { font: 400 11px/1.4 "IBM Plex Mono", monospace; color: var(--ink-3); margin-top: 3px; }
+
+/* ---------- table ---------- */
+table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+th { text-align: left; font: 500 10px/1 "IBM Plex Mono", monospace; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); padding: 0 10px 8px 0; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+td { padding: 7px 10px 7px 0; border-bottom: 1px solid var(--hair); vertical-align: baseline; }
+td.n { font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.qcell { max-width: 30ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.famdot { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
+.famdot i { width: 9px; height: 9px; border-radius: 2px; flex: none; }
+
+/* ---------- tooltip ---------- */
+#tip {
+  position: fixed; z-index: 80; pointer-events: none; opacity: 0;
+  transition: opacity .09s linear; max-width: 330px;
+  background: var(--stage); border: 1px solid var(--rule); border-radius: 3px;
+  box-shadow: var(--shadow); padding: 9px 11px; font-size: 12px; line-height: 1.5;
+}
+#tip[data-on] { opacity: 1; }
+#tip .t { font: 600 12px/1.3 "IBM Plex Sans Condensed", sans-serif; letter-spacing: .03em; text-transform: uppercase; color: var(--ink-3); }
+#tip .q { font-family: "IBM Plex Mono", monospace; font-size: 11.5px; color: var(--ink); margin: 4px 0 6px; white-space: normal; }
+#tip dl { display: grid; grid-template-columns: auto auto; gap: 2px 14px; margin: 0; }
+#tip dt { color: var(--ink-3); }
+#tip dd { margin: 0; font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; text-align: right; }
+
+svg { display: block; }
+svg text { font-family: "IBM Plex Sans", sans-serif; }
+.axlab { font-size: 10px; fill: var(--ink-3); font-family: "IBM Plex Mono", monospace; }
+.axttl { font-size: 10px; fill: var(--ink-3); letter-spacing: .1em; text-transform: uppercase; font-family: "IBM Plex Mono", monospace; }
+.grid { stroke: var(--hair); stroke-width: 1; }
+.base { stroke: var(--rule); stroke-width: 1; }
+
+.note { margin-top: 18px; font-size: 12px; color: var(--ink-3); max-width: 96ch; }
+.note b { color: var(--ink-2); font-weight: 500; }
+
+details.tv { margin-top: 20px; }
+details.tv > summary { cursor: pointer; font: 500 11px/1 "IBM Plex Mono", monospace; letter-spacing: .09em; text-transform: uppercase; color: var(--ink-3); padding: 7px 0; }
+details.tv > summary:focus-visible { outline: 2px solid var(--s1); outline-offset: 3px; }
+.tvbox { max-height: 340px; overflow: auto; margin-top: 8px; }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+
+<div class="bar">
+  <div class="brand"><strong>Rollout Fan-Out</strong><span>question_runs · acquisition episodes</span></div>
+  <div class="group">
+    <label for="runsel">Run</label>
+    <select id="runsel" class="chip"></select>
+  </div>
+  <div class="group" id="slidenav">
+    <label>Slide</label>
+    <button class="chip" data-go="0" aria-pressed="true">1 · Tree</button>
+    <button class="chip" data-go="1" aria-pressed="false">2 · Funnel</button>
+    <button class="chip" data-go="2" aria-pressed="false">3 · Verdict</button>
+  </div>
+  <div class="group">
+    <button class="chip" id="themebtn" aria-pressed="false">Dark</button>
+  </div>
+</div>
+
+<div class="stage">
+  <section class="slide" data-on>
+    <div class="head">
+      <div>
+        <div class="eyebrow">Slide 1 — the nested rollout</div>
+        <h2 id="s1h">One run, six grains deep</h2>
+        <p id="s1p"></p>
+      </div>
+      <div class="runtag" id="s1tag"></div>
+    </div>
+    <div class="body">
+      <div class="legend" id="s1leg" style="margin-bottom:16px"></div>
+      <div class="ice-wrap">
+        <div class="ladder">
+          <div id="s1rungs"></div>
+          <div id="s1ice"></div>
+        </div>
+      </div>
+      <p class="note" id="s1note"></p>
+      <details class="tv"><summary>Table view — every search in the run</summary><div class="tvbox"><table id="s1tbl"></table></div></details>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="head">
+      <div>
+        <div class="eyebrow">Slide 2 — what the fan-out costs and returns</div>
+        <h2 id="s2h">Provider hits in, datapoints out</h2>
+        <p id="s2p"></p>
+      </div>
+      <div class="runtag" id="s2tag"></div>
+    </div>
+    <div class="body">
+      <div class="tiles" id="s2tiles" style="grid-template-columns:repeat(5,1fr);margin-bottom:24px"></div>
+      <div style="display:grid;grid-template-columns:1.15fr 1fr;gap:30px;align-items:start" id="s2grid">
+        <div>
+          <h3 style="font-size:13px;letter-spacing:.03em">Attributions by search, stacked by strategy family</h3>
+          <div class="legend" id="s2leg" style="margin:9px 0 12px"></div>
+          <div id="s2bars"></div>
+        </div>
+        <div>
+          <h3 style="font-size:13px;letter-spacing:.03em">Where the yield sits</h3>
+          <p class="note" style="margin:6px 0 10px" id="s2pcap"></p>
+          <div id="s2pareto"></div>
+        </div>
+      </div>
+      <p class="note" id="s2note"></p>
+      <details class="tv"><summary>Table view — per-search totals</summary><div class="tvbox"><table id="s2tbl"></table></div></details>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="head">
+      <div>
+        <div class="eyebrow">Slide 3 — the number that decides</div>
+        <h2 id="s3h">The controller trace, page by page</h2>
+        <p id="s3p"></p>
+      </div>
+      <div class="runtag" id="s3tag"></div>
+    </div>
+    <div class="body">
+      <div class="legend" id="s3leg" style="margin-bottom:14px"></div>
+      <div id="s3chart"></div>
+      <p class="note" id="s3note"></p>
+      <details class="tv"><summary>Table view — verdict outcomes and estimator readings</summary><div class="tvbox"><table id="s3tbl"></table></div></details>
+    </div>
+  </section>
+</div>
+
+<div id="tip" role="tooltip"></div>
+
+<script src="data.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  var SLOT = ["--s1", "--s2", "--s3", "--s4", "--s5"];
+  var LEVEL_LABEL = { R: "run", S: "strategy", Q: "search", P: "page", L: "lexical probe", T: "table query", C: "chunk" };
+  var DEPTH_OF = { R: 0, S: 1, Q: 2, P: 3, L: 4, T: 4, C: 5 };
+  var FATE_LABEL = {
+    extracted: "read", duplicate_url: "duplicate URL", blocked_page: "blocked",
+    too_short: "too short", extract_raised: "extractor error",
+    extract_all_chunks_failed: "all chunks failed", unknown: "unknown"
+  };
+  var VERDICT_LABEL = {
+    continuing: "continuing", insufficient: "insufficient data",
+    flat_progressing: "flat but progressing", awaiting_eligible_observation: "awaiting eligible unit",
+    local_saturation: "local saturation"
+  };
+
+  var cssVar = function (n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); };
+  var fmt = function (n) {
+    if (n == null) return "—";
+    if (Math.abs(n) >= 1000) return Math.round(n).toLocaleString();
+    if (Number.isInteger(n)) return String(n);
+    return n.toFixed(Math.abs(n) < 10 ? 2 : 1);
+  };
+  var esc = function (s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); };
+  var el = function (tag, attrs, kids) {
+    var n = document.createElementNS("http://www.w3.org/2000/svg", tag);
+    for (var k in attrs) if (attrs[k] != null) n.setAttribute(k, attrs[k]);
+    (kids || []).forEach(function (c) { n.appendChild(c); });
+    return n;
+  };
+  var txt = function (s) { return document.createTextNode(s); };
+
+  /* ---------------- tooltip ---------------- */
+  var tip = document.getElementById("tip");
+  function showTip(ev, html) {
+    tip.innerHTML = html;
+    tip.setAttribute("data-on", "");
+    var r = tip.getBoundingClientRect();
+    var x = ev.clientX + 16, y = ev.clientY + 16;
+    if (x + r.width > innerWidth - 10) x = ev.clientX - r.width - 16;
+    if (y + r.height > innerHeight - 10) y = ev.clientY - r.height - 16;
+    tip.style.left = Math.max(8, x) + "px";
+    tip.style.top = Math.max(8, y) + "px";
+  }
+  function hideTip() { tip.removeAttribute("data-on"); }
+  function bindTip(node, html) {
+    node.addEventListener("mousemove", function (e) { showTip(e, html); });
+    node.addEventListener("mouseleave", hideTip);
+    node.addEventListener("focus", function (e) {
+      var b = node.getBoundingClientRect();
+      showTip({ clientX: b.left + b.width / 2, clientY: b.bottom }, html);
+    });
+    node.addEventListener("blur", hideTip);
+  }
+  function dl(rows) {
+    return "<dl>" + rows.map(function (r) {
+      return "<dt>" + esc(r[0]) + "</dt><dd>" + esc(r[1]) + "</dd>";
+    }).join("") + "</dl>";
+  }
+
+  /* ---------------- state ---------------- */
+  var DATA = window.FANOUT.runs;
+  var cur = 0, slide = 0;
+
+  var sel = document.getElementById("runsel");
+  DATA.forEach(function (r, i) {
+    var o = document.createElement("option");
+    o.value = i;
+    o.textContent = r.label + " — " + r.run;
+    sel.appendChild(o);
+  });
+  sel.addEventListener("change", function () { cur = +sel.value; render(); });
+
+  var slides = document.querySelectorAll(".slide");
+  document.getElementById("slidenav").addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-go]");
+    if (!b) return;
+    slide = +b.dataset.go;
+    render();
+  });
+
+  var themebtn = document.getElementById("themebtn");
+  themebtn.addEventListener("click", function () {
+    var dark = document.documentElement.getAttribute("data-theme") === "dark";
+    document.documentElement.setAttribute("data-theme", dark ? "light" : "dark");
+    themebtn.setAttribute("aria-pressed", String(!dark));
+    themebtn.textContent = dark ? "Dark" : "Light";
+    render();
+  });
+
+  /* ============ slide 1 — icicle ============ */
+  function slot(run, famName) {
+    var f = run.families.filter(function (x) { return x.name === famName; })[0];
+    return "var(" + SLOT[(f ? f.slot : 0) % 5] + ")";
+  }
+
+  function flatten(run) {
+    /* Lay every episode out on the row its own grain owns, so a level never
+       borrows a neighbour's row. Chunk counts become one synthetic band. */
+    var rows = [[], [], [], [], [], []];
+    var W = 1280;
+
+    var weight = function (n) {
+      var k = n.ch || [];
+      if (!k.length) return Math.max(1, n.c || 1);
+      return k.reduce(function (a, c) { return a + weight(c); }, 0) + (n.c || 0);
+    };
+
+    function place(node, x0, x1, colour, famName) {
+      var depth = DEPTH_OF[node.l];
+      var w = Math.max(0, x1 - x0);
+      rows[depth].push({ x: x0, w: w, node: node, colour: colour, fam: famName });
+
+      var kids = node.ch || [];
+      var chunkUnits = node.c || 0;
+      var tot = kids.reduce(function (a, c) { return a + weight(c); }, 0) + chunkUnits;
+      if (tot <= 0) return;
+
+      var cursor = x0;
+      kids.forEach(function (c) {
+        var share = (weight(c) / tot) * w;
+        var fam = c.l === "S" ? c.fam : famName;
+        var col = c.l === "S" ? slot(run, fam) : colour;
+        place(c, cursor, cursor + share, col, fam);
+        cursor += share;
+      });
+      if (chunkUnits) {
+        rows[5].push({
+          x: cursor, w: Math.max(0, x0 + w - cursor), colour: colour, fam: famName,
+          node: { l: "C", k: chunkUnits + " chunks", c: chunkUnits, cc: node.cc || 0, cf: node.cf || 0 }
+        });
+      }
+    }
+
+    place(run.tree, 0, W, "var(--ink-3)", null);
+    return rows.filter(function (r) { return r.length; });
+  }
+
+  function drawIcicle(run) {
+    var rows = flatten(run);
+    var W = 1280, GAP = 8;
+    var RH = document.body.classList.contains("export")
+      ? Math.floor(Math.min(96, Math.max(46, 430 / rows.length)))
+      : 46;
+    var H = rows.length * RH;
+    var svg = el("svg", { viewBox: "0 0 " + W + " " + H, width: "100%", height: H, role: "img",
+      "aria-label": "Icicle of the run's episode tree, " + rows.length + " grains deep" });
+
+    rows.forEach(function (row, d) {
+      var y = d * RH;
+      row.forEach(function (r) {
+        if (r.w < 0.28) return;
+        var lv = r.node.l;
+        var dropped = lv === "P" && r.node.f && r.node.f !== "extracted";
+        var fill = lv === "C" ? "var(--hair)" : dropped ? "var(--drop)" : r.colour;
+        var op = lv === "C" ? 1 : (lv === "L" || lv === "T") ? 0.45 : lv === "P" ? (dropped ? 1 : 0.78) : 1;
+
+        var g = el("g", { tabindex: r.w > 5 ? "0" : null });
+        g.appendChild(el("rect", {
+          x: r.x.toFixed(2), y: y, width: Math.max(0.4, r.w - (r.w > 2.4 ? 2 : 0)).toFixed(2),
+          height: RH - GAP, rx: Math.min(2, r.w / 3), fill: fill, "fill-opacity": op
+        }));
+
+        var label = lv === "R" ? run.run : lv === "S" ? r.node.fam : lv === "Q" ? (r.node.q || r.node.k) : null;
+        if (label && r.w > 58) {
+          var maxch = Math.floor((r.w - 16) / 6.4);
+          g.appendChild(el("text", {
+            x: (r.x + 8).toFixed(2), y: y + (RH - GAP) / 2 + 4,
+            "font-size": lv === "R" ? 12 : 11, "font-weight": lv === "R" ? 600 : 500,
+            fill: "var(--stage)",
+            "font-family": lv === "Q" ? "IBM Plex Mono, monospace" : "IBM Plex Sans, sans-serif"
+          }, [txt(label.length > maxch ? label.slice(0, Math.max(1, maxch - 1)) + "\u2026" : label)]));
+        }
+
+        var facts;
+        if (lv === "R") facts = [["strategies", (run.tree.ch || []).length], ["searches", run.searches.length], ["pages", fmt(run.funnel.pages)], ["attributions", fmt(run.funnel.attrs)]];
+        else if (lv === "S") facts = [["family", r.node.fam], ["searches", (r.node.ch || []).length]];
+        else if (lv === "Q") facts = [["task", r.node.k], ["provider hits", fmt(r.node.h)], ["accepted sources", fmt(r.node.s)], ["pages walked", (r.node.ch || []).length], ["ended by", r.node.e || "\u2014"]];
+        else if (lv === "P") facts = [["rank in result list", "#" + r.node.r], ["fate", FATE_LABEL[r.node.f] || r.node.f], ["chunks read", fmt(r.node.c || 0)], ["attributions", fmt(r.node.a || 0)], ["best guesses", fmt(r.node.g || 0)]];
+        else if (lv === "L") facts = [["probe", r.node.k], ["findings", fmt(r.node.n || 0)], ["chunks read", fmt(r.node.c || 0)]];
+        else if (lv === "T") facts = [["required columns", r.node.q || "\u2014"], ["findings", fmt(r.node.n || 0)]];
+        else facts = [["chunks", fmt(r.node.c || 0)], ["credits minted", fmt(r.node.cc || 0)], ["failed reads", fmt(r.node.cf || 0)]];
+
+        var head = "<div class='t'>" + esc(LEVEL_LABEL[lv] || lv) + "</div>";
+        if ((lv === "Q" || lv === "L") && r.node.q) head += "<div class='q'>" + esc(r.node.q) + "</div>";
+        else if (lv === "P") head += "<div class='q'>" + esc(r.node.k) + "</div>";
+        bindTip(g, head + dl(facts));
+        svg.appendChild(g);
+      });
+    });
+
+    var box = document.getElementById("s1ice");
+    box.innerHTML = "";
+    box.appendChild(svg);
+
+    document.getElementById("s1rungs").innerHTML = rows.map(function (row) {
+      var lv = row[0].node.l;
+      var n = lv === "C" ? row.reduce(function (a, x) { return a + (x.node.c || 0); }, 0) : row.length;
+      var kinds = {};
+      row.forEach(function (x) { kinds[x.node.l] = 1; });
+      var label = Object.keys(kinds).map(function (k) { return LEVEL_LABEL[k] || k; }).join(" / ");
+      return "<div class='rung' style='height:" + RH + "px'><span class='lv'>" +
+        esc(label) + "</span><span class='ct'>" + fmt(n) + "</span></div>";
+    }).join("");
+  }
+
+  /* ============ slide 2 — funnel + pareto ============ */
+  function drawBars(run) {
+    var data = run.searches.slice().map(function (s, i) { return { s: s, i: i }; });
+    var W = 700, rowH = 26, top = 8, left = 176, H = top + data.length * rowH + 30;
+    var max = Math.max.apply(null, data.map(function (d) { return d.s.attrs; }).concat([1]));
+    var svg = el("svg", { viewBox: "0 0 " + W + " " + H, width: "100%", height: H, role: "img",
+      "aria-label": "Attributions per search" });
+
+    var ticks = [0, max / 2, max].map(function (v) { return Math.round(v); });
+    ticks.forEach(function (v) {
+      var x = left + (v / max) * (W - left - 46);
+      svg.appendChild(el("line", { x1: x, x2: x, y1: top, y2: top + data.length * rowH - 6, class: v === 0 ? "base" : "grid" }));
+      svg.appendChild(el("text", { x: x, y: H - 12, class: "axlab", "text-anchor": "middle" }, [txt(fmt(v))]));
+    });
+    svg.appendChild(el("text", { x: left, y: H - 1, class: "axttl" }, [txt("attributions")]));
+
+    data.forEach(function (d, i) {
+      var y = top + i * rowH;
+      var w = (d.s.attrs / max) * (W - left - 46);
+      var col = "var(" + SLOT[d.s.slot % 5] + ")";
+      var g = el("g", { tabindex: "0" });
+      var label = d.s.query || "(query not recorded)";
+      var maxch = 26;
+      g.appendChild(el("text", {
+        x: left - 10, y: y + 13, class: "axlab", "text-anchor": "end",
+        fill: "var(--ink-2)", "font-size": 10.5
+      }, [txt(label.length > maxch ? label.slice(0, maxch - 1) + "…" : label)]));
+      g.appendChild(el("rect", { x: left, y: y + 3, width: Math.max(1.5, w), height: 15, rx: 2, fill: col }));
+      if (d.s.attrs > 0) {
+        g.appendChild(el("text", { x: left + w + 7, y: y + 14.5, class: "axlab", fill: "var(--ink-2)" }, [txt(fmt(d.s.attrs))]));
+      } else {
+        g.appendChild(el("text", { x: left + 7, y: y + 14.5, class: "axlab" }, [txt("0")]));
+      }
+      bindTip(g, "<div class='t'>" + esc(d.s.fam) + "</div><div class='q'>" + esc(label) + "</div>" +
+        dl([["provider hits", fmt(d.s.hits)], ["accepted sources", fmt(d.s.accepted)], ["pages walked", fmt(d.s.pages)], ["attributions", fmt(d.s.attrs)], ["chunk credits", fmt(d.s.credits)]]));
+      svg.appendChild(g);
+    });
+
+    var box = document.getElementById("s2bars");
+    box.innerHTML = "";
+    box.appendChild(svg);
+  }
+
+  function drawPareto(run) {
+    var pts = run.pareto;
+    var W = 460, H = 280, L = 44, R = 14, T = 12, B = 42;
+    var pw = W - L - R, ph = H - T - B;
+    var svg = el("svg", { viewBox: "0 0 " + W + " " + H, width: "100%", height: H, role: "img",
+      "aria-label": "Cumulative share of attributions against share of pages" });
+
+    [0, 25, 50, 75, 100].forEach(function (v) {
+      var y = T + ph - (v / 100) * ph;
+      svg.appendChild(el("line", { x1: L, x2: L + pw, y1: y, y2: y, class: v === 0 ? "base" : "grid" }));
+      svg.appendChild(el("text", { x: L - 8, y: y + 3.5, class: "axlab", "text-anchor": "end" }, [txt(v + "%")]));
+    });
+    [0, 25, 50, 75, 100].forEach(function (v) {
+      var x = L + (v / 100) * pw;
+      svg.appendChild(el("text", { x: x, y: H - 22, class: "axlab", "text-anchor": "middle" }, [txt(v + "%")]));
+    });
+    svg.appendChild(el("text", { x: L, y: H - 6, class: "axttl" }, [txt("share of pages walked")]));
+
+    var d = "M " + L + " " + (T + ph);
+    pts.forEach(function (p) {
+      d += " L " + (L + (p[0] / 100) * pw).toFixed(2) + " " + (T + ph - (p[1] / 100) * ph).toFixed(2);
+    });
+    svg.appendChild(el("path", { d: d + " L " + (L + pw) + " " + (T + ph) + " Z", fill: "var(--s1)", "fill-opacity": ".10", stroke: "none" }));
+    svg.appendChild(el("path", { d: d.replace(/ Z$/, ""), fill: "none", stroke: "var(--s1)", "stroke-width": 2, "stroke-linejoin": "round" }));
+
+    // equal-yield reference
+    svg.appendChild(el("line", { x1: L, y1: T + ph, x2: L + pw, y2: T, stroke: "var(--ink-3)", "stroke-width": 1, "stroke-opacity": ".45" }));
+    svg.appendChild(el("text", { x: L + pw - 4, y: T + 13, class: "axlab", "text-anchor": "end" }, [txt("even spread")]));
+
+    var f = run.funnel;
+    var px = f.pages ? (f.p80 / f.pages) * 100 : 0;
+    var mx = L + (px / 100) * pw, my = T + ph - 0.8 * ph;
+    svg.appendChild(el("line", { x1: mx, y1: T + ph, x2: mx, y2: my, stroke: "var(--s2)", "stroke-width": 2 }));
+    svg.appendChild(el("circle", { cx: mx, cy: my, r: 5, fill: "var(--s2)", stroke: "var(--stage)", "stroke-width": 2 }));
+    var lx = px > 55 ? mx - 8 : mx + 10;
+    svg.appendChild(el("text", { x: lx, y: my - 10, class: "axlab", fill: "var(--ink-2)", "font-size": 11,
+      "text-anchor": px > 55 ? "end" : "start" }, [txt(f.p80 + " pages → 80%")]));
+
+    var hit = el("rect", { x: L, y: T, width: pw, height: ph, fill: "transparent", tabindex: "0" });
+    bindTip(hit, "<div class='t'>yield concentration</div>" +
+      dl([["pages walked", fmt(f.pages)], ["pages that yielded", fmt(f.yielded)], ["attributions", fmt(f.attrs)],
+          ["pages for 80%", fmt(f.p80)], ["= share of pages", (f.pages ? (100 * f.p80 / f.pages).toFixed(1) : "0") + "%"]]));
+    svg.appendChild(hit);
+
+    var box = document.getElementById("s2pareto");
+    box.innerHTML = "";
+    box.appendChild(svg);
+  }
+
+  /* ============ slide 3 — controller trace ============ */
+  function drawTrace(run) {
+    var tr = run.trace;
+    var W = 1280, H = 330, L = 60, R = 18, T = 14, B = 54;
+    var pw = W - L - R, ph = H - T - B;
+    var svg = el("svg", { viewBox: "0 0 " + W + " " + H, width: "100%", height: H, role: "img",
+      "aria-label": "Distinct results observed and estimated remaining, per page unit" });
+
+    var obs = tr.map(function (t) { return t.ob || 0; });
+    var rem = tr.map(function (t) { return t.re; }).filter(function (v) { return v != null; });
+    var top = Math.max(Math.max.apply(null, obs.concat([1])), 1);
+    var remTop = rem.length ? Math.max.apply(null, rem) : 0;
+
+    // log scale — observed and remaining differ by orders of magnitude, one axis only
+    var hi = Math.max(top, remTop, 10);
+    var lg = function (v) { return Math.log10(Math.max(v, 0) + 1); };
+    var yOf = function (v) { return T + ph - (lg(v) / lg(hi)) * ph; };
+    var xOf = function (i) { return L + (i / Math.max(1, tr.length - 1)) * pw; };
+
+    var decades = [];
+    for (var p = 0; Math.pow(10, p) <= hi * 1.05; p++) decades.push(Math.pow(10, p));
+    if (decades[decades.length - 1] < hi) decades.push(hi);
+    decades.forEach(function (v) {
+      var y = yOf(v);
+      svg.appendChild(el("line", { x1: L, x2: L + pw, y1: y, y2: y, class: "grid" }));
+      svg.appendChild(el("text", { x: L - 8, y: y + 3.5, class: "axlab", "text-anchor": "end" }, [txt(fmt(v))]));
+    });
+    svg.appendChild(el("line", { x1: L, x2: L + pw, y1: T + ph, y2: T + ph, class: "base" }));
+    svg.appendChild(el("text", { x: L - 8, y: T + ph + 3.5, class: "axlab", "text-anchor": "end" }, [txt("0")]));
+    svg.appendChild(el("text", { x: L, y: H - 6, class: "axttl" }, [txt("page units, in processing order  ·  log scale")]));
+
+    // search boundaries + strategy bands
+    var bands = [], prev = null;
+    tr.forEach(function (t, i) {
+      if (t.t !== prev) { bands.push({ i: i, t: t.t, s: t.s }); prev = t.t; }
+    });
+    bands.forEach(function (b, k) {
+      var x = xOf(b.i);
+      if (k) svg.appendChild(el("line", { x1: x, x2: x, y1: T, y2: T + ph, stroke: "var(--hair)", "stroke-width": 1 }));
+      var end = k + 1 < bands.length ? xOf(bands[k + 1].i) : L + pw;
+      var fam = run.searches.filter(function (s) { return s.task === b.t; })[0];
+      var col = "var(" + SLOT[(fam ? fam.slot : 0) % 5] + ")";
+      svg.appendChild(el("rect", { x: x, y: T + ph + 6, width: Math.max(1, end - x - 2), height: 5, rx: 2, fill: col }));
+    });
+
+    var mk = function (key, colour, dash) {
+      var d = "", pen = false;
+      tr.forEach(function (t, i) {
+        var v = t[key];
+        if (v == null) { pen = false; return; }
+        d += (pen ? " L " : " M ") + xOf(i).toFixed(2) + " " + yOf(v).toFixed(2);
+        pen = true;
+      });
+      if (d) svg.appendChild(el("path", { d: d, fill: "none", stroke: colour, "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round", "stroke-opacity": dash ? .9 : 1 }));
+    };
+    mk("re", "var(--s2)");
+    mk("ob", "var(--s1)");
+
+    // attribution ticks along the baseline
+    tr.forEach(function (t, i) {
+      if (!t.a) return;
+      svg.appendChild(el("line", { x1: xOf(i), x2: xOf(i), y1: T + ph, y2: T + ph - 7, stroke: "var(--s3)", "stroke-width": 1.6, "stroke-opacity": .85 }));
+    });
+
+    // crosshair
+    var cross = el("line", { x1: 0, x2: 0, y1: T, y2: T + ph, stroke: "var(--ink-3)", "stroke-width": 1, "stroke-opacity": 0 });
+    var dot1 = el("circle", { r: 4.5, fill: "var(--s1)", stroke: "var(--stage)", "stroke-width": 2, opacity: 0 });
+    var dot2 = el("circle", { r: 4.5, fill: "var(--s2)", stroke: "var(--stage)", "stroke-width": 2, opacity: 0 });
+    svg.appendChild(cross); svg.appendChild(dot1); svg.appendChild(dot2);
+
+    var hit = el("rect", { x: L, y: T, width: pw, height: ph + 14, fill: "transparent", tabindex: "0" });
+    hit.addEventListener("mousemove", function (ev) {
+      var bb = svg.getBoundingClientRect();
+      var rel = ((ev.clientX - bb.left) / bb.width) * W;
+      var i = Math.round(((rel - L) / pw) * (tr.length - 1));
+      i = Math.max(0, Math.min(tr.length - 1, i));
+      var t = tr[i], x = xOf(i);
+      cross.setAttribute("x1", x); cross.setAttribute("x2", x); cross.setAttribute("stroke-opacity", .5);
+      if (t.ob != null) { dot1.setAttribute("cx", x); dot1.setAttribute("cy", yOf(t.ob)); dot1.setAttribute("opacity", 1); } else dot1.setAttribute("opacity", 0);
+      if (t.re != null) { dot2.setAttribute("cx", x); dot2.setAttribute("cy", yOf(t.re)); dot2.setAttribute("opacity", 1); } else dot2.setAttribute("opacity", 0);
+      var fam = run.searches.filter(function (s) { return s.task === t.t; })[0];
+      showTip(ev, "<div class='t'>page " + t.o + " of " + tr.length + "</div>" +
+        "<div class='q'>" + esc(fam && fam.query ? fam.query : t.t) + "</div>" +
+        dl([["verdict", VERDICT_LABEL[t.v] || t.v], ["observed distinct", fmt(t.ob)],
+            ["rarefied", fmt(t.ra)], ["est. remaining", fmt(t.re)],
+            ["incidence samples", fmt(t.n)], ["attributions here", fmt(t.a)], ["fate", FATE_LABEL[t.f] || t.f]]));
+    });
+    hit.addEventListener("mouseleave", function () {
+      hideTip(); cross.setAttribute("stroke-opacity", 0);
+      dot1.setAttribute("opacity", 0); dot2.setAttribute("opacity", 0);
+    });
+    svg.appendChild(hit);
+
+    var box = document.getElementById("s3chart");
+    box.innerHTML = "";
+    box.appendChild(svg);
+  }
+
+  /* ---------------- render ---------------- */
+  function currentRun() { return DATA[cur]; }
+
+  function famLegend(run, node) {
+    node.innerHTML = run.families.map(function (f) {
+      return "<span class='key'><i style='background:var(" + SLOT[f.slot % 5] + ")'></i>" + esc(f.name) + "</span>";
+    }).join("") + "<span class='key'><i style='background:var(--drop)'></i>page dropped before extraction</span>" +
+      "<span class='key'><i style='background:var(--hair)'></i>chunks</span>";
+  }
+
+  function tag(run) {
+    var f = run.funnel;
+    return "<b>" + esc(run.run) + "</b>table · " + esc(run.table) + "<br>" +
+      "depth " + run.depth + " · " + fmt(run.nodes) + " episode nodes";
+  }
+
+  function render() {
+    var run = currentRun();
+    sel.value = cur;
+    slides.forEach(function (s, i) { if (i === slide) s.setAttribute("data-on", ""); else s.removeAttribute("data-on"); });
+    document.querySelectorAll("#slidenav button").forEach(function (b) {
+      b.setAttribute("aria-pressed", String(+b.dataset.go === slide));
+    });
+    hideTip();
+
+    var f = run.funnel;
+    var nStrat = (run.tree.ch || []).length;
+
+    /* slide 1 */
+    document.getElementById("s1tag").innerHTML = tag(run);
+    document.getElementById("s1h").textContent = "One run, " + run.depth + " grains deep";
+    document.getElementById("s1p").textContent =
+      "Every band is one episode: the same loop — pull a unit, extract, credit it, ask the numbers whether to keep going — " +
+      "nested inside itself. Width is the work underneath, so " + fmt(f.pages) + " page episodes and " +
+      fmt(f.chunks) + " chunk reads squeeze " + nStrat + " " + (nStrat === 1 ? "strategy" : "strategies") + " into the same span.";
+    famLegend(run, document.getElementById("s1leg"));
+    drawIcicle(run);
+    document.getElementById("s1note").innerHTML =
+      "Read downward: the run splits into strategy families, each family issues searches, each search walks its result list one page at a time, " +
+      "and a page opens its own child episodes — <b>lexical probes</b> over the page's chunks and <b>source-table queries</b> over its extracted rows. " +
+      "Nothing here is a fixed batch: each band ended when its own verdict said so, which is why the widths are uneven. " +
+      "Grey bands are pages the run dropped before extraction (" + fmt(f.dropped) + " of " + fmt(f.pages) + ").";
+
+    document.getElementById("s1tbl").innerHTML =
+      "<thead><tr><th>Family</th><th>Query</th><th>Hits</th><th>Sources</th><th>Pages</th><th>Attributions</th><th>Ended by</th></tr></thead><tbody>" +
+      run.searches.map(function (s) {
+        return "<tr><td><span class='famdot'><i style='background:var(" + SLOT[s.slot % 5] + ")'></i>" + esc(s.fam) + "</span></td>" +
+          "<td class='mono'>" + esc(s.query || "—") + "</td>" +
+          "<td class='n'>" + fmt(s.hits) + "</td><td class='n'>" + fmt(s.accepted) + "</td>" +
+          "<td class='n'>" + fmt(s.pages) + "</td><td class='n'>" + fmt(s.attrs) + "</td>" +
+          "<td>" + esc(s.ended_by || "—") + "</td></tr>";
+      }).join("") + "</tbody>";
+
+    /* slide 2 */
+    document.getElementById("s2tag").innerHTML = tag(run);
+    document.getElementById("s2h").textContent = "Provider hits in, datapoints out";
+    document.getElementById("s2p").textContent =
+      "The fan-out is wide on purpose — the stop rule, not a narrow query, is what controls cost. " +
+      "This is what the width bought on this run.";
+    document.getElementById("s2tiles").innerHTML = [
+      ["Provider hits", fmt(f.hits), run.searches.length + " searches issued"],
+      ["Pages walked", fmt(f.pages), fmt(f.read) + " read · " + fmt(f.dropped) + " dropped"],
+      ["Chunks read", fmt(f.chunks), fmt(f.probes) + " probe episodes"],
+      ["Pages that yielded", fmt(f.yielded), (f.pages ? (100 * f.yielded / f.pages).toFixed(0) : 0) + "% of pages walked"],
+      ["Attributions", fmt(f.attrs), "cells traced to a source"]
+    ].map(function (t) {
+      return "<div class='tile'><div class='lab'>" + t[0] + "</div><div class='val'>" + t[1] + "</div><div class='sub'>" + t[2] + "</div></div>";
+    }).join("");
+    famLegend(run, document.getElementById("s2leg"));
+    document.getElementById("s2leg").innerHTML = run.families.map(function (fm) {
+      return "<span class='key'><i style='background:var(" + SLOT[fm.slot % 5] + ")'></i>" + esc(fm.name) + "</span>";
+    }).join("");
+    drawBars(run);
+    document.getElementById("s2pcap").textContent =
+      f.yielded + " of " + f.pages + " pages produced any attribution at all; " + f.p80 +
+      " of them carry 80% of the total.";
+    drawPareto(run);
+    document.getElementById("s2note").innerHTML =
+      "The straight line is what an even spread would look like. The curve sits far above it on every run in this set — " +
+      "<b>yield is concentrated in a handful of pages</b>, and the loop cannot tell which ones those are until it has walked them. " +
+      "That is the case for fanning out wide and letting the numbers call the stop, rather than pre-narrowing the search.";
+    document.getElementById("s2tbl").innerHTML = document.getElementById("s1tbl").innerHTML;
+
+    /* slide 3 */
+    document.getElementById("s3tag").innerHTML = tag(run);
+    var vc = {};
+    run.trace.forEach(function (t) { vc[t.v] = (vc[t.v] || 0) + 1; });
+    var vlist = Object.keys(vc).sort(function (a, b) { return vc[b] - vc[a]; });
+    document.getElementById("s3h").textContent = "The numbers that decide, page by page";
+    document.getElementById("s3p").textContent =
+      "After every single page the estimator updates and the controller emits a verdict. No model sits on this edge — " +
+      "continue, stop, and switch are read off these two curves.";
+    document.getElementById("s3leg").innerHTML =
+      "<span class='key line'><i style='background:var(--s1)'></i>observed distinct results</span>" +
+      "<span class='key line'><i style='background:var(--s2)'></i>estimated remaining</span>" +
+      "<span class='key line'><i style='background:var(--s3)'></i>page produced attributions</span>" +
+      "<span class='key'><i style='background:var(--ink-3);opacity:.35'></i>search boundary</span>";
+    drawTrace(run);
+    document.getElementById("s3note").innerHTML =
+      "Each vertical band is one search; the colour strip under the axis is its strategy family. Within a search the observed count climbs, " +
+      "the remaining estimate reacts, and when the estimator has too few incidence samples to speak it reports <b>insufficient</b> rather than guessing — " +
+      "on this run " + fmt(vc.insufficient || 0) + " of " + fmt(run.trace.length) + " page verdicts. " +
+      "The reset at each boundary is the point: <b>saturation is judged per scope</b>, so a new search starts its own curve rather than inheriting the last one's.";
+    document.getElementById("s3tbl").innerHTML =
+      "<thead><tr><th>Verdict</th><th>Pages</th><th>Share</th><th>What it means</th></tr></thead><tbody>" +
+      vlist.map(function (v) {
+        var meaning = {
+          continuing: "estimator has signal and the scope is not saturated",
+          insufficient: "too few incidence samples to estimate — no verdict claimed",
+          flat_progressing: "discovery flattening but not yet at the stop threshold",
+          awaiting_eligible_observation: "no unit yet eligible to count toward the verdict",
+          local_saturation: "this scope is saturated — switch"
+        }[v] || "";
+        return "<tr><td>" + esc(VERDICT_LABEL[v] || v) + "</td><td class='n'>" + fmt(vc[v]) + "</td>" +
+          "<td class='n'>" + (100 * vc[v] / run.trace.length).toFixed(1) + "%</td><td>" + esc(meaning) + "</td></tr>";
+      }).join("") + "</tbody>";
+  }
+
+  /* Export mode — "#export/<runIndex>/<slideIndex>" renders one fixed slide
+     with the chrome hidden, for screenshotting to an image. */
+  var m = /^#export\/(\d+)\/(\d+)$/.exec(location.hash || "");
+  if (m) {
+    cur = Math.min(DATA.length - 1, +m[1]);
+    slide = Math.min(2, +m[2]);
+    document.body.classList.add("export");
+    if (/[?&]theme=dark/.test(location.search)) {
+      document.documentElement.setAttribute("data-theme", "dark");
+    }
+  }
+
+  render();
+
+  if (m) {
+    document.documentElement.setAttribute("data-render", "ready");
+  }
+
+  addEventListener("keydown", function (e) {
+    if (e.target.tagName === "SELECT") return;
+    if (e.key === "ArrowRight") { slide = Math.min(2, slide + 1); render(); }
+    if (e.key === "ArrowLeft") { slide = Math.max(0, slide - 1); render(); }
+  });
+})();
+</script>
+</body></html>

@@ -49,7 +49,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from question_pipeline import PipelineConfig, QuestionPipeline
-from question_pipeline.checkpoint import load_checkpoint, resolve_checkpoint_path
+from question_pipeline.utilities.acquisition import verify_checkpoint
 
 
 def build_config(args: argparse.Namespace) -> PipelineConfig:
@@ -322,11 +322,11 @@ def main() -> None:
     parser.add_argument("--firecrawl-api-key", default=None, help="Firecrawl API key (or set FIRECRAWL_API_KEY).")
 
     args = parser.parse_args()
+    verified_checkpoint = None
     if args.continue_from:
-        checkpoint_path = resolve_checkpoint_path(args.continue_from)
-        checkpoint = load_checkpoint(checkpoint_path)
-        config_path = checkpoint_path.parent / checkpoint.state_files["config"]
-        raw = json.loads(config_path.read_text(encoding="utf-8"))
+        verified_checkpoint = verify_checkpoint(args.continue_from)
+        checkpoint_path = verified_checkpoint.path
+        raw = verified_checkpoint.read_role("config")
         if not isinstance(raw, dict):
             parser.error("checkpoint config state must be a JSON object")
         allowed = {item.name for item in fields(PipelineConfig)}
@@ -337,7 +337,7 @@ def main() -> None:
         if not args.question:
             parser.error("--question is required unless --continue is used")
         config = build_config(args)
-    pipeline = QuestionPipeline(config)
+    pipeline = QuestionPipeline(config, verified_checkpoint=verified_checkpoint)
     asyncio.run(pipeline.run())
 
 

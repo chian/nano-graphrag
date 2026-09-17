@@ -118,6 +118,3 @@ class ControllerRuntime:
 
     def state(self, scope: Scope) -> Any:
         return self.controller(scope).state()
-
-    def scopes(self) -> tuple[Scope, ...]:
-        return tuple(sorted(self._controllers, key=repr))

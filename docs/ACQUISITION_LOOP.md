@@ -49,7 +49,9 @@ THE ACQUISITION EPISODE (one generic Episode, instantiated at every surface):
       │             │                                     │
       └──── switch ─┴──── continue / stop ◄─── verdict ───┘
 
- NESTING:  chunk Leaf ⊂ lexical-probe ⊂ page ⊂ search ⊂ strategy ⊂ run
+ NESTING:  source-table-query Leaf ⊂ source-table ─┐
+                                                  ├─⊂ page ⊂ search ⊂ strategy ⊂ run
+                 chunk Leaf ⊂ lexical-probe ──────┘
                                                                (provider surface)
            seed ⊂ walk ⊂ query                                (future GASL binding)
            — the same method at every grain; compact updates pass between scopes
@@ -475,9 +477,10 @@ I/O — whether an injected `extract` fetches a page is invisible to it.
 Bound at the method level: `source`, `extract`, the result projector, the
 controller function, compact request/update construction, the post-controller
 hook, and an explicit safety boundary. The controller owns its input shape,
-statistics, thresholds, and arithmetic. The table binding supplies incidence
-vectors and hypervolume; another binding may supply an entirely different
-numeric controller without changing `Episode` or `Context`.
+statistics, thresholds, and arithmetic. The current tabular Goal boundary
+supplies incidence vectors; the attached numerical component derives
+hypervolume. Another Goal may supply a different controller input and numerical
+component without changing `Episode` or `Context`.
 
 Fixed in `Episode`: order of operations, identity, nesting, full trace shape,
 compact message routing, and epoch lifecycle. Rarefaction is one attached
@@ -493,43 +496,59 @@ concrete child binding and thereby choose its own place in the tree. The chunk
 module owns the Leaf's unit and extract/accept/result wiring; it does not
 declare a Grain or pretend the Leaf is an Episode.
 
-The question-pipeline target layout is:
+The question-pipeline layout is:
 
 ```text
+source_table_language/
+├── source.py
+├── program.py
+├── executor.py
+├── resolution.py
+└── types.py
+
 question_pipeline/
-├── rarefaction/
-│   └── incidence_control.py
-├── episode_bindings/
-│   ├── chunk.py
-│   ├── lexical_probe.py
-│   ├── page.py
-│   ├── web_search.py
-│   ├── strategy.py
-│   ├── run.py
-│   ├── gasl_walk.py       # future
-│   └── gasl_query.py      # future
-├── result_projection.py
-├── acquisition_records.py
-└── acquisition_composition.py
+├── pipeline.py
+├── episode_binding/
+│   ├── chunk_binding.py
+│   ├── lexical_probe_binding.py
+│   ├── page_binding.py
+│   ├── source_table_binding.py
+│   ├── web_search_binding.py
+│   ├── strategy_binding.py
+│   ├── run_binding.py
+│   └── provider_binding.py
+└── utilities/
+    ├── acquisition.py
+    ├── evidence.py
+    ├── extraction.py
+    ├── model.py
+    ├── rarefaction.py
+    ├── replay.py
+    ├── search.py
+    └── tables.py
 ```
 
-`acquisition_composition.py` is the sole owner of the concrete tree. It
-declares `Context` order, injects child builders and shared collaborators,
-constructs the root Episode, and calls it once. It contains no extraction,
-acceptance, result-projection, controller, learning, persistence, checkpoint,
-or record-formatting implementation. `result_projection.py` owns the
-table-specific accepted-state-to-logical-slot projection;
-`acquisition_records.py` owns acquisition trace, checkpoint, and export
-formatting.
+`episode_binding/__init__.py` links the Episode-specific binding classes into
+one provider surface. `pipeline.py` supplies the configured collaborators and
+starts the root Episode once. A page may open either a source-table Episode or a
+lexical-probe Episode. Extraction, evidence, table projection, numerical
+control, search, and checkpoints remain in their named utility modules.
 
-Do not replace a monolithic binding with a monolithic context/services object.
-Each binding receives only the collaborators it directly calls. The current
-`question_pipeline/acquisition.py` is transitional and is split bottom-up;
-new Episode types and cross-grain responsibilities do not enter it.
+`source_table_language/` is below the source-table Episode binding and outside the question
+pipeline. It owns source-table discovery, addressable surrounding context, the
+validated command vocabulary, deterministic program execution, and
+source-local mention communities. It imports neither `method_loop` nor
+`question_pipeline`. The source-table binding supplies its model calls and
+submits admitted mentions to the current Goal boundary. The source table is an
+acquired object; the tabular Goal is result state. They are not the same table.
+
+Do not replace episode-owned bindings with a monolithic context/services object.
+Each binding receives only the collaborators it directly calls; new Episode
+types and cross-grain responsibilities do not enter shared support.
 
 ### Fan-up, stated
 
-A binding converts the completed child into an `EpisodeUpdate`. For the table
+A binding converts the completed child into an `EpisodeUpdate`. For the source-table
 binding, its controller input contains the eligible child's **distinct accepted
 identities by channel**, each once. It does not carry child-scale hypervolume.
 The parent updates its own per-column vector and recomputes marginal
@@ -642,7 +661,7 @@ identity, attribution, and cost contract; it never scores raw incidence volume.
 
 ### Cost has one owner
 
-Cost is metered by `question_pipeline/costs.py` (phase 1B) at the
+Cost is metered by `question_pipeline/utilities/acquisition.py` (phase 1B) at the
 `SOURCE`/`SEARCH` scopes, which are the provider surface's units; the
 episode carries no meter of its own. A ledger writer joins a unit's cost
 record to its `UnitRecord` by scope key. `gasl/` has no cost metering
@@ -653,12 +672,15 @@ extended there — never by a second meter.
 
 | Surface | Composition (outer ⊃ inner) | The unit at each grain |
 | --- | --- | --- |
-| Provider | run ⊃ strategy ⊃ search ⊃ page ⊃ lexical probe ⊃ chunk Leaf | a proposed strategy Episode ⊃ a search Episode ⊃ a fetched page Episode ⊃ one ranked lexical probe Episode ⊃ one extracted chunk |
+| Provider | run ⊃ strategy ⊃ search ⊃ page ⊃ (source table ⊃ source-table-query Leaf OR lexical probe ⊃ chunk Leaf) | a proposed strategy Episode ⊃ a search Episode ⊃ a fetched page Episode ⊃ either one parsed-source-table query or one ranked prose chunk |
 | Future GASL binding | query ⊃ walk ⊃ seed | an operation-track unit ⊃ a walk Episode ⊃ one seed expansion; standalone GASL remains independent of this composition |
 
 A search returns pages, so the page is the search grain's natural unit. A page
-proposes lexical rankings; each lexical-probe Episode consumes previously
-unprocessed chunks as Leaves. A chunk is a Leaf, not another Episode grain. The strategy grain
+may open source-table Episodes over detected structured regions and lexical-probe
+Episodes over the remaining text. Each source-table Episode queries parsed rows;
+each lexical-probe Episode consumes previously unprocessed chunks as Leaves.
+The two bindings share evidence acceptance and result projection, not source
+units or extraction paths. A chunk is a Leaf, not another Episode grain. The strategy grain
 (4D) is the `strategy` row: a strategy is an episode of searches that ends
 by its own verdict, and the `run` source proposes the next. That is a
 change from 4D as first registered (within-round demotion of a stopped
@@ -746,7 +768,7 @@ Three structural facts made insertion impossible and mandated the rebuild:
 no model calls. A surface composes its source, extraction, acceptance,
 post-verdict learning, persistence, and safety bindings around `Episode`.
 
-`question_pipeline/rarefaction/` owns the paired incidence estimator, its
+`question_pipeline/utilities/rarefaction.py` owns the paired incidence estimator, its
 matching numerical controller, threshold state and adaptation hook used by
 question-pipeline Episode types, and their typed numeric contract. It does not
 own Episode identity, scope lifecycle, nesting, memory, persistence, or a
@@ -756,7 +778,7 @@ surface.
 | --- | --- |
 | `method_loop/episode.py` | The single composable loop, Episode/unit identities, compact `EpisodeRequest`/`EpisodeUpdate` routing, and the full recursive `EpisodeRecord` trace |
 | `method_loop/runtime.py` | Path routing that opens and calls the controller function supplied by each `Grain`; it knows no controller schema |
-| `question_pipeline/rarefaction/incidence_control.py` | The question pipeline's controller implementation: incidence observation, paired estimator-controller transition, numeric report, threshold adapter, and estimator-specific arithmetic |
+| `question_pipeline/utilities/rarefaction.py` | The question pipeline's controller implementation: incidence observation, paired estimator-controller transition, numeric report, threshold adapter, and estimator-specific arithmetic |
 
 `stop_rule.py` is removed when the upgraded `accumulator.py` and
 `controller.py` are wired. `Episode` is the sole owner of the composed loop
@@ -787,9 +809,8 @@ policy out of the graph engine itself.
 
 ## Surface bindings
 
-1. **Provider search** — currently concentrated in the transitional
-   `question_pipeline/acquisition.py`, and moving to the individual binding
-   modules plus `question_pipeline/acquisition_composition.py`. Unit = one
+1. **Provider search** — composed from the individual modules under
+   `question_pipeline/episode_binding/`. Unit = one
    fetched item (page/paper). Firecrawl may return a large batch, but the
    Episode pulls and processes buffered items one by one: fetch → relevance
    judge → extract → persist evidence → accept → incidence → estimate →
@@ -798,7 +819,7 @@ policy out of the graph engine itself.
    the only convergence of the whole run. Graph enrichment is a post-verdict
    side effect. No page count or search count is the method stop rule.
 2. **Future GASL search episodes** —
-   `question_pipeline/gasl_bindings.py`. These bindings can present GASL graph
+   `question_pipeline/episode_binding/gasl_binding.py`. These bindings can present GASL graph
    operations as nested Episode types and attach the same question-pipeline
    numerical boundary. They are not connected to the current acquisition
    composition. `gasl/commands/graph_nav.py` remains a direct graph operation
@@ -811,27 +832,61 @@ policy out of the graph engine itself.
    *that* a big mutation is due; the model does the string work of sampling
    it (`prompt-mutation-steward` reviews that boundary).
 
+## Durable continuation
+
+Continue a run from one verified Episode boundary, because combining state
+from different moments changes both what was found and what the numerical
+controller saw. The provider binding writes a checkpoint after each completed
+page unit and again when its enclosing search or strategy closes. A checkpoint
+generation records the exact provider result-buffer position, completed child
+updates, estimator-controller state, search memory and frontier, accepted Goal
+state, source identities, evidence registry, and fetched-source store.
+
+Every file in one generation carries the same commit identity. The checkpoint
+pointer records the path, byte count, file count, and digest of every required
+state file and live artifact. `--continue` first converts that pointer into a
+`VerifiedCheckpoint`; `QuestionPipeline` accepts continuation state only
+through that type. Verification happens before pipeline construction, and any
+missing, mixed, or changed artifact refuses continuation rather than combining
+it with current files.
+
+Seeding is a different operation. Seed tables, sources, graphs, and frontiers
+import prior results into a new run; they do not restore an interrupted Episode
+or its controller. `--continue` restores only the generation named by the
+verified checkpoint and does not reload the run directory as seed input.
+
+The current Firecrawl binding's smallest durable boundary is one completed
+page. An interruption after that checkpoint resumes the saved Firecrawl result
+buffer at its next unprocessed rank. An interruption during a page may leave a
+live artifact newer than the checkpoint; verification detects that condition
+and refuses to continue from a mixed state. Older checkpoint versions lack the
+shared commit and artifact fingerprints and are therefore not continuation
+inputs for this implementation.
+
 ## Teardown
 
 - The phase-batched round core of `question_pipeline/pipeline.py`
   (search-all → ingest-all → credit-at-round-end) is replaced by episode
   composition. `pipeline.py` composes episodes; it no longer sequences
   phases.
-- The harvester's inline item loop in `question_pipeline/search.py` and the
+- The harvester's inline item loop now recorded in
+  `question_pipeline/utilities/search.py` and the
   hand-kept fan-up in `AcquisitionController` (`_search_new`,
   `close_search`) — 4C's first binding — are replaced by an `Episode`
   composition (phase 4E). The controller survives as the thing that builds
   the composition and writes ledger decisions from episode records.
 - The historical `rarefaction/stop_rule.py` and its exports and configuration fields are
   deleted in the atomic Episode migration.
-- `question_pipeline/reward.py` stops re-deriving credit at round end and
+- The reward section of `question_pipeline/utilities/search.py` stops
+  re-deriving credit at round end and
   consumes episode ledgers. The reward's definition of a datapoint (real,
   evidenced, never operational volume) is unchanged.
 
 What survives, deliberately: the per-source extraction ledger in
 `_ingest_papers` — the recorded distinction between "extraction ran and found
 nothing" and "extraction never ran" — is necessary to determine sample
-eligibility. The acceptance/relevance machinery in `question_pipeline/search.py`
+eligibility. The acceptance/relevance machinery in
+`question_pipeline/utilities/search.py`
 survives as unit acquisition.
 
 ## What this does not change

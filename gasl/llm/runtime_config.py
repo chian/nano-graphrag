@@ -8,7 +8,6 @@ without affecting Codex itself, set:
 
 Optional overrides:
     NANOGRAPHRAG_SHIM_URL
-    NANOGRAPHRAG_SHIM_TOKEN
 """
 
 from __future__ import annotations
@@ -56,26 +55,19 @@ def load_repo_env_files() -> None:
             )
 
 
-def _shim_from_claude_settings() -> tuple[Optional[str], Optional[str]]:
+def _shim_url_from_claude_settings() -> Optional[str]:
     settings_path = Path.home() / ".claude" / "settings.json"
     try:
         data = json.loads(settings_path.read_text())
     except Exception:
-        return None, None
-
-    helper = data.get("apiKeyHelper", "")
-    token = None
-    if helper.startswith("echo "):
-        candidate = helper[5:]
-        if candidate and candidate != "no-auth":
-            token = candidate
+        return None
 
     base = data.get("env", {}).get("ANTHROPIC_BASE_URL", "")
     if base.endswith("/argoapi"):
         base = base[: -len("/argoapi")]
     if base and not base.endswith("/v1"):
         base = base.rstrip("/") + "/v1"
-    return token, (base or None)
+    return base or None
 
 
 def _normalize_shim_model(requested_model: Optional[str]) -> Optional[str]:
@@ -130,14 +122,15 @@ def resolve_runtime_llm_config(
             transport="direct",
         )
 
-    env_shim_token = os.getenv("NANOGRAPHRAG_SHIM_TOKEN")
     env_shim_url = os.getenv("NANOGRAPHRAG_SHIM_URL")
-    auto_token, auto_url = _shim_from_claude_settings()
-    shim_token = env_shim_token or auto_token
+    auto_url = _shim_url_from_claude_settings()
     shim_url = env_shim_url or auto_url
 
     return RuntimeLLMConfig(
-        api_key=shim_token or explicit_api_key,
+        # AsyncOpenAI requires a non-empty client credential even though shim
+        # transport uses its direct HTTP path. The local shim itself runs with
+        # --no-auth and receives no x-api-key header.
+        api_key="no-auth",
         base_url=shim_url or explicit_base_url,
         model=_normalize_shim_model(explicit_model),
         transport="shim",

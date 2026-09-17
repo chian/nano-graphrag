@@ -12,6 +12,26 @@ The current work is review of the structure-first replacement of the numerical
 control component used by `Episode`. The governing method design is
 `docs/ACQUISITION_LOOP.md`.
 
+## Continuation safety
+
+**IMPLEMENTED; LIVE INTERRUPT-AND-CONTINUE VALIDATION PENDING 2026-09-16.**
+Continuation now requires a `VerifiedCheckpoint` before `QuestionPipeline` is
+constructed. One checkpoint generation uses one commit identity and records
+fingerprints for every state file plus the live Goal, evidence, source, and
+completed-Episode artifacts. The Firecrawl binding checkpoints each completed
+page with its exact provider result buffer and next rank, so continuation does
+not repeat the search call or replay already completed pages. Seed imports are
+not continuation state and are no longer loaded on the continuation path.
+
+The previous `episode_checkpoint_v1` artifacts cannot establish this
+coherence and are refused. The known mixed-state earthquake run was used only
+for a non-mutating rejection check: the new gate rejected it before pipeline
+construction and its checkpoint hash did not change. The remaining validation
+is one newly registered real Firecrawl run, interrupted after a page
+checkpoint and continued from that same checkpoint. It must preserve the Goal
+row count and evidence identities, resume at the recorded next result rank,
+and keep the controller history continuous.
+
 ## Approved structure
 
 One opaque estimator-controller component owns the complete numerical
@@ -102,8 +122,8 @@ complete.
 ## Execution order
 
 1. Correct the ownership boundary while preserving the current estimator and
-   controller arithmetic. The combined component moves under
-   `question_pipeline/rarefaction/`;
+   controller arithmetic. The combined component lives in
+   `question_pipeline/utilities/rarefaction.py`;
    `method_loop` retains Episode execution, nesting, scope routing, identity,
    and records.
 2. Verify that identical observations produce identical counts and verdicts
@@ -157,27 +177,19 @@ observation statuses are present. The adaptive-threshold hook currently keeps
 the configured thresholds unchanged. The estimator arithmetic, controller
 statistic, uncertainty calculation, and threshold values remain unvalidated.
 
-## Binding decomposition before the next live run
+## Current code organization before the next live run
 
-`question_pipeline/acquisition.py` currently combines six binding levels with
-table-result projection, learning/checkpoint state, and record writing. Split
-that file bottom-up without changing behavior:
+`question_pipeline/pipeline.py` is the visible entry point. Episode behavior
+lives one type per module under `question_pipeline/episode_binding/`; its
+package initializer assembles the provider binding. Supporting implementation
+is grouped by responsibility under `question_pipeline/utilities/`:
+acquisition, evidence, extraction, model, rarefaction, replay, search, and
+tables. Standalone `gasl/` remains independent.
 
-1. Move table-supported logical-slot projection into `result_projection.py`
-   and acquisition trace/checkpoint/export formatting into
-   `acquisition_records.py`.
-2. Move the chunk Leaf, lexical-probe, page, web-search, strategy, and run
-   bindings into one module per type under `episode_bindings/`. Each module
-   receives its child builder and only the collaborators it uses.
-3. Link the types only in `acquisition_composition.py`, which declares the
-   nesting and `Context` order, constructs the root Episode, and invokes it
-   once.
-4. Split the dormant GASL query/walk bindings by Episode type when they are
-   integrated; standalone `gasl/` remains independent.
-
-This is a structure-only migration. Credit identities, observation status,
+The organization change is structural. Credit identities, observation status,
 controller inputs, thresholds, hooks, checkpoint payloads, and emitted records
-remain unchanged until the split passes its live experiment.
+are intended to remain unchanged and still require the registered live
+validation described above.
 
 **APPROVED AND IMPLEMENTED 2026-09-06; LIVE VALIDATION PENDING.** Accepted stable table-slot identities are
 one-dimensional contributions separated by column. They form the complete

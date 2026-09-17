@@ -84,6 +84,7 @@ class LLMError(GASLError):
         status_code: int | None = None,
         original_type: str | None = None,
         fatal: bool = False,
+        retry_after: str | float | None = None,
     ):
         super().__init__(message)
         self.provider = provider
@@ -92,3 +93,4 @@ class LLMError(GASLError):
         self.status_code = status_code
         self.original_type = original_type
         self.fatal = fatal
+        self.retry_after = retry_after

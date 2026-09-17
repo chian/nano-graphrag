@@ -1,12 +1,9 @@
-"""Question-driven GraphRAG pipeline Episode composition.
+"""Question-pipeline entry point and Episode composition.
 
-The default answer mode tries to produce one well-supported answer. Nested
-strategy and search Episodes acquire evidence, extend a typed knowledge graph,
-answer the question with GASL, and use identified gaps to steer later work.
-
-The table-fill mode treats the answer tables as the deliverable. It estimates
-the searched answer universe, keeps a durable search frontier, and searches to
-fill missing final-table rows until the count targets are covered.
+``QuestionPipeline`` wires the configured utilities and Episode bindings,
+starts the root Episode once, and publishes the run-level outputs. Concrete
+Episode behavior lives in :mod:`question_pipeline.episode_binding`; supporting
+implementations live in :mod:`question_pipeline.utilities`.
 """
 
 from __future__ import annotations
@@ -51,38 +48,38 @@ from paper_fetching.firecrawl_client import (
     search_papers,
 )
 
-from . import schema_synthesis, strategy
-from .best_guess import (
-    BEST_GUESS_CANDIDATE_COLUMNS,
-    BEST_GUESS_CONTEXT_COLUMNS,
-    best_guess_context_by_row_key,
-    page_best_guess,
-    run_best_guess_recovery,
+from question_pipeline import episode_binding as acq
+from question_pipeline.episode_binding import (
+    AcquisitionController,
+    ProviderHealth,
+    RunTermination,
+    SourceBudget,
+    TableCreditAssigner,
 )
-from .completion import (
-    completion_update_from_critique,
-    completion_update_from_estimate,
-    completion_scope_actionable,
-    load_seed_completion_state,
-    merge_completion_state,
-    scope_probe_context,
+from source_table_language import (
+    discover_table_regions as discover_source_table_regions,
+    text_without_table_regions as text_without_source_table_regions,
 )
-from .checkpoint import (
-    ActiveParent,
-    CompletedEpisode,
-    EpisodeCheckpoint,
-    NextEpisode,
-    load_checkpoint,
-    resolve_checkpoint_path,
-    write_checkpoint,
+from question_pipeline.episode_binding.source_table_binding import (
+    interpret_source_table_region,
+    propose_source_table_query,
 )
-from .control import (
+from question_pipeline.utilities import extraction as schema_synthesis
+from question_pipeline.utilities import search as strategy
+from question_pipeline.utilities.acquisition import (
     CONTROL_VOCABULARY_VERSION,
+    COST_ACCOUNTING_VERSION,
     ActionCandidate,
     ActionOrigin,
+    ActiveParent,
     AttemptRef,
+    CompletedEpisode,
     ControlSurface,
+    CostRecord,
     DecisionContext,
+    EpisodeCheckpoint,
+    NextEpisode,
+    ObservationKind,
     OperatorRef,
     PolicyDecision,
     PromptArmRef,
@@ -91,110 +88,116 @@ from .control import (
     StopContext,
     StopDecision,
     TargetRef,
-    resolve_stop_decision,
-    stable_id,
-)
-from .criteria import (
-    CRITERIA_PROJECTION_VERSION,
-    CriteriaSnapshot,
-    datapoint_fields,
-    empty_snapshot,
-    is_missing_value,
-    missing_tokens as criteria_missing_tokens,
-    project_rows,
-)
-from .path_features import PathScoringContext, build_context
-from .path_gate import PathGateResult, PathGateSettings, gate_rows
-from .estimator import estimate_count_expectations
-from .derived_context import context_slots_from_count_targets
-from .derived_context import source_ids_from_row
-from .evidence_registry import EvidenceRegistry
-from .evidence_acceptance import TypedEvidenceAcceptor
-from .extraction import chunk_spans, chunk_text, enrich_graph, extract_from_text
-from .table_extraction import TableSpecExtractor, extract_table_rows_from_text
-from .chunk_retrieval import page_outline, propose_lexical_probe, rank_chunks
-from .goals import (
-    FillGoalState,
-    TableFillGoalTracker,
-    compact_estimate_for_prompt,
-    merge_universe_estimates,
-    normalize_universe_estimate,
-)
-from .prompt_log import (
-    close_scope as prompt_log_close,
-    open_scope as prompt_log_open,
-    prompt_scope,
-)
-from . import acquisition as acq
-from .acquisition import (
-    AcquisitionController,
-    TableCreditAssigner,
-    ProviderHealth,
-    RunTermination,
-    SourceBudget,
-)
-from .provenance import (
-    CHUNK_PARAMS_FIELD,
-    FIELD_PROVENANCE_SUFFIX,
-    derive_field_provenance,
-)
-from .costs import (
-    COST_ACCOUNTING_VERSION,
-    CostRecord,
-    ObservationKind,
+    VerifiedCheckpoint,
     classify_error,
     cost_scope,
+    fingerprint_artifact,
     orphan_meter,
+    resolve_checkpoint_path,
+    resolve_stop_decision,
+    stable_id,
+    write_checkpoint,
     zero_cost,
 )
-from .llm_utils import (
+from question_pipeline.utilities.evidence import (
+    CHUNK_PARAMS_FIELD,
+    FIELD_PROVENANCE_SUFFIX,
+    EvidenceRegistry,
+    GoalEvidenceAcceptor,
+    derive_field_provenance,
+)
+from question_pipeline.utilities.extraction import (
+    TableSpecExtractor,
+    chunk_spans,
+    chunk_text,
+    enrich_graph,
+    extract_from_text,
+    extract_table_rows_from_text,
+    page_outline,
+    propose_lexical_probe,
+    rank_chunks,
+)
+from question_pipeline.utilities.model import (
     DEFAULT_FAST_MODEL,
     ModelTier,
     TierPolicy,
     attach_tier_policy,
+    close_scope as prompt_log_close,
     describe_tiers,
     for_tier,
     instrument_client,
+    open_scope as prompt_log_open,
+    prompt_scope,
     register_call_site_tier,
 )
-from .search import (
+from question_pipeline.utilities.search import (
+    QUERY_OPERATORS,
+    REWARD_COMPONENT_COLUMNS,
+    PathGateResult,
+    PathGateSettings,
+    PathScoringContext,
     SearchFrontier,
     SearchHarvester,
+    SearchMemory,
     SearchOutcome,
     SearchTask,
+    build_context,
+    estimate_count_expectations,
+    fallback_query_for_operator,
+    gate_rows,
+    load_seed_best_guess_rows,
     load_seed_frontier_tasks,
     load_seed_search_outcomes,
     load_seed_source_records,
     load_seen_urls,
+    merge_best_guess_rows,
+    report_assigned_credit,
+    route_next_family,
     search_result_observation,
     summarize_prompt_arms,
     table_gap_search_tasks,
 )
-from .search_memory import SearchMemory
-from .tables import SeedTables, TypedTableStore, load_seed_tables, merge_rows_by_table
-from .numeric_candidates import (
+from question_pipeline.utilities.tables import (
+    BEST_GUESS_CANDIDATE_COLUMNS,
+    BEST_GUESS_CONTEXT_COLUMNS,
+    CRITERIA_PROJECTION_VERSION,
     NUMERIC_CANDIDATE_COLUMNS,
-    numeric_candidates_from_tables,
-)
-from .reward import (
-    REWARD_COMPONENT_COLUMNS,
-    load_seed_best_guess_rows,
-    merge_best_guess_rows,
-    report_assigned_credit,
-)
-from .strategy_state import (
-    QUERY_OPERATORS,
-    fallback_query_for_operator,
-    route_next_family,
-)
-from .table_specs import (
+    CriteriaSnapshot,
+    FillGoalState,
+    SeedTables,
+    TableFillGoalTracker,
+    TableMutation,
     TableSpec,
+    TypedTableStore,
+    best_guess_context_by_row_key,
+    compact_estimate_for_prompt,
+    completion_scope_actionable,
+    completion_update_from_critique,
+    completion_update_from_estimate,
+    context_slots_from_count_targets,
+    datapoint_fields,
     dump_table_spec_yaml,
+    empty_snapshot,
+    is_missing_value,
+    load_seed_completion_state,
+    load_seed_tables,
     load_table_spec,
     load_table_spec_with_seed_tables,
+    merge_completion_state,
+    merge_rows_by_table,
     merge_table_specs,
+    merge_universe_estimates,
+    missing_tokens as criteria_missing_tokens,
+    normalize_universe_estimate,
+    numeric_candidates_from_tables,
     observed_table_spec,
+    page_best_guess,
+    project_rows,
+    run_best_guess_recovery,
+    scope_probe_context,
+    source_ids_from_row,
     synthesize_table_spec,
+    table_spec_from_dict,
 )
 
 
@@ -643,6 +646,7 @@ class QuestionPipeline:
         self,
         config: PipelineConfig,
         *,
+        verified_checkpoint: Optional[VerifiedCheckpoint] = None,
         llm=None,
         search_fn: Optional[
             Callable[[str, Optional[int]], List[Dict[str, Any]]]
@@ -652,6 +656,12 @@ class QuestionPipeline:
         gasl_runner: Optional[Callable[[nx.DiGraph, Dict[str, Any], str], Dict[str, Any]]] = None,
     ):
         self.config = config
+        self._verified_checkpoint = verified_checkpoint
+        if bool(config.resume_checkpoint) != bool(verified_checkpoint):
+            raise ValueError(
+                "continuation requires one VerifiedCheckpoint and a matching "
+                "resume_checkpoint configuration"
+            )
         config.pipeline_mode = _normalize_pipeline_mode(config.pipeline_mode)
         if config.pipeline_mode == PIPELINE_MODE_TABLE_FILL:
             if config.answer_mode == "natural":
@@ -702,15 +712,27 @@ class QuestionPipeline:
         self.table_specs_dir = self.answers_dir / "table_specs"
         for d in (self.graphs_dir, self.sources_dir, self.answers_dir):
             d.mkdir(parents=True, exist_ok=True)
+        checkpoint_table_state = (
+            verified_checkpoint.read_role("table")
+            if verified_checkpoint is not None
+            else None
+        )
         self.evidence_registry = EvidenceRegistry(
             self.answers_dir / "evidence_registry"
         )
-        self.evidence_acceptor = TypedEvidenceAcceptor()
+        self.evidence_acceptor = GoalEvidenceAcceptor(
+            self.llm,
+            lambda: self.table_spec.prompt_context(),
+        )
 
         self.graph = nx.DiGraph()
         self.schema: Optional[DomainSchema] = None
         self.extractor = None
-        self.seen_urls: set[str] = load_seen_urls(config.seed_sources_dir)
+        self.seen_urls: set[str] = (
+            set()
+            if verified_checkpoint is not None
+            else load_seen_urls(config.seed_sources_dir)
+        )
         self.queries_used: List[str] = []
         #: Source units pulled so far -- mirrors ``source_budget.spent``.
         self.units_pulled = 0
@@ -751,14 +773,31 @@ class QuestionPipeline:
             raise ValueError("target_prompt_arms_per_evolution must be positive")
         if config.target_queries_per_prompt_arm <= 0:
             raise ValueError("target_queries_per_prompt_arm must be positive")
-        self.seed_tables: SeedTables = load_seed_tables(config.seed_tables_dir)
+        self.seed_tables: SeedTables = (
+            SeedTables(
+                rows_by_name={
+                    str(name): [dict(row) for row in rows]
+                    for name, rows in dict(
+                        (checkpoint_table_state or {}).get("seed_rows") or {}
+                    ).items()
+                }
+            )
+            if verified_checkpoint is not None
+            else load_seed_tables(config.seed_tables_dir)
+        )
         self._last_table_export_row_counts = {
             name: len(rows) for name, rows in self.seed_tables.rows_by_name.items()
         }
-        self.table_spec: TableSpec = load_table_spec_with_seed_tables(
-            self.seed_tables.rows_by_name,
-            config.seed_tables_dir,
-            config.table_spec_path,
+        self.table_spec: TableSpec = (
+            table_spec_from_dict(
+                dict((checkpoint_table_state or {}).get("table_spec") or {})
+            )
+            if verified_checkpoint is not None
+            else load_table_spec_with_seed_tables(
+                self.seed_tables.rows_by_name,
+                config.seed_tables_dir,
+                config.table_spec_path,
+            )
         )
         self.table_spec_id = self._table_spec_id(self.table_spec)
         self._required_columns_by_table = self.table_spec.required_columns_by_table()
@@ -775,7 +814,11 @@ class QuestionPipeline:
         # would make a key-only table look warm. Preserve the explicit spec's
         # column identity for that decision. Older continuations without an
         # explicit spec fall back to the only contract they have.
-        explicit_table_spec = load_table_spec(config.table_spec_path)
+        explicit_table_spec = (
+            self.table_spec
+            if verified_checkpoint is not None
+            else load_table_spec(config.table_spec_path)
+        )
         explicit_columns = explicit_table_spec.all_columns_by_table()
         self._cold_start_columns_by_table = {
             name: list(
@@ -849,30 +892,46 @@ class QuestionPipeline:
         self._ensure_declared_seed_tables()
         self._seed_table_inputs_consumed = False
         self._active_seed_migrations: List[Dict[str, Any]] = []
-        self.goal_universe_estimate = self._load_seed_universe_estimate(
-            config.seed_tables_dir,
+        self.goal_universe_estimate = (
+            {"status": "missing"}
+            if verified_checkpoint is not None
+            else self._load_seed_universe_estimate(config.seed_tables_dir)
         )
-        self.completion_state: Dict[str, Any] = load_seed_completion_state(
-            config.seed_tables_dir,
+        self.completion_state: Dict[str, Any] = (
+            {}
+            if verified_checkpoint is not None
+            else load_seed_completion_state(config.seed_tables_dir)
         )
-        seed_source_records = load_seed_source_records(config.seed_sources_dir)
-        seed_search_outcomes = self._seed_search_outcome_records(
-            seed_source_records,
-            load_seed_search_outcomes(config.seed_sources_dir),
+        seed_source_records = (
+            []
+            if verified_checkpoint is not None
+            else load_seed_source_records(config.seed_sources_dir)
+        )
+        seed_search_outcomes = (
+            []
+            if verified_checkpoint is not None
+            else self._seed_search_outcome_records(
+                seed_source_records,
+                load_seed_search_outcomes(config.seed_sources_dir),
+            )
         )
         self.search_frontier.mark_seen(self._seed_search_tasks(seed_source_records))
         self.search_outcomes.extend(seed_search_outcomes)
         self.search_frontier.mark_seen(
             self._search_outcome_tasks(seed_search_outcomes)
         )
-        self.seed_frontier_tasks = load_seed_frontier_tasks(
-            config.seed_frontier_path,
+        self.seed_frontier_tasks = (
+            []
+            if verified_checkpoint is not None
+            else load_seed_frontier_tasks(config.seed_frontier_path)
         )
-        self._record_goal_discovery_sources(seed_source_records)
-        self._export_seed_sources(seed_source_records)
-        self._export_seed_search_outcomes(seed_search_outcomes)
+        if verified_checkpoint is None:
+            self._record_goal_discovery_sources(seed_source_records)
+            self._export_seed_sources(seed_source_records)
+            self._export_seed_search_outcomes(seed_search_outcomes)
         self.search_memory = SearchMemory.from_outcomes(self.search_outcomes)
-        self._persist_search_memory()
+        if verified_checkpoint is None:
+            self._persist_search_memory()
         self.goal_states: List[Dict[str, Any]] = []
         self.derived_table_exports: List[Dict[str, Any]] = []
         self.last_derived_table_exports: List[Dict[str, Any]] = []
@@ -882,8 +941,15 @@ class QuestionPipeline:
         self.reward_exports: List[Dict[str, Any]] = []
         self.last_reward_exports: List[Dict[str, Any]] = []
         self.last_reward_report: Dict[str, Any] = {}
-        self.seed_best_guess_rows: List[Dict[str, Any]] = load_seed_best_guess_rows(
-            config.seed_tables_dir,
+        self.seed_best_guess_rows: List[Dict[str, Any]] = (
+            [
+                dict(item)
+                for item in (
+                    (checkpoint_table_state or {}).get("seed_best_guess_rows") or ()
+                )
+            ]
+            if verified_checkpoint is not None
+            else load_seed_best_guess_rows(config.seed_tables_dir)
         )
         self._bootstrap_sources: List[Dict[str, Any]] = []
         self._gasl_source_seed_nodes: List[Dict[str, Any]] = []
@@ -894,8 +960,10 @@ class QuestionPipeline:
         # The ledger is append-only.  Every write goes through
         # ``_append_control_decision``; no other code path touches the list.
         self.control_policy = StaticTableFillPolicy()
-        self.control_decisions: List[Dict[str, Any]] = list(
-            load_seed_control_decisions(config.seed_tables_dir)
+        self.control_decisions: List[Dict[str, Any]] = (
+            []
+            if verified_checkpoint is not None
+            else list(load_seed_control_decisions(config.seed_tables_dir))
         )
         self.seeded_control_decision_count = len(self.control_decisions)
         self.criteria_snapshot: CriteriaSnapshot = empty_snapshot()
@@ -919,9 +987,10 @@ class QuestionPipeline:
         self.source_ingestion_ledger: Dict[str, Dict[str, Any]] = {}
 
         # -- the acquisition composition (Phase 4E-c) -------------------- #
-        # run > strategy > search > page, one `Episode.run_async` call, in
-        # `run()`. docs/ACQUISITION_LOOP.md. Nothing here sequences phases and
-        # nothing consults a controller between units.
+        # run > strategy > search > page > {table | lexical probe}, one
+        # `Episode.run_async` call, in `run()`. docs/ACQUISITION_LOOP.md.
+        # Nothing here sequences phases and nothing consults a controller
+        # between units.
         #
         # The crediter is built ONCE, from the table contract as it stands now,
         # with two consequences stated rather than left to a run to discover: a
@@ -933,6 +1002,7 @@ class QuestionPipeline:
             self.table_spec,
             self.evidence_registry,
             self.seed_tables.rows_by_name,
+            on_change=self._publish_live_table_state,
         )
         self.crediter = TableCreditAssigner(self.table_spec, self.table_store)
         self.source_budget = SourceBudget(limit=int(config.max_source_units))
@@ -988,6 +1058,19 @@ class QuestionPipeline:
             ),
             sample_strategies=self._sample_strategies,
             post_strategy=self._run_post_strategy_body,
+            discover_source_table_regions=discover_source_table_regions,
+            text_without_source_table_regions=text_without_source_table_regions,
+            interpret_source_table_region=lambda **kwargs: interpret_source_table_region(
+                self.llm,
+                table_spec=self.table_spec,
+                **kwargs,
+            ),
+            propose_source_table_query=lambda **kwargs: propose_source_table_query(
+                self.llm,
+                question=self.config.question,
+                table_spec=self.table_spec,
+                **kwargs,
+            ),
             get_table_extractor=lambda: self.table_extractor,
             extract_table_text=extract_table_rows_from_text,
             page_outline=page_outline,
@@ -1039,12 +1122,13 @@ class QuestionPipeline:
             missing_tokens=criteria_missing_tokens,
             checkpoint_completed_strategy=self._checkpoint_completed_strategy,
             checkpoint_completed_search=self._checkpoint_completed_search,
+            checkpoint_completed_page=self._checkpoint_completed_page,
         )
         self._run_episode_id = self.provider_binding.run_episode_id
 
         self._resume_checkpoint = bool(config.resume_checkpoint)
         if self._resume_checkpoint:
-            self._restore_checkpoint_state(config.resume_checkpoint or "")
+            self._restore_checkpoint_state(verified_checkpoint)
 
         # -- path-selection gate (Phase 2B) ----------------------------- #
         # Records on every run; demotes nothing unless configured to.  2A's
@@ -1774,6 +1858,7 @@ genuinely separate view that is not covered by a listed target."""
             self.table_spec,
             self.evidence_registry,
             self.seed_tables.rows_by_name,
+            on_change=self._publish_live_table_state,
         )
         self.crediter = TableCreditAssigner(self.table_spec, self.table_store)
         self.table_extractor = TableSpecExtractor(self.llm, self.table_spec)
@@ -1783,9 +1868,8 @@ genuinely separate view that is not covered by a listed target."""
             health=self.provider_health,
             termination=self.run_termination,
         )
-        self.acquisition.context.bind_run_id(self.out.name)
-        self.provider_binding.controller = self.acquisition
-        self.provider_binding.crediter = self.crediter
+        self.provider_binding.rebind_controller(self.acquisition)
+        self._run_episode_id = self.provider_binding.run_episode_id
 
         self.table_specs_dir.mkdir(parents=True, exist_ok=True)
         contract_path = self.table_specs_dir / "synthesized_table_spec.yaml"
@@ -2650,6 +2734,74 @@ genuinely separate view that is not covered by a listed target."""
         seed_row_counts: Dict[str, int],
         new_row_counts: Dict[str, int],
     ) -> List[Dict[str, Any]]:
+        exports, visible_rows, table_names = self._write_visible_table_exports(
+            artifact_label,
+            rows_by_name,
+            seed_row_counts=seed_row_counts,
+            new_row_counts=new_row_counts,
+        )
+
+        self.last_derived_table_exports = await self._write_derived_exports(
+            artifact_label,
+            {
+                table_name: visible_rows.get(table_name, [])
+                for table_name in table_names
+            },
+        )
+        return exports
+
+    def _publish_live_table_state(self, mutation: TableMutation) -> None:
+        """Publish each accepted table mutation before its credit is returned."""
+
+        if mutation.before_state_id == mutation.after_state_id:
+            return
+        rows_by_name = self.table_store.rows_by_name
+        current_counts = {
+            name: len(rows) for name, rows in rows_by_name.items()
+        }
+        seed_counts = {
+            str(item.get("variable")): int(item.get("seed_rows") or 0)
+            for item in self.table_exports
+            if str(item.get("artifact_label")) == "seed"
+            and item.get("variable")
+        }
+        for name in current_counts:
+            seed_counts.setdefault(
+                name,
+                int(self._last_table_export_row_counts.get(name, 0)),
+            )
+        self._write_visible_table_exports(
+            "seed",
+            rows_by_name,
+            seed_row_counts=seed_counts,
+            new_row_counts={
+                name: max(0, count - seed_counts.get(name, 0))
+                for name, count in current_counts.items()
+            },
+            replace_existing=True,
+        )
+
+    def _write_visible_table_exports(
+        self,
+        artifact_label: int | str,
+        rows_by_name: Dict[str, List[Dict[str, Any]]],
+        *,
+        seed_row_counts: Dict[str, int],
+        new_row_counts: Dict[str, int],
+        replace_existing: bool = False,
+    ) -> tuple[
+        List[Dict[str, Any]],
+        Dict[str, List[Dict[str, Any]]],
+        List[str],
+    ]:
+        """Write the current rows without launching derived-model work.
+
+        Accepted storage mutations use this synchronous boundary so visible
+        files track the same state from which method credit is computed.
+        Episode checkpoints snapshot that already-visible state. Full exports
+        call the same writer and then run derived-table work separately.
+        """
+
         artifact_stem = self._artifact_stem(artifact_label)
         exports: List[Dict[str, Any]] = []
         rows_by_name = {
@@ -2687,7 +2839,22 @@ genuinely separate view that is not covered by a listed target."""
                 "gaps": self._diagnostic_table_gaps(name, items),
             }
             exports.append(record)
-            self.table_exports.append(record)
+
+        if replace_existing:
+            replacement_keys = {
+                (str(item.get("artifact_label")), str(item.get("variable")))
+                for item in exports
+            }
+            self.table_exports = [
+                item
+                for item in self.table_exports
+                if (
+                    str(item.get("artifact_label")),
+                    str(item.get("variable")),
+                )
+                not in replacement_keys
+            ]
+        self.table_exports.extend(exports)
 
         if exports:
             manifest_path = self.tables_dir / f"{artifact_stem}_manifest.json"
@@ -2695,15 +2862,7 @@ genuinely separate view that is not covered by a listed target."""
                 json.dumps(exports, indent=2, default=str), encoding="utf-8"
             )
             self._write_observed_table_spec(artifact_label, rows_by_name, table_names)
-
-        self.last_derived_table_exports = await self._write_derived_exports(
-            artifact_label,
-            {
-                table_name: rows_by_name.get(table_name, [])
-                for table_name in table_names
-            },
-        )
-        return exports
+        return exports, rows_by_name, table_names
 
     async def _write_derived_exports(
         self,
@@ -5744,6 +5903,29 @@ genuinely separate view that is not covered by a listed target."""
             completed,
             active_parent=parent,
             generation_label=f"search_{len(self.search_outcomes):06d}",
+            next_unit_index=len(self.provider_binding._active_search_units),
+        )
+
+    def _checkpoint_completed_page(
+        self,
+        completed: Any,
+        strategy_key: str,
+        _family: str,
+    ) -> None:
+        if completed is None or completed.episode_ref is None:
+            raise ValueError("a checkpoint boundary requires a completed page Episode")
+        search_path = completed.episode_ref.path[:-1]
+        if not search_path or search_path[-1][0] != self.provider_binding.search_grain.name:
+            raise ValueError("a page checkpoint must have an active search parent")
+        parent = EpisodeRef(run_id=self.out.name, path=search_path)
+        self._write_episode_checkpoint(
+            completed,
+            active_parent=parent,
+            generation_label=(
+                f"page_{self.source_budget.spent:06d}_"
+                f"{len(self.provider_binding._active_page_units):06d}"
+            ),
+            next_unit_index=len(self.provider_binding._active_page_units),
         )
 
     def _checkpoint_completed_strategy(
@@ -5766,6 +5948,7 @@ genuinely separate view that is not covered by a listed target."""
             generation_label=(
                 f"strategy_{len(self.provider_binding._completed_run_units):06d}"
             ),
+            next_unit_index=len(self.provider_binding._completed_run_units),
         )
 
     def _write_episode_checkpoint(
@@ -5774,6 +5957,7 @@ genuinely separate view that is not covered by a listed target."""
         *,
         active_parent: EpisodeRef,
         generation_label: str,
+        next_unit_index: int,
     ) -> None:
         """Publish one immutable state generation, then move the pointer."""
 
@@ -5783,13 +5967,32 @@ genuinely separate view that is not covered by a listed target."""
         generation = self.out / relative_root
         generation.mkdir(parents=True, exist_ok=False)
 
+        if next_unit_index < 0:
+            raise ValueError("checkpoint next_unit_index must be non-negative")
+        commit_id = hashlib.sha256(
+            json.dumps(
+                {
+                    "version": "episode_checkpoint_commit_v1",
+                    "run_id": self.out.name,
+                    "generation": generation_label,
+                    "completed_episode_id": completed.episode_ref.episode_id,
+                    "active_parent": active_parent.as_record(),
+                    "next_unit_index": next_unit_index,
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
+
         resume_config = self.config.to_dict()
         resume_config.update(
             {
                 "output_dir": str(self.out),
                 "resume_checkpoint": str(self.out / "checkpoint.json"),
-                "seed_tables_dir": str(self.tables_dir),
-                "seed_sources_dir": str(self.out),
+                # Continuation restores one exact generation. Seed inputs start
+                # a new lineage and must never become a second state authority.
+                "seed_tables_dir": None,
+                "seed_sources_dir": None,
                 "seed_frontier_path": None,
                 "evidence_corpus_roots": list(
                     dict.fromkeys(
@@ -5798,13 +6001,28 @@ genuinely separate view that is not covered by a listed target."""
                 ),
             }
         )
+        prior_seed_counts = {
+            str(item.get("variable")): int(item.get("seed_rows") or 0)
+            for item in self.table_exports
+            if str(item.get("artifact_label")) == "seed"
+            and item.get("variable")
+        }
+        current_rows = self.seed_tables.rows_by_name
+        self._write_visible_table_exports(
+            "seed",
+            current_rows,
+            seed_row_counts=prior_seed_counts,
+            new_row_counts={
+                name: max(0, len(rows) - prior_seed_counts.get(name, 0))
+                for name, rows in current_rows.items()
+            },
+            replace_existing=True,
+        )
         state_payloads: dict[str, Mapping[str, Any]] = {
             "config": resume_config,
             "episode": self.provider_binding.checkpoint_state(),
             "evidence": {
                 "registry_directory": "answers/evidence_registry",
-                "source_assertions": "answers/evidence_registry/source_assertions.jsonl",
-                "acceptances": "answers/evidence_registry/acceptances.jsonl",
             },
             "frontier": {
                 "search_frontier": self.search_frontier.to_dict(),
@@ -5818,6 +6036,9 @@ genuinely separate view that is not covered by a listed target."""
                 "search_memory": self.search_memory.to_dict(),
                 "goal_discovery_sources": list(self.goal_discovery_sources),
                 "goal_universe_estimate": dict(self.goal_universe_estimate),
+            },
+            "sources": {
+                "seen_urls": sorted(self.seen_urls),
             },
             "policy": {
                 "goal_states": list(self.goal_states),
@@ -5837,56 +6058,84 @@ genuinely separate view that is not covered by a listed target."""
                 "best_guess_exports": list(self.best_guess_exports),
                 "reward_exports": list(self.reward_exports),
                 "seed_rows": self.seed_tables.rows_by_name,
+                "seed_best_guess_rows": list(self.seed_best_guess_rows),
+                "table_spec": self.table_spec.to_dict(),
                 "table_spec_id": self.table_spec_id,
             },
         }
         state_files: dict[str, str] = {}
         for role, payload in state_payloads.items():
             relative = relative_root / f"{role}.json"
-            self._write_checkpoint_json(self.out / relative, payload)
+            self._write_checkpoint_json(
+                self.out / relative,
+                {"checkpoint_commit_id": commit_id, **dict(payload)},
+            )
             state_files[role] = relative.as_posix()
         completed_relative = relative_root / "completed_episode.json"
-        self._write_checkpoint_json(self.out / completed_relative, completed.as_record())
+        self._write_checkpoint_json(
+            self.out / completed_relative,
+            {
+                "checkpoint_commit_id": commit_id,
+                "episode_record": completed.as_record(),
+            },
+        )
+
+        state_fingerprints = {
+            role: fingerprint_artifact(self.out, relative)
+            for role, relative in state_files.items()
+        }
+        live_artifact_paths: dict[str, Path] = {
+            "evidence_registry": Path("answers/evidence_registry"),
+            "source_store": Path("fetched_papers"),
+            "completed_episode": completed_relative,
+        }
+        for table_name in self.seed_tables.rows_by_name:
+            live_artifact_paths[f"goal:{table_name}"] = (
+                Path("answers") / "tables" / f"seed_{table_name}.json"
+            )
+        live_artifacts = {
+            name: fingerprint_artifact(self.out, relative)
+            for name, relative in live_artifact_paths.items()
+        }
 
         write_checkpoint(
             EpisodeCheckpoint(
                 run_id=self.out.name,
                 lineage_id=self.out.name,
+                commit_id=commit_id,
                 last_completed_episode=CompletedEpisode(
                     episode=completed.episode_ref,
                     record_file=completed_relative.as_posix(),
                 ),
                 active_parent=ActiveParent(
                     episode=active_parent,
-                    next_unit_index=(
-                        len(self.provider_binding._active_search_units)
-                        if len(active_parent.path) > 1
-                        else len(self.provider_binding._completed_run_units)
-                    ),
+                    next_unit_index=next_unit_index,
                 ),
                 next_episode=NextEpisode(path=active_parent.path),
                 state_files=state_files,
+                state_fingerprints=state_fingerprints,
+                live_artifacts=live_artifacts,
             ),
             self.out,
         )
         print(f"  Checkpoint: {self.out / 'checkpoint.json'}")
 
-    def _restore_checkpoint_state(self, source: str) -> None:
-        """Restore only files named by the explicit checkpoint pointer."""
+    def _restore_checkpoint_state(
+        self,
+        verified: Optional[VerifiedCheckpoint],
+    ) -> None:
+        """Restore the one generation authorized by ``verify_checkpoint``."""
 
-        checkpoint_path = resolve_checkpoint_path(source)
-        checkpoint = load_checkpoint(checkpoint_path)
+        if not isinstance(verified, VerifiedCheckpoint):
+            raise TypeError("checkpoint restoration requires VerifiedCheckpoint")
+        checkpoint = verified.checkpoint
         if checkpoint.run_id != self.out.name:
             raise ValueError(
                 f"checkpoint run {checkpoint.run_id!r} does not match output {self.out.name!r}"
             )
 
         def read_role(role: str) -> dict[str, Any]:
-            path = checkpoint_path.parent / checkpoint.state_files[role]
-            value = json.loads(path.read_text(encoding="utf-8"))
-            if not isinstance(value, dict):
-                raise ValueError(f"checkpoint state {role!r} must be an object")
-            return value
+            return verified.read_role(role)
 
         frontier = read_role("frontier")
         self.search_frontier.restore_checkpoint_state(
@@ -5912,6 +6161,12 @@ genuinely separate view that is not covered by a listed target."""
             }
         )
         self.search_memory = SearchMemory.from_outcomes(self.search_outcomes)
+
+        sources = read_role("sources")
+        self.seen_urls.clear()
+        self.seen_urls.update(
+            str(value) for value in (sources.get("seen_urls") or ()) if str(value)
+        )
 
         memory = read_role("memory")
         self.goal_discovery_sources = [
@@ -5964,6 +6219,8 @@ genuinely separate view that is not covered by a listed target."""
         if not isinstance(restored_rows, Mapping):
             raise ValueError("checkpoint table seed_rows must be a mapping")
         self.table_store.replace_rows(restored_rows)
+        if str(table.get("table_spec_id") or "") != self.table_spec_id:
+            raise ValueError("checkpoint table contract does not match restored pipeline")
         self._last_table_export_row_counts = {
             name: len(rows)
             for name, rows in self.table_store.rows_by_name.items()
@@ -6302,7 +6559,7 @@ genuinely separate view that is not covered by a listed target."""
                 "assess_answer",
                 strategy.assess_answer,
                 self.llm,
-                cfg.question,
+                self.config.question,
                 answer=self._last_answer,
                 graph_summary=self._graph_summary(),
             ) or {"sufficient": False, "confidence": 0.0, "gaps": [], "rationale": ""}

@@ -61,7 +61,7 @@ def firecrawl_search_batch_metadata(
 #
 # Admission is decided downstream on *content*, never on the address:
 # `SearchHarvester._source_relevance_decision` reads the fetched text, and the
-# length bounds in `question_pipeline/search.py` drop malformed pages at either
+# length bounds in `question_pipeline/utilities/search.py` drop malformed pages at either
 # end. Do not reintroduce a domain list here in any form.
 
 
