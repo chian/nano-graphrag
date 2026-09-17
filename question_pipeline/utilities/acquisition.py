@@ -1920,6 +1920,7 @@ def cost_scope(
 
 import json
 import os
+import shutil
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
@@ -1929,6 +1930,7 @@ from method_loop import EpisodeRef, StructuralPath, normalize_structural_path
 
 CHECKPOINT_VERSION = "episode_checkpoint_v2"
 CHECKPOINT_FILENAME = "checkpoint.json"
+CHECKPOINT_ARTIFACT_DIRECTORY = ".checkpoint_artifacts"
 STATE_ROLES = frozenset(
     {
         "config",
@@ -2096,6 +2098,210 @@ def _verify_fingerprint(root: Path, expected: ArtifactFingerprint) -> None:
             f"sha256={expected.sha256}, bytes={expected.bytes}, files={expected.files}; "
             f"found sha256={actual.sha256}, bytes={actual.bytes}, files={actual.files}"
         )
+
+
+def _same_artifact_content(
+    left: ArtifactFingerprint,
+    right: ArtifactFingerprint,
+) -> bool:
+    """Whether two paths contain the same declared artifact bytes."""
+
+    return (
+        left.kind == right.kind
+        and left.sha256 == right.sha256
+        and left.bytes == right.bytes
+        and left.files == right.files
+    )
+
+
+def _snapshot_component(value: str) -> str:
+    """Filesystem-safe identity for a commit or artifact role."""
+
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _snapshot_root(root: Path, checkpoint: "EpisodeCheckpoint") -> Path:
+    return (
+        root
+        / CHECKPOINT_ARTIFACT_DIRECTORY
+        / _snapshot_component(checkpoint.commit_id)
+    )
+
+
+def _snapshot_artifact_path(snapshot_root: Path, role: str) -> Path:
+    return snapshot_root / _snapshot_component(role)
+
+
+def _remove_artifact_path(path: Path) -> None:
+    """Remove one exact staging or backup path without following symlinks."""
+
+    if path.is_symlink() or path.is_file():
+        path.unlink()
+    elif path.is_dir():
+        shutil.rmtree(path)
+
+
+def _copy_artifact(source: Path, target: Path, kind: str) -> None:
+    """Copy one already-fingerprinted artifact into an isolated path."""
+
+    if kind == "file":
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source, target)
+        return
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(source, target)
+
+
+def _snapshot_fingerprint(
+    snapshot_root: Path,
+    role: str,
+) -> ArtifactFingerprint:
+    relative = _snapshot_artifact_path(snapshot_root, role).relative_to(
+        snapshot_root
+    )
+    return fingerprint_artifact(snapshot_root, relative)
+
+
+def _verify_artifact_snapshot(
+    root: Path,
+    checkpoint: "EpisodeCheckpoint",
+) -> Path:
+    """Verify the immutable bytes that can restore one committed boundary."""
+
+    snapshot_root = _snapshot_root(root, checkpoint)
+    if not snapshot_root.is_dir():
+        raise CheckpointError(
+            "checkpoint has no recoverable artifact snapshot for its committed "
+            f"Episode boundary: {snapshot_root.relative_to(root)}"
+        )
+    expected_names = {
+        _snapshot_component(role) for role in checkpoint.live_artifacts
+    }
+    actual_names = {path.name for path in snapshot_root.iterdir()}
+    if actual_names != expected_names:
+        raise CheckpointError(
+            "checkpoint artifact snapshot has unknown or missing roles"
+        )
+    for role, expected in checkpoint.live_artifacts.items():
+        actual = _snapshot_fingerprint(snapshot_root, role)
+        if not _same_artifact_content(actual, expected):
+            raise CheckpointError(
+                "checkpoint artifact snapshot does not match its committed "
+                f"fingerprint for role {role!r}"
+            )
+    return snapshot_root
+
+
+def _write_artifact_snapshot(
+    root: Path,
+    checkpoint: "EpisodeCheckpoint",
+) -> Path:
+    """Durably stage restorable artifact bytes before publishing the pointer."""
+
+    store = root / CHECKPOINT_ARTIFACT_DIRECTORY
+    store.mkdir(parents=True, exist_ok=True)
+    final = _snapshot_root(root, checkpoint)
+    if final.exists():
+        return _verify_artifact_snapshot(root, checkpoint)
+
+    temporary = Path(
+        tempfile.mkdtemp(
+            prefix=f".{_snapshot_component(checkpoint.commit_id)}.",
+            dir=store,
+        )
+    )
+    try:
+        for role, expected in checkpoint.live_artifacts.items():
+            source = root / expected.path
+            target = _snapshot_artifact_path(temporary, role)
+            _copy_artifact(source, target, expected.kind)
+            actual = _snapshot_fingerprint(temporary, role)
+            if not _same_artifact_content(actual, expected):
+                raise CheckpointError(
+                    "artifact changed while its checkpoint snapshot was being "
+                    f"written: {expected.path}"
+                )
+        os.replace(temporary, final)
+        directory_fd = os.open(store, os.O_RDONLY)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+    except BaseException:
+        _remove_artifact_path(temporary)
+        raise
+    return _verify_artifact_snapshot(root, checkpoint)
+
+
+def _restore_artifact_snapshot(
+    root: Path,
+    checkpoint: "EpisodeCheckpoint",
+) -> None:
+    """Replace unfinished live artifacts with the last committed bytes."""
+
+    snapshot_root = _verify_artifact_snapshot(root, checkpoint)
+    staging = Path(tempfile.mkdtemp(prefix=".checkpoint-restore.", dir=root))
+    staged: dict[str, Path] = {}
+    backups: dict[str, Path] = {}
+    replaced: list[str] = []
+    try:
+        for role, expected in checkpoint.live_artifacts.items():
+            source = _snapshot_artifact_path(snapshot_root, role)
+            target = staging / "staged" / _snapshot_component(role)
+            _copy_artifact(source, target, expected.kind)
+            actual = fingerprint_artifact(
+                staging / "staged",
+                _snapshot_component(role),
+            )
+            if not _same_artifact_content(actual, expected):
+                raise CheckpointError(
+                    f"could not stage committed artifact role {role!r}"
+                )
+            staged[role] = target
+
+        for role, expected in checkpoint.live_artifacts.items():
+            target = root / expected.path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            backup = staging / "backup" / _snapshot_component(role)
+            backup.parent.mkdir(parents=True, exist_ok=True)
+            if target.exists() or target.is_symlink():
+                os.replace(target, backup)
+                backups[role] = backup
+            os.replace(staged[role], target)
+            replaced.append(role)
+
+        for expected in checkpoint.live_artifacts.values():
+            _verify_fingerprint(root, expected)
+    except BaseException:
+        for role in reversed(replaced):
+            target = root / checkpoint.live_artifacts[role].path
+            _remove_artifact_path(target)
+            backup = backups.get(role)
+            if backup is not None and backup.exists():
+                os.replace(backup, target)
+        for role, backup in backups.items():
+            if role in replaced or not backup.exists():
+                continue
+            target = root / checkpoint.live_artifacts[role].path
+            os.replace(backup, target)
+        raise
+    finally:
+        _remove_artifact_path(staging)
+
+
+def _prune_artifact_snapshots(
+    root: Path,
+    checkpoint: "EpisodeCheckpoint",
+) -> None:
+    """Retain only the snapshot named by the published checkpoint pointer."""
+
+    store = root / CHECKPOINT_ARTIFACT_DIRECTORY
+    keep = _snapshot_root(root, checkpoint)
+    if not store.is_dir():
+        return
+    for path in store.iterdir():
+        if path != keep:
+            _remove_artifact_path(path)
 
 
 @dataclass(frozen=True)
@@ -2467,15 +2673,32 @@ def load_checkpoint(source: str | Path) -> EpisodeCheckpoint:
 
 
 def verify_checkpoint(source: str | Path) -> VerifiedCheckpoint:
-    """Authorize continuation only from one coherent committed generation."""
+    """Restore and authorize one coherent committed generation.
+
+    A live artifact may differ because the process stopped while working on
+    the next Episode.  When this checkpoint owns an immutable artifact
+    snapshot, continuation restores that committed boundary and verifies it.
+    A legacy checkpoint without a snapshot remains readable only while its
+    live artifacts still match exactly.
+    """
 
     path = resolve_checkpoint_path(source)
     checkpoint = load_checkpoint(path)
     root = path.parent
     for fingerprint in checkpoint.state_fingerprints.values():
         _verify_fingerprint(root, fingerprint)
+    live_matches = True
     for fingerprint in checkpoint.live_artifacts.values():
-        _verify_fingerprint(root, fingerprint)
+        try:
+            _verify_fingerprint(root, fingerprint)
+        except CheckpointError:
+            live_matches = False
+            break
+    if not live_matches:
+        _restore_artifact_snapshot(root, checkpoint)
+    else:
+        for fingerprint in checkpoint.live_artifacts.values():
+            _verify_fingerprint(root, fingerprint)
     verified = VerifiedCheckpoint(
         path,
         checkpoint,
@@ -2510,6 +2733,7 @@ def write_checkpoint(
             )
     for fingerprint in checkpoint.live_artifacts.values():
         _verify_fingerprint(root, fingerprint)
+    _write_artifact_snapshot(root, checkpoint)
 
     payload = json.dumps(
         checkpoint.to_dict(),
@@ -2538,4 +2762,5 @@ def write_checkpoint(
         except OSError:
             pass
         raise
+    _prune_artifact_snapshots(root, checkpoint)
     return target

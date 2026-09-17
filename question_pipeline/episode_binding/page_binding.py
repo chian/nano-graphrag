@@ -170,9 +170,9 @@ class PageBinding:
                     ),
                     text_chars=prepared.text_length,
                 )
-                return self._material_leaf(unit, material)
+                return self._material_page_episode(unit, material)
             if not self.crediter.basis.columns:
-                return self._material_leaf(
+                return self._material_page_episode(
                     unit,
                     PageMaterial(
                         fate=page_fate(mechanical=FATE_NO_CREDIT_COLUMNS),
@@ -203,7 +203,7 @@ class PageBinding:
             if str(span.text).strip()
         )
         if not spans and not source_table_regions:
-            return self._material_leaf(
+            return self._material_page_episode(
                 unit,
                 PageMaterial(
                     fate=page_fate(extraction=EXTRACT_OK),
@@ -274,6 +274,57 @@ class PageBinding:
             label=unit.label,
         )
 
+    def _material_page_episode(
+        self,
+        unit: PageUnit,
+        material: PageMaterial,
+    ) -> Episode:
+        """Give an already-resolved page the same Episode boundary as any page."""
+
+        return self._leaf_page_episode(
+            unit,
+            self._material_leaf(unit, material),
+        )
+
+    def _leaf_page_episode(self, unit: PageUnit, leaf: Leaf) -> Episode:
+        """Wrap one page leaf so every pulled page publishes an EpisodeUpdate."""
+
+        completed_material: Optional[PageMaterial] = None
+
+        def remember_material(
+            _item: Any,
+            contribution: Any,
+            _record: Any,
+        ) -> None:
+            nonlocal completed_material
+            if not isinstance(contribution.output, PageMaterial):
+                raise TypeError("page leaf must return PageMaterial")
+            completed_material = contribution.output
+
+        def publish(record: EpisodeRecord) -> EpisodeUpdate:
+            if completed_material is None:
+                raise RuntimeError("page leaf completed without PageMaterial")
+            result = unit.result
+            if not isinstance(result, PageResult):
+                raise TypeError("page leaf completed without PageResult")
+            return self._episode_update(
+                record,
+                output=PageEpisodeOutput(
+                    unit=unit,
+                    material=completed_material,
+                    result=result,
+                ),
+                retain_trace=self.checkpoint_completed_page is not None,
+            )
+
+        return Episode(
+            grain=self.page_grain,
+            key=unit.label,
+            source=_SingleAcquirableSource(leaf),
+            on_unit=remember_material,
+            to_parent=publish,
+        )
+
     def _make_page_leaf(
         self,
         task: SearchTask,
@@ -282,7 +333,7 @@ class PageBinding:
         *,
         episode_id: str,
         episode_path: tuple[tuple[str, str], ...],
-    ) -> Leaf:
+    ) -> Episode:
         unit = PageUnit(
             task=task,
             provider_result=result,
@@ -291,12 +342,15 @@ class PageBinding:
             episode_path=episode_path,
             label=f"{task.id}#{rank}",
         )
-        return Leaf(
-            unit=unit,
-            extract=self.fetch_extract,
-            accept=self.accept_evidence,
-            result=self._page_result,
-            label=unit.label,
+        return self._leaf_page_episode(
+            unit,
+            Leaf(
+                unit=unit,
+                extract=self.fetch_extract,
+                accept=self.accept_evidence,
+                result=self._page_result,
+                label=unit.label,
+            ),
         )
 
     def _page_result(
