@@ -244,14 +244,42 @@ being rebuilt into episode composition under that charter.
 path scoring and prompt mutation; where they assume the phase-batched round
 shape, `docs/ACQUISITION_LOOP.md` wins.
 
+## Argo shim procedure
+
+Reuse an existing healthy shim, because it is a shared local transport rather
+than one process per pipeline run. Check whether ports 12328 (SSH tunnel) and
+12329 (shim) are listening. If they are, leave that shim running and launch the
+question pipeline with `NANOGRAPHRAG_LLM_TRANSPORT=shim`. Stopping or restarting
+a pipeline worker does not stop or restart the shim.
+
+If those listeners are absent, start the shim with this exact command:
+
+```bash
+/home/chia/.local/bin/argo-shim --no-auth
+```
+
+Select Duo option 1 when prompted and wait for both built-in health checks to
+pass. The local shim has no authentication token. Do not read, create, copy, or
+send `NANOGRAPHRAG_SHIM_TOKEN`, `x-api-key`, or a value from
+`~/.claude/settings.json`; `--no-auth` is the required local mode. The launcher's
+printed `API key: chia` identifies the remote Argo account and is not a local
+shim token.
+
+Do not spend a separate model call testing an already healthy shim. The first
+model call required by the real pipeline is the transport validation. If that
+call fails, diagnose the recorded pipeline failure; do not add a preflight
+completion that consumes another call.
+
+Never restart or stop an existing shim as part of pipeline work. If an existing
+shim is unhealthy, report that condition to the operator instead of replacing
+the process.
+
 ## Stable corpus run procedure
 
 In this environment, use this exact detached launch method unless the repo
 itself changes in a way that invalidates it. Choose transport explicitly with
-`--transport direct` or `--transport shim`; do not rely on shell env. (As of
-2026-08-24 the shim's upstream tunnel is down and the operator has set it
-aside; `direct` with `LLM_API_KEY` in `.env` is the working transport for the
-question pipeline. Confirm with a one-token completion before a long run.)
+`--transport direct` or `--transport shim`; do not rely on shell env. Reuse or
+start the no-auth shim by the procedure above before selecting `shim`.
 
 ```bash
 run_id=corpus_YYYYMMDD_view_balanced_72
