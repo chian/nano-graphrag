@@ -2,17 +2,16 @@
 
 Authoritative project instructions for Claude Code.
 
-`AGENTS.md` holds the repository-local operational rules — question pipeline
-runs, the stable corpus run procedure, first-run validation, the runtime
-workflow checklist, the analysis rule, and directory discipline. Read it before
-doing work in this repo. Tools that discover `AGENTS.md` on their own should
-read this file too; neither file is a copy of the other.
+`AGENTS.md` holds the repository-local operational rules for question-pipeline
+runs, analysis, and directory discipline. Read it before doing work in this
+repo. Tools that discover `AGENTS.md` on their own should read this file too;
+neither file is a copy of the other.
 
 ## Where the work is
 
 Active: `question_pipeline/` (table-fill, goals, reward, search memory) and
-`gasl/`. Dormant: `visualization/`, untouched since 2026-06-04. Treat viz code
-as frozen unless the user reopens that work.
+`gasl/`. Visualization, presentations, generated reports, and run artifacts
+remain outside the tracked repository.
 
 Note the package inventory in `AGENTS.md` §"Module boundaries" before assuming a
 module exists, and check the directory rather than any list. Several modules
@@ -67,8 +66,6 @@ claims confirmed on two independent routes.
   Confirmed). Bottom layer; imports nothing. See `docs/ACQUISITION_LOOP.md`.
 - `nano_graphrag/` — ingestion and graph construction.
 - `domain_schemas/` — reusable typed schemas for extraction.
-- `visualization/` — browser UI, demo launchers, benchmark runners. Dormant.
-  May be graph-specific; the runtime invariants do not apply here.
 
 ## Checks
 
@@ -119,7 +116,7 @@ agents and the steward agents, verifies claims itself, and is the only writer
 of the tracker's phase table. The launching session writes the brief,
 dispatches once, and relays the report.
 
-**Layer agents** — `question-pipeline`, `gasl-runtime`, `corpus-runner`. Each
+**Layer agents** — `question-pipeline`, `gasl-runtime`. Each
 restates the rules for its layer and points at the governing doc.
 
 **Design stewards** — `experiment-steward`, `modularity-steward`,

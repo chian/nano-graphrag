@@ -46,9 +46,6 @@ gasl_checkpoints/
 ### `gasl/executor.py`
 - [ ] Pass `job_id` down to `MicroActionFramework` when creating commands
 
-### `visualization/server.py`
-- [ ] Pass job_id from the GASL job to the engine so checkpoints are keyed per-job
-
 ## Memory Model
 - In-flight: max 1 batch (~45 items) in RAM at a time during processing
 - After batch: write to disk, release from memory

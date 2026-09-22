@@ -35,15 +35,5 @@ That pipeline:
 
 ## Output format
 
-The result is a GraphML file suitable for the UI:
-
-```bash
-./launch_viz.sh path/to/graph.graphml
-```
-
-## Practical note
-
-If your goal is QA and visualization rather than ingestion, you do not
-need to start here. The main README is organized around the browser
-surface and query runtime. Build a graph only when you need to create or
-refresh the substrate itself.
+The result is a standard GraphML file. Build a graph only when you need to
+create or refresh the substrate used by the graph-query runtime.

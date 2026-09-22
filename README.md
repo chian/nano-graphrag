@@ -391,7 +391,6 @@ experiments/             registered predictions and experimental records;
                          production code never imports from here
 question_runs/           local run artifacts; not committed to GitHub
 docs/                    design charters, build trackers, and invariants
-visualization/           dormant browser/demo surface
 ```
 
 ## Running a Firecrawl table-fill acquisition
@@ -475,9 +474,3 @@ also use `.venv/bin/python tools/check_runtime_invariants.py`.
   rules
 - [GASL Guide](docs/GASL_GUIDE.md) — language and commands
 - [Graph Building](docs/GRAPH_BUILDING.md) — explicit graph-ingestion substrate
-
-## Dormant visualization surface
-
-`visualization/` has been dormant since 2026-06-04 and is frozen unless that
-work reopens. Its operating procedures remain available in repository history
-at `git show 92f8e64:AGENTS.md`.

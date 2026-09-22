@@ -4,10 +4,8 @@ This file is for repository-local agent instructions. It is not end-user
 documentation.
 
 Active work is the question pipeline (`question_pipeline/`) and the GASL
-engine (`gasl/`). The visualization and demo-video layer is dormant — no
-commits since 2026-06-04 — and its procedures are not documented here. If demo
-work restarts, recover them from `git show 92f8e64:AGENTS.md`, which has the
-verified safe-launcher and cinematic-pipeline rules.
+engine (`gasl/`). Visualization, presentations, generated reports, and run
+artifacts are not repository content; keep them outside the tracked tree.
 
 ## Rules for every agent in this repo
 
@@ -273,62 +271,6 @@ completion that consumes another call.
 Never restart or stop an existing shim as part of pipeline work. If an existing
 shim is unhealthy, report that condition to the operator instead of replacing
 the process.
-
-## Stable corpus run procedure
-
-In this environment, use this exact detached launch method unless the repo
-itself changes in a way that invalidates it. Choose transport explicitly with
-`--transport direct` or `--transport shim`; do not rely on shell env. Reuse or
-start the no-auth shim by the procedure above before selecting `shim`.
-
-```bash
-run_id=corpus_YYYYMMDD_view_balanced_72
-mkdir -p benchmark_results/$run_id
-setsid .venv/bin/python visualization/scripts/run_trace_corpus.py \
-  --transport shim \
-  --per-graph 18 \
-  --question-file visualization/question_sets/haiqu_view_balanced_18_per_graph.json \
-  --run-id "$run_id" \
-  > benchmark_results/$run_id/runner.log 2>&1 < /dev/null &
-echo $! > benchmark_results/$run_id/worker.pid
-```
-
-Do not invent alternate wrappers once this has been proven in-session.
-
-## First-run validation
-
-Before trusting a fresh corpus run, verify q001 has all of these:
-
-- OpenAI `200 OK` on the first planner call
-- `planner_prompt`
-- `planner_response`
-- `planner_plan`
-- at least one `command_result`
-
-Check these artifacts line by line:
-
-- `benchmark_results/<run_id>/q001/gasl_artifacts/traces/q001.jsonl`
-- `benchmark_results/<run_id>/q001/gasl_artifacts/prompt_observations.jsonl`
-- `benchmark_results/<run_id>/q001/gasl_state.json`
-
-If the worker is dead, `runner.log` is empty, or q001 stops before
-`planner_response`, the run is invalid. Fix the launch method first. Do not
-debug GASL from an invalid run.
-
-## Runtime workflow checklist
-
-For a healthy GASL run, the trace should show:
-
-- planner prompt emitted
-- planner response emitted
-- planner plan parsed
-- command start/result for each executed step
-- command-local repair response for commands that return `error` or `empty`
-- iteration failure summary when an iteration completes with defects
-- plan-iteration prompt/response when iteration-level defects remain after
-  command-local repair
-- produced artifacts recorded when commands materialize reusable state
-- final answer response emitted
 
 ## Analysis rule
 
