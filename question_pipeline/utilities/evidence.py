@@ -57,6 +57,25 @@ def _required(name: str, value: Any) -> str:
     return text
 
 
+def _unique_candidates(
+    candidates: Iterable[Any],
+    *,
+    label: str,
+) -> tuple[Any, ...]:
+    """Collapse exact repeats while rejecting conflicting stable identities."""
+
+    by_id: dict[str, Any] = {}
+    for candidate in candidates:
+        candidate_id = _required(f"{label} id", getattr(candidate, "id", ""))
+        existing = by_id.get(candidate_id)
+        if existing is None:
+            by_id[candidate_id] = candidate
+            continue
+        if existing != candidate:
+            raise ValueError(f"conflicting {label} share stable id {candidate_id!r}")
+    return tuple(by_id.values())
+
+
 @dataclass(frozen=True)
 class SourceDocument:
     id: str
@@ -227,7 +246,7 @@ class DirectAssertionCandidate:
     def create(cls, **values: Any) -> "DirectAssertionCandidate":
         from question_pipeline.utilities.tables import ColumnEvidenceRole
 
-        role = ColumnEvidenceRole.coerce(values.get("column_role"))
+        role = ColumnEvidenceRole.parse(values.get("column_role"))
         if role is not ColumnEvidenceRole.REPORTED:
             raise ValueError("DirectAssertionCandidate requires a reported column")
         values["column_role"] = role.value
@@ -292,7 +311,7 @@ class BestGuessAssertionCandidate:
     def create(cls, **values: Any) -> "BestGuessAssertionCandidate":
         from question_pipeline.utilities.tables import ColumnEvidenceRole
 
-        role = ColumnEvidenceRole.coerce(values.get("column_role"))
+        role = ColumnEvidenceRole.parse(values.get("column_role"))
         if role is not ColumnEvidenceRole.BEST_GUESS:
             raise ValueError("BestGuessAssertionCandidate requires a best_guess column")
         values["column_role"] = role.value
@@ -494,8 +513,14 @@ class EvidenceRegistry:
             raise ValueError("source content does not match SourceVersion")
         chunk_tuple = tuple(chunks)
         span_tuple = tuple(spans)
-        candidate_tuple = tuple(candidates)
-        best_guess_tuple = tuple(best_guess_candidates)
+        candidate_tuple = _unique_candidates(
+            candidates,
+            label="direct assertion candidates",
+        )
+        best_guess_tuple = _unique_candidates(
+            best_guess_candidates,
+            label="best-guess assertion candidates",
+        )
         chunks_by_id = {item.id: item for item in chunk_tuple}
         spans_by_id = {item.id: item for item in span_tuple}
         for span in span_tuple:
@@ -577,23 +602,29 @@ class EvidenceRegistry:
             str(item["id"]): item for item in batch.get("spans") or ()
             if isinstance(item, Mapping)
         }
-        candidates = [
-            DirectAssertionCandidate(**item)
-            for item in batch.get("assertion_candidates") or ()
-            if isinstance(item, Mapping)
-        ]
-        best_guess_candidates = [
-            BestGuessAssertionCandidate(
-                **{
-                    **dict(item),
-                    "supporting_chunk_ids": tuple(
-                        item.get("supporting_chunk_ids") or ()
-                    ),
-                }
-            )
-            for item in batch.get("best_guess_candidates") or ()
-            if isinstance(item, Mapping)
-        ]
+        candidates = _unique_candidates(
+            (
+                DirectAssertionCandidate(**item)
+                for item in batch.get("assertion_candidates") or ()
+                if isinstance(item, Mapping)
+            ),
+            label="direct assertion candidates",
+        )
+        best_guess_candidates = _unique_candidates(
+            (
+                BestGuessAssertionCandidate(
+                    **{
+                        **dict(item),
+                        "supporting_chunk_ids": tuple(
+                            item.get("supporting_chunk_ids") or ()
+                        ),
+                    }
+                )
+                for item in batch.get("best_guess_candidates") or ()
+                if isinstance(item, Mapping)
+            ),
+            label="best-guess assertion candidates",
+        )
         candidate_ids = {
             *(candidate.id for candidate in candidates),
             *(candidate.id for candidate in best_guess_candidates),
@@ -1186,20 +1217,27 @@ class EvidenceRegistry:
 import json
 import re
 from dataclasses import dataclass
+from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Iterable, Mapping, Protocol, runtime_checkable
+
+from dateutil import parser as date_parser
 
 from question_pipeline.utilities.acquisition import stable_id
 
 LEGACY_ACCEPTANCE_POLICY_VERSION = "typed_evidence_acceptor_v1"
-ACCEPTANCE_POLICY_VERSION = "goal_evidence_acceptor_v2"
-DIRECT_GOAL_ACCEPTANCE_RULE_VERSION = "direct_exact_span_plus_goal_semantic_v1"
+ACCEPTANCE_POLICY_VERSION = "goal_evidence_acceptor_v3"
+DIRECT_GOAL_ACCEPTANCE_RULE_VERSION = "direct_exact_span_plus_split_goal_judgment_v2"
 BEST_GUESS_GOAL_ACCEPTANCE_RULE_VERSION = (
-    "best_guess_anchored_reasoning_plus_goal_semantic_v1"
+    "best_guess_anchored_reasoning_plus_split_goal_judgment_v2"
 )
 
-_GOAL_EVIDENCE_JUDGMENT_TIER = register_call_site_tier(
-    "goal-evidence-semantic-judgment",
+_GOAL_SUBJECT_JUDGMENT_TIER = register_call_site_tier(
+    "goal-subject-semantic-judgment",
+    ModelTier.REASONING,
+)
+_GOAL_FIELD_JUDGMENT_TIER = register_call_site_tier(
+    "goal-field-semantic-judgment",
     ModelTier.REASONING,
 )
 
@@ -1291,10 +1329,11 @@ class GoalEvidenceAcceptor:
     """Accept only source-grounded candidates that semantically fit the Goal.
 
     Exact reported-value and anchored-best-guess checks remain deterministic.
-    Candidates that pass those checks are then judged against the Goal contract,
-    together with their subject's other proposed fields and exact source chunks.
-    This model call is necessary because field meaning and entity membership are
-    semantic questions; it makes no numerical control or stopping decision.
+    Candidates that pass those checks go through two focused semantic calls:
+    one resolves whether the evidence describes one subject at the target row
+    grain, and one judges each proposed field. A deterministic finalizer then
+    applies only the target table's declared admission rules. Neither model
+    call makes an admission, credit, numerical-control, or stopping decision.
     """
 
     version = ACCEPTANCE_POLICY_VERSION
@@ -1315,8 +1354,14 @@ class GoalEvidenceAcceptor:
         spans: Iterable[TextSpan],
         chunks: Iterable[SourceChunk],
     ) -> AcceptanceDecision:
-        direct = tuple(direct_candidates)
-        best_guesses = tuple(best_guess_candidates)
+        direct = _unique_candidates(
+            direct_candidates,
+            label="direct assertion candidates",
+        )
+        best_guesses = _unique_candidates(
+            best_guess_candidates,
+            label="best-guess assertion candidates",
+        )
         spans_by_id = {span.id: span for span in spans}
         chunks_by_id = {chunk.id: chunk for chunk in chunks}
 
@@ -1402,14 +1447,39 @@ class GoalEvidenceAcceptor:
                 (candidate.table, candidate.subject_id), []
             ).append((candidate, kind))
 
-        subjects = [
-            self._subject_payload(table, subject_id, assignments, spans, chunks)
-            for (table, subject_id), assignments in grouped.items()
-        ]
+        contract = dict(self._goal_contract())
+        raw_tables = contract.get("tables")
+        if not isinstance(raw_tables, Mapping):
+            raise ValueError("Goal contract requires a tables mapping")
+        subjects = []
+        for (table, subject_id), assignments in grouped.items():
+            raw_table = raw_tables.get(table)
+            if not isinstance(raw_table, Mapping):
+                raise ValueError(
+                    f"Goal contract has no target table {table!r}"
+                )
+            subjects.append(
+                self._subject_payload(
+                    table,
+                    subject_id,
+                    assignments,
+                    spans,
+                    chunks,
+                    target_contract=raw_table,
+                )
+            )
         decisions: dict[str, tuple[bool, str]] = {}
         for start in range(0, len(subjects), GOAL_EVIDENCE_SUBJECTS_PER_CALL):
             batch = subjects[start : start + GOAL_EVIDENCE_SUBJECTS_PER_CALL]
-            decisions.update(await self._judge_batch(batch))
+            subject_decisions = await self._judge_subject_batch(batch)
+            field_decisions = await self._judge_field_batch(batch)
+            decisions.update(
+                self._finalize_batch(
+                    batch,
+                    subject_decisions=subject_decisions,
+                    field_decisions=field_decisions,
+                )
+            )
         expected = {candidate.id for candidate, _kind in eligible}
         if set(decisions) != expected:
             raise ValueError(
@@ -1425,6 +1495,8 @@ class GoalEvidenceAcceptor:
         assignments: Sequence[tuple[Any, str]],
         spans: Mapping[str, TextSpan],
         chunks: Mapping[str, SourceChunk],
+        *,
+        target_contract: Mapping[str, Any],
     ) -> dict[str, Any]:
         evidence_ids: list[str] = []
         rows: list[dict[str, Any]] = []
@@ -1456,6 +1528,7 @@ class GoalEvidenceAcceptor:
         return {
             "subject_id": subject_id,
             "target_table": table,
+            "target_contract": dict(target_contract),
             "assignments": rows,
             "supporting_evidence": [
                 {"evidence_id": item, "text": chunks[item].text}
@@ -1463,44 +1536,73 @@ class GoalEvidenceAcceptor:
             ],
         }
 
-    async def _judge_batch(
+    @staticmethod
+    def _subject_contract(subject: Mapping[str, Any]) -> dict[str, Any]:
+        target = dict(subject.get("target_contract") or {})
+        return {
+            "table": str(subject.get("target_table") or ""),
+            "description": target.get("description", ""),
+            "grain": target.get("grain", ""),
+            "subject_key_columns": list(
+                target.get("subject_key_columns") or ()
+            ),
+            "identity_anchors": list(target.get("identity_anchors") or ()),
+        }
+
+    @staticmethod
+    def _field_contract(subject: Mapping[str, Any]) -> dict[str, Any]:
+        target = dict(subject.get("target_contract") or {})
+        columns = dict(target.get("columns") or {})
+        used = {
+            str(item.get("target_field") or "")
+            for item in subject.get("assignments") or ()
+        }
+        return {
+            "table": str(subject.get("target_table") or ""),
+            "description": target.get("description", ""),
+            "grain": target.get("grain", ""),
+            "columns": {
+                name: dict(spec)
+                for name, spec in columns.items()
+                if name in used and isinstance(spec, Mapping)
+            },
+        }
+
+    async def _judge_subject_batch(
         self,
         subjects: Sequence[Mapping[str, Any]],
     ) -> dict[str, tuple[bool, str]]:
-        contract = dict(self._goal_contract())
-        prompt = f"""GOAL CONTRACT:
-{json.dumps(contract, ensure_ascii=False, sort_keys=True, default=str)}
+        payload_subjects = [
+            {
+                "subject_id": subject["subject_id"],
+                "target_contract": self._subject_contract(subject),
+                "proposed_assignments": subject.get("assignments") or (),
+                "supporting_evidence": subject.get("supporting_evidence") or (),
+            }
+            for subject in subjects
+        ]
+        prompt = f"""PROPOSED SUBJECTS:
+{json.dumps(payload_subjects, ensure_ascii=False, default=str)}
 
-PROPOSED SUBJECTS AND FIELD ASSIGNMENTS:
-{json.dumps(list(subjects), ensure_ascii=False, default=str)}
+Resolve only the subject question. For each supplied subject_id, decide whether
+the assignments and evidence coherently describe one subject at that target
+table's declared row grain. Use only that target's identity columns and identity
+anchors. A broad aggregate, unrelated co-mentions, or text that does not
+describe a real instance at the row grain is unresolved.
 
-Judge the proposed assignments before any value enters the Goal. For each
-subject, first decide whether the supplied evidence establishes that it belongs
-to the declared target, including its row grain and every admission rule. Then
-judge whether each proposed value is actually about that subject and supports
-the meaning of its particular target field. Similar words, a copied number, or
-verbatim presence alone are not semantic support. A statement about deaths does
-not support injuries, displacement, or economic damage. A best guess must also
-be supported by its stated reasoning and cited evidence.
-
-Do not rewrite values, invent evidence, fill missing fields, or make any search,
-credit, stopping, or numerical-control decision. Return every supplied subject
-and candidate id exactly once.
+Do not judge individual target fields. Do not require missing result fields,
+row completeness, any admission rule, or proof that a related parent-table row
+has already been admitted. Do not rewrite values, merge supplied subject ids,
+invent evidence, or make a credit, stopping, or numerical-control decision.
+Return every supplied subject_id exactly once.
 
 Return exactly:
 {{
   "subjects": [
     {{
       "subject_id": "supplied subject id",
-      "admitted": true,
-      "reason": "brief evidence-grounded reason",
-      "assignments": [
-        {{
-          "candidate_id": "supplied candidate id",
-          "accepted": true,
-          "reason": "brief field-specific reason"
-        }}
-      ]
+      "resolved": true,
+      "reason": "brief evidence-grounded subject-resolution reason"
     }}
   ]
 }}"""
@@ -1508,82 +1610,266 @@ Return exactly:
             self._llm,
             prompt,
             system_prompt=(
-                "You are the semantic acceptance boundary for a structured "
-                "research Goal. Judge only whether supplied, source-grounded "
-                "evidence belongs to the declared subject and target field. "
-                "Return one JSON object."
+                "You resolve whether source-grounded mentions describe one "
+                "subject at a declared row grain. You do not judge fields, "
+                "admission, completeness, or credit. Return one JSON object."
             ),
-            tier=_GOAL_EVIDENCE_JUDGMENT_TIER,
-            call_site="goal-evidence-semantic-judgment",
+            tier=_GOAL_SUBJECT_JUDGMENT_TIER,
+            call_site="goal-subject-semantic-judgment",
         )
         if not isinstance(payload, Mapping):
-            raise ValueError("semantic Goal judgment must return an object")
+            raise ValueError("subject judgment must return an object")
         raw_subjects = payload.get("subjects")
         if not isinstance(raw_subjects, Sequence) or isinstance(
             raw_subjects, (str, bytes)
         ):
-            raise ValueError("semantic Goal judgment requires a subjects list")
-
-        expected_subjects = {
-            str(subject["subject_id"]): {
-                str(item["candidate_id"])
-                for item in subject.get("assignments") or ()
-            }
-            for subject in subjects
-        }
-        seen_subjects: set[str] = set()
+            raise ValueError("subject judgment requires a subjects list")
+        expected = {str(subject["subject_id"]) for subject in subjects}
         decisions: dict[str, tuple[bool, str]] = {}
         for raw_subject in raw_subjects:
             if not isinstance(raw_subject, Mapping):
-                raise ValueError("semantic Goal subject verdict must be an object")
+                raise ValueError("subject verdict must be an object")
             subject_id = str(raw_subject.get("subject_id") or "")
-            if subject_id not in expected_subjects or subject_id in seen_subjects:
-                raise ValueError("semantic Goal judgment returned an unknown or repeated subject")
-            admitted = raw_subject.get("admitted")
-            if not isinstance(admitted, bool):
-                raise ValueError("semantic Goal subject admission must be boolean")
-            raw_assignments = raw_subject.get("assignments")
-            if not isinstance(raw_assignments, Sequence) or isinstance(
-                raw_assignments, (str, bytes)
-            ):
-                raise ValueError("semantic Goal judgment requires assignment verdicts")
-            seen_candidates: set[str] = set()
-            subject_reason = str(raw_subject.get("reason") or "").strip()
-            for raw_assignment in raw_assignments:
-                if not isinstance(raw_assignment, Mapping):
-                    raise ValueError("semantic assignment verdict must be an object")
-                candidate_id = str(raw_assignment.get("candidate_id") or "")
-                if (
-                    candidate_id not in expected_subjects[subject_id]
-                    or candidate_id in seen_candidates
-                ):
-                    raise ValueError(
-                        "semantic Goal judgment returned an unknown or repeated candidate"
-                    )
-                accepted = raw_assignment.get("accepted")
-                if not isinstance(accepted, bool):
-                    raise ValueError("semantic field acceptance must be boolean")
-                field_reason = str(raw_assignment.get("reason") or "").strip()
-                final = admitted and accepted
-                reason = field_reason if admitted else subject_reason
-                decisions[candidate_id] = (
-                    final,
-                    (
-                        "goal_semantic_match"
-                        if final
-                        else "goal_semantic_rejected"
-                    )
-                    + (f": {reason}" if reason else ""),
-                )
-                seen_candidates.add(candidate_id)
-            if seen_candidates != expected_subjects[subject_id]:
+            if subject_id not in expected or subject_id in decisions:
                 raise ValueError(
-                    "semantic Goal judgment omitted an assignment verdict"
+                    "subject judgment returned an unknown or repeated subject"
                 )
-            seen_subjects.add(subject_id)
-        if seen_subjects != set(expected_subjects):
-            raise ValueError("semantic Goal judgment omitted a subject verdict")
+            resolved = raw_subject.get("resolved")
+            if not isinstance(resolved, bool):
+                raise ValueError("subject resolution must be boolean")
+            decisions[subject_id] = (
+                resolved,
+                str(raw_subject.get("reason") or "").strip(),
+            )
+        if set(decisions) != expected:
+            raise ValueError("subject judgment omitted a subject verdict")
         return decisions
+
+    async def _judge_field_batch(
+        self,
+        subjects: Sequence[Mapping[str, Any]],
+    ) -> dict[str, tuple[bool, str]]:
+        payload_subjects = [
+            {
+                "subject_id": subject["subject_id"],
+                "target_contract": self._field_contract(subject),
+                "assignments": subject.get("assignments") or (),
+                "supporting_evidence": subject.get("supporting_evidence") or (),
+            }
+            for subject in subjects
+        ]
+        prompt = f"""SUBJECT-BOUND FIELD ASSIGNMENTS:
+{json.dumps(payload_subjects, ensure_ascii=False, default=str)}
+
+Judge only field meaning. For every candidate_id, decide whether the cited
+evidence supports the proposed value as the meaning of its declared target
+field for the supplied subject. Similar words, a copied number, or verbatim
+presence alone are not semantic support. A statement about deaths does not
+support injuries, displacement, or economic damage. A best guess must also be
+supported by its stated reasoning and cited evidence.
+
+Judge each field on its own evidence. Do not require other fields, row
+completeness, any admission rule, or proof that a related parent-table row has
+already been admitted. Do not resolve or merge subjects, rewrite values, invent
+evidence, or make a credit, stopping, or numerical-control decision. Return
+every supplied candidate_id exactly once.
+
+Return exactly:
+{{
+  "assignments": [
+    {{
+      "candidate_id": "supplied candidate id",
+      "supported": true,
+      "reason": "brief field-specific reason"
+    }}
+  ]
+}}"""
+        payload = await ask_json(
+            self._llm,
+            prompt,
+            system_prompt=(
+                "You judge whether exact source-grounded evidence supports "
+                "one declared field. You do not judge subject admission, "
+                "completeness, or credit. Return one JSON object."
+            ),
+            tier=_GOAL_FIELD_JUDGMENT_TIER,
+            call_site="goal-field-semantic-judgment",
+        )
+        if not isinstance(payload, Mapping):
+            raise ValueError("field judgment must return an object")
+        raw_assignments = payload.get("assignments")
+        if not isinstance(raw_assignments, Sequence) or isinstance(
+            raw_assignments, (str, bytes)
+        ):
+            raise ValueError("field judgment requires an assignments list")
+        expected = {
+            str(item["candidate_id"])
+            for subject in subjects
+            for item in subject.get("assignments") or ()
+        }
+        decisions: dict[str, tuple[bool, str]] = {}
+        for raw_assignment in raw_assignments:
+            if not isinstance(raw_assignment, Mapping):
+                raise ValueError("field verdict must be an object")
+            candidate_id = str(raw_assignment.get("candidate_id") or "")
+            if candidate_id not in expected or candidate_id in decisions:
+                raise ValueError(
+                    "field judgment returned an unknown or repeated candidate"
+                )
+            supported = raw_assignment.get("supported")
+            if not isinstance(supported, bool):
+                raise ValueError("field support must be boolean")
+            decisions[candidate_id] = (
+                supported,
+                str(raw_assignment.get("reason") or "").strip(),
+            )
+        if set(decisions) != expected:
+            raise ValueError("field judgment omitted an assignment verdict")
+        return decisions
+
+    @classmethod
+    def _finalize_batch(
+        cls,
+        subjects: Sequence[Mapping[str, Any]],
+        *,
+        subject_decisions: Mapping[str, tuple[bool, str]],
+        field_decisions: Mapping[str, tuple[bool, str]],
+    ) -> dict[str, tuple[bool, str]]:
+        decisions: dict[str, tuple[bool, str]] = {}
+        for subject in subjects:
+            subject_id = str(subject["subject_id"])
+            resolved, subject_reason = subject_decisions[subject_id]
+            admission_ok, admission_reason = cls._admission_decision(
+                subject,
+                field_decisions,
+            )
+            for assignment in subject.get("assignments") or ():
+                candidate_id = str(assignment["candidate_id"])
+                supported, field_reason = field_decisions[candidate_id]
+                accepted = resolved and supported and admission_ok
+                if not resolved:
+                    reason = "goal_subject_rejected"
+                    detail = subject_reason
+                elif not supported:
+                    reason = "goal_field_rejected"
+                    detail = field_reason
+                elif not admission_ok:
+                    reason = "goal_admission_rejected"
+                    detail = admission_reason
+                else:
+                    reason = "goal_semantic_match"
+                    detail = field_reason
+                decisions[candidate_id] = (
+                    accepted,
+                    reason + (f": {detail}" if detail else ""),
+                )
+        return decisions
+
+    @classmethod
+    def _admission_decision(
+        cls,
+        subject: Mapping[str, Any],
+        field_decisions: Mapping[str, tuple[bool, str]],
+    ) -> tuple[bool, str]:
+        target = dict(subject.get("target_contract") or {})
+        rules = tuple(
+            rule
+            for rule in target.get("admission_rules") or ()
+            if isinstance(rule, Mapping)
+        )
+        if not rules:
+            return True, "target table declares no admission rules"
+
+        columns = dict(target.get("columns") or {})
+        values_by_slot: dict[str, list[tuple[Any, str]]] = {}
+        for assignment in subject.get("assignments") or ():
+            candidate_id = str(assignment.get("candidate_id") or "")
+            supported, _reason = field_decisions[candidate_id]
+            if not supported:
+                continue
+            field_name = str(assignment.get("target_field") or "")
+            spec = columns.get(field_name)
+            if not isinstance(spec, Mapping):
+                continue
+            value_slot = str(spec.get("value_slot") or field_name)
+            values_by_slot.setdefault(value_slot, []).append(
+                (assignment.get("proposed_value"), str(spec.get("value_type") or ""))
+            )
+
+        rules_by_field: dict[str, list[Mapping[str, Any]]] = {}
+        for rule in rules:
+            rules_by_field.setdefault(str(rule.get("field") or ""), []).append(rule)
+
+        failed: list[str] = []
+        for field_name, field_rules in rules_by_field.items():
+            values = values_by_slot.get(field_name, ())
+            if not values:
+                failed.extend(str(rule.get("rule_id") or "") for rule in field_rules)
+                continue
+            if not any(
+                all(
+                    cls._admission_rule_matches(value, value_type, rule)
+                    for rule in field_rules
+                )
+                for value, value_type in values
+            ):
+                failed.extend(str(rule.get("rule_id") or "") for rule in field_rules)
+        if failed:
+            return False, "unsatisfied declared admission rule(s): " + ", ".join(failed)
+        return True, "all declared admission rules satisfied"
+
+    @classmethod
+    def _admission_rule_matches(
+        cls,
+        actual: Any,
+        value_type: str,
+        rule: Mapping[str, Any],
+    ) -> bool:
+        operator = str(rule.get("operator") or "")
+        expected = rule.get("value")
+        left = cls._admission_value(actual, value_type)
+        right = cls._admission_value(expected, value_type)
+        if left is None or right is None:
+            return False
+        if operator == "eq":
+            return left == right
+        if operator == "neq":
+            return left != right
+        if operator == "gt":
+            return left > right
+        if operator == "gte":
+            return left >= right
+        if operator == "lt":
+            return left < right
+        if operator == "lte":
+            return left <= right
+        raise ValueError(f"unsupported admission operator {operator!r}")
+
+    @staticmethod
+    def _admission_value(value: Any, value_type: str) -> Any:
+        kind = str(value_type or "").strip().lower()
+        if kind in {"number", "integer"}:
+            return _numeric_value(value)
+        if kind == "year":
+            try:
+                return int(str(value).strip())
+            except (TypeError, ValueError):
+                return None
+        if kind == "date":
+            try:
+                parsed = date_parser.parse(str(value), fuzzy=False)
+            except (TypeError, ValueError, OverflowError):
+                return None
+            if isinstance(parsed, datetime):
+                return parsed.date()
+            if isinstance(parsed, date):
+                return parsed
+            return None
+        if value is None:
+            return None
+        if isinstance(value, (Mapping, list, tuple, set)):
+            return None
+        return " ".join(str(value).split()).casefold()
 
     @staticmethod
     def _direct(

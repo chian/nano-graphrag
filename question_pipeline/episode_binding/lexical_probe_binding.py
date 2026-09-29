@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from method_loop import EpisodeGoal, EpisodeRequest
+
+from question_pipeline.episode_binding.chunk_binding import ChunkResult
 from question_pipeline.episode_binding.provider_binding import *
 
 class RankedChunkSource:
@@ -38,7 +41,24 @@ class LexicalProbeBinding:
         *,
         page_episode_id: str,
         page_path: tuple[tuple[str, str], ...],
+        parent_goal: EpisodeGoal,
     ) -> Episode:
+        proposal_record = (
+            proposal.to_dict()
+            if hasattr(proposal, "to_dict")
+            else dict(proposal)
+            if isinstance(proposal, Mapping)
+            else proposal
+        )
+        goal = EpisodeGoal.for_grain(
+            self.lexical_probe_grain,
+            parent=parent_goal,
+            objective={
+                "page_episode_id": page_episode_id,
+                "probe_key": probe_key,
+                "proposal": proposal_record,
+            },
+        )
         probe_path = page_path + ((self.lexical_probe_grain.name, probe_key),)
         probe_ref = Episode.identity(
             self.controller.context,
@@ -61,6 +81,11 @@ class LexicalProbeBinding:
             grain=self.lexical_probe_grain,
             key=probe_key,
             source=source,
+            request=EpisodeRequest(
+                goal=goal,
+                input=proposal_record,
+                prompt_context={"parent_episode_id": page_episode_id},
+            ),
             on_unit=lambda leaf, contribution, record: self._on_chunk(
                 state, leaf, contribution, record
             ),
@@ -77,6 +102,10 @@ class LexicalProbeBinding:
         """Close one chunk pull and make it ineligible for every later probe."""
 
         unit = leaf.unit
+        transition = contribution.goal_result
+        if not isinstance(transition, GoalTransition):
+            raise TypeError("chunk Goal proposal completed without GoalTransition")
+        unit.attach_result(ChunkResult(goal_transition=transition))
         state.processed_chunk_ids.add(unit.label)
         state.chunk_units.append(unit)
         material = contribution.output

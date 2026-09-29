@@ -37,7 +37,8 @@ Episode.
   +------------------------------------------------------------------+
   |                                                                  |
   v                                                                  |
-source reads this Episode's request, compact updates, and control state
+source reads this Episode's immutable Goal, starting context,
+compact updates, and control state
   |                                                                  |
   v                                                                  |
 choose the next unit                                                  |
@@ -95,9 +96,11 @@ Firecrawl table-fill binding has this shape:
 run Episode
 └── strategy Episode
     └── search Episode
-        └── page Episode
+        └── page Episode selected from the Jev-scored Firecrawl buffer
             ├── source-table Episode
             │   └── execute one query over parsed source rows
+            ├── report Episode
+            │   └── process one ordered report window
             └── lexical-probe Episode
                 └── process one non-table chunk
 ```
@@ -127,9 +130,10 @@ Each level answers a different question with the same method:
 | Episode level | One unit | What ending the Episode means |
 | --- | --- | --- |
 | source table | one deterministic query over parsed, unprocessed source rows | return control to the page after the source-table query space is exhausted or rarefied |
+| report | one ordered prose window with source-linked memory | return control to the page after the report is exhausted or rarefied |
 | lexical probe | one previously unprocessed ranked chunk | return control to the page so it can propose another vocabulary over the remaining chunks |
-| page | one completed source-table or lexical-probe Episode | finish this document and return its distinct findings to the search |
-| search | one fetched page or document | stop consuming that Firecrawl result list |
+| page | one completed source-table, report, or lexical-probe Episode | finish this document and return its distinct findings to the search |
+| search | one Page Episode selected by Jev relevance probability, with Firecrawl rank as tie-breaker | stop consuming that Firecrawl result list |
 | strategy | one completed search Episode | stop pursuing that strategy family |
 | run | one completed strategy Episode | end the declared acquisition run |
 
@@ -187,6 +191,18 @@ found in the document, while a strategy can replace a saturated Web search
 with a different search angle. The model proposes the next string; the
 numerical component decides whether there should be another attempt.
 
+The search parent is also a proposer. Firecrawl returns a ranked buffer with
+inline-scraped page text. Before any Page Episode opens, Jev evaluates every
+candidate against the immutable Search Goal. The search parent selects the
+remaining candidate with the greatest relevance probability; Firecrawl rank
+breaks ties. This changes Page-child order, not the stop rule: realized Page
+results still go to the search controller, which alone decides when that
+Search Episode ends. Every probability and selection is retained with the
+provider rank in the search record. Jev inputs are measured in tokens: each
+request has a 64,000-token budget, 5,000 tokens are reserved for the Goal,
+query, metadata, and decision instructions, and page text uses the remaining
+59,000 tokens before lossless token-boundary windowing is required.
+
 ### The table language
 
 `source_table_language/` is a reusable source-table interpreter, separate from both
@@ -239,6 +255,12 @@ source and unit types, Episode builder, local hooks, and compact parent update.
 It does not choose its parent or concrete child type. The terminal chunk Leaf
 has its own binding module but no Grain.
 
+Every Episode also has one immutable `EpisodeGoal`. A root Goal has no parent.
+A nested Goal is derived from the containing Goal, and the method rejects a
+child whose Goal does not name that parent. The first call to `next(view)` is
+initial planning under that Goal because `view.updates` is empty; later calls
+replan under the same Goal with measured updates.
+
 First, declare the level. State plainly what one turn processes and what useful
 result one turn can add:
 
@@ -257,6 +279,7 @@ time. Return `None` when there are no more items:
 ```python
 class ToolSource:
     def next(self, view):
+        # view.goal is immutable for the lifetime of this Episode.
         # view.updates contains compact messages from completed children.
         return choose_next_item(view)
 ```
@@ -272,10 +295,16 @@ source = leaves(
     label=lambda item: item.stable_name,
 )
 
+goal = EpisodeGoal.for_grain(
+    grain,
+    objective={"task": "find documents relevant to the declared question"},
+)
+
 episode = Episode(
     grain=grain,
     key="search-1",
     source=source,
+    request=EpisodeRequest(goal=goal),
     on_unit=handle_completed_unit,
 )
 ```
@@ -312,7 +341,12 @@ class ChildEpisodeSource:
         self._build_child = build_child
 
     def next(self, view):
-        return self._build_child(view)  # or None when finished
+        child_goal = EpisodeGoal.for_grain(
+            child_grain,
+            parent=view.goal,
+            objective={"task": "complete one child operation"},
+        )
+        return self._build_child(child_goal)  # or None when finished
 ```
 
 The child also needs a `to_parent` function. It converts the full child trace
@@ -323,8 +357,10 @@ child = Episode(
     grain=child_grain,
     key="child-1",
     source=child_source,
+    request=EpisodeRequest(goal=child_goal),
     to_parent=lambda record: EpisodeUpdate(
         record_id=record.episode_id,
+        goal=record.goal,
         controller_input=combine_child_results(record),
         prompt_context=summarize_for_parent_prompt(record),
     ),
@@ -345,8 +381,7 @@ by each Grain's controller function; `Context` does not know its schema:
 
 ```python
 ctx = Context(
-    run_id="run-1",
-    order=(outer_grain, child_grain),
+    tree=EpisodeTree.linear((outer_grain, child_grain)),
 )
 
 record = await outer_episode.run_async(ctx)
@@ -400,7 +435,7 @@ python3 -m venv .venv
 . .venv/bin/activate
 pip install -r requirements.txt
 
-FIRECRAWL_API_KEY=... LLM_API_KEY=... \
+FIRECRAWL_API_KEY=... LLM_API_KEY=... TYPESAFE_API_KEY=... \
   .venv/bin/python run_question_pipeline.py \
     --pipeline-mode table-fill \
     --question "Which fatal earthquakes since 1900 have reported magnitude, deaths, injuries, displacement, and economic damage?" \
@@ -409,9 +444,11 @@ FIRECRAWL_API_KEY=... LLM_API_KEY=... \
 ```
 
 Firecrawl may return many results in one provider response, but that response
-is only a buffer. The search Episode pulls, fetches, extracts, accepts, credits,
-and evaluates one source before pulling the next. There is no papers-per-query
-or rounds control.
+is only a buffer. Jev scores the returned page texts against the Search Goal;
+the Search Episode then processes the highest-probability remaining page,
+accepts and credits its evidence, and evaluates the numerical verdict before
+selecting another Page child. Firecrawl rank remains the tie-breaker. There is
+no papers-per-query or rounds control.
 
 Resume a durable Episode checkpoint with:
 

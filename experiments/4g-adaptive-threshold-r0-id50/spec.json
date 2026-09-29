@@ -1,0 +1,41 @@
+{
+  "experiment_id": "4g-adaptive-threshold-r0-id50-v1",
+  "task": {
+    "question": "Across infectious diseases, what infectious-dose measurements (including ID50, HID50, and MID) and basic reproduction-number (R0) estimates have been reported, and what evidence supports or contradicts a relationship between infectious dose and R0?",
+    "pipeline_mode": "table_fill",
+    "schema": "infectious_dose_r0_comparisons",
+    "output_dir": "question_runs/r0_id50_adaptive_20260924_v01"
+  },
+  "population": "Every completed numerical transition on the fresh live Episode tree, stratified by grain and structural path.",
+  "intervention": {
+    "threshold_policy": "adaptive_marginal_credit_threshold_v1",
+    "efficiency_fraction": 0.1,
+    "productive_baseline": "median nonzero realized hypervolume credit in the trailing estimator window, carrying the last identifiable baseline across a barren window",
+    "one_result_resolution": "smallest positive current hypervolume change from one additional unique identity on one open required channel",
+    "gamma": "max(one_result_resolution, efficiency_fraction * productive_baseline)",
+    "fixed_comparison_grain": "lexical_probe",
+    "fixed_comparison_gamma": 0.06
+  },
+  "bounds": {
+    "max_source_units": 0,
+    "episode_unit_safety_cap": 1000000,
+    "interpretation": "unbounded acquisition; only numerical Episode verdicts or physical/source failure ends count as method outcomes"
+  },
+  "prediction": "Once an adaptive Episode has an identifiable one-result resolution or productive-unit baseline, its recorded gamma becomes an explicit nonzero efficiency threshold whenever either component is positive. Repeated low predicted marginal credit then produces a yield_stop before continued low-value sampling; the full run is allowed to end only through its own live tree.",
+  "falsification": "The policy remains ready with gamma zero while a positive component is recorded, advances a stop streak while both components are unavailable, or eligible adaptive Episodes repeatedly remain below their recorded positive gamma without reaching their declared streak and yield_stop.",
+  "confirmation": [
+    "acquisition_episodes.json contains a ThresholdUpdate on every counted controller verdict",
+    "gamma exactly equals the maximum of the recorded one-result resolution and 0.1 times the recorded productive baseline",
+    "threshold_insufficient transitions do not advance flat_streak",
+    "at least one eligible adaptive Episode reaches yield_stop under its own recorded threshold history"
+  ],
+  "implementation": {
+    "base_commit": "efe161dfec7595f7168b3ea626d61011147cc130",
+    "question_pipeline/utilities/rarefaction.py": "db5d9d4632b2d040ecd1771e66b58f5c10415c65f0a77cd1f3a58634e3ecf1d1",
+    "question_pipeline/episode_binding/provider_binding.py": "0821a5823c2e4537337b71e041e9dac283eb594a1fc06edb2c100d905f1b4b9c",
+    "method_loop/episode.py": "bb4729f963f31387948bb9cc849c45e6ae3a95e686a0d436dc596c597ab5a195",
+    "method_loop/runtime.py": "634b0ee8b9cfe552d7ccd50b7b1757706ca3b78b5dae6416bf7c7014cca95a74",
+    "run_question_pipeline.py": "ffd9cd55a07b109ed619b80051c92e5df7840e515bda3131d4bbd89fbb569006",
+    "question_pipeline/pipeline.py": "ce7312bdcfbfae570bde5bddef3b6633210cf17794003f110b7c61f326708ee1"
+  }
+}

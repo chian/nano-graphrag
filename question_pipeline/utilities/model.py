@@ -209,6 +209,7 @@ def _write_manifest(scope: PromptScope) -> None:
 import asyncio
 import functools
 import math
+import os
 import random
 import sys
 import threading
@@ -220,6 +221,9 @@ from email.utils import parsedate_to_datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any
+
+import requests
+import tiktoken
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
@@ -234,6 +238,10 @@ class LLMJSONError(RuntimeError):
     """Raised when the model never returns parseable JSON."""
 
 
+class JevTokenLimitError(RuntimeError):
+    """Jev rejected a request because its own token count exceeded context."""
+
+
 class ModelTier(str, Enum):
     """The class of model a call site's work needs.
 
@@ -244,6 +252,440 @@ class ModelTier(str, Enum):
 
     REASONING = "reasoning"
     FAST = "fast"
+
+
+JEV_API_ENDPOINT = "https://api.typesafe.ai/v1/systemone"
+JEV_MODEL = "jev-1.13.0"
+JEV_TOKEN_ENCODING = "o200k_base"
+JEV_REQUEST_TOKEN_BUDGET = 64_000
+
+
+@functools.lru_cache(maxsize=None)
+def _token_encoding(name: str = JEV_TOKEN_ENCODING) -> Any:
+    return tiktoken.get_encoding(name)
+
+
+def token_count(value: Any, *, encoding_name: str = JEV_TOKEN_ENCODING) -> int:
+    """Count tokens in the exact serialized value used for a provider call."""
+
+    text = (
+        value
+        if isinstance(value, str)
+        else json.dumps(
+            value,
+            ensure_ascii=False,
+            allow_nan=False,
+            separators=(",", ":"),
+            default=str,
+        )
+    )
+    return len(
+        _token_encoding(encoding_name).encode(
+            text,
+            disallowed_special=(),
+        )
+    )
+
+
+def token_window_text(
+    text: str,
+    *,
+    budget: int,
+    encoding_name: str = JEV_TOKEN_ENCODING,
+) -> list[str]:
+    """Split text losslessly into windows bounded by encoded token count."""
+
+    if not text:
+        return []
+    token_budget = int(budget)
+    if token_budget <= 0:
+        raise ValueError("token window budget must be positive")
+    encoding = _token_encoding(encoding_name)
+    token_ids = encoding.encode(text, disallowed_special=())
+    if len(token_ids) <= token_budget:
+        return [text]
+
+    decoded, offsets = encoding.decode_with_offsets(token_ids)
+    if decoded != text:
+        raise ValueError("token encoding did not round-trip page text")
+    windows: list[str] = []
+    start_token = 0
+    start_char = 0
+    token_total = len(token_ids)
+    while start_token < token_total:
+        end_token = min(token_total, start_token + token_budget)
+        if end_token == token_total:
+            end_char = len(text)
+        else:
+            end_char = offsets[end_token]
+            while end_token > start_token and end_char <= start_char:
+                end_token -= 1
+                end_char = offsets[end_token]
+        if end_token <= start_token or end_char <= start_char:
+            raise ValueError("unable to split page text at a token boundary")
+        window = text[start_char:end_char]
+        if token_count(window, encoding_name=encoding_name) > token_budget:
+            raise ValueError("token window exceeded its declared budget")
+        windows.append(window)
+        start_token = end_token
+        start_char = end_char
+    coalesced: list[str] = []
+    for window in windows:
+        if coalesced:
+            merged = coalesced[-1] + window
+            if token_count(merged, encoding_name=encoding_name) <= token_budget:
+                coalesced[-1] = merged
+                continue
+        coalesced.append(window)
+    windows = coalesced
+    if "".join(windows) != text:
+        raise ValueError("token windows did not preserve the complete page text")
+    return windows
+
+
+@dataclass(frozen=True)
+class JevResponse:
+    """One validated response from TypeSafe's typed decision endpoint."""
+
+    model: str
+    answers: Mapping[str, Mapping[str, Any]]
+    input_tokens: int
+    output_tokens: int
+    attempts: int
+
+    def as_record(self) -> dict[str, Any]:
+        return {
+            "model": self.model,
+            "answers": {
+                str(name): dict(answer)
+                for name, answer in self.answers.items()
+            },
+            "usage": {
+                "input_tokens": self.input_tokens,
+                "output_tokens": self.output_tokens,
+            },
+            "attempts": self.attempts,
+        }
+
+
+@dataclass(frozen=True)
+class JevNoulDecision:
+    """One calibrated yes/no probability returned by Jev."""
+
+    probability: float
+    response: JevResponse
+
+    def as_record(self) -> dict[str, Any]:
+        return {
+            "probability": self.probability,
+            "model": self.response.model,
+            "usage": {
+                "input_tokens": self.response.input_tokens,
+                "output_tokens": self.response.output_tokens,
+            },
+            "attempts": self.response.attempts,
+        }
+
+
+@dataclass(frozen=True)
+class JevNoulVectorDecision:
+    """Calibrated yes/no probabilities returned in one Jev request."""
+
+    probabilities: Mapping[str, float]
+    response: JevResponse
+
+    def as_record(self) -> dict[str, Any]:
+        return {
+            "probabilities": {
+                str(name): float(value)
+                for name, value in self.probabilities.items()
+            },
+            "model": self.response.model,
+            "usage": {
+                "input_tokens": self.response.input_tokens,
+                "output_tokens": self.response.output_tokens,
+            },
+            "attempts": self.response.attempts,
+        }
+
+
+class JevDecisionClient:
+    """The question pipeline's provider boundary for TypeSafe Jev.
+
+    The interface exposes Jev's native ``state + typed questions`` contract.
+    It does not translate a model choice into an application action; bindings
+    consume the returned probabilities and retain ownership of routing.
+    """
+
+    def __init__(
+        self,
+        *,
+        api_key: str,
+        endpoint: str = JEV_API_ENDPOINT,
+        model: str = JEV_MODEL,
+        timeout_seconds: float = 45.0,
+        max_retries: int = 5,
+    ) -> None:
+        if not str(api_key).strip():
+            raise ValueError("Jev requires a non-empty TypeSafe API key")
+        if timeout_seconds <= 0:
+            raise ValueError("Jev timeout_seconds must be positive")
+        if isinstance(max_retries, bool) or int(max_retries) < 0:
+            raise ValueError("Jev max_retries must be a non-negative integer")
+        self._api_key = str(api_key).strip()
+        self.endpoint = str(endpoint).strip()
+        self.model = str(model).strip()
+        self.timeout_seconds = float(timeout_seconds)
+        self.max_retries = int(max_retries)
+
+    @classmethod
+    def from_environment(cls) -> "JevDecisionClient":
+        api_key = str(os.environ.get("TYPESAFE_API_KEY") or "").strip()
+        if not api_key:
+            raise RuntimeError(
+                "TYPESAFE_API_KEY is required for Search Episode page "
+                "relevance assessment"
+            )
+        return cls(api_key=api_key)
+
+    async def evaluate(
+        self,
+        *,
+        state: Any,
+        questions: Mapping[str, Mapping[str, Any]],
+    ) -> JevResponse:
+        """Evaluate typed questions without blocking the Episode event loop."""
+
+        if not isinstance(questions, Mapping) or not questions:
+            raise ValueError("Jev evaluate requires at least one typed question")
+        return await asyncio.to_thread(
+            self._evaluate_sync,
+            state,
+            {
+                str(name): dict(question)
+                for name, question in questions.items()
+            },
+        )
+
+    async def noul(
+        self,
+        *,
+        state: Any,
+        instructions: Any,
+        criteria: Mapping[str, Any] | None = None,
+    ) -> JevNoulDecision:
+        """Return Jev's probability that one explicit statement is true."""
+
+        question = self._noul_question(instructions, criteria)
+        response = await self.evaluate(
+            state=state,
+            questions={"decision": question},
+        )
+        answer = response.answers.get("decision")
+        if not isinstance(answer, Mapping) or answer.get("type") != "noul":
+            raise ValueError("Jev response did not contain the requested Noul")
+        probability = answer.get("noul")
+        if isinstance(probability, bool) or not isinstance(
+            probability, (int, float)
+        ):
+            raise TypeError("Jev Noul probability must be numeric")
+        probability = float(probability)
+        if not 0.0 <= probability <= 1.0:
+            raise ValueError("Jev Noul probability must be between zero and one")
+        return JevNoulDecision(probability=probability, response=response)
+
+    async def nouls(
+        self,
+        *,
+        state: Any,
+        questions: Mapping[str, Mapping[str, Any]],
+    ) -> JevNoulVectorDecision:
+        """Return several named Noul probabilities from one shared state."""
+
+        typed_questions = self._noul_questions(questions)
+        response = await self.evaluate(state=state, questions=typed_questions)
+        probabilities: dict[str, float] = {}
+        for name in typed_questions:
+            answer = response.answers.get(name)
+            if not isinstance(answer, Mapping) or answer.get("type") != "noul":
+                raise ValueError(
+                    f"Jev response did not contain requested Noul {name!r}"
+                )
+            probability = answer.get("noul")
+            if isinstance(probability, bool) or not isinstance(
+                probability, (int, float)
+            ):
+                raise TypeError("Jev Noul probability must be numeric")
+            probability = float(probability)
+            if not 0.0 <= probability <= 1.0:
+                raise ValueError(
+                    "Jev Noul probability must be between zero and one"
+                )
+            probabilities[str(name)] = probability
+        return JevNoulVectorDecision(
+            probabilities=probabilities,
+            response=response,
+        )
+
+    def noul_request_token_count(
+        self,
+        *,
+        state: Any,
+        instructions: Any,
+        criteria: Mapping[str, Any] | None = None,
+    ) -> int:
+        """Count the exact request that :meth:`noul` would send."""
+
+        return token_count(
+            self._request_payload(
+                state,
+                {"decision": self._noul_question(instructions, criteria)},
+            )
+        )
+
+    def nouls_request_token_count(
+        self,
+        *,
+        state: Any,
+        questions: Mapping[str, Mapping[str, Any]],
+    ) -> int:
+        """Count an exact shared-state, multi-Noul request."""
+
+        return token_count(
+            self._request_payload(state, self._noul_questions(questions))
+        )
+
+    @classmethod
+    def _noul_questions(
+        cls,
+        questions: Mapping[str, Mapping[str, Any]],
+    ) -> dict[str, dict[str, Any]]:
+        if not isinstance(questions, Mapping) or not questions:
+            raise ValueError("Jev nouls requires at least one named question")
+        out: dict[str, dict[str, Any]] = {}
+        for name, declaration in questions.items():
+            if not isinstance(declaration, Mapping):
+                raise TypeError("each Jev Noul declaration must be a mapping")
+            instructions = declaration.get("instructions")
+            if instructions is None:
+                raise ValueError(
+                    f"Jev Noul declaration {name!r} has no instructions"
+                )
+            criteria = declaration.get("criteria")
+            if criteria is not None and not isinstance(criteria, Mapping):
+                raise TypeError("Jev Noul criteria must be a mapping")
+            out[str(name)] = cls._noul_question(instructions, criteria)
+        return out
+
+    @staticmethod
+    def _noul_question(
+        instructions: Any,
+        criteria: Mapping[str, Any] | None,
+    ) -> dict[str, Any]:
+        question: dict[str, Any] = {
+            "type": "noul",
+            "instructions": instructions,
+        }
+        if criteria is not None:
+            question["criteria"] = dict(criteria)
+        return question
+
+    def _request_payload(
+        self,
+        state: Any,
+        questions: Mapping[str, Mapping[str, Any]],
+    ) -> dict[str, Any]:
+        return {
+            "state": state,
+            "model": self.model,
+            "questions": dict(questions),
+        }
+
+    def _evaluate_sync(
+        self,
+        state: Any,
+        questions: Mapping[str, Mapping[str, Any]],
+    ) -> JevResponse:
+        payload = self._request_payload(state, questions)
+        request_tokens = token_count(payload)
+        if request_tokens > JEV_REQUEST_TOKEN_BUDGET:
+            raise ValueError(
+                "Jev request exceeds its 64,000-token budget: "
+                f"{request_tokens} tokens"
+            )
+        retryable = {408, 425, 429, *range(500, 600)}
+        last_error: BaseException | None = None
+        for retry_index in range(self.max_retries + 1):
+            try:
+                response = requests.post(
+                    self.endpoint,
+                    headers={
+                        "Authorization": f"Bearer {self._api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json=payload,
+                    timeout=self.timeout_seconds,
+                )
+                if response.status_code in retryable:
+                    if retry_index >= self.max_retries:
+                        response.raise_for_status()
+                    retry_after = response.headers.get("retry-after")
+                    try:
+                        wait_seconds = float(retry_after) if retry_after else 0.0
+                    except (TypeError, ValueError):
+                        wait_seconds = 0.0
+                    if wait_seconds <= 0:
+                        wait_seconds = min(30.0, 2.0**retry_index)
+                    time.sleep(wait_seconds)
+                    continue
+                if response.status_code >= 400:
+                    detail = response.text.strip()[:4_000]
+                    message = (
+                        f"{response.status_code} response from Jev"
+                        + (f": {detail}" if detail else "")
+                    )
+                    try:
+                        error_type = str(
+                            (response.json().get("detail") or {}).get(
+                                "error_type"
+                            )
+                            or ""
+                        )
+                    except (TypeError, ValueError):
+                        error_type = ""
+                    if error_type == "max_tokens_exceeded":
+                        raise JevTokenLimitError(message)
+                    raise requests.HTTPError(message, response=response)
+                response.raise_for_status()
+                body = response.json()
+                if not isinstance(body, Mapping):
+                    raise TypeError("Jev response body must be an object")
+                answers = body.get("answers")
+                if not isinstance(answers, Mapping):
+                    raise TypeError("Jev response answers must be an object")
+                usage = body.get("usage") or {}
+                if not isinstance(usage, Mapping):
+                    raise TypeError("Jev response usage must be an object")
+                return JevResponse(
+                    model=str(body.get("model") or self.model),
+                    answers={
+                        str(name): dict(answer)
+                        for name, answer in answers.items()
+                        if isinstance(answer, Mapping)
+                    },
+                    input_tokens=int(usage.get("input_tokens") or 0),
+                    output_tokens=int(usage.get("output_tokens") or 0),
+                    attempts=retry_index + 1,
+                )
+            except (requests.RequestException, ValueError, TypeError) as exc:
+                last_error = exc
+                status = getattr(getattr(exc, "response", None), "status_code", None)
+                if status not in retryable or retry_index >= self.max_retries:
+                    raise
+                time.sleep(min(30.0, 2.0**retry_index))
+        if last_error is not None:
+            raise last_error
+        raise RuntimeError("unreachable Jev retry state")
 
 
 #: Default model for `ModelTier.FAST`. Overridable through

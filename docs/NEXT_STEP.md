@@ -1,7 +1,8 @@
 # Next Step: Estimator-Controller Boundary
 
-Status: **failure-aware numerical component and the approved
-single-hypervolume-credit correction are implemented as an unvalidated draft**.
+Status: **failure-aware numerical control, single hypervolume credit, and the
+approved adaptive marginal-credit threshold are implemented as an unvalidated
+draft**.
 
 The attempted V22 numerical shadow replay is not validation. V22 did not
 record service failures in the form required by the new observation model, so
@@ -88,16 +89,41 @@ rather than fields in the shared contract. The controller predicts the next
 unit's marginal hypervolume from that vector and compares only its upper band
 with the scalar stop threshold.
 
-The threshold adapter is injected at composition:
+The threshold adapter is injected at composition and runs inside the combined
+numerical transition:
 
 ```python
-threshold_adapter(report, current_thresholds) -> updated_thresholds
+threshold_adapter(context) -> ThresholdUpdate
 ```
 
-The initial adapter returns the current thresholds unchanged. Its presence is
-the extension boundary for a future adaptive numerical policy; no adaptive
-formula is declared in this phase. Every returned threshold is validated and
-recorded with the verdict that used it.
+For the adaptive question-pipeline grains, the context carries the immutable
+numeric report, the current thresholds, the recent realized method-credit
+window, and the last identifiable productive-unit baseline. The adapter sets
+
+```text
+one_result_resolution = smallest positive hypervolume change obtained by
+                        adding one identity to one open required channel
+productive_baseline   = median(nonzero realized hypervolume credits in the
+                               trailing estimator window)
+gamma                 = max(one_result_resolution,
+                            0.1 * productive_baseline)
+```
+
+The one-result counterfactual respects discrete identities: an open axis uses
+at least `observed + 1` as its reachable-total denominator. A fitted total of
+`observed + epsilon` cannot make one possible identity worth only epsilon and
+cannot drag the threshold toward zero alongside the predicted yield. Realized
+credit likewise uses a denominator no smaller than the post-unit observed
+count.
+
+If the current trailing window has no productive units, the last identifiable
+productive baseline is carried. Either identifiable component may determine
+`gamma`; if neither is identifiable, the transition records
+`threshold_insufficient` and cannot advance the stop streak. The adapter
+records both components, the fraction, window counts, carry state, and the
+validated threshold with the verdict that used it. The lexical-probe/chunk
+grain retains its separately calibrated fixed threshold for the first live
+comparison.
 
 ## Priority correction: single method-credit boundary
 
@@ -173,9 +199,11 @@ channels produced the same estimator numbers and controller verdicts before
 and after the ownership move; the runtime invariant checker also passed.
 
 The generic report boundary and explicit `observed` / `failed` / `excluded`
-observation statuses are present. The adaptive-threshold hook currently keeps
-the configured thresholds unchanged. The estimator arithmetic, controller
-statistic, uncertainty calculation, and threshold values remain unvalidated.
+observation statuses are present. The adaptive-threshold rule is wired for the
+source-table, page, search, strategy, and run grains and records its inputs at
+each verdict; the lexical-probe/chunk grain keeps its calibrated fixed rule.
+The estimator arithmetic, controller statistic, uncertainty calculation, and
+adaptive threshold behavior remain unvalidated until the fresh live run.
 
 ## Current code organization before the next live run
 

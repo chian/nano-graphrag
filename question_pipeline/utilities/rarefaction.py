@@ -11,7 +11,7 @@ import math
 from collections import Counter
 from dataclasses import dataclass, field
 from numbers import Real
-from statistics import NormalDist
+from statistics import NormalDist, median
 from typing import Callable, Iterable, Mapping, Optional, Sequence
 
 
@@ -1313,9 +1313,13 @@ class _IncidenceEstimator:
 # The matching numerical controller
 # ---------------------------------------------------------------------------
 
-CONTROLLER_VERSION = "preferential_discovery_controller_v5"
-VOLUME_CREDIT_VERSION = "relaxed_geometric_hypervolume_v3"
+CONTROLLER_VERSION = "preferential_discovery_controller_v7"
+VOLUME_CREDIT_VERSION = "relaxed_geometric_hypervolume_v5"
+ADAPTIVE_THRESHOLD_VERSION = "adaptive_marginal_credit_threshold_v2"
+FIXED_THRESHOLD_VERSION = "fixed_marginal_credit_threshold_v1"
+DEFAULT_EFFICIENCY_FRACTION = 0.1
 VOLUME_RELAXATION_FACTOR = 2.0
+MIN_DISCOVERABLE_COUNT = 1.0
 _REQUIRED_ROLES = (
     "expected_results",
     "expected_next_discoveries",
@@ -1328,6 +1332,22 @@ def _volume_relaxation(axis_count: int) -> float:
     if not isinstance(axis_count, int) or isinstance(axis_count, bool) or axis_count < 1:
         raise ValueError("axis_count must be a positive integer")
     return 1.0 / (VOLUME_RELAXATION_FACTOR * axis_count)
+
+
+def _progress_denominator(
+    expected_results: Real,
+    minimum_reachable_results: Real,
+) -> float:
+    """Normalize progress on a total that can contain the stated results."""
+    expected = _finite_number("expected_results", expected_results)
+    minimum = _finite_number(
+        "minimum_reachable_results", minimum_reachable_results
+    )
+    if expected <= 0.0:
+        raise ValueError("positive expected_results required")
+    if minimum < 0.0:
+        raise ValueError("minimum_reachable_results must be non-negative")
+    return max(MIN_DISCOVERABLE_COUNT, expected, minimum)
 
 
 def _relaxed_geometric_volume(progress: Sequence[Real]) -> float:
@@ -1561,6 +1581,84 @@ class VolumeCredit:
 
 
 @dataclass(frozen=True)
+class ThresholdUpdate:
+    """One validated threshold decision made inside the numerical component."""
+
+    gamma: NumericBand
+    one_result_resolution: NumericBand
+    productive_unit_baseline: NumericBand
+    efficiency_fraction: float
+    recent_credit_count: int
+    recent_productive_count: int
+    baseline_carried: bool
+    ready: bool
+    version: str
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.gamma, NumericBand):
+            raise TypeError("ThresholdUpdate.gamma must be a NumericBand")
+        if not isinstance(self.one_result_resolution, NumericBand):
+            raise TypeError(
+                "ThresholdUpdate.one_result_resolution must be a NumericBand"
+            )
+        if not isinstance(self.productive_unit_baseline, NumericBand):
+            raise TypeError(
+                "ThresholdUpdate.productive_unit_baseline must be a NumericBand"
+            )
+        fraction = _finite_number(
+            "ThresholdUpdate.efficiency_fraction", self.efficiency_fraction
+        )
+        if fraction < 0.0:
+            raise ValueError("efficiency_fraction must be non-negative")
+        object.__setattr__(self, "efficiency_fraction", fraction)
+        for name in ("recent_credit_count", "recent_productive_count"):
+            value = getattr(self, name)
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                raise ValueError(f"{name} must be a non-negative integer")
+        if self.recent_productive_count > self.recent_credit_count:
+            raise ValueError(
+                "recent_productive_count cannot exceed recent_credit_count"
+            )
+        if not isinstance(self.baseline_carried, bool):
+            raise TypeError("baseline_carried must be a bool")
+        if not isinstance(self.ready, bool):
+            raise TypeError("ready must be a bool")
+        if not isinstance(self.version, str) or not self.version.strip():
+            raise ValueError("threshold policy version must be a non-empty string")
+        if self.ready and self.gamma.status_code != STATUS_NORMAL:
+            raise ValueError("a ready threshold update must contain a normal gamma")
+        if not self.ready and self.gamma.status_code == STATUS_NORMAL:
+            raise ValueError("an unavailable threshold update cannot contain gamma")
+
+    @classmethod
+    def fixed(cls, gamma: Real) -> "ThresholdUpdate":
+        return cls(
+            gamma=NumericBand.exact(gamma),
+            one_result_resolution=NumericBand.coded(STATUS_INSUFFICIENT),
+            productive_unit_baseline=NumericBand.coded(STATUS_INSUFFICIENT),
+            efficiency_fraction=0.0,
+            recent_credit_count=0,
+            recent_productive_count=0,
+            baseline_carried=False,
+            ready=True,
+            version=FIXED_THRESHOLD_VERSION,
+        )
+
+    def as_record(self) -> dict:
+        return {
+            "version": self.version,
+            "ready": self.ready,
+            "gamma": self.gamma.as_record(),
+            "one_result_resolution": self.one_result_resolution.as_record(),
+            "productive_unit_baseline": self.productive_unit_baseline.as_record(),
+            "efficiency_fraction": self.efficiency_fraction,
+            "recent_credit_count": self.recent_credit_count,
+            "recent_productive_count": self.recent_productive_count,
+            "baseline_carried": self.baseline_carried,
+        }
+
+
+@dataclass(frozen=True)
 class ControllerVerdict:
     """Recomputable arithmetic result after one counted observation."""
 
@@ -1570,6 +1668,7 @@ class ControllerVerdict:
     config: ControllerConfig
     expected_next_hypervolume_credit: NumericBand
     channels: Mapping[str, Mapping[str, object]]
+    threshold_update: ThresholdUpdate
 
     def as_record(self) -> dict:
         return {
@@ -1580,6 +1679,7 @@ class ControllerVerdict:
             "expected_next_hypervolume_credit": (
                 self.expected_next_hypervolume_credit.as_record()
             ),
+            "threshold_update": self.threshold_update.as_record(),
             "channels": {name: dict(value) for name, value in self.channels.items()},
         }
 
@@ -1590,6 +1690,7 @@ class _NumericalController:
     def __init__(self, config: ControllerConfig) -> None:
         self.config = config
         self._flat_streak = 0
+        self._threshold_update = ThresholdUpdate.fixed(config.gamma)
         self._last = self._record(
             {},
             expected_next_hypervolume_credit=NumericBand.coded(
@@ -1608,33 +1709,48 @@ class _NumericalController:
         outcome: str,
     ) -> ControllerVerdict:
         return ControllerVerdict(
-            stop,
-            outcome,
-            self._flat_streak,
-            self.config,
-            expected_next_hypervolume_credit,
-            channels,
+            stop=stop,
+            outcome=outcome,
+            flat_streak=self._flat_streak,
+            config=self.config,
+            expected_next_hypervolume_credit=expected_next_hypervolume_credit,
+            channels=channels,
+            threshold_update=self._threshold_update,
         )
 
     def verdict(self) -> ControllerVerdict:
         return self._last
 
-    def apply_thresholds(self, config: ControllerConfig) -> None:
+    def apply_thresholds(
+        self,
+        config: ControllerConfig,
+        update: ThresholdUpdate,
+    ) -> None:
         """Change validated thresholds without resetting controller history."""
 
+        if not isinstance(update, ThresholdUpdate):
+            raise TypeError("threshold update must be a ThresholdUpdate")
         if config.required_channels != self.config.required_channels:
             raise ValueError("threshold adaptation cannot change required channels")
         if config.streak_length != self.config.streak_length:
             raise ValueError("threshold adaptation cannot change streak length")
         self.config = config
+        self._threshold_update = update
 
-    def defer(self, outcome: str) -> ControllerVerdict:
+    def defer(
+        self,
+        outcome: str,
+        *,
+        expected_next_hypervolume_credit: Optional[NumericBand] = None,
+    ) -> ControllerVerdict:
         """Record a non-decision without changing the flat streak."""
 
         self._last = self._record(
             {},
-            expected_next_hypervolume_credit=NumericBand.coded(
-                STATUS_INSUFFICIENT
+            expected_next_hypervolume_credit=(
+                expected_next_hypervolume_credit
+                if expected_next_hypervolume_credit is not None
+                else NumericBand.coded(STATUS_INSUFFICIENT)
             ),
             stop=False,
             outcome=outcome,
@@ -1680,7 +1796,7 @@ class _NumericalController:
                     after_volume=coded,
                     channels=channel_records,
                 )
-            expected_total = normalization.value
+            raw_expected_total = normalization.value
             observed_before = before_estimate.observed_results.value
             observed_after = after_estimate.observed_results.value
             if observed_after < observed_before:
@@ -1692,7 +1808,7 @@ class _NumericalController:
                     after_volume=coded,
                     channels=channel_records,
                 )
-            if expected_total == 0.0:
+            if raw_expected_total == 0.0:
                 if observed_before != 0.0 or observed_after != 0.0:
                     coded = float(STATUS_UNIDENTIFIABLE)
                     return VolumeCredit(
@@ -1705,7 +1821,7 @@ class _NumericalController:
                 progress_before = 1.0
                 progress_after = 1.0
             else:
-                if observed_before > expected_total:
+                if observed_before > raw_expected_total:
                     coded = float(STATUS_UNIDENTIFIABLE)
                     return VolumeCredit(
                         score=NumericBand.coded(STATUS_UNIDENTIFIABLE),
@@ -1714,12 +1830,24 @@ class _NumericalController:
                         after_volume=coded,
                         channels=channel_records,
                     )
+                expected_total = _progress_denominator(
+                    raw_expected_total,
+                    observed_after,
+                )
                 progress_before = observed_before / expected_total
                 progress_after = min(1.0, observed_after / expected_total)
             before_progress.append(progress_before)
             after_progress.append(progress_after)
             channel_records.setdefault(channel, {}).update({
-                "normalization_expected_results": expected_total,
+                "raw_expected_results": raw_expected_total,
+                "normalization_expected_results": (
+                    MIN_DISCOVERABLE_COUNT
+                    if raw_expected_total == 0.0
+                    else expected_total
+                ),
+                "axis_completed_by_zero_expectation": float(
+                    raw_expected_total == 0.0
+                ),
                 "normalization_lower": normalization.lower,
                 "normalization_upper": normalization.upper,
                 "observed_before": observed_before,
@@ -1795,27 +1923,46 @@ class _NumericalController:
                 p_next = p_next_lower = p_next_upper = 1.0
                 p_increment_lower = p_increment_upper = 0.0
             else:
-                p_now = min(1.0, observed / total.value)
+                point_open = (
+                    total.value > observed or next_discoveries.value > 0.0
+                )
+                interval_open = (
+                    total.upper > observed or next_discoveries.upper > 0.0
+                )
+                point_denominator = _progress_denominator(
+                    total.value,
+                    observed + (MIN_DISCOVERABLE_COUNT if point_open else 0.0),
+                )
+                interval_minimum = observed + (
+                    MIN_DISCOVERABLE_COUNT if interval_open else 0.0
+                )
+                lower_denominator = max(
+                    MIN_DISCOVERABLE_COUNT,
+                    interval_minimum,
+                    total.lower,
+                )
+                upper_denominator = max(
+                    MIN_DISCOVERABLE_COUNT,
+                    interval_minimum,
+                    total.upper,
+                )
+                p_now = min(1.0, observed / point_denominator)
                 p_next = min(
                     1.0,
-                    (observed + next_discoveries.value) / total.value,
+                    (observed + next_discoveries.value) / point_denominator,
                 )
                 if total.upper == 0.0:
                     return NumericBand.coded(STATUS_UNIDENTIFIABLE), {}
-                p_now_lower = min(1.0, observed / total.upper)
+                p_now_lower = min(1.0, observed / upper_denominator)
                 p_next_lower = min(
                     1.0,
-                    (observed + next_discoveries.lower) / total.upper,
+                    (observed + next_discoveries.lower) / upper_denominator,
                 )
-                if total.lower == 0.0:
-                    p_now_upper = 1.0
-                    p_next_upper = 1.0
-                else:
-                    p_now_upper = min(1.0, observed / total.lower)
-                    p_next_upper = min(
-                        1.0,
-                        (observed + next_discoveries.upper) / total.lower,
-                    )
+                p_now_upper = min(1.0, observed / lower_denominator)
+                p_next_upper = min(
+                    1.0,
+                    (observed + next_discoveries.upper) / lower_denominator,
+                )
 
                 def axis_increment(total_value: float, discovery: float) -> float:
                     if total_value <= 0.0:
@@ -1827,7 +1974,11 @@ class _NumericalController:
                     )
                     return max(0.0, projected - current)
 
-                total_lower = max(observed, total.lower)
+                total_lower = max(
+                    MIN_DISCOVERABLE_COUNT,
+                    interval_minimum,
+                    total.lower,
+                )
                 total_upper = max(total_lower, total.upper)
                 lower_candidates = (total_lower, total_upper)
                 upper_candidates = [total_lower, total_upper]
@@ -1852,6 +2003,12 @@ class _NumericalController:
                 "current_expected_results": total.value,
                 "current_expected_results_lower": total.lower,
                 "current_expected_results_upper": total.upper,
+                "progress_denominator": (
+                    MIN_DISCOVERABLE_COUNT
+                    if total.value == 0.0
+                    else point_denominator
+                ),
+                "axis_completed_by_zero_expectation": float(total.value == 0.0),
                 "current_observed_results": observed,
                 "expected_next_discoveries": next_discoveries.value,
                 "expected_next_discoveries_lower": next_discoveries.lower,
@@ -2018,17 +2175,155 @@ class IncidenceReport:
         }
 
 
-ThresholdAdapter = Callable[
-    [IncidenceReport, Mapping[str, object]],
-    Mapping[str, object],
-]
+@dataclass(frozen=True)
+class ThresholdContext:
+    """All numeric state an injected threshold policy may inspect."""
+
+    report: IncidenceReport
+    current_thresholds: Mapping[str, object]
+    recent_realized_credits: tuple[float, ...]
+    last_productive_baseline: Optional[float]
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.report, IncidenceReport):
+            raise TypeError("threshold context report must be an IncidenceReport")
+        if set(self.current_thresholds) != {"gamma", "rho"}:
+            raise ValueError("current thresholds must contain exactly gamma and rho")
+        credits = tuple(
+            _finite_number(f"recent_realized_credits[{index}]", value)
+            for index, value in enumerate(self.recent_realized_credits)
+        )
+        if any(value < 0.0 for value in credits):
+            raise ValueError("realized method credits must be non-negative")
+        object.__setattr__(self, "recent_realized_credits", credits)
+        if self.last_productive_baseline is not None:
+            baseline = _finite_number(
+                "last_productive_baseline", self.last_productive_baseline
+            )
+            if baseline <= 0.0:
+                raise ValueError("a productive baseline must be positive")
+            object.__setattr__(self, "last_productive_baseline", baseline)
 
 
-def _keep_current_thresholds(
-    _report: IncidenceReport,
-    current: Mapping[str, object],
-) -> Mapping[str, object]:
-    return current
+ThresholdAdapter = Callable[[ThresholdContext], ThresholdUpdate]
+
+
+def _one_result_resolution(report: IncidenceReport) -> NumericBand:
+    """Smallest hypervolume gain from one identity on one open axis."""
+
+    channels = tuple(report.channel_schema.controller_channels or ())
+    estimates = tuple(report.estimates[channel] for channel in channels)
+    unavailable = [
+        estimate.expected_results.status_code
+        for estimate in estimates
+        if estimate.expected_results.status_code != STATUS_NORMAL
+    ]
+    if unavailable:
+        return NumericBand.coded(
+            STATUS_UNIDENTIFIABLE
+            if STATUS_UNIDENTIFIABLE in unavailable
+            else STATUS_INSUFFICIENT
+        )
+
+    progress: list[float] = []
+    open_axes: list[int] = []
+    totals: list[float] = []
+    observed_values: list[float] = []
+    for index, estimate in enumerate(estimates):
+        total = estimate.expected_results.value
+        observed = estimate.observed_results.value
+        if total < observed:
+            return NumericBand.coded(STATUS_UNIDENTIFIABLE)
+        next_discovery = estimate.control_statistics[
+            "expected_next_discoveries"
+        ]
+        observed_values.append(observed)
+        if total == 0.0:
+            if observed != 0.0 or next_discovery.upper > 0.0:
+                return NumericBand.coded(STATUS_UNIDENTIFIABLE)
+            totals.append(MIN_DISCOVERABLE_COUNT)
+            progress.append(1.0)
+            continue
+        open_axis = observed < total or next_discovery.upper > 0.0
+        denominator = _progress_denominator(
+            total,
+            observed + (MIN_DISCOVERABLE_COUNT if open_axis else 0.0),
+        )
+        totals.append(denominator)
+        progress.append(min(1.0, observed / denominator))
+        if open_axis:
+            open_axes.append(index)
+
+    if not open_axes:
+        return NumericBand.exact(0.0)
+    before = _relaxed_geometric_volume(progress)
+    increments: list[float] = []
+    for index in open_axes:
+        projected = list(progress)
+        projected[index] = min(
+            1.0,
+            (observed_values[index] + 1.0) / totals[index],
+        )
+        increment = max(0.0, _relaxed_geometric_volume(projected) - before)
+        if increment > 0.0:
+            increments.append(increment)
+    return NumericBand.exact(min(increments) if increments else 0.0)
+
+
+def _keep_current_thresholds(context: ThresholdContext) -> ThresholdUpdate:
+    """The fixed-threshold policy used by explicitly calibrated bindings."""
+
+    return ThresholdUpdate.fixed(context.current_thresholds["gamma"])  # type: ignore[arg-type]
+
+
+def adaptive_marginal_credit_threshold(
+    context: ThresholdContext,
+) -> ThresholdUpdate:
+    """Set gamma from current resolution and recent productive method credit."""
+
+    resolution = _one_result_resolution(context.report)
+    productive = tuple(
+        value for value in context.recent_realized_credits if value > 0.0
+    )
+    carried = False
+    if productive:
+        baseline = NumericBand.exact(median(productive))
+    elif context.last_productive_baseline is not None:
+        baseline = NumericBand.exact(context.last_productive_baseline)
+        carried = True
+    else:
+        baseline = NumericBand.coded(STATUS_INSUFFICIENT)
+
+    candidates: list[float] = []
+    if resolution.status_code == STATUS_NORMAL:
+        candidates.append(resolution.value)
+    if baseline.status_code == STATUS_NORMAL:
+        candidates.append(DEFAULT_EFFICIENCY_FRACTION * baseline.value)
+    if candidates:
+        gamma = NumericBand.exact(max(candidates))
+        ready = True
+    else:
+        unavailable = {
+            resolution.status_code,
+            baseline.status_code,
+        }
+        gamma = NumericBand.coded(
+            STATUS_UNIDENTIFIABLE
+            if STATUS_UNIDENTIFIABLE in unavailable
+            else STATUS_INSUFFICIENT
+        )
+        ready = False
+    return ThresholdUpdate(
+        gamma=gamma,
+        one_result_resolution=resolution,
+        productive_unit_baseline=baseline,
+        efficiency_fraction=DEFAULT_EFFICIENCY_FRACTION,
+        recent_credit_count=len(context.recent_realized_credits),
+        recent_productive_count=len(productive),
+        baseline_carried=carried,
+        ready=ready,
+        version=ADAPTIVE_THRESHOLD_VERSION,
+    )
 
 
 @dataclass(frozen=True)
@@ -2047,6 +2342,12 @@ class ControlStep:
     @property
     def requests_transition(self) -> bool:
         return self.verdict.outcome == "root_incomplete"
+
+    @property
+    def goal_commit_ids(self) -> tuple[str, ...]:
+        """The result identities admitted by this numerical transition."""
+
+        return self.unit_yield.new_identities
 
     def as_record(self) -> dict:
         return {
@@ -2137,6 +2438,8 @@ class EstimatorController:
         self._subsample_size = subsample_size
         self._alpha = float(alpha)
         self._threshold_adapter = threshold_adapter or _keep_current_thresholds
+        self._recent_realized_credits: list[float] = []
+        self._last_productive_baseline: Optional[float] = None
         self._estimators = {
             channel: _IncidenceEstimator(
                 window_size=window_size,
@@ -2262,22 +2565,63 @@ class EstimatorController:
             volume_credit.expected_next_score,
         )
         if observation_status != OBSERVATION_EXCLUDED:
-            threshold_state = self._threshold_adapter(
-                report,
-                self._controller.config.threshold_state(),
+            if (
+                observation_status == OBSERVATION_OBSERVED
+                and volume_credit.score.status_code == STATUS_NORMAL
+            ):
+                self._recent_realized_credits.append(volume_credit.score.value)
+                self._recent_realized_credits = self._recent_realized_credits[
+                    -self._window_size :
+                ]
+            threshold_update = self._threshold_adapter(
+                ThresholdContext(
+                    report=report,
+                    current_thresholds=self._controller.config.threshold_state(),
+                    recent_realized_credits=tuple(
+                        self._recent_realized_credits
+                    ),
+                    last_productive_baseline=self._last_productive_baseline,
+                )
             )
+            if not isinstance(threshold_update, ThresholdUpdate):
+                raise TypeError(
+                    "threshold adapter must return a ThresholdUpdate"
+                )
+            if (
+                threshold_update.productive_unit_baseline.status_code
+                == STATUS_NORMAL
+                and threshold_update.productive_unit_baseline.value > 0.0
+            ):
+                self._last_productive_baseline = (
+                    threshold_update.productive_unit_baseline.value
+                )
+            threshold_state = self._controller.config.threshold_state()
+            if threshold_update.ready:
+                threshold_state = {
+                    "gamma": threshold_update.gamma.value,
+                    "rho": threshold_state["rho"],
+                }
             self._controller.apply_thresholds(
-                self._controller.config.with_thresholds(threshold_state)
+                self._controller.config.with_thresholds(threshold_state),
+                threshold_update,
             )
             estimates = {
                 channel: report.estimates[channel]
                 for channel in self._controller.config.required_channels
             }
-            verdict = self._controller.observe(
-                estimates,
-                method_credit=volume_credit,
-                is_root=is_root,
-            )
+            if threshold_update.ready:
+                verdict = self._controller.observe(
+                    estimates,
+                    method_credit=volume_credit,
+                    is_root=is_root,
+                )
+            else:
+                verdict = self._controller.defer(
+                    "threshold_insufficient",
+                    expected_next_hypervolume_credit=(
+                        volume_credit.expected_next_score
+                    ),
+                )
         else:
             verdict = self._controller.verdict()
         return ControlStep(

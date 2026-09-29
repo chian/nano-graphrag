@@ -18,7 +18,7 @@ If no --schema is given, a domain schema is synthesized for the question
 
 Examples:
   # Synthesize a schema and answer from scratch
-  FIRECRAWL_API_KEY=... python run_question_pipeline.py \\
+  FIRECRAWL_API_KEY=... TYPESAFE_API_KEY=... python run_question_pipeline.py \\
       --question "How effective is upper-room UV-C at reducing TB transmission in hospitals?" \\
       --output-dir question_runs/uvc_tb
 
@@ -157,7 +157,10 @@ def main() -> None:
     parser.add_argument(
         "--scrape-search-results",
         action="store_true",
-        help="Scrape each accepted search result URL before falling back to Firecrawl search-result text.",
+        help=(
+            "Ask Firecrawl Search to return full page bodies inline; fetch a "
+            "selected URL separately only when its inline body is absent."
+        ),
     )
     parser.add_argument(
         "--goal-discovery-text-chars",
@@ -333,6 +336,13 @@ def main() -> None:
         config = PipelineConfig(**{key: value for key, value in raw.items() if key in allowed})
         config.output_dir = str(checkpoint_path.parent)
         config.resume_checkpoint = str(checkpoint_path)
+        # Continuation restores the experiment configuration, while explicit
+        # model flags select the provider model names available on the current
+        # transport. Leaving either flag absent preserves the checkpoint value.
+        if args.model is not None:
+            config.model = args.model
+        if args.fast_model is not None:
+            config.fast_model = args.fast_model
     else:
         if not args.question:
             parser.error("--question is required unless --continue is used")

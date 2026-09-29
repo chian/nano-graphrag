@@ -164,6 +164,13 @@ class SearchOutcome:
     skipped_by_reason: dict[str, int] = field(default_factory=dict)
     scrape_failed_urls: list[str] = field(default_factory=list)
     search_result_observations: list[dict[str, Any]] = field(default_factory=list)
+    #: One Jev assessment per returned provider result, recorded before the
+    #: Search parent launches any Page child.
+    page_candidate_assessments: list[dict[str, Any]] = field(default_factory=list)
+    #: The actual order in which the Search parent selected Page children.
+    #: Provider rank and the relevance probability that caused the selection
+    #: remain side by side for calibration.
+    page_selection_history: list[dict[str, Any]] = field(default_factory=list)
     candidate_source_outcomes: list[dict[str, Any]] = field(default_factory=list)
     text_reductions: list[dict[str, Any]] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -171,7 +178,7 @@ class SearchOutcome:
     #: Provider-specific and observational: no stop rule reads it.
     provider_batch: dict[str, Any] = field(default_factory=dict)
     #: Returned results split by whether the one-page source processed them.
-    result_buffer: dict[str, int] = field(default_factory=dict)
+    result_buffer: dict[str, Any] = field(default_factory=dict)
     error: str = ""
     #: What this search cost. Present on every outcome, as a typed zero when
     #: cost accounting is off, so a consumer can tell "no cost" from "no field".
@@ -580,6 +587,14 @@ class SearchHarvester:
         url: str,
         outcome: SearchOutcome,
     ) -> str:
+        # Firecrawl Search can return the full page body inline. Use that body
+        # directly so a search batch that already paid to scrape its results
+        # does not issue a second scrape for each selected page. Descriptions
+        # are search snippets, not page bodies, so they do not satisfy this
+        # check and the page scrape remains available when inline content was
+        # absent for a particular result.
+        if result.get("markdown") or result.get("content"):
+            return self.extract_text_fn(result)
         if self.scrape_fn is None or not url:
             return self.extract_text_fn(result)
 
@@ -5785,6 +5800,27 @@ unprocessed results. Identify which search vocabulary and source shapes yielded
 new evidence, which saturated, which mostly repeated prior material, and which
 were not actually judged because acquisition or extraction failed.
 
+Treat the requested result as a whole, not as a contest to produce the most
+rows. Finding more subjects is low value when those rows mostly repeat fields
+that are already well populated while other requested fields remain sparse.
+Use `observed_deficits` together with the completed strategies'
+`findings_by_column` and measured `volume_credit` to decide what information the
+next search should seek.
+
+When existing rows have missing fields, use each deficit's named
+`identity_anchors` to identify the known subject and its `missing_fields` to
+formulate a targeted search. Each identity anchor supplies its semantic name,
+comparison type, declared columns, and the populated values for that row.
+`anchor_values` carries the same populated values in a compact form. For
+example: if many subjects have been identified but a requested measurement is
+sparse, combine a known subject's names, dates, places, or other declared
+identity anchors with terms for that measurement instead of requesting another
+subject list. If the same field is missing across many rows, try a source type
+likely to report that field across subjects; if only a few rows remain, search
+for those subjects individually. If one requested category is well populated
+and another is sparse, name the sparse category rather than repeating the broad
+topic.
+
 Propose searches that are likely to add distinct findings for the observed
 deficits. Build on productive vocabulary or source shapes when they still have
 estimated findings remaining. Change the terminology, source shape, target, or
@@ -5794,10 +5830,13 @@ repeat an unproductive query unless the proposal states the concrete change
 that makes the new search materially different.
 
 Use an `operator` value that appears as a key of the catalog. Use `target_ids`
-that appear in the run view. Order proposals by expected marginal contribution
-of distinct evidence to the observed deficits, highest first. Semantic novelty
-is a constraint, not the objective: a different query that is unlikely to fill
-a deficit is not useful merely because it is different.
+that appear in the run view. When `observed_deficits` is non-empty, every
+proposal must name one or more of their `id` values, and its query seeds must
+visibly address the corresponding missing fields and anchors. Order proposals
+by expected marginal contribution of distinct evidence to the observed
+deficits, highest first. Semantic novelty is a constraint, not the objective: a
+different query that is unlikely to fill a deficit is not useful merely because
+it is different.
 
 For each proposal report `distance` on a 0.0-1.0 scale: how far this
 combination of operator, targets and seed phrasing sits from the nearest

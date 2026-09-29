@@ -1560,6 +1560,7 @@ class ObservationKind(str, Enum):
 
     SEARCH = "search"
     PROBE_SEARCH = "probe_search"
+    PAGE_CHILD_PROPOSAL = "page_child_proposal"
     SOURCE = "source"
     GASL = "gasl"
     BEST_GUESS = "best_guess"

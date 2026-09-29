@@ -12,7 +12,7 @@ from datetime import datetime
 
 
 FIRECRAWL_SEARCH_PROVIDER = "firecrawl"
-FIRECRAWL_SEARCH_API_VERSION = "v1"
+FIRECRAWL_SEARCH_API_VERSION = "v2"
 FIRECRAWL_SEARCH_ENDPOINT = (
     f"https://api.firecrawl.dev/{FIRECRAWL_SEARCH_API_VERSION}/search"
 )
@@ -116,8 +116,16 @@ def search_papers(
         )
         response.raise_for_status()
 
-        data = response.json()
-        results = data.get('data', [])
+        body = response.json()
+        data = body.get('data', {})
+        if isinstance(data, list):
+            results = data
+        elif isinstance(data, dict):
+            results = data.get('web', [])
+        else:
+            raise TypeError("Firecrawl search data must be a list or object")
+        if not isinstance(results, list):
+            raise TypeError("Firecrawl web search results must be a list")
 
         # Every result is returned. Nothing is dropped on the basis of its
         # domain -- see the note at the top of this module.
@@ -273,11 +281,21 @@ def extract_text_from_result(result: Dict, format: str = 'markdown') -> str:
     """
 
     if format == 'markdown':
-        return result.get('markdown', result.get('content', ''))
+        return str(
+            result.get('markdown')
+            or result.get('content')
+            or result.get('description')
+            or ''
+        )
     elif format == 'html':
-        return result.get('html', result.get('content', ''))
+        return str(
+            result.get('html')
+            or result.get('content')
+            or result.get('description')
+            or ''
+        )
     else:
-        return result.get('content', '')
+        return str(result.get('content') or result.get('description') or '')
 
 
 def deduplicate_by_url(results: List[Dict]) -> List[Dict]:

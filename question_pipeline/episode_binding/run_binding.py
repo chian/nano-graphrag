@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from method_loop import EpisodeGoal
 from question_pipeline.episode_binding.provider_binding import *
 
 class StrategyProposer:
@@ -42,6 +43,7 @@ class StrategyProposer:
         episode_id: str,
         episode_path: tuple[tuple[str, str], ...],
         run_key: str,
+        goal: EpisodeGoal,
         record_proposal: Optional[Callable[[Mapping[str, Any]], None]] = None,
         distance_floor: float = STRATEGY_DISTANCE_FLOOR,
         max_samples: int = MAX_PROPOSAL_SAMPLES,
@@ -58,6 +60,9 @@ class StrategyProposer:
         self._episode_id = str(episode_id)
         self._episode_path = tuple(episode_path)
         self._run_key = run_key
+        if not isinstance(goal, EpisodeGoal) or goal.parent_goal_id:
+            raise ValueError("StrategyProposer requires the root Episode Goal")
+        self._goal = goal
         self._record_proposal = record_proposal
         self._floor = float(distance_floor)
         self._max_samples = max(1, int(max_samples))
@@ -148,6 +153,8 @@ class StrategyProposer:
         self._resume_episode = episode
 
     async def next(self, view: EpisodeView) -> Episode | None | SourceEnd:
+        if view.goal != self._goal:
+            raise ValueError("run planner received a different Goal than its Episode")
         if self._resume_episode is not None:
             episode = self._resume_episode
             self._resume_episode = None
@@ -392,7 +399,9 @@ class StrategyProposer:
         self._opened_token_sets.append(_proposal_tokens(family, targets, seeds))
         instance = self._instances.get(family, 0)
         self._instances[family] = instance + 1
-        return self._build(f"{family}#{instance}", family, list(seeds))
+        return self._build(
+            f"{family}#{instance}", family, list(seeds), self._goal
+        )
 
     def _content_key(
         self,
@@ -498,7 +507,9 @@ class RunBinding:
             retain_trace=self.checkpoint_completed_strategy is not None,
         )
 
-    def build_run_episode(self) -> Episode:
+    def build_run_episode(self, goal: EpisodeGoal) -> Episode:
+        if not isinstance(goal, EpisodeGoal) or goal.parent_goal_id:
+            raise ValueError("the run Episode requires one root Goal")
         self.proposer = StrategyProposer(
             declared=self.eligible_families,
             sample=self.sample_strategies,
@@ -512,6 +523,7 @@ class RunBinding:
             episode_id=self.run_episode_id,
             episode_path=self.run_path,
             run_key=self.run_key,
+            goal=goal,
             record_proposal=self._record_strategy_proposal,
         )
         self.controller.proposer = self.proposer
@@ -523,12 +535,14 @@ class RunBinding:
                     self._active_strategy_key,
                     self._active_strategy_family,
                     self._active_strategy_seeds,
+                    goal,
                 )
             )
         return Episode(
             grain=self.run_grain,
             key=self.run_key,
             source=self.proposer,
+            request=EpisodeRequest(goal=goal),
             on_unit=self._on_strategy,
             bound=self.episode_unit_safety_cap,
             resume_units=tuple(
@@ -698,7 +712,7 @@ class RunBinding:
                 _incidence_state(episode_record)
             ).items():
                 out[
-                    self.crediter.facet_labels.get(
+                    self.goal_view.facet_labels.get(
                         str(channel), str(channel)
                     )
                 ] = value

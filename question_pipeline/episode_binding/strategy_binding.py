@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from method_loop import EpisodeGoal
 from question_pipeline.episode_binding.provider_binding import *
 
 class StrategySearches:
@@ -42,7 +43,7 @@ class StrategySearches:
         task = self._next_task(self._family)
         if task is None:
             return None
-        return self._make_search(task)
+        return self._make_search(task, view.goal)
 
 class StrategyBinding:
     """Methods owned by the strategy Episode."""
@@ -55,7 +56,17 @@ class StrategyBinding:
         strategy_key: str,
         family: str,
         seeds: Sequence[str],
+        parent_goal: EpisodeGoal,
     ) -> Episode:
+        goal = EpisodeGoal.for_grain(
+            self.strategy_grain,
+            parent=parent_goal,
+            objective={
+                "strategy_key": str(strategy_key),
+                "strategy_family": str(family),
+                "seed_queries": [str(seed) for seed in seeds],
+            },
+        )
         resuming = bool(
             self._active_strategy_key
             and self._active_strategy_key == strategy_key
@@ -87,6 +98,7 @@ class StrategyBinding:
                 task,
                 strategy_key,
                 family,
+                parent_goal=goal,
                 resume_state=self._resume_search_state,
             )
             self._resume_search_state = {}
@@ -97,13 +109,14 @@ class StrategyBinding:
                 strategy_key=strategy_key,
                 family=family,
                 next_task=self.frontier.next_for,
-                make_search=lambda task: self._build_search_episode(
-                    task, strategy_key, family
+                make_search=lambda task, parent: self._build_search_episode(
+                    task, strategy_key, family, parent_goal=parent
                 ),
                 budget=self.budget,
                 health=self.health,
                 resume_search=resume_search,
             ),
+            request=EpisodeRequest(goal=goal),
             on_close=lambda record: self._close_strategy(
                 record, strategy_key, family
             ),

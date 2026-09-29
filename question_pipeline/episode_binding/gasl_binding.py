@@ -13,7 +13,9 @@ from method_loop import (
     Context,
     Contribution,
     Episode,
+    EpisodeGoal,
     EpisodeRecord,
+    EpisodeRequest,
     EpisodeTree,
     EpisodeUpdate,
     Grain,
@@ -422,6 +424,7 @@ class GraphWalkBinding:
         edge_cap: int,
         nested: bool,
         grain: Optional[Grain] = None,
+        parent_goal: Optional[EpisodeGoal] = None,
     ) -> WalkComposition:
         """Everything ``walk()`` does before ``Episode(...).run(...)``.
 
@@ -665,6 +668,20 @@ class GraphWalkBinding:
                     }
                 )
 
+        if nested and parent_goal is None:
+            raise ValueError("a nested GASL walk requires its query Goal")
+        if not nested and parent_goal is not None:
+            raise ValueError("a standalone GASL walk may not name a parent Goal")
+        goal = EpisodeGoal.for_grain(
+            walk_grain,
+            parent=parent_goal,
+            objective={
+                "operation": "graph_walk",
+                "follow_filters": list(follow_filters),
+                "depth": int(depth),
+                "seed_count": len(source_nodes),
+            },
+        )
         episode = Episode(
             grain=walk_grain,
             key=key,
@@ -674,6 +691,7 @@ class GraphWalkBinding:
                 result_seed,
                 label=lambda node: str(node.get("id") or "<no-id>"),
             ),
+            request=EpisodeRequest(goal=goal),
             on_unit=collect,
             # The declared per-walk seed budget is the episode's safety bound:
             # a cap, ending `bound_hit` with `unit_bound`, never a verdict.
@@ -852,6 +870,7 @@ class GraphWalkBinding:
         observation = _episode_observation(record)
         return EpisodeUpdate(
             record_id=record.episode_id,
+            goal=record.goal,
             controller_input=observation,
             prompt_context={
                 "episode_id": record.episode_id,
@@ -1220,11 +1239,13 @@ class PlannerOperationSource:
         query: str,
         max_iterations: int,
         walk_grain: Grain,
+        goal: EpisodeGoal,
     ) -> None:
         self._services = services
         self._query = query
         self._max_iterations = int(max_iterations)
         self._walk_grain = walk_grain
+        self._goal = goal
 
         # current-plan state
         self._plan: Any = None
@@ -1277,6 +1298,8 @@ class PlannerOperationSource:
     # UnitSource
     # ---------------------------------------------------------------- #
     def next(self, view: Any) -> Any:
+        if view.goal != self._goal:
+            raise ValueError("GASL planner received a different query Goal")
         while True:
             if self._plan is not None:
                 unit = self._advance_plan()
@@ -1444,6 +1467,7 @@ class PlannerOperationSource:
             edge_cap=prep["edge_cap"],
             nested=True,
             grain=self._walk_grain,
+            parent_goal=self._goal,
         )
         comp.episode = replace(
             comp.episode,
@@ -1623,16 +1647,22 @@ class GaslQueryBinding:
     def compose(self, *, query: str, max_iterations: int) -> QueryComposition:
         query_grain = _query_grain()
         walk_grain = _walk_grain(ChannelSchema.single())
+        goal = EpisodeGoal.for_grain(
+            query_grain,
+            objective={"query": query},
+        )
         source = PlannerOperationSource(
             services=self._services,
             query=query,
             max_iterations=max_iterations,
             walk_grain=walk_grain,
+            goal=goal,
         )
         episode = Episode(
             grain=query_grain,
             key=QUERY_EPISODE_KEY,
             source=source,
+            request=EpisodeRequest(goal=goal),
             on_unit=source.on_unit,
             # No Episode.bound: the planner-iteration budget is not a unit
             # count, so it is the SOURCE's typed cut (design §5).

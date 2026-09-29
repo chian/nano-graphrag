@@ -141,12 +141,73 @@ def check_evidence_file_ownership() -> list[str]:
     return findings
 
 
+def check_goal_write_ownership() -> list[str]:
+    """Keep durable Goal mutation behind the generic method transition."""
+
+    findings: list[str] = []
+    provider_path = "question_pipeline/episode_binding/provider_binding.py"
+    provider = _tree(provider_path)
+    try:
+        commit = _function(provider, "TableGoalState", "commit")
+        commit_lines = range(commit.lineno, (commit.end_lineno or commit.lineno) + 1)
+    except ValueError as exc:
+        findings.append(str(exc))
+        commit_lines = range(0)
+
+    for path in sorted((ROOT / "question_pipeline").rglob("*.py")):
+        relative = path.relative_to(ROOT).as_posix()
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=relative)
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call) or not isinstance(
+                node.func, ast.Attribute
+            ):
+                continue
+            owner = node.func.value
+            if (
+                node.func.attr == "apply"
+                and isinstance(owner, ast.Attribute)
+                and owner.attr == "_table_store"
+            ):
+                allowed = relative == provider_path and node.lineno in commit_lines
+                if not allowed:
+                    findings.append(
+                        f"{relative}:{node.lineno}: durable Goal storage may "
+                        "only be written by TableGoalState.commit"
+                    )
+
+    for relative, class_name, function_name in (
+        ("question_pipeline/episode_binding/chunk_binding.py", "ChunkBinding", "_chunk_result"),
+        ("question_pipeline/episode_binding/page_binding.py", "PageBinding", "_page_result"),
+        ("question_pipeline/episode_binding/report_binding.py", "ReportBinding", "_report_window_result"),
+        ("question_pipeline/episode_binding/source_table_binding.py", "SourceTableBinding", "_source_table_query_result"),
+    ):
+        try:
+            function = _function(_tree(relative), class_name, function_name)
+        except ValueError as exc:
+            findings.append(str(exc))
+            continue
+        proposals = [
+            node
+            for node in ast.walk(function)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "GoalProposal"
+        ]
+        if not proposals:
+            findings.append(
+                f"{relative}: {class_name}.{function_name} must return a "
+                "GoalProposal instead of mutating Goal state"
+            )
+    return findings
+
+
 def main() -> int:
     findings: list[str] = []
     for check in (
         check_method_layering,
         check_checkpoint_gate,
         check_evidence_file_ownership,
+        check_goal_write_ownership,
     ):
         try:
             findings.extend(check())

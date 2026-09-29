@@ -4,7 +4,16 @@ import json
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Mapping, Optional, Sequence
 
-from method_loop import END_SOURCE_FAILED, Episode, EpisodeView, Leaf, SourceEnd
+from method_loop import (
+    END_SOURCE_FAILED,
+    Episode,
+    EpisodeGoal,
+    EpisodeRequest,
+    EpisodeView,
+    GoalProposal,
+    Leaf,
+    SourceEnd,
+)
 from source_table_language import (
     AdmissionRule,
     LanguageResult,
@@ -29,6 +38,7 @@ from question_pipeline.episode_binding.provider_binding import (
     PageMaterial,
     PageRunState,
     PageUnit,
+    TableGoalCandidate,
     _incidence_input,
     _incidence_step,
     page_fate,
@@ -493,7 +503,7 @@ async def propose_source_table_query(
     dataset: SourceTableDataset,
     unprocessed_rows: Sequence[ParsedSourceTableRow],
     previous_queries: Sequence[Mapping[str, Any]],
-    goal_states: Sequence[Mapping[str, Any]],
+    goal_state: Mapping[str, Any],
 ) -> SourceTableQuery:
     """Propose one query over admitted entities using earlier measured yield."""
 
@@ -511,7 +521,7 @@ PARSED SOURCE TABLE:
 {json.dumps({'goal_table_name': dataset.goal_table_name, 'available_goal_columns': list(dataset.available_goal_columns), 'unprocessed_row_count': len(unprocessed_rows), 'sample': sample}, ensure_ascii=False)}
 
 CURRENT TABLE-FILL STATE:
-{json.dumps(list(goal_states), ensure_ascii=False, default=str)}
+{json.dumps(dict(goal_state), ensure_ascii=False, default=str)}
 
 PREVIOUS QUERIES AND MEASURED RESULTS:
 {json.dumps(list(previous_queries), ensure_ascii=False, default=str)}
@@ -599,7 +609,7 @@ class SourceTableQuerySource:
         interpret: Callable[..., Awaitable[SourceTableDataset]],
         propose: Callable[..., Awaitable[SourceTableQuery]],
         make_leaf: Callable[[SourceTableQueryUnit], Leaf],
-        goal_states: Callable[[], Sequence[Mapping[str, Any]]],
+        goal_prompt_context: Callable[[], Mapping[str, Any]],
         open_cost_scope: Callable[
             [str, str, str, tuple[tuple[str, str], ...]], Any
         ],
@@ -613,7 +623,7 @@ class SourceTableQuerySource:
         self._interpret = interpret
         self._propose = propose
         self._make_leaf = make_leaf
-        self._goal_states = goal_states
+        self._goal_prompt_context = goal_prompt_context
         self._open_cost_scope = open_cost_scope
         self._open_prompt_scope = open_prompt_scope
         self.dataset: Optional[SourceTableDataset] = None
@@ -664,7 +674,7 @@ class SourceTableQuerySource:
                         dataset=self.dataset,
                         unprocessed_rows=remaining,
                         previous_queries=tuple(self.history),
-                        goal_states=tuple(self._goal_states()),
+                        goal_state=dict(self._goal_prompt_context()),
                     )
         except Exception:
             return SourceEnd(END_SOURCE_FAILED, SOURCE_TABLE_QUERY_FAILED)
@@ -691,8 +701,25 @@ class SourceTableBinding:
         state: PageRunState,
         region: TableRegion,
         *,
+        proposal: Any,
         page_path: tuple[tuple[str, str], ...],
+        parent_goal: EpisodeGoal,
     ) -> Episode:
+        proposal_record = (
+            proposal.to_dict()
+            if hasattr(proposal, "to_dict")
+            else dict(proposal)
+            if isinstance(proposal, Mapping)
+            else proposal
+        )
+        goal = EpisodeGoal.for_grain(
+            self.source_table_grain,
+            parent=parent_goal,
+            objective={
+                "table_region_id": region.region_id,
+                "proposal": proposal_record,
+            },
+        )
         source_table_path = page_path + (
             (self.source_table_grain.name, region.region_id),
         )
@@ -711,7 +738,7 @@ class SourceTableBinding:
             interpret=self.interpret_source_table_region,
             propose=self.propose_source_table_query,
             make_leaf=self._make_source_table_query_leaf,
-            goal_states=self.goal_states,
+            goal_prompt_context=self.goal_prompt_context,
             open_cost_scope=self.open_cost_scope,
             open_prompt_scope=self.open_prompt_scope,
         )
@@ -719,6 +746,11 @@ class SourceTableBinding:
             grain=self.source_table_grain,
             key=region.region_id,
             source=source,
+            request=EpisodeRequest(
+                goal=goal,
+                input=proposal_record,
+                prompt_context={"table_region_id": region.region_id},
+            ),
             on_unit=lambda leaf, contribution, record: self._on_source_table_query(
                 state, source, leaf, contribution, record
             ),
@@ -739,9 +771,7 @@ class SourceTableBinding:
         unit: SourceTableQueryUnit,
         material: PageMaterial,
     ) -> Any:
-        transition = self.crediter(unit, material)
-        unit.attach_result(SourceTableQueryResult(goal_transition=transition))
-        return transition.observation
+        return GoalProposal(TableGoalCandidate(unit=unit, material=material))
 
     def _extract_source_table_query(
         self,
@@ -811,6 +841,12 @@ class SourceTableBinding:
         record: Any,
     ) -> None:
         unit = leaf.unit
+        transition = contribution.goal_result
+        if not isinstance(transition, GoalTransition):
+            raise TypeError(
+                "source-table Goal proposal completed without GoalTransition"
+            )
+        unit.attach_result(SourceTableQueryResult(goal_transition=transition))
         material = contribution.output
         observation = _incidence_input(contribution.controller_input)
         findings = set(observation.identities)

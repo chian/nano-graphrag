@@ -38,7 +38,7 @@ class ColumnEvidenceRole(str, Enum):
     BEST_GUESS = "best_guess"
 
     @classmethod
-    def coerce(cls, value: Any) -> "ColumnEvidenceRole":
+    def parse(cls, value: Any) -> "ColumnEvidenceRole":
         if isinstance(value, cls):
             return value
         text = str(value or cls.REPORTED.value).strip().lower().replace("-", "_")
@@ -50,7 +50,7 @@ class ColumnEvidenceRole(str, Enum):
             ) from exc
 
 # Table-contract synthesis is model string work: the model names the tables,
-# grains, and columns implied by the question. Coercion and the usable-schema
+# grains, and columns implied by the question. Parsing and the usable-schema
 # decision remain deterministic. This untested call site stays on reasoning.
 _TABLE_CONTRACT_SYNTHESIS_TIER = register_call_site_tier(
     "table-contract-synthesis",
@@ -130,9 +130,23 @@ class TableColumnSpec:
     value_type: str = ""
     #: A declared unit or scale token, e.g. ``km``, ``USD``, ``per_100k``.
     unit: str = ""
+    #: Whether this column is part of the result counted by acquisition.
+    #:
+    #: ``None`` keeps the structural default: ordinary columns count, while
+    #: row-identity columns do not. ``True`` is the important one-to-many case:
+    #: a field may distinguish child rows *and* be a requested result, so each
+    #: distinct resolved row contributes one stable identity to that field's
+    #: estimator channel. ``False`` explicitly makes an ordinary context field
+    #: non-result-bearing.
+    counts_as_result: bool | None = None
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "role", ColumnEvidenceRole.coerce(self.role))
+        object.__setattr__(self, "role", ColumnEvidenceRole.parse(self.role))
+        if self.counts_as_result is not None and not isinstance(
+            self.counts_as_result,
+            bool,
+        ):
+            raise ValueError("counts_as_result must be true, false, or omitted")
         object.__setattr__(
             self,
             "value_slot",
@@ -168,6 +182,8 @@ class TableColumnSpec:
             out["value_type"] = self.value_type
         if self.unit:
             out["unit"] = self.unit
+        if self.counts_as_result is not None:
+            out["counts_as_result"] = self.counts_as_result
         return out
 
 
@@ -192,6 +208,42 @@ class TableColdStartAnchorSpec:
             "source_table": self.source_table,
             "source_column": self.source_column,
         }
+
+
+IDENTITY_ANCHOR_MATCHERS = (
+    "exact",
+    "alias",
+    "time_overlap",
+    "location_overlap",
+    "semantic",
+)
+
+
+@dataclass(frozen=True)
+class TableIdentityAnchorSpec:
+    """One named source-evidenced way to recognize a table subject.
+
+    Subject keys are the canonical address used after resolution. Identity
+    anchors name the ordinary fields by which separately extracted mentions can
+    be compared before they share that address. The matcher is declarative: the
+    table contract says what comparison the fields support without embedding a
+    domain-specific field name in the resolver.
+    """
+
+    name: str
+    columns: tuple[str, ...]
+    matcher: str
+    description: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        out: dict[str, Any] = {
+            "name": self.name,
+            "columns": list(self.columns),
+            "matcher": self.matcher,
+        }
+        if self.description:
+            out["description"] = self.description
+        return out
 
 
 @dataclass(frozen=True)
@@ -236,6 +288,10 @@ class TableTargetSpec:
     #: an identity fix. Separate fields keep the two changes separately
     #: attributable.
     subject_key_columns: tuple[str, ...] = ()
+    #: Named, source-evidenced fields by which two extracted mentions may be
+    #: recognized as the same real-world subject before they receive the same
+    #: canonical subject key.
+    identity_anchors: tuple[TableIdentityAnchorSpec, ...] = ()
     columns: tuple[TableColumnSpec, ...] = ()
     admission_rules: tuple[TableAdmissionRuleSpec, ...] = ()
     cold_start_anchors: tuple[TableColdStartAnchorSpec, ...] = ()
@@ -262,6 +318,7 @@ class TableTargetSpec:
                     # check a typed one would refuse.
                     value_type=column.value_type,
                     unit=column.unit,
+                    counts_as_result=column.counts_as_result,
                 )
             else:
                 columns[name] = TableColumnSpec(name=name, nullable=False)
@@ -301,6 +358,10 @@ class TableTargetSpec:
             out["key_columns"] = list(self.key_columns)
         if self.subject_key_columns:
             out["subject_key_columns"] = list(self.subject_key_columns)
+        if self.identity_anchors:
+            out["identity_anchors"] = [
+                anchor.to_dict() for anchor in self.identity_anchors
+            ]
         if self.admission_rules:
             out["admission_rules"] = [
                 rule.to_dict() for rule in self.admission_rules
@@ -446,6 +507,13 @@ class TableSpec:
             if table.deliverable
         }
 
+    def identity_anchors_by_table(self) -> dict[str, list[dict[str, Any]]]:
+        return {
+            name: [anchor.to_dict() for anchor in table.identity_anchors]
+            for name, table in self.tables.items()
+            if table.deliverable
+        }
+
     def cold_start_anchors_by_table(self) -> dict[str, list[dict[str, str]]]:
         return {
             name: [anchor.to_dict() for anchor in table.cold_start_anchors]
@@ -552,7 +620,7 @@ def load_table_spec(
             payload,
             _load_table_spec_payload(spec_path),
         )
-    return _coerce_table_spec(payload)
+    return _parse_table_spec(payload)
 
 
 def table_spec_from_dict(payload: Mapping[str, Any]) -> TableSpec:
@@ -560,7 +628,7 @@ def table_spec_from_dict(payload: Mapping[str, Any]) -> TableSpec:
 
     if not isinstance(payload, Mapping):
         raise TypeError("checkpoint table_spec must be a mapping")
-    return _coerce_table_spec(dict(payload))
+    return _parse_table_spec(dict(payload))
 
 
 async def synthesize_table_spec(llm: Any, question: str) -> TableSpec:
@@ -583,6 +651,13 @@ Rules:
 - key_columns identify a complete row. subject_key_columns identify the stable
   real-world subject whose evidence accumulates across sources; declare both
   explicitly and include every named key in columns.
+- Declare identity_anchors for every table. Each anchor gives a unique semantic
+  name, the source-evidenced columns that help recognize the same subject across
+  separate texts, and the comparison those columns support: exact, alias,
+  time_overlap, location_overlap, or semantic. Name the actual identity evidence
+  needed for this row grain; do not assume that a generated ID or one field
+  alone can resolve the subject. Use several complementary anchors when names
+  can be reused or vary across sources.
 - Preserve reported ranges, bounds, comparisons, and source wording in their
   reported columns. When an evidence-anchored numeric best guess would be a
   distinct useful output, add a separate real column with role="best_guess";
@@ -590,6 +665,16 @@ Rules:
 - Give every column a value_slot. Reported and best-guess columns representing
   the same semantic value MUST use the same value_slot. They are alternative
   evidence routes to one completeness and rarefaction target, not two targets.
+- Row identity and result membership are separate. Give every column a
+  counts_as_result boolean: true for a requested result and false for an
+  identity-only or context field. When a requested result
+  field also distinguishes repeated child rows, include it in
+  subject_key_columns and set counts_as_result=true. For example, in a table
+  with one row per parent-event/effect pair, the parent-event reference may be
+  identity-only while the effect is both identity-bearing and result-bearing.
+  Each distinct resolved effect row must then contribute separately. Set
+  counts_as_result=false only for a declared context field that is neither an
+  answer nor a result target.
 - A best-guess column must have value_type="number" or "integer". It remains
   nullable=false when the question requires that estimate, so unsupported
   guesses remain missing rather than being fabricated. Never declare a
@@ -620,6 +705,14 @@ Return exactly this JSON shape:
       "deliverable": true,
       "key_columns": ["..."],
       "subject_key_columns": ["..."],
+      "identity_anchors": [
+        {{
+          "name": "stable_snake_case_role",
+          "columns": ["declared_column_name"],
+          "matcher": "alias",
+          "description": "how this evidence helps recognize the same subject"
+        }}
+      ],
       "columns": {{
         "column_name": {{
           "role": "reported or best_guess",
@@ -629,7 +722,8 @@ Return exactly this JSON shape:
           "aliases": ["source wording"],
           "field_hints": ["related source wording"],
           "value_type": "text",
-          "unit": ""
+          "unit": "",
+          "counts_as_result": true
         }}
       }},
       "admission_rules": [
@@ -655,7 +749,7 @@ Return exactly this JSON shape:
     )
     if not isinstance(payload, Mapping):
         raise ValueError("table-contract synthesis must return a JSON object")
-    spec = _coerce_table_spec(payload)
+    spec = _parse_table_spec(payload)
     diagnostic = spec.column_yield_diagnostic()
     if not diagnostic["usable_schema"]:
         raise ValueError(
@@ -666,6 +760,21 @@ Return exactly this JSON shape:
         if table.deliverable and not table.subject_key_columns:
             raise ValueError(
                 f"synthesized table {table.name!r} declares no subject_key_columns"
+            )
+        if table.deliverable and not table.identity_anchors:
+            raise ValueError(
+                f"synthesized table {table.name!r} declares no identity_anchors"
+            )
+        unspecified_result_columns = sorted(
+            column.name
+            for column in table.all_columns()
+            if column.counts_as_result is None
+        )
+        if table.deliverable and unspecified_result_columns:
+            raise ValueError(
+                f"synthesized table {table.name!r} must declare "
+                "counts_as_result for every column: "
+                + ", ".join(unspecified_result_columns)
             )
         reported_slots = {
             column.value_slot
@@ -740,7 +849,7 @@ def merge_table_specs(*specs: TableSpec) -> TableSpec:
     payload: dict[str, Any] = {}
     for spec in specs:
         payload = merge_table_spec_payloads(payload, spec.to_dict())
-    return _coerce_table_spec(payload)
+    return _parse_table_spec(payload)
 
 
 def _make_unrequested_seed_tables_non_deliverable(
@@ -769,6 +878,7 @@ def _make_unrequested_seed_tables_non_deliverable(
                 deliverable=False,
                 key_columns=table.key_columns,
                 subject_key_columns=table.subject_key_columns,
+                identity_anchors=table.identity_anchors,
                 columns=table.columns,
                 admission_rules=table.admission_rules,
                 cold_start_anchors=table.cold_start_anchors,
@@ -784,7 +894,7 @@ def merge_table_spec_payloads(
     base: Mapping[str, Any] | None,
     addition: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
-    """Combine raw table-spec payloads before coercion.
+    """Combine raw table-spec payloads before parsing and validation.
 
     Table specs are complete contracts after this step. A focused spec may add
     a new named table or update a same-name table without omitting other names
@@ -839,10 +949,10 @@ def _load_table_spec_payload(path: Path) -> dict[str, Any]:
     return dict(payload)
 
 
-def _coerce_table_spec(payload: Mapping[str, Any]) -> TableSpec:
+def _parse_table_spec(payload: Mapping[str, Any]) -> TableSpec:
     return TableSpec(
-        tables=_coerce_tables(payload.get("tables")),
-        migrations=_coerce_migrations(payload.get("migrations")),
+        tables=_parse_tables(payload.get("tables")),
+        migrations=_parse_migrations(payload.get("migrations")),
     )
 
 
@@ -948,6 +1058,9 @@ def observed_table_spec(
                 if base_table
                 else (),
                 [column.name for column in columns],
+            ),
+            identity_anchors=(
+                base_table.identity_anchors if base_table else ()
             ),
             columns=columns,
             admission_rules=(
@@ -1159,7 +1272,7 @@ def _migration_payloads(raw: Any) -> list[dict[str, Any]]:
     return [dict(item) for item in raw if isinstance(item, Mapping)]
 
 
-def _coerce_tables(raw: Any) -> dict[str, TableTargetSpec]:
+def _parse_tables(raw: Any) -> dict[str, TableTargetSpec]:
     items: Iterable[tuple[Any, Any]]
     if isinstance(raw, Mapping):
         items = raw.items()
@@ -1178,13 +1291,13 @@ def _coerce_tables(raw: Any) -> dict[str, TableTargetSpec]:
 
     tables: dict[str, TableTargetSpec] = {}
     for fallback_name, value in items:
-        table = _coerce_table(fallback_name, value)
+        table = _parse_table(fallback_name, value)
         if table is not None:
             tables[table.name] = table
     return tables
 
 
-def _coerce_table(fallback_name: Any, raw: Any) -> TableTargetSpec | None:
+def _parse_table(fallback_name: Any, raw: Any) -> TableTargetSpec | None:
     if raw is None:
         raw = {}
     if isinstance(raw, list):
@@ -1197,7 +1310,7 @@ def _coerce_table(fallback_name: Any, raw: Any) -> TableTargetSpec | None:
         return None
 
     key_columns = tuple(_clean_list(raw.get("key_columns") or raw.get("keys")))
-    cold_start_anchors = _coerce_cold_start_anchors(
+    cold_start_anchors = _parse_cold_start_anchors(
         raw.get("cold_start_anchors")
     )
     invalid_anchor_columns = sorted(
@@ -1214,14 +1327,33 @@ def _coerce_table(fallback_name: Any, raw: Any) -> TableTargetSpec | None:
         )
     columns = _merge_columns(
         [
-            *_coerce_columns(raw.get("columns")),
+            *_parse_columns(raw.get("columns")),
             *(
                 TableColumnSpec(name=column, nullable=False)
                 for column in key_columns
             ),
         ],
     )
-    admission_rules = _coerce_admission_rules(raw.get("admission_rules"))
+    identity_anchors = _parse_identity_anchors(raw.get("identity_anchors"))
+    if not identity_anchors:
+        raise ValueError(
+            f"table {name!r} requires at least one named identity anchor"
+        )
+    column_names = {column.name for column in columns}
+    invalid_identity_columns = sorted(
+        {
+            column
+            for anchor in identity_anchors
+            for column in anchor.columns
+            if column not in column_names
+        }
+    )
+    if invalid_identity_columns:
+        raise ValueError(
+            f"table {name!r} identity_anchors reference undeclared column(s): "
+            + ", ".join(invalid_identity_columns)
+        )
+    admission_rules = _parse_admission_rules(raw.get("admission_rules"))
     value_slots = {column.value_slot for column in columns}
     invalid_rule_fields = sorted(
         {rule.field for rule in admission_rules if rule.field not in value_slots}
@@ -1241,6 +1373,7 @@ def _coerce_table(fallback_name: Any, raw: Any) -> TableTargetSpec | None:
             raw.get("subject_key_columns") or key_columns,
             [column.name for column in columns],
         ),
+        identity_anchors=identity_anchors,
         columns=columns,
         admission_rules=admission_rules,
         cold_start_anchors=cold_start_anchors,
@@ -1248,10 +1381,47 @@ def _coerce_table(fallback_name: Any, raw: Any) -> TableTargetSpec | None:
     )
 
 
+def _parse_identity_anchors(raw: Any) -> tuple[TableIdentityAnchorSpec, ...]:
+    if raw is None:
+        return ()
+    if not isinstance(raw, list):
+        raise ValueError("identity_anchors must be a list")
+
+    anchors: list[TableIdentityAnchorSpec] = []
+    seen: set[str] = set()
+    for index, item in enumerate(raw):
+        if not isinstance(item, Mapping):
+            raise ValueError(f"identity_anchors[{index}] must be a mapping")
+        name = str(item.get("name") or "").strip()
+        columns = tuple(_clean_list(item.get("columns")))
+        matcher = str(item.get("matcher") or "").strip().lower()
+        if not name or not columns or not matcher:
+            raise ValueError(
+                f"identity_anchors[{index}] requires name, columns, and matcher"
+            )
+        if name in seen:
+            raise ValueError(f"duplicate identity anchor name {name!r}")
+        if matcher not in IDENTITY_ANCHOR_MATCHERS:
+            raise ValueError(
+                f"identity anchor {name!r} uses unsupported matcher {matcher!r}; "
+                f"expected one of {IDENTITY_ANCHOR_MATCHERS}"
+            )
+        seen.add(name)
+        anchors.append(
+            TableIdentityAnchorSpec(
+                name=name,
+                columns=columns,
+                matcher=matcher,
+                description=str(item.get("description") or "").strip(),
+            )
+        )
+    return tuple(anchors)
+
+
 _ADMISSION_OPERATORS = frozenset({"eq", "neq", "gt", "gte", "lt", "lte"})
 
 
-def _coerce_admission_rules(raw: Any) -> tuple[TableAdmissionRuleSpec, ...]:
+def _parse_admission_rules(raw: Any) -> tuple[TableAdmissionRuleSpec, ...]:
     if raw is None:
         return ()
     if not isinstance(raw, list):
@@ -1290,7 +1460,7 @@ def _coerce_admission_rules(raw: Any) -> tuple[TableAdmissionRuleSpec, ...]:
     return tuple(rules)
 
 
-def _coerce_cold_start_anchors(
+def _parse_cold_start_anchors(
     raw: Any,
 ) -> tuple[TableColdStartAnchorSpec, ...]:
     if raw is None:
@@ -1322,7 +1492,7 @@ def _coerce_cold_start_anchors(
     return tuple(anchors)
 
 
-def _coerce_columns(raw: Any) -> list[TableColumnSpec]:
+def _parse_columns(raw: Any) -> list[TableColumnSpec]:
     if isinstance(raw, Mapping):
         items = raw.items()
     elif isinstance(raw, list):
@@ -1334,13 +1504,13 @@ def _coerce_columns(raw: Any) -> list[TableColumnSpec]:
 
     columns: list[TableColumnSpec] = []
     for fallback_name, item in items:
-        column = _coerce_column(fallback_name, item)
+        column = _parse_column(fallback_name, item)
         if column is not None:
             columns.append(column)
     return columns
 
 
-def _coerce_column(fallback_name: Any, raw: Any) -> TableColumnSpec | None:
+def _parse_column(fallback_name: Any, raw: Any) -> TableColumnSpec | None:
     if isinstance(raw, str):
         raw = {"name": raw}
     if raw is None:
@@ -1353,7 +1523,7 @@ def _coerce_column(fallback_name: Any, raw: Any) -> TableColumnSpec | None:
         return None
     return TableColumnSpec(
         name=name,
-        role=ColumnEvidenceRole.coerce(raw.get("role")),
+        role=ColumnEvidenceRole.parse(raw.get("role")),
         value_slot=str(raw.get("value_slot") or name).strip(),
         nullable=not bool(raw.get("required", False))
         if "nullable" not in raw
@@ -1363,8 +1533,12 @@ def _coerce_column(fallback_name: Any, raw: Any) -> TableColumnSpec | None:
         field_hints=tuple(_clean_list(raw.get("field_hints"))),
         # Read back, or a YAML-declared type is silently dropped at load and the
         # non-triviality rule that reads it quietly reduces to "non-empty".
-        value_type=_coerce_value_type(raw.get("value_type")),
+        value_type=_parse_value_type(raw.get("value_type")),
         unit=str(raw.get("unit") or "").strip(),
+        counts_as_result=_parse_optional_bool(
+            raw.get("counts_as_result"),
+            field_name=f"column {name!r} counts_as_result",
+        ),
     )
 
 
@@ -1382,7 +1556,7 @@ VALUE_TYPES = (
 )
 
 
-def _coerce_value_type(raw: Any) -> str:
+def _parse_value_type(raw: Any) -> str:
     text = str(raw or "").strip().lower()
     if not text:
         return ""
@@ -1394,7 +1568,15 @@ def _coerce_value_type(raw: Any) -> str:
     return text
 
 
-def _coerce_migrations(raw: Any) -> tuple[TableMigrationSpec, ...]:
+def _parse_optional_bool(raw: Any, *, field_name: str) -> bool | None:
+    if raw is None:
+        return None
+    if not isinstance(raw, bool):
+        raise ValueError(f"{field_name} must be true, false, or omitted")
+    return raw
+
+
+def _parse_migrations(raw: Any) -> tuple[TableMigrationSpec, ...]:
     if raw is None:
         return ()
     if not isinstance(raw, list):
@@ -1421,17 +1603,17 @@ def _coerce_migrations(raw: Any) -> tuple[TableMigrationSpec, ...]:
 
 
 def _merge_columns(columns: Iterable[TableColumnSpec]) -> tuple[TableColumnSpec, ...]:
-    """First declaration of a column wins, with one additive exception.
+    """First declaration wins; later declarations may fill omitted metadata.
 
     ``observed_table_spec`` feeds this the base spec's columns followed by bare
     ``TableColumnSpec(name=...)`` objects minted from observed row keys, so
     first-wins is what preserves a declaration against an observation. The
-    exception runs the other way and only for the two declared-shape fields: a
-    kept column that declares neither ``value_type`` nor ``unit`` takes them
-    from a later duplicate that does. Without it, a bare observed column
-    arriving first -- which the ordering makes unlikely but not impossible for
-    callers that build their own list -- would silently erase a declaration, and
-    the loss would run in the permissive direction.
+    Exceptions run the other way for declared shape and result membership: a
+    kept column that omits them takes them from a later duplicate that declares
+    them. Without that, a bare observed column arriving first -- which the
+    ordering makes unlikely but not impossible for callers that build their own
+    list -- would silently erase a declaration, and the loss would run in the
+    permissive direction.
     """
 
     merged: dict[str, TableColumnSpec] = {}
@@ -1442,11 +1624,18 @@ def _merge_columns(columns: Iterable[TableColumnSpec]) -> tuple[TableColumnSpec,
         if kept is None:
             merged[column.name] = column
             continue
+        replacements: dict[str, Any] = {}
         if (column.value_type or column.unit) and not (kept.value_type or kept.unit):
-            merged[column.name] = replace(
-                kept,
+            replacements.update(
                 value_type=column.value_type,
                 unit=column.unit,
+            )
+        if kept.counts_as_result is None and column.counts_as_result is not None:
+            replacements["counts_as_result"] = column.counts_as_result
+        if replacements:
+            merged[column.name] = replace(
+                kept,
+                **replacements,
             )
     return tuple(merged.values())
 
@@ -2158,7 +2347,10 @@ class CriterionState:
     """One criterion's status, with the basis on which it was established.
 
     A supported state carries the registry-resolved source, source-version,
-    span, assertion, and acceptance identifiers for its accepted value.
+    assertion, and acceptance identifiers for its accepted value. Direct
+    assertions additionally carry their exact-text span identifiers. Accepted
+    best guesses have no exact-text span; their supporting chunk identifiers
+    remain on the registry assertion resolved by ``assertion_ids``.
 
     ``subject_source_ids`` is every source referenced anywhere on the subject's
     rows. It is noncrediting co-location context for inspection.
@@ -2888,7 +3080,21 @@ def _project_field(
             source_version_ids=tuple(
                 sorted({cell.source_version_id for cell in bindings})
             ),
-            span_ids=tuple(sorted({cell.span_id for cell in bindings})),
+            # Direct cells resolve through one exact-text span. Accepted best
+            # guesses resolve through one or more supporting chunks and
+            # deliberately have no ``span_id``. Both are valid registry
+            # bindings; requiring the direct-only field here made Goal
+            # projection crash as soon as a best guess was present.
+            span_ids=tuple(
+                sorted(
+                    {
+                        str(span_id)
+                        for cell in bindings
+                        for span_id in (getattr(cell, "span_id", ""),)
+                        if span_id
+                    }
+                )
+            ),
         )
 
     # No accepted stated value resolves for this field.
@@ -4275,14 +4481,20 @@ def result_contract(table_spec: Any) -> ResultContract:
         }
         for column in table.all_columns():
             column_name = str(column.name)
-            if column_name in identity_columns:
-                excluded.append(
-                    ResultColumnExclusion(name, column_name, "identity")
-                )
-                continue
             exclusion = datapoint_exclusion_class(column_name)
             if exclusion:
                 excluded.append(ResultColumnExclusion(name, column_name, exclusion))
+                continue
+            counts_as_result = getattr(column, "counts_as_result", None)
+            if counts_as_result is False:
+                excluded.append(
+                    ResultColumnExclusion(name, column_name, "declared_non_result")
+                )
+                continue
+            if column_name in identity_columns and counts_as_result is not True:
+                excluded.append(
+                    ResultColumnExclusion(name, column_name, "identity")
+                )
                 continue
             value_slot = str(
                 getattr(column, "value_slot", None) or column_name
@@ -4296,7 +4508,7 @@ def result_contract(table_spec: Any) -> ResultContract:
                     value_slot=value_slot,
                     slot_id=ColumnRef.create(table_ref, value_slot).id,
                     required=column_name in required_names,
-                    role=ColumnEvidenceRole.coerce(getattr(column, "role", None)),
+                    role=ColumnEvidenceRole.parse(getattr(column, "role", None)),
                     aliases=tuple(
                         str(item)
                         for item in (getattr(column, "aliases", ()) or ())
@@ -5769,6 +5981,7 @@ class FillDeficit:
     key_columns: tuple[str, ...] = ()
     missing_fields: tuple[str, ...] = ()
     anchor_values: dict[str, Any] = field(default_factory=dict)
+    identity_anchors: tuple[dict[str, Any], ...] = ()
     evidence_gap: str = ""
     expected_minimum_count: int = 0
     observed_count: int = 0
@@ -5789,6 +6002,7 @@ class FillDeficit:
             "key_columns": list(self.key_columns),
             "missing_fields": list(self.missing_fields),
             "anchor_values": dict(self.anchor_values),
+            "identity_anchors": [dict(anchor) for anchor in self.identity_anchors],
             "evidence_gap": self.evidence_gap,
             "expected_minimum_count": self.expected_minimum_count,
             "observed_count": self.observed_count,
@@ -5825,6 +6039,10 @@ class TableFillGoalTracker:
     table_schemas: Mapping[str, Sequence[str]] = field(default_factory=dict)
     table_columns: Mapping[str, Sequence[str]] = field(default_factory=dict)
     table_key_columns: Mapping[str, Sequence[str]] = field(default_factory=dict)
+    identity_anchors: Mapping[
+        str,
+        Sequence[Mapping[str, Any]],
+    ] = field(default_factory=dict)
     cold_start_columns: Mapping[str, Sequence[str]] = field(default_factory=dict)
     cold_start_anchors: Mapping[
         str,
@@ -6068,6 +6286,7 @@ class TableFillGoalTracker:
                     table_columns=self.table_columns,
                     cold_start_columns=self.cold_start_columns,
                     table_key_columns=self.table_key_columns,
+                    identity_anchors=self.identity_anchors,
                     cold_start_anchors=self.cold_start_anchors,
                 )
             ],
@@ -6149,6 +6368,10 @@ class TableFillGoalTracker:
                 "table_key_columns": {
                     name: list(columns)
                     for name, columns in self.table_key_columns.items()
+                },
+                "identity_anchors": {
+                    name: [dict(anchor) for anchor in anchors]
+                    for name, anchors in self.identity_anchors.items()
                 },
                 "cold_start_columns": {
                     name: list(columns)
@@ -6694,6 +6917,10 @@ def build_fill_deficits(
     table_columns: Mapping[str, Sequence[str]] | None = None,
     cold_start_columns: Mapping[str, Sequence[str]] | None = None,
     table_key_columns: Mapping[str, Sequence[str]] | None = None,
+    identity_anchors: Mapping[
+        str,
+        Sequence[Mapping[str, Any]],
+    ] | None = None,
     cold_start_anchors: Mapping[
         str,
         Sequence[Mapping[str, str]],
@@ -6727,6 +6954,7 @@ def build_fill_deficits(
             table_name,
             rows,
             max_row_gaps=max_row_gaps_per_table,
+            identity_anchors=(identity_anchors or {}).get(table_name, ()),
         )
         for deficit in table_deficits:
             deficits.setdefault(deficit.id, deficit)
@@ -7256,6 +7484,7 @@ def _table_gap_fill_deficits(
     rows: list[dict[str, Any]],
     *,
     max_row_gaps: int,
+    identity_anchors: Sequence[Mapping[str, Any]] = (),
 ) -> list[FillDeficit]:
     if not rows:
         return []
@@ -7299,7 +7528,12 @@ def _table_gap_fill_deficits(
     )
     for index, row in ranked_rows[: max(0, max_row_gaps)]:
         row_missing_fields = tuple(_missing_columns(row, columns))
-        anchor_values = _anchor_values(row, columns)
+        named_anchors = _identity_anchor_values(row, identity_anchors)
+        anchor_values = {
+            str(column): value
+            for anchor in named_anchors
+            for column, value in dict(anchor.get("values") or {}).items()
+        }
         evidence_gap = _row_evidence_gap(row)
         deficits.append(
             FillDeficit(
@@ -7320,6 +7554,7 @@ def _table_gap_fill_deficits(
                 description=f"Fill one partial row in {table_name}",
                 missing_fields=row_missing_fields,
                 anchor_values=anchor_values,
+                identity_anchors=named_anchors,
                 evidence_gap=evidence_gap,
                 gap_row_count=1,
                 row_count=len(rows),
@@ -7448,24 +7683,39 @@ def _missing_columns(row: Mapping[str, Any], columns: Sequence[str]) -> list[str
     return [column for column in columns if _goals_missing(_get_nested(row, column))]
 
 
-def _anchor_values(
+def _identity_anchor_values(
     row: Mapping[str, Any],
-    columns: Sequence[str],
-    *,
-    limit: int = 8,
-) -> dict[str, Any]:
-    anchors: dict[str, Any] = {}
-    for column in columns:
-        if len(anchors) >= limit:
-            break
-        # Same display-vs-serialized spelling as the missing-column counts: a
-        # raw lookup returns nothing, so a deficit carries no anchors at all
-        # and query generation has only field names left to work from.
-        value = _get_nested(row, column)
-        if _goals_missing(value):
+    declarations: Sequence[Mapping[str, Any]],
+) -> tuple[dict[str, Any], ...]:
+    """Materialize only the identity evidence explicitly named by the contract."""
+
+    anchors: list[dict[str, Any]] = []
+    for declaration in declarations:
+        name = str(declaration.get("name") or "").strip()
+        matcher = str(declaration.get("matcher") or "").strip()
+        columns = tuple(
+            str(column)
+            for column in declaration.get("columns") or ()
+            if str(column).strip()
+        )
+        values = {
+            column: _compact_value(_get_nested(row, column))
+            for column in columns
+            if not _goals_missing(_get_nested(row, column))
+        }
+        if not name or not matcher or not values:
             continue
-        anchors[column] = _compact_value(value)
-    return anchors
+        anchor: dict[str, Any] = {
+            "name": name,
+            "matcher": matcher,
+            "columns": list(columns),
+            "values": values,
+        }
+        description = str(declaration.get("description") or "").strip()
+        if description:
+            anchor["description"] = description
+        anchors.append(anchor)
+    return tuple(anchors)
 
 
 def _row_evidence_gap(row: Mapping[str, Any]) -> str:
@@ -7477,8 +7727,13 @@ def _row_evidence_gap(row: Mapping[str, Any]) -> str:
 
 
 def _row_gap_score(row: Mapping[str, Any], columns: Sequence[str]) -> int:
+    populated_count = sum(
+        1
+        for column in columns
+        if not _goals_missing(_get_nested(row, column))
+    )
     return (
-        len(_anchor_values(row, columns)) * 2
+        min(8, populated_count) * 2
         + len(_missing_columns(row, columns))
     )
 

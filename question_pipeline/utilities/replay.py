@@ -632,6 +632,7 @@ async def replay_saved_source(
     episode = pipeline.provider_binding.build_source_replay_episode(
         task,
         source.search_result(),
+        goal=pipeline.run_episode_goal(),
         strategy_key=strategy_key,
     )
     record = await pipeline.acquisition.run(episode)

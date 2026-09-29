@@ -183,6 +183,13 @@ def _compare_scalar(left: Any, operator: str, right: Any) -> bool:
 def _compare(value: Any, rule: AdmissionRule, comparison_type: str) -> str:
     if rule.operator not in _OPERATORS:
         return "unresolved"
+    # ``neq: ""`` is the table language's source-evidence presence rule.
+    # Parsing the empty comparison literal as a missing value would make the
+    # rule permanently unresolved, including when a mapped assertion supplies
+    # a real value.  Absence itself is still unresolved: admission requires a
+    # source-grounded assertion, not merely the lack of contrary evidence.
+    if rule.operator == "neq" and str(rule.value).strip() == "":
+        return "satisfied" if value is not None else "unresolved"
     right = _typed(rule.value, comparison_type)
     if isinstance(right, _NumericInterval):
         if right.lower != right.upper:

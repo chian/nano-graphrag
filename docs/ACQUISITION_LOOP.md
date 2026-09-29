@@ -50,22 +50,30 @@ THE ACQUISITION EPISODE (one generic Episode, instantiated at every surface):
       └──── switch ─┴──── continue / stop ◄─── verdict ───┘
 
  NESTING:  source-table-query Leaf ⊂ source-table ─┐
-                                                  ├─⊂ page ⊂ search ⊂ strategy ⊂ run
-                 chunk Leaf ⊂ lexical-probe ──────┘
+                 report-window Leaf ⊂ report ──────┼─⊂ page ⊂ search ⊂ strategy ⊂ run
+                 chunk Leaf ⊂ lexical-probe ───────┘
                                                                (provider surface)
            seed ⊂ walk ⊂ query                                (future GASL binding)
            — the same method at every grain; compact updates pass between scopes
 ```
 
 Concretely, on the provider surface: one Firecrawl search may batch many
-results, but **each returned item is processed one at a time**. Fetch and judge
-one item, extract from its chunks, persist and accept any evidence-backed
+results. The Search parent first obtains one Jev relevance probability for
+each buffered candidate from its inline-scraped text and immutable Search
+Goal. It passes every unprocessed candidate's Jev measurement, Firecrawl rank,
+content description, and the compact measured outcomes of prior Page children
+to its bound planning model, which selects **one returned item at a time**.
+Jev supplies planning evidence; it is not the page-selection policy. Process
+that selected item,
+extract from its chunks, persist and accept any evidence-backed
 criterion assertions, write the accepted values into the typed result state,
 and assign credit from that resulting state. The same stable assignment
 identities enter channel incidence, then the bound estimator-controller
 transition runs before pulling
 the next buffered item. Provider batching is an acquisition optimization; it
-is never a processing count or stop rule. The per-search verdict decides
+is never a processing count or stop rule. The planning model chooses the Page
+child; Jev measures candidate relevance and does not choose or emit the stop
+verdict. The per-search numerical verdict decides
 whether to keep consuming that result list; the per-strategy verdict decides
 whether that strategy family is locally saturated; and the run verdict decides
 whether the whole declared scope has converged. Acquisition never mutates a
@@ -73,6 +81,19 @@ graph. A completed run may emit a separately reviewable graph-addition proposal
 for a later explicit merge. On the GASL surface, each walk unit reports
 incidence the same way, and the walk quits on the numerical verdict, not on a
 fixed unit cap.
+
+Inside one selected Page, deterministic table discovery and prose chunking
+declare the possible child inputs. Before the first Page planning call, Jev
+measures every table region and prose chunk against Goal-derived result slots
+and any separate subject-identity needs. Candidate text is included once per
+token-bounded request while Jev answers the complete named probability vector.
+Those measurements are cached for the Page and filtered to the still-unprocessed
+candidates after every child. The Page planner receives the vectors, the best
+single-chunk coverage for each declared result table, the locations of the
+strongest chunks for every information need, and prior child yields. It uses
+that evidence to choose a detected table, a lexical probe, or holistic report
+reading. Jev does not choose, skip, admit evidence, assign credit, or stop the
+Page Episode.
 
 ## Credit has one owner
 
@@ -149,7 +170,7 @@ one completed inner loop. The two landed surfaces, as instances:
 
 | Grain | Unit that advances the count | Credit | What "stop" means |
 | --- | --- | --- | --- |
-| Inside one provider search | one fetched page or document | accepted typed logical value-slot identities | stop consuming that result list |
+| Inside one provider search | one Page Episode selected from the Jev-scored provider buffer | accepted typed logical value-slot identities | stop consuming that result list |
 | Inside one seed expansion (GASL surface) | one depth step (hop level) | node encounters at that depth | stop deepening from that seed (today: runs to its caps, disclosed) |
 | Inside one GASL walk | one seed expansion (a completed seed loop) | that seed's node encounters | quit the walk |
 | Inside one GASL query | one completed GASL operation track — a graph-reading operation: a GRAPHWALK as a completed walk episode, or a FIND / SUBGRAPH / GRAPHCONNECT / GRAPHPATTERN leaf; pure state transforms ride inside the source and are never units | the distinct opaque node identities that operation encountered, each once | stop executing further operations for that query |
@@ -337,30 +358,58 @@ as one atomic transition. `Episode` cannot join estimator output to a
 separately constructed controller or interpret an estimator-specific control
 statistic.
 
-The threshold adapter receives the immutable report and current thresholds and
-returns the thresholds used by that transition. Its initial implementation is
-the identity operation: thresholds remain fixed. The hook exists so a later
-approved numerical adaptation rule can be supplied by composition without
-changing `Episode`. Returned thresholds are validated and recorded with the
-verdict.
+The threshold adapter receives one immutable context containing the report,
+current thresholds, recent realized method-credit window, and the last
+identifiable productive-unit baseline. It returns a typed threshold update;
+`Episode` sees neither the context nor the arithmetic. Returned thresholds are
+validated and the complete update is recorded with the verdict.
+
+The adaptive question-pipeline rule is defined on the same hypervolume scale
+as the controller statistic. Let `r_t` be the smallest positive change in
+current hypervolume obtained by adding one unique identity to any open required
+channel, holding all other coordinates fixed. Identity counts are discrete:
+that counterfactual normalizes an open channel by at least `D_tc + 1`, even
+when its fitted reachable total is only `D_tc + epsilon`. A vanishing fitted
+remainder therefore cannot make one physically possible result worth a
+vanishing threshold. Let `b_t` be the median nonzero
+realized hypervolume credit in the trailing estimator window. When that window
+is barren, the last identifiable `b` is carried. With the declared efficiency
+fraction `f=0.1`,
+
+```text
+gamma_t = max(r_t, f * b_t)
+```
+
+Either identifiable term may set the threshold. When neither term is
+identifiable, the controller records `threshold_insufficient` and does not
+advance its flat streak. A fully saturated vector has an identifiable
+one-result resolution of zero; that is different from an unavailable
+resolution. Each verdict records `r_t`, `b_t`, `f`, trailing-window counts,
+whether the baseline was carried, `gamma_t`, the predicted next-credit band,
+the streak, and the stop result. The lexical-probe/chunk binding retains its
+separately calibrated fixed threshold for the first live comparison.
 
 For required channels `C`, let `D_tc` be cumulative distinct accepted
 identities after unit `t`, `N_tc` the channel's current reachable-total
 estimate, and `g_(t+1)c` its expected new identities in the next attempted
-unit. The controller preserves the vector and computes
+unit. For an open axis, define the realizable normalization
+`M_tc = max(1, N_tc, D_tc + 1)`. The controller preserves the vector and
+computes
 
 ```
-p_tc       = min(1, D_tc / N_tc)
-p_next_c   = min(1, (D_tc + g_(t+1)c) / N_tc)
+p_tc       = min(1, D_tc / M_tc)
+p_next_c   = min(1, (D_tc + g_(t+1)c) / M_tc)
 expected_next_hypervolume_credit
            = product_c(p_next_c) - product_c(p_tc)
 ```
 
 A zero estimated population with zero observations is a completed axis with
-coordinate one. A positive observation against a zero denominator is
-unidentifiable. The component propagates the numeric bands on `N` and `g` into
-a conservative numeric band on expected next hypervolume credit and records
-the per-axis inputs beside it.
+coordinate one. For realized credit on the frozen pre-unit scale, the
+normalization is at least the post-unit observed count, because the realized
+identities themselves prove that lower bound. A positive observation against a
+zero denominator is unidentifiable. The component propagates the numeric bands
+on `N` and `g` into a conservative numeric band on expected next hypervolume
+credit and records the per-axis inputs beside it.
 
 Configuration declares one numeric `gamma` for expected next hypervolume
 credit, per-column `rho_c` values used only to label a stopped scope's remaining
@@ -413,6 +462,13 @@ body through `Episode.run` or `Episode.run_async`.
 ### The class
 
 ```
+EpisodeGoal                              # immutable at one Episode boundary
+  goal_id       : str                   # content-derived stable identity
+  parent_goal_id: str                   # empty only for the root Goal
+  objective     : JSON                  # what this Episode is trying to do
+  result_contract: JSON                 # what this grain returns
+  task_context  : JSON                  # root task context inherited unchanged
+
 Grain                                    # one level of the loop, declared once
   name    : str            # "search", "strategy", "walk", "seed", "run", ...
   unit    : str            # one sentence: what one unit IS at this grain
@@ -426,7 +482,7 @@ Episode[Unit, Extracted]                 # one instance of one grain
   key     : str            # this instance's scope key (task id, strategy
                            #   id, walk id); its scope is the complete ancestry
                            #   Path ending in (grain.name, key)
-  request : EpisodeRequest # compact parent -> child input
+  request : EpisodeRequest # mandatory Goal plus compact parent -> child input
   source  : UnitSource     # next(view) -> Unit | None. `view` carries the
                            #   request, prior compact child updates, and the
                            #   opaque current controller state. It never
@@ -448,6 +504,8 @@ Episode[Unit, Extracted]                 # one instance of one grain
                            #   default and never an acquisition stop policy
 
   run(ctx) -> EpisodeRecord:             # and run_async, same step order
+    validate request.goal                 # root has no parent; a nested Goal
+                                          #   must name this parent Episode's Goal
     while True:
         if safety reached:                end = bound_hit;  break   # before pulling
         unit = source.next(view)          # pull
@@ -471,8 +529,19 @@ unit is pulled; one controller function is opened for each Episode path; the
 controller returns one internally consistent step after every unit; the
 arithmetic verdict is evaluated before a hook can observe the result; epoch
 transitions and streaks have one owner; and a child episode is one unit of its
-parent. Records nest as episodes do. The method core calls no model and does no
+parent. Every Episode has one immutable Goal. The kernel rejects a child whose
+Goal does not name the containing Episode's Goal, and rejects an
+`EpisodeUpdate` that does not preserve the completed child's Goal. Records nest
+as episodes do. The method core calls no model and does no
 I/O — whether an injected `extract` fetches a page is invisible to it.
+
+The first `source.next(view)` call is the Episode's initial planning step: the
+Goal and starting context are present and prior updates are empty. Later calls
+are replanning against the same Goal with measured child updates and current
+controller state. Goal definition is therefore one-shot; Goal progress is not.
+A binding may prepare deterministic starting context before the Episode opens,
+but that preparation is not a unit, earns no credit, and does not advance the
+controller.
 
 Bound at the method level: `source`, `extract`, the result projector, the
 controller function, compact request/update construction, the post-controller
@@ -495,6 +564,12 @@ are child Episodes, it accepts a child builder callable. It does not import a
 concrete child binding and thereby choose its own place in the tree. The chunk
 module owns the Leaf's unit and extract/accept/result wiring; it does not
 declare a Grain or pretend the Leaf is an Episode.
+
+Every builder receives the containing Episode's Goal and derives one explicit
+child Goal with `EpisodeGoal.for_grain`. Task context is inherited unchanged;
+only the local objective and grain result contract change. A binding must not
+recover the task Goal through a hidden global context or open a child without
+the parent-Goal link.
 
 The question-pipeline layout is:
 
@@ -534,6 +609,36 @@ starts the root Episode once. A page may open either a source-table Episode or a
 lexical-probe Episode. Extraction, evidence, table projection, numerical
 control, search, and checkpoints remain in their named utility modules.
 
+The page Episode's numerical verdict alone determines whether another child
+may be pulled. On each permitted pull, the page source presents a model with
+only the children that physically exist: one option for each detected,
+unattempted table region, a whole-report option, and one lexical-probe option
+while unprocessed prose chunks remain. Page construction records one explicit
+deterministic summary containing source identity, title, size, outline, exact
+opening, prose-chunk count, and detected table-region summaries. The Page
+prompt receives its immutable Episode Goal, that prepared summary, current
+Goal state, and compact measured outcomes from prior Page children. The model
+selects one declared child and supplies its string input; it does not stop or
+continue the Page.
+There is no fixed table-first or prose-first order. The selected proposal is
+recorded as that child's `EpisodeRequest`, and the completed child's compact
+`EpisodeUpdate` becomes input to the next Page proposal.
+
+The Search Episode follows the same parent-owned selection pattern over Page
+children. Firecrawl rank and Jev relevance probability are recorded for every
+candidate before the first Page child opens. On each permitted pull, the
+Search source chooses the greatest remaining Jev probability and uses provider
+rank to break a tie. This is a numerical ordering rule, not a relevance cutoff:
+no probability silently terminates the Search. After the Page child returns,
+its accepted identities enter the Search controller, and that controller alone
+decides whether another Page may be selected. The complete assessment list and
+actual selection order are durable Search state so continuation never
+reclassifies an already assessed provider buffer. Jev request size is measured
+in tokens, never characters: 5,000 of the 64,000-token request budget are
+reserved for the Search Goal, query, candidate metadata, and decision question;
+page text is split losslessly at token boundaries only after it exceeds the
+remaining 59,000 tokens.
+
 `source_table_language/` is below the source-table Episode binding and outside the question
 pipeline. It owns source-table discovery, addressable surrounding context, the
 validated command vocabulary, deterministic program execution, and
@@ -558,6 +663,8 @@ the number of eligible children that contributed it: at the strategy grain,
 identities found by exactly two. Each grain deduplicates its own unit, so an
 identity new within one child can correctly be a recurrence at the parent.
 
+The update preserves the child's Goal as well as its controller input. The
+kernel verifies that it is the same Goal recorded on the completed child.
 The full child `EpisodeRecord` remains nested and auditable in the trace tree.
 Its `record_id` joins audit artifacts to the compact update; it is not a route
 for parent steering code to recover the trace. The
@@ -672,13 +779,18 @@ extended there — never by a second meter.
 
 | Surface | Composition (outer ⊃ inner) | The unit at each grain |
 | --- | --- | --- |
-| Provider | run ⊃ strategy ⊃ search ⊃ page ⊃ (source table ⊃ source-table-query Leaf OR lexical probe ⊃ chunk Leaf) | a proposed strategy Episode ⊃ a search Episode ⊃ a fetched page Episode ⊃ either one parsed-source-table query or one ranked prose chunk |
+| Provider | run ⊃ strategy ⊃ search ⊃ page ⊃ (source table ⊃ source-table-query Leaf OR report ⊃ report-window Leaf OR lexical probe ⊃ chunk Leaf) | a proposed strategy Episode ⊃ a search Episode ⊃ one Page Episode selected by Jev probability and provider-rank tie-break ⊃ either one parsed-source-table query, one report window, or one ranked prose chunk |
 | Future GASL binding | query ⊃ walk ⊃ seed | an operation-track unit ⊃ a walk Episode ⊃ one seed expansion; standalone GASL remains independent of this composition |
 
-A search returns pages, so the page is the search grain's natural unit. A page
-may open source-table Episodes over detected structured regions and lexical-probe
-Episodes over the remaining text. Each source-table Episode queries parsed rows;
-each lexical-probe Episode consumes previously unprocessed chunks as Leaves.
+A search returns pages, so the page is the search grain's natural unit. The
+Search parent assesses its buffered Page candidates against its Goal and owns
+which one becomes the next child; the child does not decide whether it should
+have been launched. A page
+may open source-table Episodes over detected structured regions, report
+Episodes over ordered prose windows, and lexical-probe Episodes over the
+remaining text. Each source-table Episode queries parsed rows; each report
+Episode carries source-linked memory between windows; each lexical-probe
+Episode consumes previously unprocessed chunks as Leaves.
 The two bindings share evidence acceptance and result projection, not source
 units or extraction paths. A chunk is a Leaf, not another Episode grain. The strategy grain
 (4D) is the `strategy` row: a strategy is an episode of searches that ends
@@ -722,6 +834,10 @@ semantics.
    Leaf binding. The composition file alone chooses parent and child. Shared
    table projection and recording services are not Episode bindings and do not
    live in one.
+9. **Every Episode has one Goal.** The root Goal has no parent; every nested
+   Goal names the containing Goal. The first source call plans with empty
+   history, later calls replan under the same Goal, and a child update preserves
+   the Goal it completed.
 
 ### Current migration sequence
 
@@ -776,7 +892,7 @@ surface.
 
 | Module | Owns |
 | --- | --- |
-| `method_loop/episode.py` | The single composable loop, Episode/unit identities, compact `EpisodeRequest`/`EpisodeUpdate` routing, and the full recursive `EpisodeRecord` trace |
+| `method_loop/episode.py` | The single composable loop, immutable hierarchical Episode Goals, Episode/unit identities, compact `EpisodeRequest`/`EpisodeUpdate` routing, and the full recursive `EpisodeRecord` trace |
 | `method_loop/runtime.py` | Path routing that opens and calls the controller function supplied by each `Grain`; it knows no controller schema |
 | `question_pipeline/utilities/rarefaction.py` | The question pipeline's controller implementation: incidence observation, paired estimator-controller transition, numeric report, threshold adapter, and estimator-specific arithmetic |
 
@@ -811,10 +927,12 @@ policy out of the graph engine itself.
 
 1. **Provider search** — composed from the individual modules under
    `question_pipeline/episode_binding/`. Unit = one
-   fetched item (page/paper). Firecrawl may return a large batch, but the
-   Episode pulls and processes buffered items one by one: fetch → relevance
-   judge → extract → persist evidence → accept → incidence → estimate →
-   verdict. The per-search verdict stops consuming that result list; the
+   fetched item (page/paper). Firecrawl may return a large batch. Jev assesses
+   that buffer against the Search Goal; the Search parent's bound planning
+   model receives those measurements, provider ranks, and prior Page yields,
+   then selects one item at a time: plan child → extract → persist
+   evidence → accept → incidence → estimate → verdict. The per-search verdict
+   stops consuming that result list; the
    per-strategy verdict decides when to switch strategy; the root verdict is
    the only convergence of the whole run. Graph enrichment is a post-verdict
    side effect. No page count or search count is the method stop rule.
@@ -857,7 +975,11 @@ verified checkpoint and does not reload the run directory as seed input.
 
 The current Firecrawl binding's smallest durable boundary is one completed
 page. An interruption after that checkpoint resumes the saved Firecrawl result
-buffer at its next unprocessed rank. An interruption during a page may leave a
+buffer with its persisted Jev assessments, processed provider ranks, and
+selection and compact Page-outcome history, then asks the bound Search planner
+to select among the remaining candidates without repeating the provider call
+or Jev assessments.
+An interruption during a page may leave a
 live artifact newer than the checkpoint; verification detects that condition
 and refuses to continue from a mixed state. Older checkpoint versions lack the
 shared commit and artifact fingerprints and are therefore not continuation

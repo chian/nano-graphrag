@@ -4,10 +4,10 @@ import asyncio
 from dataclasses import dataclass
 from typing import Any
 
-from method_loop import Leaf
+from method_loop import GoalProposal, Leaf
 
 from question_pipeline.utilities.acquisition import ObservationKind, classify_error
-from question_pipeline.episode_binding.provider_binding import EXTRACT_OK, EXTRACT_RAISED, FATE_NO_EXTRACTOR, ChunkUnit, GoalTransition, PageMaterial, PageRunState, page_fate
+from question_pipeline.episode_binding.provider_binding import EXTRACT_OK, EXTRACT_RAISED, FATE_NO_EXTRACTOR, ChunkUnit, GoalTransition, PageMaterial, PageRunState, TableGoalCandidate, page_fate
 
 
 @dataclass(frozen=True)
@@ -50,9 +50,7 @@ class ChunkBinding:
         unit: ChunkUnit,
         material: PageMaterial,
     ) -> Any:
-        transition = self.crediter(unit, material)
-        unit.attach_result(ChunkResult(goal_transition=transition))
-        return transition.observation
+        return GoalProposal(TableGoalCandidate(unit=unit, material=material))
 
     async def _extract_chunk(self, unit: ChunkUnit) -> PageMaterial:
         """Extract one selected chunk; no other chunk is touched by this pull."""

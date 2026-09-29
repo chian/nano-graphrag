@@ -12,10 +12,11 @@ from __future__ import annotations
 # ============================================================================
 
 import asyncio
+import copy
 import json
 import re
 from collections import Counter
-from dataclasses import dataclass, field, replace
+from dataclasses import InitVar, dataclass, field, replace
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import (
@@ -32,7 +33,7 @@ from typing import (
 
 if TYPE_CHECKING:
     from question_pipeline.episode_binding.strategy_binding import StrategyProposer
-    from question_pipeline.episode_binding.web_search_binding import PageSource
+    from question_pipeline.episode_binding.web_search_binding import SearchPageProposer
 from method_loop import (
     END_BOUND_HIT,
     END_EXHAUSTED,
@@ -40,10 +41,14 @@ from method_loop import (
     END_YIELD_STOP,
     Context,
     Episode,
+    EpisodeGoal,
     EpisodeRecord,
+    EpisodeRequest,
     EpisodeUpdate,
     EpisodeView,
     EpisodeTree,
+    GoalPreview,
+    GoalProposal,
     Grain,
     Leaf,
     ResumeUnit,
@@ -51,7 +56,8 @@ from method_loop import (
     UnitRecord,
     UnitView,
 )
-from question_pipeline.utilities.rarefaction import OBSERVATION_EXCLUDED, OBSERVATION_FAILED, OBSERVATION_OBSERVED, ChannelSchema, ControlStep, ControllerConfig, IncidenceObservation, IncidenceState, bind_controller
+from method_loop import UnitRef
+from question_pipeline.utilities.rarefaction import OBSERVATION_EXCLUDED, OBSERVATION_FAILED, OBSERVATION_OBSERVED, ChannelSchema, ControlStep, ControllerConfig, IncidenceObservation, IncidenceState, adaptive_marginal_credit_threshold, bind_controller
 from question_pipeline.utilities import tables as criteria
 from question_pipeline.utilities.acquisition import select_first_clearing, stable_id
 from question_pipeline.utilities.acquisition import CostErrorClass, ObservationKind, classify_error
@@ -65,17 +71,18 @@ ACQUISITION_POLICY_NAME = "acquisition_yield_v2"
 
 #: Stamped on every emitted acquisition record. The module docstring's
 #: separation, in the artifact a later reader actually opens.
-CREDIT_SEMANTICS = "single_post_table_logical_slot_credit_v2"
+CREDIT_SEMANTICS = "single_post_dedup_logical_slot_credit_v3"
 
 
 # ==========================================================================
-# The six grains -- the one place a policy is declared (charter rule 4)
+# The seven grains -- the one place a policy is declared (charter rule 4)
 # ==========================================================================
 
 #: Per-search item policy. Firecrawl may return a provider-sized batch, but the
 #: batch is only a buffer. After each one-page pull, the paired numerical
-#: component predicts the next page's marginal hypervolume credit. Its upper
-#: band must be zero for the declared streak before this policy stops.
+#: component predicts the next page's marginal hypervolume credit. The adaptive
+#: policy compares that band with current one-result resolution and productive
+#: credit history.
 DEFAULT_ITEM_CONTROL = ControllerConfig.uniform(
     ("overall",), gamma=0.0, rho=0.0, streak_length=4
 )
@@ -100,14 +107,22 @@ DEFAULT_SOURCE_TABLE_CONTROL = ControllerConfig.uniform(
     ("overall",), gamma=0.0, rho=0.0, streak_length=4
 )
 
-#: Strategy-grain policy (unit = one completed search). Its scalar threshold is
-#: fixed before the run and applies to predicted next-search hypervolume.
+#: Whole-report policy inside one page. Its units are large sequential prose
+#: windows whose binding carries compact source-linked memory between pulls.
+#: The model extracts strings; this controller alone decides whether another
+#: window is worth processing.
+DEFAULT_REPORT_CONTROL = ControllerConfig.uniform(
+    ("overall",), gamma=0.0, rho=0.0, streak_length=4
+)
+
+#: Strategy-grain policy (unit = one completed search). Its initial scalar
+#: threshold is replaced by the adaptive policy before any numerical verdict.
 DEFAULT_STRATEGY_CONTROL = ControllerConfig.uniform(
     ("overall",), gamma=0.0, rho=0.0, streak_length=8
 )
 
-#: Run-grain policy (unit = one completed strategy). Its scalar threshold is
-#: fixed before the run and applies to predicted next-strategy hypervolume.
+#: Run-grain policy (unit = one completed strategy). Its initial scalar
+#: threshold is replaced by the adaptive policy before any numerical verdict.
 DEFAULT_RUN_CONTROL = ControllerConfig.uniform(
     ("overall",), gamma=0.0, rho=0.0, streak_length=8
 )
@@ -117,6 +132,7 @@ STRATEGY_GRAIN_NAME = "strategy"
 SEARCH_GRAIN_NAME = "search"
 PAGE_GRAIN_NAME = "page"
 SOURCE_TABLE_GRAIN_NAME = "source_table"
+REPORT_GRAIN_NAME = "report"
 LEXICAL_PROBE_GRAIN_NAME = "lexical_probe"
 
 
@@ -145,7 +161,7 @@ def _acquisition_grains(
         (
             PAGE_GRAIN_NAME,
             "one completed retrieval episode over one part of the page",
-            "the binding-defined result returned by that table or lexical retrieval",
+            "the binding-defined result returned by that source-table, report, or lexical retrieval",
             DEFAULT_PAGE_CONTROL,
         ),
         (
@@ -153,6 +169,12 @@ def _acquisition_grains(
             "one deterministic query over one parsed source table",
             "the accepted goal-result identities returned by that source-table query",
             DEFAULT_SOURCE_TABLE_CONTROL,
+        ),
+        (
+            REPORT_GRAIN_NAME,
+            "one large sequential prose window from one report",
+            "the accepted goal-result identities resolved from that report window",
+            DEFAULT_REPORT_CONTROL,
         ),
         (
             LEXICAL_PROBE_GRAIN_NAME,
@@ -169,6 +191,11 @@ def _acquisition_grains(
             controller=bind_controller(
                 channel_schema=channel_schema,
                 control=control,
+                threshold_adapter=(
+                    None
+                    if name == LEXICAL_PROBE_GRAIN_NAME
+                    else adaptive_marginal_credit_threshold
+                ),
             ),
         )
         for name, unit, result, control in declarations
@@ -656,13 +683,24 @@ class PageRunState:
     reduction: Mapping[str, Any]
     chunks: tuple[Any, ...]
     outline: Mapping[str, Any]
+    page_summary: Mapping[str, Any]
+    source_preview: str = ""
+    source_table_region_ids: tuple[str, ...] = ()
+    content_assessment: Any = None
+    content_assessment_error: str = ""
     processed_chunk_ids: set[str] = field(default_factory=set)
     seen_finding_ids: set[str] = field(default_factory=set)
-    probe_proposals: dict[str, Mapping[str, Any]] = field(default_factory=dict)
+    child_proposals: dict[tuple[str, str], Mapping[str, Any]] = field(
+        default_factory=dict
+    )
+    child_history: list[dict[str, Any]] = field(default_factory=list)
+    selected_source_table_ids: set[str] = field(default_factory=set)
     probe_history: list[dict[str, Any]] = field(default_factory=list)
     chunk_units: list[ChunkUnit] = field(default_factory=list)
     source_table_units: list[Any] = field(default_factory=list)
     source_table_history: list[dict[str, Any]] = field(default_factory=list)
+    report_units: list[Any] = field(default_factory=list)
+    report_history: list[dict[str, Any]] = field(default_factory=list)
     materials: list["PageMaterial"] = field(default_factory=list)
 
     def chunk_id(self, span: Any) -> str:
@@ -708,8 +746,12 @@ class PageMaterial:
     text_chars: int = 0
     evidence_commit: Optional[EvidenceCommit] = None
     evidence_commits: Sequence[EvidenceCommit] = ()
+    page_child_history: Sequence[Mapping[str, Any]] = ()
+    page_content_assessment: Optional[Mapping[str, Any]] = None
+    page_content_assessment_error: str = ""
     probe_history: Sequence[Mapping[str, Any]] = ()
     source_table_history: Sequence[Mapping[str, Any]] = ()
+    report_history: Sequence[Mapping[str, Any]] = ()
 
 
 @dataclass(frozen=True)
@@ -1012,10 +1054,22 @@ class RowCompletionDetail:
 
 @dataclass(frozen=True)
 class _AcceptedProjection:
-    """Post-storage logical-slot incidence and row diagnostics."""
+    """Post-storage incidence, new credit assignments, and row diagnostics.
 
+    ``incidence`` contains every distinct logical identity observed in the
+    current unit, including identities already present before the unit. Those
+    repeats belong in the estimator's recurrence sample. ``attributions`` is
+    the strict post-dedup set difference and therefore contains new table
+    results only.
+    """
+
+    incidence: tuple[tuple[str, str], ...] = ()
     attributions: tuple[CreditAttribution, ...] = ()
     row_completions: tuple[RowCompletionDetail, ...] = ()
+    commit_cell_ids: frozenset[str] = frozenset()
+    commit_cell_ids_by_identity: Mapping[str, frozenset[str]] = field(
+        default_factory=dict
+    )
 
 
 @dataclass(frozen=True)
@@ -1045,7 +1099,24 @@ class GoalTransition:
         }
 
 
-class TableCreditAssigner:
+@dataclass(frozen=True)
+class TableGoalCandidate:
+    """A binding-produced candidate with no Goal write capability."""
+
+    unit: Any
+    material: PageMaterial
+
+
+@dataclass(frozen=True)
+class _TableGoalPreviewToken:
+    unit: Any
+    material: PageMaterial
+    eligible_commit: Optional[EvidenceCommit]
+    projected: _AcceptedProjection
+    observation: IncidenceObservation
+
+
+class TableGoalState:
     """The tabular Goal's single what-counts rule and transition boundary.
 
     This class operates on the goal-result table, never on a table parsed from
@@ -1064,10 +1135,10 @@ class TableCreditAssigner:
     def __init__(self, table_spec: Any, table_store: TypedTableStore) -> None:
         self._table_spec = table_spec
         if not isinstance(table_store, TypedTableStore):
-            raise TypeError("TableCreditAssigner requires a TypedTableStore")
+            raise TypeError("TableGoalState requires a TypedTableStore")
         if table_spec != table_store.table_spec:
             raise ValueError(
-                "TableCreditAssigner and TypedTableStore must share one table contract"
+                "TableGoalState and TypedTableStore must share one table contract"
             )
         self._table_store = table_store
         self._assignments: list[CreditAttribution] = []
@@ -1145,7 +1216,11 @@ class TableCreditAssigner:
 
     @property
     def rows_by_name(self) -> dict[str, list[dict[str, Any]]]:
-        return self._table_store.rows_by_name
+        return copy.deepcopy(self._table_store.rows_by_name)
+
+    @property
+    def state_id(self) -> str:
+        return self._table_store._state_id()
 
     def assignments_for_strategy(self, strategy_key: str) -> tuple[dict[str, Any], ...]:
         return tuple(
@@ -1384,22 +1459,51 @@ class TableCreditAssigner:
             )
         return tuple(out)
 
-    def __call__(
+    def preview(
         self,
-        unit: PageUnit,
-        material: PageMaterial,
-    ) -> GoalTransition:
-        """Apply accepted material to the goal and return its one transition."""
+        proposal: GoalProposal,
+        unit_ref: UnitRef,
+    ) -> GoalPreview:
+        """Project a candidate without changing the durable Goal state."""
+
+        if not isinstance(proposal, GoalProposal):
+            raise TypeError("TableGoalState.preview requires GoalProposal")
+        candidate = proposal.payload
+        if not isinstance(candidate, TableGoalCandidate):
+            raise TypeError(
+                "the tabular Goal accepts only TableGoalCandidate proposals"
+            )
+        unit = candidate.unit
+        material = candidate.material
+        if not str(getattr(unit, "label", "")):
+            raise ValueError("a table Goal candidate requires a labeled unit")
 
         fate = material.fate
         commit = material.evidence_commit if fate.judged else None
-        mutation = (
-            self._table_store.apply(material.records, commit)
+        eligible_commit = (
+            self._relationship_filtered_commit(material.records, commit)
             if commit is not None
             else None
         )
-        projected = self._accepted_identities(unit, commit, mutation)
-        self._assignments.extend(projected.attributions)
+        preview_store = (
+            TypedTableStore(
+                self._table_spec,
+                self._table_store.evidence_registry,
+                copy.deepcopy(self._table_store.rows_by_name),
+            )
+            if eligible_commit is not None
+            else None
+        )
+        preview_mutation = (
+            preview_store.apply(material.records, eligible_commit)
+            if preview_store is not None and eligible_commit is not None
+            else None
+        )
+        previewed = self._accepted_identities(
+            unit,
+            eligible_commit,
+            preview_mutation,
+        )
         if not self._basis.columns and not self._basis.tables:
             observation = IncidenceObservation.failed(
                 "no declared, deliverable contract columns exist; zero credits "
@@ -1409,20 +1513,284 @@ class TableCreditAssigner:
             observation = IncidenceObservation.failed(fate.disclosure)
         else:
             identities = tuple(
-                dict.fromkeys(item.identity for item in projected.attributions)
+                dict.fromkeys(identity for identity, _ in previewed.incidence)
             )
-            facets = self._facets(projected)
+            facets = self._facets(previewed)
             observation = IncidenceObservation(
                 identities=identities,
                 channels=facets,
             )
-        return GoalTransition(
+        no_commit = GoalTransition(
             observation=observation,
+            attributions=(),
+            row_completions=(),
+            row_completion_unavailable=self.row_completion_unavailable,
+            declared_facets=self._declared_facets,
+        )
+        return GoalPreview(
+            controller_input=observation,
+            candidate_result_ids=tuple(observation.identities),
+            state_id=self.state_id,
+            no_commit_result=no_commit,
+            token=_TableGoalPreviewToken(
+                unit=unit,
+                material=material,
+                eligible_commit=eligible_commit,
+                projected=previewed,
+                observation=observation,
+            ),
+        )
+
+    def commit(
+        self,
+        preview: GoalPreview,
+        result_ids: tuple[str, ...],
+    ) -> GoalTransition:
+        """Commit only cells whose logical identities the controller admitted."""
+
+        if not isinstance(preview, GoalPreview):
+            raise TypeError("TableGoalState.commit requires GoalPreview")
+        token = preview.token
+        if not isinstance(token, _TableGoalPreviewToken):
+            raise TypeError("GoalPreview was not produced by TableGoalState")
+        if preview.state_id != self.state_id:
+            raise RuntimeError("table Goal state changed after preview")
+        requested = tuple(dict.fromkeys(str(value) for value in result_ids))
+        unknown = sorted(set(requested) - set(preview.candidate_result_ids))
+        if unknown:
+            raise ValueError(f"unknown table Goal result identities: {unknown}")
+        selected_cell_ids = frozenset(
+            cell_id
+            for identity in requested
+            for cell_id in token.projected.commit_cell_ids_by_identity.get(
+                identity, ()
+            )
+        )
+        selected = (
+            self._filtered_commit(token.eligible_commit, selected_cell_ids)
+            if token.eligible_commit is not None and selected_cell_ids
+            else None
+        )
+        committed = (
+            self._relationship_filtered_commit(token.material.records, selected)
+            if selected is not None
+            else None
+        )
+        if committed is not None and not (
+            committed.accepted_cells or committed.accepted_best_guess_cells
+        ):
+            committed = None
+        mutation = (
+            self._table_store.apply(token.material.records, committed)
+            if committed is not None
+            else None
+        )
+        projected = self._accepted_identities(token.unit, committed, mutation)
+        committed_identities = {item.identity for item in projected.attributions}
+        if not committed_identities <= set(requested):
+            raise RuntimeError("Goal storage committed an unselected result identity")
+        self._assignments.extend(projected.attributions)
+        return GoalTransition(
+            observation=token.observation,
             attributions=projected.attributions,
             row_completions=projected.row_completions,
             row_completion_unavailable=self.row_completion_unavailable,
             declared_facets=self._declared_facets,
         )
+
+    @staticmethod
+    def _filtered_commit(
+        commit: EvidenceCommit,
+        accepted_cell_ids: AbstractSet[str],
+    ) -> EvidenceCommit:
+        return replace(
+            commit,
+            accepted_cells=tuple(
+                cell for cell in commit.accepted_cells if cell.id in accepted_cell_ids
+            ),
+            accepted_best_guess_cells=tuple(
+                cell
+                for cell in commit.accepted_best_guess_cells
+                if cell.id in accepted_cell_ids
+            ),
+        )
+
+    def _relationship_filtered_commit(
+        self,
+        records: Sequence[Mapping[str, Any]],
+        commit: EvidenceCommit,
+    ) -> EvidenceCommit:
+        """Admit only rows whose declared identity anchors resolve.
+
+        An identity anchor made entirely from ``counts_as_result: false``
+        columns is a reference to another subject: those columns identify the
+        row but are not themselves requested results. Such anchors must match
+        a result-bearing anchor on an already admitted or simultaneously
+        admitted independent table row. Tables without reference anchors are
+        independent subjects, but their rows still require populated declared
+        identity anchors. No missing configuration path admits a cell.
+        """
+
+        cells = [*commit.accepted_cells, *commit.accepted_best_guess_cells]
+        accepted_subjects: dict[str, set[str]] = {}
+        for cell in cells:
+            accepted_subjects.setdefault(cell.table, set()).add(cell.subject_id)
+
+        indexed: dict[tuple[str, str], list[Mapping[str, Any]]] = {}
+        for record in records:
+            if not isinstance(record, Mapping):
+                continue
+            table = str(record.get("table") or "")
+            values = record.get("values")
+            if not table or not isinstance(values, Mapping):
+                continue
+            refs = criteria.row_subject_refs(table, [values], self._table_spec)
+            ref = refs[0] if refs else None
+            if ref is not None and ref.bound:
+                indexed.setdefault((table, ref.id), []).append(values)
+
+        target_rows: dict[str, list[Mapping[str, Any]]] = {
+            table: [dict(row) for row in rows]
+            for table, rows in self._table_store.rows_by_name.items()
+        }
+        for (table, subject_id), rows in indexed.items():
+            if subject_id in accepted_subjects.get(table, set()):
+                target_rows.setdefault(table, []).extend(rows)
+
+        allowed: set[str] = set()
+        specs = getattr(self._table_spec, "tables", {}) or {}
+        for cell in cells:
+            table_spec = specs.get(cell.table)
+            if table_spec is None:
+                continue
+            source_rows = indexed.get((cell.table, cell.subject_id), ())
+            reference_anchors = self._reference_anchors(table_spec)
+            if any(
+                self._row_relationship_resolves(
+                    cell.table,
+                    source_row,
+                    reference_anchors,
+                    specs,
+                    target_rows,
+                )
+                for source_row in source_rows
+            ):
+                allowed.add(cell.id)
+        return self._filtered_commit(commit, allowed)
+
+    @staticmethod
+    def _anchor_is_reference(table_spec: Any, anchor: Any) -> bool:
+        columns = {
+            str(column.name): column
+            for column in (table_spec.all_columns() or ())
+        }
+        declared = [columns.get(str(name)) for name in anchor.columns]
+        return bool(declared) and all(
+            column is not None and column.counts_as_result is False
+            for column in declared
+        )
+
+    @classmethod
+    def _reference_anchors(cls, table_spec: Any) -> tuple[Any, ...]:
+        return tuple(
+            anchor
+            for anchor in (getattr(table_spec, "identity_anchors", ()) or ())
+            if cls._anchor_is_reference(table_spec, anchor)
+        )
+
+    @classmethod
+    def _result_anchors(cls, table_spec: Any) -> tuple[Any, ...]:
+        return tuple(
+            anchor
+            for anchor in (getattr(table_spec, "identity_anchors", ()) or ())
+            if not cls._anchor_is_reference(table_spec, anchor)
+        )
+
+    @staticmethod
+    def _anchor_text(row: Mapping[str, Any], anchor: Any) -> str:
+        values = [
+            criteria.normalize_key_value(row.get(str(column)))
+            for column in anchor.columns
+        ]
+        return " ".join(value for value in values if value).strip()
+
+    @classmethod
+    def _row_relationship_resolves(
+        cls,
+        table: str,
+        source_row: Mapping[str, Any],
+        reference_anchors: Sequence[Any],
+        specs: Mapping[str, Any],
+        target_rows: Mapping[str, Sequence[Mapping[str, Any]]],
+    ) -> bool:
+        if not reference_anchors:
+            return any(
+                cls._anchor_text(source_row, anchor)
+                for anchor in cls._result_anchors(specs[table])
+            )
+        for source_anchor in reference_anchors:
+            source_value = cls._anchor_text(source_row, source_anchor)
+            if not source_value:
+                return False
+            resolved = False
+            for target_table, target_spec in specs.items():
+                if target_table == table or cls._reference_anchors(target_spec):
+                    continue
+                for target_anchor in cls._result_anchors(target_spec):
+                    if any(
+                        cls._anchor_values_match(
+                            source_value,
+                            cls._anchor_text(target_row, target_anchor),
+                            str(source_anchor.matcher),
+                        )
+                        for target_row in target_rows.get(target_table, ())
+                    ):
+                        resolved = True
+                        break
+                if resolved:
+                    break
+            if not resolved:
+                return False
+        return True
+
+    @staticmethod
+    def _anchor_values_match(left: str, right: str, matcher: str) -> bool:
+        if not left or not right:
+            return False
+        if left == right:
+            return True
+        left_tokens = _tokens(left)
+        right_tokens = _tokens(right)
+        if not left_tokens or not right_tokens:
+            return False
+        if matcher == "exact":
+            return False
+        if matcher == "time_overlap":
+            left_years = {token for token in left_tokens if len(token) == 4 and token.isdigit()}
+            right_years = {token for token in right_tokens if len(token) == 4 and token.isdigit()}
+            return bool(left_years & right_years)
+        if matcher == "location_overlap":
+            shared = {
+                token for token in left_tokens & right_tokens if len(token) >= 4
+            }
+            return bool(shared)
+        if matcher == "semantic":
+            raise ValueError(
+                "semantic identity-anchor resolution requires a model-produced "
+                "mention community before Goal admission"
+            )
+        if matcher != "alias":
+            raise ValueError(f"unsupported identity-anchor matcher {matcher!r}")
+        smaller, larger = sorted(
+            (left_tokens, right_tokens),
+            key=lambda values: (len(values), tuple(sorted(values))),
+        )
+        if not smaller <= larger:
+            return False
+        if len(smaller) >= 2:
+            return True
+        token = next(iter(smaller))
+        return len(token) >= 5
 
     def _accepted_identities(
         self,
@@ -1470,7 +1838,13 @@ class TableCreditAssigner:
             else ""
         )
         attributions: list[CreditAttribution] = []
+        commit_cell_ids: set[str] = set()
+        commit_cell_ids_by_identity: dict[str, frozenset[str]] = {}
         for identity, (cell, column) in candidates.items():
+            if identity in before_slots:
+                continue
+            commit_cell_ids.add(cell.id)
+            commit_cell_ids_by_identity[identity] = frozenset((cell.id,))
             attributions.append(
                 CreditAttribution(
                     identity=identity,
@@ -1497,7 +1871,7 @@ class TableCreditAssigner:
                         if isinstance(cell, AcceptedBestGuessCell)
                         else SOURCE_KIND_VERBATIM
                     ),
-                    new_to_table=identity not in before_slots,
+                    new_to_table=True,
                     before_table_state_id=mutation.before_state_id,
                     after_table_state_id=mutation.after_state_id,
                     strategy_key=strategy_key,
@@ -1526,7 +1900,14 @@ class TableCreditAssigner:
             for table_id, table, subject_id in sorted(after_rows - before_rows)
         )
         return _AcceptedProjection(
-            attributions=tuple(attributions), row_completions=rows
+            incidence=tuple(
+                (identity, column.slot_id)
+                for identity, (_, column) in candidates.items()
+            ),
+            attributions=tuple(attributions),
+            row_completions=rows,
+            commit_cell_ids=frozenset(commit_cell_ids),
+            commit_cell_ids_by_identity=commit_cell_ids_by_identity,
         )
 
     # ------------------------------------------------------------------ #
@@ -1551,13 +1932,11 @@ class TableCreditAssigner:
 
         groups: dict[str, list[str]] = {name: [] for name in self._declared_facets}
         seen: set[str] = set()
-        for attribution in projected.attributions:
-            if attribution.identity in seen:
+        for identity, slot_id in projected.incidence:
+            if identity in seen:
                 continue
-            seen.add(attribution.identity)
-            groups[f"column:{attribution.slot_id}"].append(
-                attribution.identity
-            )
+            seen.add(identity)
+            groups[f"column:{slot_id}"].append(identity)
         return {name: tuple(members) for name, members in groups.items()}
 
 
@@ -1642,6 +2021,96 @@ class TableCreditAssigner:
         return normalized, column.value_type
 
 
+class TableGoalView:
+    """Read-only operations available to Episode bindings and reporting code."""
+
+    __slots__ = (
+        "_basis",
+        "_channel_schema",
+        "_declared_facets",
+        "_facet_labels",
+        "_row_completion_unavailable",
+        "_spec_digest",
+        "__assertion_candidates",
+        "__assignments_for_strategy",
+        "__best_guess_candidates",
+        "__best_guess_columns_by_table",
+        "__best_guess_routes_by_table",
+        "__checkpoint_assignments",
+        "__columns_by_table",
+        "__rows",
+    )
+
+    def __init__(self, state: TableGoalState) -> None:
+        if not isinstance(state, TableGoalState):
+            raise TypeError("TableGoalView requires TableGoalState")
+        self._basis = state.basis
+        self._channel_schema = state.channel_schema
+        self._declared_facets = state.declared_facets
+        self._facet_labels = dict(state.facet_labels)
+        self._row_completion_unavailable = dict(
+            state.row_completion_unavailable
+        )
+        self._spec_digest = state.spec_digest
+        self.__rows = lambda: state.rows_by_name
+        self.__assignments_for_strategy = state.assignments_for_strategy
+        self.__checkpoint_assignments = state.checkpoint_assignments
+        self.__columns_by_table = state.columns_by_table
+        self.__best_guess_columns_by_table = state.best_guess_columns_by_table
+        self.__best_guess_routes_by_table = state.best_guess_routes_by_table
+        self.__assertion_candidates = state.assertion_candidates
+        self.__best_guess_candidates = state.best_guess_candidates
+
+    @property
+    def basis(self) -> CreditBasis:
+        return self._basis
+
+    @property
+    def channel_schema(self) -> ChannelSchema:
+        return self._channel_schema
+
+    @property
+    def declared_facets(self) -> tuple[str, ...]:
+        return self._declared_facets
+
+    @property
+    def facet_labels(self) -> Mapping[str, str]:
+        return dict(self._facet_labels)
+
+    @property
+    def row_completion_unavailable(self) -> Mapping[str, str]:
+        return dict(self._row_completion_unavailable)
+
+    @property
+    def spec_digest(self) -> str:
+        return self._spec_digest
+
+    @property
+    def rows_by_name(self) -> dict[str, list[dict[str, Any]]]:
+        return self.__rows()
+
+    def assignments_for_strategy(self, strategy_key: str) -> tuple[dict[str, Any], ...]:
+        return self.__assignments_for_strategy(strategy_key)
+
+    def checkpoint_assignments(self) -> tuple[dict[str, Any], ...]:
+        return self.__checkpoint_assignments()
+
+    def columns_by_table(self) -> dict[str, list[str]]:
+        return self.__columns_by_table()
+
+    def best_guess_columns_by_table(self) -> dict[str, list[str]]:
+        return self.__best_guess_columns_by_table()
+
+    def best_guess_routes_by_table(self) -> dict[str, dict[str, list[str]]]:
+        return self.__best_guess_routes_by_table()
+
+    def assertion_candidates(self, *args: Any, **kwargs: Any) -> Any:
+        return self.__assertion_candidates(*args, **kwargs)
+
+    def best_guess_candidates(self, *args: Any, **kwargs: Any) -> Any:
+        return self.__best_guess_candidates(*args, **kwargs)
+
+
 
 
 
@@ -1696,7 +2165,7 @@ def _parses_as(text: str, value_type: str, unit: str) -> bool:
 # ==========================================================================
 
 SearchFn = Callable[[str, Optional[int]], Sequence[Mapping[str, Any]]]
-PageFactory = Callable[[Any, Mapping[str, Any], int], Any]
+PageFactory = Callable[[Any, Mapping[str, Any], int, EpisodeGoal], Any]
 
 
 
@@ -1956,13 +2425,18 @@ class AcquisitionController:
     inputs. Cost has one owner and it is ``costs.py``.
     """
 
-    crediter: TableCreditAssigner
+    goal_state: InitVar[TableGoalState]
+    goal_view: TableGoalView
     budget: SourceBudget
     health: ProviderHealth = field(default_factory=ProviderHealth)
     termination: RunTermination = field(default_factory=RunTermination)
 
-    def __post_init__(self) -> None:
-        schema = self.crediter.channel_schema
+    def __post_init__(self, goal_state: TableGoalState) -> None:
+        if not isinstance(goal_state, TableGoalState):
+            raise TypeError("AcquisitionController requires TableGoalState")
+        if not isinstance(self.goal_view, TableGoalView):
+            raise TypeError("AcquisitionController requires TableGoalView")
+        schema = self.goal_view.channel_schema
         self.grains, self.grain_controls = _acquisition_grains(schema)
         self.grain_by_name = {grain.name: grain for grain in self.grains}
         self.context = Context(
@@ -1980,10 +2454,12 @@ class AcquisitionController:
                     ),
                     self.grain_by_name[PAGE_GRAIN_NAME]: (
                         self.grain_by_name[SOURCE_TABLE_GRAIN_NAME],
+                        self.grain_by_name[REPORT_GRAIN_NAME],
                         self.grain_by_name[LEXICAL_PROBE_GRAIN_NAME],
                     ),
                 },
-            )
+            ),
+            goal_state=goal_state,
         )
         self.decision_records: list[dict[str, Any]] = []
         self.record: Optional[EpisodeRecord] = None
@@ -2022,7 +2498,7 @@ class AcquisitionController:
             record,
             decision_point=decision_point,
             family=family,
-            declared_facets=self.crediter.declared_facets,
+            declared_facets=self.goal_view.declared_facets,
         ).to_dict()
         self.decision_records.append(payload)
         return payload
@@ -2060,10 +2536,10 @@ class AcquisitionController:
                 grain_disclosure(grain, self.grain_controls[grain.name])
                 for grain in self.grains
             ],
-            "credit_basis": self.crediter.basis.to_dict(),
-            "spec_digest": self.crediter.spec_digest,
-            "declared_facets": list(self.crediter.declared_facets),
-            "channel_schema": self.crediter.channel_schema.as_record(),
+            "credit_basis": self.goal_view.basis.to_dict(),
+            "spec_digest": self.goal_view.spec_digest,
+            "declared_facets": list(self.goal_view.declared_facets),
+            "channel_schema": self.goal_view.channel_schema.as_record(),
             "row_completion_rule": ROW_COMPLETION_RULE_DISCLOSURE,
             "budget": self.budget.to_dict(),
             "provider_health": self.health.to_dict(),
@@ -2157,7 +2633,7 @@ class CheckpointBinding:
             "strategy_learning_history": list(
                 self._strategy_learning_history
             ),
-            "credit_assignments": list(self.crediter.checkpoint_assignments()),
+            "credit_assignments": list(self.goal_view.checkpoint_assignments()),
             "proposer": (
                 self.proposer.checkpoint_state() if self.proposer else {}
             ),
@@ -2199,7 +2675,6 @@ class CheckpointBinding:
             dict(item)
             for item in (state.get("strategy_learning_history") or ())
         ]
-        self.crediter.restore_assignments(state.get("credit_assignments") or ())
         self._resume_proposer_state = dict(state.get("proposer") or {})
         active = dict(state.get("active_strategy") or {})
         self._active_strategy_key = str(active.get("key") or "")
@@ -2264,7 +2739,7 @@ class RecordBinding:
                 },
                 "volume_credit": step.volume_credit.as_record(),
             },
-            "spec_digest": self.crediter.spec_digest,
+            "spec_digest": self.goal_view.spec_digest,
             "crediter_built_at_episode_id": self.run_episode_id,
             "credit_semantics": CREDIT_SEMANTICS,
             "text_chars": material.text_chars,
@@ -2277,6 +2752,17 @@ class RecordBinding:
             "evidence_commits": [
                 commit.to_dict() for commit in material.evidence_commits
             ],
+            "page_child_choices": [
+                dict(item) for item in material.page_child_history
+            ],
+            "page_content_assessment": (
+                dict(material.page_content_assessment)
+                if material.page_content_assessment is not None
+                else None
+            ),
+            "page_content_assessment_error": (
+                material.page_content_assessment_error
+            ),
             "lexical_probes": [
                 dict(item) for item in material.probe_history
             ],
@@ -2304,8 +2790,8 @@ class RecordBinding:
                         "policy_name": ACQUISITION_POLICY_NAME,
                         "credit_semantics": CREDIT_SEMANTICS,
                         "facet_gate": "crediting_active",
-                        "declared_facets": list(self.crediter.declared_facets),
-                        "spec_digest": self.crediter.spec_digest,
+                        "declared_facets": list(self.goal_view.declared_facets),
+                        "spec_digest": self.goal_view.spec_digest,
                         "grains": [
                             grain_disclosure(
                                 grain,
@@ -2413,7 +2899,7 @@ class RecordBinding:
 
         exported_subjects = 0
         rows_by_table = self.exported_rows()
-        for table, columns in self.crediter.basis.subject_key_columns.items():
+        for table, columns in self.goal_view.basis.subject_key_columns.items():
             rows = rows_by_table.get(table) or []
             if columns:
                 exported_subjects += len(
@@ -2441,13 +2927,13 @@ class RecordBinding:
             "distinct_exported_subject_keys": exported_subjects,
             "subject_key_columns": {
                 table: list(columns)
-                for table, columns in self.crediter.basis.subject_key_columns.items()
+                for table, columns in self.goal_view.basis.subject_key_columns.items()
             },
             "extracted_pages_with_no_credit": no_credit_pages,
             "chunk_counts": {str(k): v for k, v in sorted(chunk_counts.items())},
             "typed_credit_columns": sum(
                 1
-                for column in self.crediter.basis.columns
+                for column in self.goal_view.basis.columns
                 if column.value_type or column.unit
             ),
             "page_best_guess": {"reports": list(self._page_guess_reports)},
@@ -2479,6 +2965,7 @@ class ProviderRuntime:
         frontier: SearchFrontier,
         search_fn: SearchFn,
         harvester: SearchHarvester,
+        jev_client: Any,
         search_provider_batch: Mapping[str, Any],
         answers_dir: Path,
         open_cost_scope: Callable[
@@ -2496,10 +2983,12 @@ class ProviderRuntime:
         text_without_source_table_regions: Callable[[str, Sequence[Any]], str],
         interpret_source_table_region: Callable[..., Awaitable[Any]],
         propose_source_table_query: Callable[..., Awaitable[Any]],
+        propose_search_page: Callable[..., Awaitable[Any]],
+        propose_page_child: Callable[..., Awaitable[Any]],
+        extract_report_window: Callable[..., Awaitable[Any]],
         get_table_extractor: Callable[[], Any],
         extract_table_text: Callable[..., Awaitable[list[dict[str, Any]]]],
         page_outline: Callable[[str, str], Mapping[str, Any]],
-        propose_lexical_probe: Callable[..., Awaitable[Any]],
         rank_chunks: Callable[[Sequence[Any], str], Sequence[Any]],
         get_extractor: Callable[[], Any],
         extract_text: Callable[..., Awaitable[tuple[Any, Any]]],
@@ -2531,6 +3020,7 @@ class ProviderRuntime:
         set_units_pulled: Callable[[int], None],
         set_search_provider_error: Callable[[str], None],
         goal_states: Callable[[], Sequence[Mapping[str, Any]]],
+        goal_prompt_context: Callable[[], Mapping[str, Any]],
         exported_rows: Callable[[], Mapping[str, Sequence[Mapping[str, Any]]]],
         source_ingestion_ledger: dict[str, dict[str, Any]],
         last_search_outcomes: list[SearchOutcome],
@@ -2558,10 +3048,11 @@ class ProviderRuntime:
         self.source_table_grain = controller.grain_by_name[
             SOURCE_TABLE_GRAIN_NAME
         ]
+        self.report_grain = controller.grain_by_name[REPORT_GRAIN_NAME]
         self.lexical_probe_grain = controller.grain_by_name[
             LEXICAL_PROBE_GRAIN_NAME
         ]
-        self.crediter = controller.crediter
+        self.goal_view = controller.goal_view
         self.budget = controller.budget
         self.health = controller.health
         self.termination = controller.termination
@@ -2578,6 +3069,14 @@ class ProviderRuntime:
         self.frontier = frontier
         self.search_fn = search_fn
         self.harvester = harvester
+        if not all(
+            hasattr(jev_client, method)
+            for method in ("noul", "nouls", "nouls_request_token_count")
+        ):
+            raise TypeError(
+                "jev_client must provide single and shared-state Noul decisions"
+            )
+        self.jev_client = jev_client
         self.search_provider_batch = dict(search_provider_batch)
         self.answers_dir = Path(answers_dir)
         self.open_cost_scope = open_cost_scope
@@ -2588,10 +3087,12 @@ class ProviderRuntime:
         self.text_without_source_table_regions = text_without_source_table_regions
         self.interpret_source_table_region = interpret_source_table_region
         self.propose_source_table_query = propose_source_table_query
+        self.propose_search_page = propose_search_page
+        self.propose_page_child = propose_page_child
+        self.extract_report_window = extract_report_window
         self.get_table_extractor = get_table_extractor
         self.extract_table_text = extract_table_text
         self.page_outline = page_outline
-        self.propose_lexical_probe = propose_lexical_probe
         self.rank_chunks = rank_chunks
         self.get_extractor = get_extractor
         self.extract_text = extract_text
@@ -2623,6 +3124,7 @@ class ProviderRuntime:
         self.set_units_pulled = set_units_pulled
         self.set_search_provider_error = set_search_provider_error
         self.goal_states = goal_states
+        self.goal_prompt_context = goal_prompt_context
         self.exported_rows = exported_rows
         self.source_ingestion_ledger = source_ingestion_ledger
         self.last_search_outcomes = last_search_outcomes
@@ -2639,7 +3141,7 @@ class ProviderRuntime:
         self._strategy_ends: dict[str, str] = {}
         self._strategy_seed_queries: dict[str, list[str]] = {}
         self._open_outcomes: dict[str, SearchOutcome] = {}
-        self._open_sources: dict[str, PageSource] = {}
+        self._open_sources: dict[str, SearchPageProposer] = {}
         self._accepted_sources: list[dict[str, Any]] = []
         self._trace_records: dict[str, EpisodeRecord] = {}
         self._episode_records: list[dict[str, Any]] = []
@@ -2692,10 +3194,11 @@ class ProviderRuntime:
         self.source_table_grain = controller.grain_by_name[
             SOURCE_TABLE_GRAIN_NAME
         ]
+        self.report_grain = controller.grain_by_name[REPORT_GRAIN_NAME]
         self.lexical_probe_grain = controller.grain_by_name[
             LEXICAL_PROBE_GRAIN_NAME
         ]
-        self.crediter = controller.crediter
+        self.goal_view = controller.goal_view
         controller.context.bind_run_id(self.run_key)
         self.run_path = ((self.run_grain.name, self.run_key),)
         self.run_episode_id = Episode.identity(
@@ -2718,6 +3221,7 @@ class ProviderRuntime:
             self._trace_records[record.episode_id] = record
         return EpisodeUpdate(
             record_id=record.episode_id,
+            goal=record.goal,
             controller_input=_episode_observation(record),
             prompt_context=(
                 dict(prompt_context)
@@ -2752,6 +3256,7 @@ class ProviderComposition:
         task: SearchTask,
         result: Mapping[str, Any],
         *,
+        goal: EpisodeGoal,
         strategy_key: str = "source_replay#0",
     ) -> Episode:
         """Compose one saved source through the production Episode hierarchy.
@@ -2771,8 +3276,28 @@ class ProviderComposition:
             raise TypeError("source replay result must be a mapping")
         if not str(strategy_key):
             raise ValueError("source replay strategy_key must be non-empty")
+        if not isinstance(goal, EpisodeGoal) or goal.parent_goal_id:
+            raise ValueError("source replay requires one root EpisodeGoal")
 
         family = str(strategy_key).split("#", 1)[0]
+        strategy_goal = EpisodeGoal.for_grain(
+            self.strategy_grain,
+            parent=goal,
+            objective={
+                "strategy_key": str(strategy_key),
+                "strategy_family": family,
+                "seed_queries": [task.query],
+            },
+        )
+        search_goal = EpisodeGoal.for_grain(
+            self.search_grain,
+            parent=strategy_goal,
+            objective={
+                "search_task_id": task.id,
+                "query": task.query,
+                "strategy_family": family,
+            },
+        )
         outcome = SearchOutcome.for_task(task)
         outcome.search_result_observations.append(
             search_result_observation(dict(result), rank=1)
@@ -2799,11 +3324,13 @@ class ProviderComposition:
             1,
             episode_id=search_episode_id,
             episode_path=search_path,
+            parent_goal=search_goal,
         )
         search_episode = Episode(
             grain=self.search_grain,
             key=task.id,
             source=_SingleAcquirableSource(page_item),
+            request=EpisodeRequest(goal=search_goal),
             on_unit=lambda item, contribution, record: self._on_page(
                 item,
                 contribution,
@@ -2821,6 +3348,7 @@ class ProviderComposition:
             grain=self.strategy_grain,
             key=str(strategy_key),
             source=_SingleAcquirableSource(search_episode),
+            request=EpisodeRequest(goal=strategy_goal),
             on_close=lambda record: self._close_strategy(
                 record,
                 str(strategy_key),
@@ -2836,6 +3364,7 @@ class ProviderComposition:
             grain=self.run_grain,
             key=self.run_key,
             source=_SingleAcquirableSource(strategy_episode),
+            request=EpisodeRequest(goal=goal),
             on_unit=self._on_strategy,
         )
 

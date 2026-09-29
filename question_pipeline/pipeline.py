@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence
 
 import networkx as nx
-from method_loop import EpisodeRef
+from method_loop import EpisodeGoal, EpisodeRef
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
@@ -54,7 +54,8 @@ from question_pipeline.episode_binding import (
     ProviderHealth,
     RunTermination,
     SourceBudget,
-    TableCreditAssigner,
+    TableGoalState,
+    TableGoalView,
 )
 from source_table_language import (
     discover_table_regions as discover_source_table_regions,
@@ -114,11 +115,11 @@ from question_pipeline.utilities.extraction import (
     extract_from_text,
     extract_table_rows_from_text,
     page_outline,
-    propose_lexical_probe,
     rank_chunks,
 )
 from question_pipeline.utilities.model import (
     DEFAULT_FAST_MODEL,
+    JevDecisionClient,
     ModelTier,
     TierPolicy,
     attach_tier_policy,
@@ -648,6 +649,7 @@ class QuestionPipeline:
         *,
         verified_checkpoint: Optional[VerifiedCheckpoint] = None,
         llm=None,
+        jev_client=None,
         search_fn: Optional[
             Callable[[str, Optional[int]], List[Dict[str, Any]]]
         ] = None,
@@ -691,6 +693,11 @@ class QuestionPipeline:
             # `llm.call_async` straight to the extractor factory.  Instrumenting
             # the client records all three; instrumenting call sites would not.
             instrument_client(self.llm)
+        self.jev_client = (
+            jev_client
+            if jev_client is not None
+            else JevDecisionClient.from_environment()
+        )
         self._search_fn = search_fn or self._default_search_fn
         self._uses_default_search = search_fn is None
         self.search_provider_batch = self._search_batch_metadata()
@@ -803,6 +810,9 @@ class QuestionPipeline:
         self._required_columns_by_table = self.table_spec.required_columns_by_table()
         self._all_columns_by_table = self.table_spec.all_columns_by_table()
         self._key_columns_by_table = self.table_spec.key_columns_by_table()
+        self._identity_anchors_by_table = (
+            self.table_spec.identity_anchors_by_table()
+        )
         self._cold_start_anchors_by_table = (
             self.table_spec.cold_start_anchors_by_table()
         )
@@ -873,6 +883,7 @@ class QuestionPipeline:
                 table_schemas=self._required_columns_by_table,
                 table_columns=self._all_columns_by_table,
                 table_key_columns=self._key_columns_by_table,
+                identity_anchors=self._identity_anchors_by_table,
                 cold_start_columns=self._cold_start_columns_by_table,
                 cold_start_anchors=self._cold_start_anchors_by_table,
                 best_guess_columns=self._best_guess_columns_by_table,
@@ -1004,12 +1015,14 @@ class QuestionPipeline:
             self.seed_tables.rows_by_name,
             on_change=self._publish_live_table_state,
         )
-        self.crediter = TableCreditAssigner(self.table_spec, self.table_store)
+        self.goal_state = TableGoalState(self.table_spec, self.table_store)
+        self.goal_view = TableGoalView(self.goal_state)
         self.source_budget = SourceBudget(limit=int(config.max_source_units))
         self.provider_health = ProviderHealth()
         self.run_termination = RunTermination()
         self.acquisition = AcquisitionController(
-            crediter=self.crediter,
+            goal_state=self.goal_state,
+            goal_view=self.goal_view,
             budget=self.source_budget,
             health=self.provider_health,
             termination=self.run_termination,
@@ -1041,6 +1054,7 @@ class QuestionPipeline:
             frontier=self.search_frontier,
             search_fn=self._search_fn,
             harvester=self._harvester,
+            jev_client=self.jev_client,
             search_provider_batch=self.search_provider_batch,
             answers_dir=self.answers_dir,
             open_cost_scope=lambda kind, observation_id, episode_id, episode_path: (
@@ -1071,15 +1085,23 @@ class QuestionPipeline:
                 table_spec=self.table_spec,
                 **kwargs,
             ),
-            get_table_extractor=lambda: self.table_extractor,
-            extract_table_text=extract_table_rows_from_text,
-            page_outline=page_outline,
-            propose_lexical_probe=lambda **kwargs: propose_lexical_probe(
+            propose_search_page=lambda **kwargs: acq.propose_search_page(
+                self.llm,
+                **kwargs,
+            ),
+            propose_page_child=lambda **kwargs: acq.propose_page_child(
+                self.llm,
+                **kwargs,
+            ),
+            extract_report_window=lambda **kwargs: acq.extract_report_window(
                 self.llm,
                 question=self.config.question,
                 table_spec=self.table_spec,
                 **kwargs,
             ),
+            get_table_extractor=lambda: self.table_extractor,
+            extract_table_text=extract_table_rows_from_text,
+            page_outline=page_outline,
             rank_chunks=rank_chunks,
             get_extractor=lambda: self.extractor,
             extract_text=extract_from_text,
@@ -1110,7 +1132,8 @@ class QuestionPipeline:
             set_search_provider_error=lambda value: setattr(
                 self, "search_provider_error", value
             ),
-            goal_states=lambda: self.goal_states,
+            goal_states=lambda: tuple(self.goal_states),
+            goal_prompt_context=self._live_goal_prompt_context,
             exported_rows=lambda: self.seed_tables.rows_by_name,
             source_ingestion_ledger=self.source_ingestion_ledger,
             last_search_outcomes=self.last_search_outcomes,
@@ -1293,7 +1316,7 @@ class QuestionPipeline:
             query=query,
             api_key=api_key,
             raise_on_error=True,
-            scrape_results=not self.config.scrape_search_results,
+            scrape_results=self.config.scrape_search_results,
             **search_kwargs,
         )
 
@@ -1725,7 +1748,7 @@ genuinely separate view that is not covered by a listed target."""
             ),
             "declared_credit_columns": [
                 {"table": column.table, "column": column.column}
-                for column in self.crediter.basis.columns
+                for column in self.goal_view.basis.columns
             ],
             "criteria_snapshot_id": self.criteria_snapshot.id,
             "observed_deficits": (
@@ -1741,6 +1764,35 @@ genuinely separate view that is not covered by a listed target."""
                 self.provider_binding.strategy_learning_history()
             ),
         }
+
+    def _live_goal_prompt_context(self) -> Dict[str, Any]:
+        """Project current accepted Goal rows for an in-flight Episode prompt."""
+
+        if self.goal_tracker is None:
+            return {}
+        return self.goal_tracker.prompt_context(
+            self.goal_view.rows_by_name,
+            (),
+            universe_estimate=self.goal_universe_estimate,
+            completion_state=self.completion_state,
+        )
+
+    def run_episode_goal(self) -> EpisodeGoal:
+        """The immutable root Goal shared by this run's Episode tree."""
+
+        result_contract: dict[str, Any] = {
+            "pipeline_mode": self.config.pipeline_mode,
+            "answer_mode": self.config.answer_mode,
+        }
+        if not self.table_spec.is_empty:
+            result_contract["table_spec"] = self.table_spec.prompt_context()
+        elif self.schema is not None:
+            result_contract["domain_schema"] = self.schema.domain_name
+        return EpisodeGoal.for_grain(
+            self.provider_binding.run_grain,
+            objective={"question": self.config.question},
+            result_contract=result_contract,
+        )
 
 
     @staticmethod
@@ -1820,6 +1872,9 @@ genuinely separate view that is not covered by a listed target."""
         self._required_columns_by_table = self.table_spec.required_columns_by_table()
         self._all_columns_by_table = self.table_spec.all_columns_by_table()
         self._key_columns_by_table = self.table_spec.key_columns_by_table()
+        self._identity_anchors_by_table = (
+            self.table_spec.identity_anchors_by_table()
+        )
         self._cold_start_anchors_by_table = (
             self.table_spec.cold_start_anchors_by_table()
         )
@@ -1845,6 +1900,7 @@ genuinely separate view that is not covered by a listed target."""
             table_schemas=self._required_columns_by_table,
             table_columns=self._all_columns_by_table,
             table_key_columns=self._key_columns_by_table,
+            identity_anchors=self._identity_anchors_by_table,
             cold_start_columns=self._cold_start_columns_by_table,
             cold_start_anchors=self._cold_start_anchors_by_table,
             best_guess_columns=self._best_guess_columns_by_table,
@@ -1860,10 +1916,12 @@ genuinely separate view that is not covered by a listed target."""
             self.seed_tables.rows_by_name,
             on_change=self._publish_live_table_state,
         )
-        self.crediter = TableCreditAssigner(self.table_spec, self.table_store)
+        self.goal_state = TableGoalState(self.table_spec, self.table_store)
+        self.goal_view = TableGoalView(self.goal_state)
         self.table_extractor = TableSpecExtractor(self.llm, self.table_spec)
         self.acquisition = AcquisitionController(
-            crediter=self.crediter,
+            goal_state=self.goal_state,
+            goal_view=self.goal_view,
             budget=self.source_budget,
             health=self.provider_health,
             termination=self.run_termination,
@@ -3136,7 +3194,7 @@ genuinely separate view that is not covered by a listed target."""
             else ""
         )
         reward = report_assigned_credit(
-            self.crediter.assignments_for_strategy(strategy_key),
+            self.goal_view.assignments_for_strategy(strategy_key),
             episode_id=episode_id,
             cost_records=matched_cost_records,
         )
@@ -6225,7 +6283,11 @@ genuinely separate view that is not covered by a listed target."""
             name: len(rows)
             for name, rows in self.table_store.rows_by_name.items()
         }
-        self.provider_binding.restore_checkpoint_state(read_role("episode"))
+        episode_state = read_role("episode")
+        self.goal_state.restore_assignments(
+            episode_state.get("credit_assignments") or ()
+        )
+        self.provider_binding.restore_checkpoint_state(episode_state)
 
     async def run(self) -> Dict[str, Any]:
         """Prepare the frontier, then run the composition ONCE.
@@ -6368,7 +6430,9 @@ genuinely separate view that is not covered by a listed target."""
         # package. It builds nothing itself: the controller holds the context,
         # the three episode declarations run through the kernel's loop body, and
         # the run-ending decision is written from the record it returns.
-        record = await self.acquisition.run(self.provider_binding.build_run_episode())
+        record = await self.acquisition.run(
+            self.provider_binding.build_run_episode(self.run_episode_goal())
+        )
         # The run record itself, once, after the tree returns. Its own verdict
         # is read after its hook, so a run that opened no strategy at all still
         # emits a record saying why -- `exhausted` with no units is a fact about
@@ -6420,7 +6484,7 @@ genuinely separate view that is not covered by a listed target."""
             )
         if accepted_sources:
             destination = (
-                f"{sum(len(rows) for rows in self.crediter.rows_by_name.values())} "
+                f"{sum(len(rows) for rows in self.goal_view.rows_by_name.values())} "
                 "typed table row(s)"
                 if self.config.pipeline_mode == PIPELINE_MODE_TABLE_FILL
                 else self._graph_summary()
@@ -6474,13 +6538,13 @@ genuinely separate view that is not covered by a listed target."""
         if direct_table_fill_path:
             current_counts = {
                 name: len(rows)
-                for name, rows in self.crediter.rows_by_name.items()
+                for name, rows in self.goal_view.rows_by_name.items()
             }
             table_exports = await self._guarded(
                 "table_exports",
                 self._write_table_exports,
                 label,
-                self.crediter.rows_by_name,
+                self.goal_view.rows_by_name,
                 seed_row_counts=dict(self._last_table_export_row_counts),
                 new_row_counts={
                     name: max(

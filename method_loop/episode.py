@@ -7,8 +7,9 @@ incidence, rarefaction, hypervolume, or any other surface-specific result.
 
 Nested communication and tracing are deliberately separate:
 
-* :class:`EpisodeRequest` is the compact parent-to-child input.
-* :class:`EpisodeUpdate` is the compact child-to-parent output.
+* :class:`EpisodeGoal` is the immutable objective at one Episode boundary.
+* :class:`EpisodeRequest` carries that Goal plus compact parent-to-child input.
+* :class:`EpisodeUpdate` preserves that Goal in the compact child-to-parent output.
 * :class:`EpisodeRecord` is the complete recursive trace retained for audit.
 
 Sources and parent-unit hooks receive the compact messages.  They never receive
@@ -18,8 +19,11 @@ a nested ``EpisodeRecord`` through the method's running view.  A child-owned
 
 from __future__ import annotations
 
+import hashlib
 import inspect
+import json
 from dataclasses import dataclass, field
+from types import MappingProxyType
 from typing import Any, Callable, Iterable, Mapping, Optional, Protocol, runtime_checkable
 
 from .identities import EpisodeRef, UnitRef
@@ -37,6 +41,10 @@ __all__ = [
     "Context",
     "Contribution",
     "Episode",
+    "EpisodeGoal",
+    "GoalPreview",
+    "GoalProposal",
+    "GoalState",
     "EpisodeRecord",
     "EpisodeRequest",
     "EpisodeTree",
@@ -74,6 +82,172 @@ def _record_value(value: Any) -> Any:
     return repr(value)
 
 
+def _freeze_json(value: Any) -> Any:
+    """Return an immutable JSON value or raise at the Goal boundary."""
+
+    def thaw(item: Any) -> Any:
+        if item is None or isinstance(item, (str, int, float, bool)):
+            return item
+        if isinstance(item, Mapping):
+            return {str(name): thaw(child) for name, child in item.items()}
+        if isinstance(item, (tuple, list)):
+            return [thaw(child) for child in item]
+        raise TypeError(
+            f"{type(item).__name__} is not a JSON-compatible Goal value"
+        )
+
+    try:
+        normalized = json.loads(
+            json.dumps(
+                thaw(value),
+                ensure_ascii=False,
+                allow_nan=False,
+                sort_keys=True,
+            )
+        )
+    except (TypeError, ValueError) as exc:
+        raise TypeError("EpisodeGoal values must be JSON-compatible") from exc
+
+    def freeze(item: Any) -> Any:
+        if isinstance(item, dict):
+            return MappingProxyType(
+                {str(name): freeze(child) for name, child in item.items()}
+            )
+        if isinstance(item, list):
+            return tuple(freeze(child) for child in item)
+        return item
+
+    return freeze(normalized)
+
+
+@dataclass(frozen=True)
+class EpisodeGoal:
+    """The immutable objective and result contract for one Episode.
+
+    A root Goal has no ``parent_goal_id``. A child Goal is made with
+    :meth:`child`, which records the parent Goal it refines. The method loop
+    validates that link before it runs a nested Episode.
+    """
+
+    objective: Any
+    result_contract: Any
+    task_context: Any = None
+    parent_goal_id: str = ""
+    goal_id: str = field(init=False)
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.parent_goal_id, str):
+            raise TypeError("EpisodeGoal.parent_goal_id must be a string")
+        if self.parent_goal_id and self.task_context is None:
+            raise ValueError(
+                "a child EpisodeGoal must preserve its root task_context"
+            )
+        objective = _freeze_json(self.objective)
+        result_contract = _freeze_json(self.result_contract)
+        task_context = _freeze_json(
+            self.task_context
+            if self.task_context is not None
+            else {
+                "root_objective": _record_value(objective),
+                "root_result_contract": _record_value(result_contract),
+            }
+        )
+        body = {
+            "objective": _record_value(objective),
+            "result_contract": _record_value(result_contract),
+            "task_context": _record_value(task_context),
+            "parent_goal_id": self.parent_goal_id,
+        }
+        digest = hashlib.sha256(
+            json.dumps(
+                body,
+                ensure_ascii=False,
+                allow_nan=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
+        object.__setattr__(self, "objective", objective)
+        object.__setattr__(self, "result_contract", result_contract)
+        object.__setattr__(self, "task_context", task_context)
+        object.__setattr__(self, "goal_id", f"goal_{digest[:24]}")
+
+    @classmethod
+    def root(
+        cls,
+        *,
+        objective: Any,
+        result_contract: Any,
+        task_context: Any = None,
+    ) -> "EpisodeGoal":
+        return cls(
+            objective=objective,
+            result_contract=result_contract,
+            task_context=task_context,
+        )
+
+    @classmethod
+    def child(
+        cls,
+        parent: "EpisodeGoal",
+        *,
+        objective: Any,
+        result_contract: Any,
+    ) -> "EpisodeGoal":
+        if not isinstance(parent, EpisodeGoal):
+            raise TypeError("a child Goal requires an EpisodeGoal parent")
+        return cls(
+            objective=objective,
+            result_contract=result_contract,
+            task_context=parent.task_context,
+            parent_goal_id=parent.goal_id,
+        )
+
+    @classmethod
+    def for_grain(
+        cls,
+        grain: Any,
+        *,
+        objective: Any,
+        parent: Optional["EpisodeGoal"] = None,
+        result_contract: Any = None,
+    ) -> "EpisodeGoal":
+        """Build the standard Goal for a declared Grain.
+
+        Bindings supply only the local objective. The Grain supplies the
+        generic unit/result contract unless a binding has a more precise JSON
+        contract to record.
+        """
+
+        if not isinstance(grain, Grain):
+            raise TypeError("EpisodeGoal.for_grain requires a Grain")
+        contract = (
+            result_contract
+            if result_contract is not None
+            else {
+                "grain": grain.name,
+                "unit": grain.unit,
+                "result": grain.result,
+            }
+        )
+        if parent is None:
+            return cls.root(objective=objective, result_contract=contract)
+        return cls.child(
+            parent,
+            objective=objective,
+            result_contract=contract,
+        )
+
+    def as_record(self) -> dict[str, Any]:
+        return {
+            "goal_id": self.goal_id,
+            "parent_goal_id": self.parent_goal_id,
+            "objective": _record_value(self.objective),
+            "result_contract": _record_value(self.result_contract),
+            "task_context": _record_value(self.task_context),
+        }
+
+
 @dataclass(frozen=True)
 class SourceEnd:
     kind: str
@@ -101,11 +275,17 @@ class EpochMutation:
 class EpisodeRequest:
     """The compact information a parent supplies when it opens a child."""
 
+    goal: EpisodeGoal
     input: Any = None
     prompt_context: Any = None
 
+    def __post_init__(self) -> None:
+        if not isinstance(self.goal, EpisodeGoal):
+            raise TypeError("EpisodeRequest.goal must be an EpisodeGoal")
+
     def as_record(self) -> dict[str, Any]:
         return {
+            "goal": self.goal.as_record(),
             "input": _record_value(self.input),
             "prompt_context": _record_value(self.prompt_context),
         }
@@ -116,6 +296,7 @@ class EpisodeUpdate:
     """The compact information a completed child returns to its parent."""
 
     record_id: str
+    goal: EpisodeGoal
     controller_input: Any
     prompt_context: Any = None
     output: Any = None
@@ -123,13 +304,73 @@ class EpisodeUpdate:
     def __post_init__(self) -> None:
         if not isinstance(self.record_id, str) or not self.record_id:
             raise ValueError("EpisodeUpdate.record_id must be a non-empty string")
+        if not isinstance(self.goal, EpisodeGoal):
+            raise TypeError("EpisodeUpdate.goal must be an EpisodeGoal")
 
     def as_record(self) -> dict[str, Any]:
         return {
             "record_id": self.record_id,
+            "goal": self.goal.as_record(),
             "controller_input": _record_value(self.controller_input),
             "prompt_context": _record_value(self.prompt_context),
         }
+
+
+@dataclass(frozen=True)
+class GoalProposal:
+    """A binding's proposed Goal result, before numerical control.
+
+    The proposal carries no write capability. Only the Goal state installed on
+    :class:`Context` can preview it and, after the controller transition,
+    commit the identities selected by that transition.
+    """
+
+    payload: Any
+
+
+@dataclass(frozen=True)
+class GoalPreview:
+    """A non-mutating Goal projection prepared for one controller step."""
+
+    controller_input: Any
+    candidate_result_ids: tuple[str, ...]
+    state_id: str
+    no_commit_result: Any = None
+    token: Any = None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.state_id, str) or not self.state_id:
+            raise ValueError("GoalPreview.state_id must be a non-empty string")
+        if not isinstance(self.candidate_result_ids, tuple):
+            raise TypeError("GoalPreview.candidate_result_ids must be a tuple")
+        if any(
+            not isinstance(result_id, str) or not result_id
+            for result_id in self.candidate_result_ids
+        ):
+            raise ValueError("Goal result identities must be non-empty strings")
+        if len(set(self.candidate_result_ids)) != len(self.candidate_result_ids):
+            raise ValueError("Goal result identities must be unique")
+
+
+@runtime_checkable
+class GoalState(Protocol):
+    """The method-owned mutable Goal boundary.
+
+    ``preview`` must not mutate state. ``commit`` is called only after the
+    numerical controller returns a non-empty subset of the previewed result
+    identities.
+    """
+
+    @property
+    def state_id(self) -> str: ...
+
+    def preview(self, proposal: GoalProposal, unit_ref: UnitRef) -> GoalPreview: ...
+
+    def commit(
+        self,
+        preview: GoalPreview,
+        result_ids: tuple[str, ...],
+    ) -> Any: ...
 
 
 @dataclass(frozen=True)
@@ -139,12 +380,14 @@ class Contribution:
     controller_input: Any
     output: Any = None
     episode_update: Optional[EpisodeUpdate] = None
+    goal_result: Any = None
 
 
 @dataclass(frozen=True)
 class _AcquiredUnit:
     contribution: Contribution
     child_record: Optional["EpisodeRecord"] = None
+    goal_proposal: Optional[GoalProposal] = None
 
 
 @dataclass(frozen=True)
@@ -158,6 +401,7 @@ class UnitRecord:
     unit_ref: UnitRef
     episode_update: Optional[EpisodeUpdate] = None
     child: Optional["EpisodeRecord"] = None
+    goal_result: Any = None
 
     @property
     def unit_id(self) -> str:
@@ -176,6 +420,7 @@ class UnitRecord:
                 if self.episode_update is not None
                 else None
             ),
+            "goal_result": _record_value(self.goal_result),
             "child": self.child.as_record() if self.child is not None else None,
         }
 
@@ -190,6 +435,7 @@ class UnitView:
     epoch: str
     unit_ref: UnitRef
     episode_update: Optional[EpisodeUpdate] = None
+    goal_result: Any = None
 
 
 @dataclass(frozen=True)
@@ -214,11 +460,15 @@ class EpisodeRecord:
     ended_by: str
     unit_records: tuple[UnitRecord, ...]
     controller_state: Any
+    request: EpisodeRequest
     safety_bound: Optional[int] = None
     path: Path = ()
     end_reason: str = ""
     episode_ref: Optional[EpisodeRef] = None
-    request: EpisodeRequest = field(default_factory=EpisodeRequest)
+
+    @property
+    def goal(self) -> EpisodeGoal:
+        return self.request.goal
 
     @property
     def episode_id(self) -> str:
@@ -238,6 +488,7 @@ class EpisodeRecord:
             ),
             "episode_id": self.episode_id,
             "run_id": self.run_id,
+            "goal": self.goal.as_record(),
             "request": self.request.as_record(),
             "units_consumed": self.units_consumed,
             "ended_by": self.ended_by,
@@ -375,6 +626,10 @@ class EpisodeView:
     episode_ref: EpisodeRef
     request: EpisodeRequest
 
+    @property
+    def goal(self) -> EpisodeGoal:
+        return self.request.goal
+
 
 class UnitSource(Protocol):
     """Return the next unit, ``None``, or a typed :class:`SourceEnd`."""
@@ -401,8 +656,13 @@ def _leaf_acquisition(
 ) -> _AcquiredUnit:
     extracted = extract(unit)
     accepted = accept(unit, extracted) if accept is not None else extracted
-    controller_input = result(unit, accepted)
-    return _AcquiredUnit(Contribution(controller_input, accepted))
+    projected = result(unit, accepted)
+    if isinstance(projected, GoalProposal):
+        return _AcquiredUnit(
+            contribution=Contribution(controller_input=None, output=accepted),
+            goal_proposal=projected,
+        )
+    return _AcquiredUnit(Contribution(projected, accepted))
 
 
 async def _leaf_acquisition_async(
@@ -417,10 +677,15 @@ async def _leaf_acquisition_async(
     accepted = accept(unit, extracted) if accept is not None else extracted
     if inspect.isawaitable(accepted):
         accepted = await accepted
-    controller_input = result(unit, accepted)
-    if inspect.isawaitable(controller_input):
-        controller_input = await controller_input
-    return _AcquiredUnit(Contribution(controller_input, accepted))
+    projected = result(unit, accepted)
+    if inspect.isawaitable(projected):
+        projected = await projected
+    if isinstance(projected, GoalProposal):
+        return _AcquiredUnit(
+            contribution=Contribution(controller_input=None, output=accepted),
+            goal_proposal=projected,
+        )
+    return _AcquiredUnit(Contribution(projected, accepted))
 
 
 @dataclass(frozen=True)
@@ -449,10 +714,10 @@ class Episode:
     grain: Grain
     key: str
     source: UnitSource
+    request: EpisodeRequest
     on_unit: Optional[Callable[[Any, Contribution, UnitView], Any]] = None
     on_close: Optional[Callable[[EpisodeRecord], Any]] = None
     to_parent: Optional[Callable[[EpisodeRecord], EpisodeUpdate]] = None
-    request: EpisodeRequest = field(default_factory=EpisodeRequest)
     bound: Optional[int] = None
     resume_units: tuple[ResumeUnit, ...] = ()
 
@@ -489,6 +754,10 @@ class Episode:
     def label(self) -> str:
         return self.key
 
+    @property
+    def goal(self) -> EpisodeGoal:
+        return self.request.goal
+
     @classmethod
     def identity(
         cls,
@@ -513,6 +782,10 @@ class Episode:
             raise ValueError(
                 "EpisodeUpdate.record_id must identify the completed child record"
             )
+        if update.goal != record.goal:
+            raise ValueError(
+                "EpisodeUpdate.goal must preserve the completed Episode Goal"
+            )
         return _AcquiredUnit(
             contribution=Contribution(
                 controller_input=update.controller_input,
@@ -529,6 +802,7 @@ class Episode:
         return self._as_parent_unit(await self.run_async(ctx))
 
     def run(self, ctx: "Context") -> EpisodeRecord:
+        self._validate_position(ctx)
         if not ctx.path and not ctx.has_run_id:
             ctx.bind_run_id(self.key)
         scope = ctx.enter(self.grain, self.key)
@@ -545,6 +819,7 @@ class Episode:
             ctx.leave(scope)
 
     async def run_async(self, ctx: "Context") -> EpisodeRecord:
+        self._validate_position(ctx)
         if not ctx.path and not ctx.has_run_id:
             ctx.bind_run_id(self.key)
         scope = ctx.enter(self.grain, self.key)
@@ -580,6 +855,20 @@ class Episode:
             request=self.request,
         )
 
+    def _validate_position(self, ctx: "Context") -> None:
+        if ctx.path and not self.goal.parent_goal_id:
+            raise ValueError("a nested Episode must carry a child Goal")
+        if not ctx.path and self.goal.parent_goal_id:
+            raise ValueError("a root Episode Goal may not name a parent Goal")
+
+    def _validate_child(self, item: Any) -> None:
+        if not isinstance(item, Episode):
+            return
+        if item.goal.parent_goal_id != self.goal.goal_id:
+            raise ValueError(
+                "a child Episode Goal must name the containing Episode Goal"
+            )
+
     def _record(
         self,
         ctx: "Context",
@@ -610,24 +899,53 @@ class Episode:
         records: list[UnitRecord],
         label: str,
         acquired: _AcquiredUnit,
-    ) -> tuple[UnitRecord, UnitView]:
-        step = ctx.runtime.advance(
-            scope,
-            label,
-            acquired.contribution.controller_input,
-        )
+    ) -> tuple[UnitRecord, UnitView, Contribution]:
         unit_ref = UnitRef(
             EpisodeRef(run_id=ctx.require_run_id(), path=scope).episode_id,
             len(records),
         )
+        controller_input = acquired.contribution.controller_input
+        goal_preview: Optional[GoalPreview] = None
+        if acquired.goal_proposal is not None:
+            goal_preview = ctx._preview_goal(acquired.goal_proposal, unit_ref)
+            controller_input = goal_preview.controller_input
+        step = ctx.runtime.advance(scope, label, controller_input)
+        goal_result = acquired.contribution.goal_result
+        if goal_preview is not None:
+            result_ids = getattr(step, "goal_commit_ids", None)
+            if result_ids is None:
+                raise TypeError(
+                    "a controller step handling a Goal proposal must expose "
+                    "goal_commit_ids"
+                )
+            result_ids = tuple(str(result_id) for result_id in result_ids)
+            candidates = set(goal_preview.candidate_result_ids)
+            unknown = sorted(set(result_ids) - candidates)
+            if unknown:
+                raise ValueError(
+                    "controller selected Goal identities absent from its "
+                    f"preview: {unknown}"
+                )
+            goal_result = (
+                ctx._commit_goal(goal_preview, result_ids)
+                if result_ids
+                else goal_preview.no_commit_result
+            )
+        contribution = Contribution(
+            controller_input=controller_input,
+            output=acquired.contribution.output,
+            episode_update=acquired.contribution.episode_update,
+            goal_result=goal_result,
+        )
         record = UnitRecord(
             unit_label=label,
-            controller_input=acquired.contribution.controller_input,
+            controller_input=controller_input,
             controller_step=step,
             epoch=ctx.runtime.epoch(scope),
             unit_ref=unit_ref,
             episode_update=acquired.contribution.episode_update,
             child=acquired.child_record,
+            goal_result=goal_result,
         )
         view = UnitView(
             unit_label=label,
@@ -636,9 +954,10 @@ class Episode:
             epoch=record.epoch,
             unit_ref=record.unit_ref,
             episode_update=record.episode_update,
+            goal_result=goal_result,
         )
         records.append(record)
-        return record, view
+        return record, view, contribution
 
     def _restore_units(
         self,
@@ -710,14 +1029,15 @@ class Episode:
             if isinstance(item, SourceEnd):
                 ended_by, end_reason = item.kind, item.reason
                 break
+            self._validate_child(item)
             acquired = item.acquire(ctx)
             if not isinstance(acquired, _AcquiredUnit):
                 raise TypeError("Acquirable.acquire() returned an invalid result")
-            _, unit_view = self._append_record(
+            _, unit_view, contribution = self._append_record(
                 ctx, scope, records, item.label, acquired
             )
             if self.on_unit is not None:
-                self.on_unit(item, acquired.contribution, unit_view)
+                self.on_unit(item, contribution, unit_view)
             step = unit_view.controller_step
             if step.stop:
                 scope, end = self._stop_end(ctx, scope, records, step)
@@ -748,16 +1068,17 @@ class Episode:
             if isinstance(item, SourceEnd):
                 ended_by, end_reason = item.kind, item.reason
                 break
+            self._validate_child(item)
             acquired = item.acquire_async(ctx)
             if inspect.isawaitable(acquired):
                 acquired = await acquired
             if not isinstance(acquired, _AcquiredUnit):
                 raise TypeError("Acquirable.acquire_async() returned an invalid result")
-            _, unit_view = self._append_record(
+            _, unit_view, contribution = self._append_record(
                 ctx, scope, records, item.label, acquired
             )
             if self.on_unit is not None:
-                result = self.on_unit(item, acquired.contribution, unit_view)
+                result = self.on_unit(item, contribution, unit_view)
                 if inspect.isawaitable(result):
                     await result
             step = unit_view.controller_step
@@ -836,7 +1157,7 @@ def leaves(
 
 
 class Context:
-    """Run identity, nesting path, and controller routing only."""
+    """Run identity, nesting, controller routing, and the Goal write boundary."""
 
     def __init__(
         self,
@@ -844,16 +1165,51 @@ class Context:
         tree: EpisodeTree,
         run_id: Optional[str] = None,
         runtime: Optional[ControllerRuntime] = None,
+        goal_state: Optional[GoalState] = None,
     ) -> None:
         if not isinstance(tree, EpisodeTree):
             raise TypeError("Context.tree must be an EpisodeTree")
         self.runtime = runtime if runtime is not None else ControllerRuntime()
         self.tree = tree
+        if goal_state is not None and not isinstance(goal_state, GoalState):
+            raise TypeError("Context.goal_state must implement GoalState")
+        self.__goal_state = goal_state
         self._stack: list[Path] = []
         self._grains: dict[str, Grain] = {}
         self._run_id: Optional[str] = None
         if run_id is not None:
             self.bind_run_id(run_id)
+
+    def _preview_goal(
+        self,
+        proposal: GoalProposal,
+        unit_ref: UnitRef,
+    ) -> GoalPreview:
+        state = self.__goal_state
+        if state is None:
+            raise RuntimeError("a Goal proposal requires a method-owned GoalState")
+        before = state.state_id
+        preview = state.preview(proposal, unit_ref)
+        if not isinstance(preview, GoalPreview):
+            raise TypeError("GoalState.preview() must return GoalPreview")
+        after = state.state_id
+        if before != after or preview.state_id != before:
+            raise RuntimeError("GoalState.preview() mutated Goal state")
+        return preview
+
+    def _commit_goal(
+        self,
+        preview: GoalPreview,
+        result_ids: tuple[str, ...],
+    ) -> Any:
+        state = self.__goal_state
+        if state is None:
+            raise RuntimeError("Goal commit requires a method-owned GoalState")
+        if not result_ids:
+            raise ValueError("GoalState.commit() requires credited result identities")
+        if state.state_id != preview.state_id:
+            raise RuntimeError("Goal state changed between preview and commit")
+        return state.commit(preview, result_ids)
 
     def bind_run_id(self, run_id: str) -> None:
         if not isinstance(run_id, str) or not run_id:
