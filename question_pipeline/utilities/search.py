@@ -296,6 +296,22 @@ class SearchFrontier:
                 return task
         return None
 
+    def next_for_strategy(self, strategy_key: str) -> Optional[SearchTask]:
+        """Pop work minted by one exact proposed strategy Episode.
+
+        The run proposer creates a fresh strategy after every root verdict.
+        This selector prevents tasks planned before that proposal, or for a
+        different instance of the same operator, from becoming its units.
+        """
+
+        wanted = str(strategy_key)
+        for key, task in self._pending.items():
+            metadata = task.metadata if isinstance(task.metadata, Mapping) else {}
+            if str(metadata.get("strategy_key") or "") == wanted:
+                del self._pending[key]
+                return task
+        return None
+
     def pending_by_family(self) -> dict[str, list[SearchTask]]:
         """Pending tasks grouped by family, for the stranded-work disclosure."""
 
@@ -5283,35 +5299,6 @@ def _coerce_query_list(parsed: Any, limit: int) -> List[str]:
         if len(queries) >= limit:
             break
     return queries
-
-
-async def initial_queries(
-    llm,
-    question: str,
-    *,
-    n: int = 6,
-    schema_hint: str = "",
-) -> List[str]:
-    """Derive the first batch of web-search queries straight from the question."""
-    prompt = f"""QUESTION:
-{question}
-{("DOMAIN FOCUS: " + schema_hint if schema_hint else "")}
-
-Produce {n} complementary web-search queries that would surface the evidence
-needed to answer the question. Infer the appropriate source ecosystem from the
-question and domain focus: useful routes may include primary datasets and
-catalogs, government or institutional repositories, scholarly literature,
-technical reports, historical archives, and authoritative compilations.
-
-Make each query pursue a distinct, task-relevant evidence route. Collectively,
-the queries should cover the entities, attributes, quantitative values,
-qualifiers, and source types required by the question rather than varying
-wording for its own sake. Keep each query concise (3-9 words), no boolean
-operators.
-
-Return JSON: {{"queries": ["...", "..."]}}"""
-    parsed = await ask_json(llm, prompt, system_prompt=_SEARCH_SYSTEM_PROMPT)
-    return _coerce_query_list(parsed, n)
 
 
 async def followup_queries(

@@ -6,7 +6,7 @@ from question_pipeline.episode_binding.provider_binding import *
 class StrategyProposer:
     """The ``run`` grain's source: the switch edge.
 
-    Pull order, and every step before the model is a typed check:
+    Every root pull follows the same order:
 
     1. the run's terminal state (a goal fulfilled, an execution error, a spent
        budget) -> the named ``SourceEnd`` its ``StopReason`` maps to;
@@ -15,10 +15,10 @@ class StrategyProposer:
        budget ends the run rather than producing a stream of ``bound_hit``
        children the parent's history excludes, which would leave the run's
        observation count at zero forever;
-    4. a declared family eligible to open -> build it. **No model call.**
-    5. otherwise sample.
+    4. sample one next strategy from the completed strategy updates and current
+       Goal deficits.
 
-    THE MODEL SITS ONLY IN STEP 5, and only in that step's string work. It
+    THE MODEL SITS ONLY IN STEP 4, and only in that step's string work. It
     samples candidate strings and reports a number. It does not decide *whether*
     to propose -- that is the run grain's own verdict, read after every unit --
     and it does not decide whether a candidate is distant enough: the comparison
@@ -29,14 +29,12 @@ class StrategyProposer:
     def __init__(
         self,
         *,
-        declared: Callable[[], Sequence[str]],
         sample: Callable[[Sequence[Mapping[str, Any]]], Awaitable[Sequence[Mapping[str, Any]]]],
         build: Callable[[str, str, Sequence[str]], Episode],
         catalog: AbstractSet[str],
         declared_target_ids: Callable[[], AbstractSet[str]],
         budget: SourceBudget,
         health: ProviderHealth,
-        termination: RunTermination,
         open_cost_scope: Callable[
             [str, str, str, tuple[tuple[str, str], ...]], Any
         ],
@@ -48,14 +46,12 @@ class StrategyProposer:
         distance_floor: float = STRATEGY_DISTANCE_FLOOR,
         max_samples: int = MAX_PROPOSAL_SAMPLES,
     ) -> None:
-        self._declared = declared
         self._sample = sample
         self._build = build
         self._catalog = catalog
         self._declared_target_ids = declared_target_ids
         self._budget = budget
         self._health = health
-        self._termination = termination
         self._open_cost_scope = open_cost_scope
         self._episode_id = str(episode_id)
         self._episode_path = tuple(episode_path)
@@ -152,19 +148,13 @@ class StrategyProposer:
             raise ValueError("a proposer may hold only one resumed child")
         self._resume_episode = episode
 
-    async def next(self, view: EpisodeView) -> Episode | None | SourceEnd:
+    async def next(self, view: EpisodeView) -> Episode | SourceEnd:
         if view.goal != self._goal:
             raise ValueError("run planner received a different Goal than its Episode")
         if self._resume_episode is not None:
             episode = self._resume_episode
             self._resume_episode = None
             return episode
-        if self._termination.stopped:
-            end = self._termination.source_end()
-            self.ledger["end"] = (
-                end.reason if end is not None else STOP_REASON_FRONTIER_EXHAUSTED
-            )
-            return end
         if self._health.fatal:
             self.ledger["end"] = FATAL_SEARCH_ERROR
             return SourceEnd(END_SOURCE_FAILED, FATAL_SEARCH_ERROR)
@@ -197,37 +187,14 @@ class StrategyProposer:
             episode = await self._pull()
         return episode
 
-    async def _pull(self) -> Episode | None | SourceEnd:
+    async def _pull(self) -> Episode | SourceEnd:
         """The pull itself. IT TAKES NO VIEW, and that is the point.
 
         Every input is a typed object this class was handed -- the run's
-        terminal state, provider health, the page budget, the declared families,
-        and the declared target ids. The proposer reads no curve, no verdict and
-        no unit count, so there is no second acquisition decision hidden here.
+        terminal state, provider health, page budget, completed strategy
+        updates, and declared target ids. The proposer reads no curve, verdict,
+        or unit count, so there is no second acquisition decision hidden here.
         """
-
-        # Step 4: a declared family eligible to open. NO MODEL CALL. `declared`
-        # is the set of families with pending frontier work that the
-        # deterministic planner routes and that are ELIGIBLE TO RE-OPEN under
-        # the caller's written rule -- it is NOT the whole operator catalog,
-        # which would stay deterministic while bypassing the pseudo-gradient
-        # entirely.
-        #
-        # The declared path deliberately does not consult the opened-content
-        # set. Eligibility is the caller's rule over the child records this run
-        # already holds ("the last instance ended `exhausted` AND the frontier
-        # now holds work for it"), and a content key fixed per family would make
-        # a family that merely ran out of queued work at the instant it was
-        # pulled unreopenable for the rest of the run -- work planned for it
-        # would sit in the frontier forever with nothing saying so. The key it
-        # records is instance-scoped so a proposal can never collide with it.
-        for family in self._declared():
-            instance = self._instances.get(family, 0)
-            return self._open(
-                family,
-                self._declared_key(family, instance),
-                (),
-            )
 
         declared_targets = set(self._declared_target_ids())
         for sample_index in range(self._max_samples):
@@ -324,15 +291,9 @@ class StrategyProposer:
                 label=str(chosen["label"]),
             )
 
-        if int(self.ledger["candidates"]) == 0:
-            # The declared catalog is drained AND the sampler returned nothing at
-            # all: the honest exhaustion, and the only thing `None` spells.
-            self.ledger["end"] = END_EXHAUSTED
-            return None
-        # The sampling budget was spent. A CUT, not exhaustion -- a later reader
-        # uses the run's end to decide whether low yield was a saturated search
-        # space or an instrument that stopped asking, and those license opposite
-        # conclusions.
+        # A generative root source has no physical list to exhaust. If its
+        # bounded proposal attempts produce no acceptable strategy, that is an
+        # instrument cut, never convergence and never ordinary exhaustion.
         self.ledger["end"] = BOUND_KIND_PROPOSAL_SAMPLES
         return SourceEnd(END_BOUND_HIT, BOUND_KIND_PROPOSAL_SAMPLES)
 
@@ -433,19 +394,6 @@ class StrategyProposer:
             }
         )
 
-    @staticmethod
-    def _declared_key(family: str, instance: int) -> str:
-        """The content key a deterministically-routed family instance records.
-
-        Instance-scoped, so re-opening a family whose queue refilled is possible
-        and a proposal for the same operator with no targets and no seeds cannot
-        collide with an instance the planner already ran.
-        """
-
-        return stable_id(
-            {"operator": family, "declared": True, "instance": int(instance)}
-        )
-
     def _deterministic_distance(
         self,
         family: str,
@@ -511,14 +459,12 @@ class RunBinding:
         if not isinstance(goal, EpisodeGoal) or goal.parent_goal_id:
             raise ValueError("the run Episode requires one root Goal")
         self.proposer = StrategyProposer(
-            declared=self.eligible_families,
             sample=self.sample_strategies,
             build=self._build_strategy_episode,
             catalog=self.strategy_catalog,
             declared_target_ids=self._declared_target_ids,
             budget=self.budget,
             health=self.health,
-            termination=self.termination,
             open_cost_scope=self.open_cost_scope,
             episode_id=self.run_episode_id,
             episode_path=self.run_path,
@@ -641,16 +587,6 @@ class RunBinding:
                     await result
             except Exception as exc:  # noqa: BLE001 - disclosed hook failure
                 self.record_hook_failure("checkpoint", episode.key, exc)
-
-    def eligible_families(self) -> list[str]:
-        """Pending families whose last instance ended by honest exhaustion."""
-
-        pending = self.frontier.pending_by_family()
-        return [
-            family
-            for family in pending
-            if self._strategy_ends.get(family, END_EXHAUSTED) == END_EXHAUSTED
-        ]
 
     def current_strategy_seed_queries(self) -> list[str]:
         seeds: list[str] = []

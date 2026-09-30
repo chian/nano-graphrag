@@ -4,13 +4,7 @@ from method_loop import EpisodeGoal
 from question_pipeline.episode_binding.provider_binding import *
 
 class StrategySearches:
-    """The ``strategy`` grain's source: one search episode per pull.
-
-    The frontier stays the queue; the episode becomes its consumer. A strategy
-    that yield-stops leaves its remaining tasks IN the frontier, which is how
-    "never deleted, never domain-filtered" survives the deletion of the demotion
-    machinery.
-    """
+    """One strategy Episode's private sequence of proposed searches."""
 
     def __init__(
         self,
@@ -40,7 +34,7 @@ class StrategySearches:
             episode = self._resume_search
             self._resume_search = None
             return episode
-        task = self._next_task(self._family)
+        task = self._next_task(self._strategy_key)
         if task is None:
             return None
         return self._make_search(task, view.goal)
@@ -74,11 +68,18 @@ class StrategyBinding:
         )
         if seeds and not resuming:
             self._strategy_seed_queries[strategy_key] = list(seeds)
-            self.frontier.enqueue_queries(
-                seeds,
-                topic="strategy_proposal",
-                expansion_op=family,
-                producer_class="strategy_proposer",
+            self.frontier.enqueue(
+                SearchTask(
+                    query=str(seed),
+                    topic="strategy_proposal",
+                    expansion_op=family,
+                    producer_class="strategy_proposer",
+                    metadata={
+                        "strategy_key": str(strategy_key),
+                        "strategy_operator": str(family),
+                    },
+                )
+                for seed in seeds
             )
         if not resuming:
             self._active_search_units = []
@@ -108,7 +109,7 @@ class StrategyBinding:
             source=StrategySearches(
                 strategy_key=strategy_key,
                 family=family,
-                next_task=self.frontier.next_for,
+                next_task=self.frontier.next_for_strategy,
                 make_search=lambda task, parent: self._build_search_episode(
                     task, strategy_key, family, parent_goal=parent
                 ),

@@ -235,9 +235,6 @@ class PipelineConfig:
     scrape_search_results: bool = False
     table_gap_search_tasks: int = 12
     goal_discovery_text_chars: int = 6000
-    #: Query strings the initial seed-planning call emits -- planner string
-    #: breadth for one model call, never a stop rule or a wave size.
-    initial_seed_queries: int = 6
     #: Candidate strategies one proposer call samples -- string breadth for
     #: the switch edge's model call, never a stop rule. Split out of
     #: ``task_goal_search_tasks``, which used to serve both concepts.
@@ -6328,40 +6325,9 @@ genuinely separate view that is not covered by a listed target."""
             # initial page `no_extractor` and discarded its possible evidence.
                 if cfg.schema_name:
                     await self._resolve_schema([])
-            # The seed search is no longer a phase before the loop: it becomes
-            # the run episode's FIRST STRATEGY, family `llm_initial`. Its pages
-            # supply schema-synthesis evidence only when no schema was named.
-            # In that case they are fetched before an extractor exists and are
-            # crediting-disabled under the fate table's `no_extractor` row; the
-            # strategy hook then resolves the synthesized schema.  With a named
-            # schema, the extractor now exists before this strategy opens.
-                print("Seeding search from the question...")
-                schema_hint = cfg.schema_name or ""
-                run_path = ((self.provider_binding.run_grain.name, self.out.name),)
-                with prompt_scope(
-                    self.out / "prompts" / self._run_episode_id,
-                    episode_id=self._run_episode_id,
-                    episode_path=run_path,
-                ):
-                    with self._cost_scope(
-                        ObservationKind.STRATEGY_PROPOSAL.value,
-                        observation_id=f"{self.out.name}#seed",
-                        episode_id=self._run_episode_id,
-                        episode_path=run_path,
-                    ):
-                        queries = await strategy.initial_queries(
-                            self.llm,
-                            cfg.question,
-                            n=cfg.initial_seed_queries,
-                            schema_hint=schema_hint,
-                        )
-                print(f"  Initial queries: {queries}")
-                self.search_frontier.enqueue_queries(
-                    queries,
-                    topic="initial",
-                    expansion_op="llm_initial",
-                    producer_class="seed_query",
-                )
+            # The root source proposes the first strategy exactly as it proposes
+            # every later one: from the current Goal and an initially empty
+            # strategy history. There is no separately generated seed strategy.
 
         if not self._resume_checkpoint:
             self._last_answer = ""
@@ -6370,61 +6336,12 @@ genuinely separate view that is not covered by a listed target."""
         if self.goal_tracker is not None and not self._resume_checkpoint:
             print("  Bootstrapping task-level goal from current tables...")
             seed_exports = await self._bootstrap_task_goal()
-            seed_goal_search_tasks = self._enqueue_seed_frontier_searches()
-            if (
-                not self._universe_estimate_actionable()
-                and not seed_goal_search_tasks
-                and self.search_frontier.pending_count <= 0
-                and not self._bootstrap_sources
-            ):
-                # ENGINE-AUTHORED, NOT MODEL-AUTHORED. This assessment is
-                # written by the pipeline when no model was consulted, so
-                # `confidence: 0.0` here means "not asked", not "asked and
-                # unsure", and `rationale` is the engine's prose rather than a
-                # model's judgment. A consumer that reads either as model
-                # output is reading the wrong thing.
-                self._final_assessment = {
-                    "sufficient": False,
-                    "confidence": 0.0,
-                    "gaps": ["Task-level answer universe was not estimated."],
-                    "rationale": (
-                        "Goal-discovery search exhausted the available search "
-                        "frontier or source-unit budget before count targets "
-                        "could be estimated."
-                    ),
-                }
-                print("  No task-level universe estimate; stopping before GASL.")
-                return self._finalize(self._last_answer, self._final_assessment)
-            bootstrap_goal_state = self._record_task_goal(
+            self._record_task_goal(
                 "bootstrap_deficit",
                 seed_exports,
                 gap_search_tasks=[],
-                goal_search_tasks=seed_goal_search_tasks,
+                goal_search_tasks=[],
             )
-            gap_search_tasks: List[Dict[str, Any]] = []
-            goal_search_tasks: List[Dict[str, Any]] = []
-            if self._universe_estimate_actionable():
-                gap_search_tasks, goal_search_tasks = (
-                    await self._enqueue_deficit_searches(
-                        "bootstrap",
-                        seed_exports,
-                        bootstrap_goal_state,
-                    )
-                )
-                goal_search_tasks = [
-                    *seed_goal_search_tasks,
-                    *goal_search_tasks,
-                ]
-            else:
-                goal_search_tasks = seed_goal_search_tasks
-            if gap_search_tasks or goal_search_tasks:
-                self._record_task_goal(
-                    "bootstrap_deficit",
-                    seed_exports,
-                    gap_search_tasks=gap_search_tasks,
-                    goal_search_tasks=goal_search_tasks,
-                    update_history=False,
-                )
 
         # THE ONE CALL THAT RUNS THE TREE, and the only `run_async` in this
         # package. It builds nothing itself: the controller holds the context,
@@ -6496,14 +6413,7 @@ genuinely separate view that is not covered by a listed target."""
         else:
             print("  No new sources accepted by this strategy.")
 
-        followups = await self._guarded(
-            "followup_target_evolutions",
-            self._enqueue_followup_target_evolutions,
-            self._drain_followup_outcomes(),
-            self._target_evolution_counts,
-        )
-        if followups:
-            print(f"  Queued {len(followups)} follow-up target-deficit searches")
+        self._drain_followup_outcomes()
 
         if (
             self.config.pipeline_mode != PIPELINE_MODE_TABLE_FILL
@@ -6658,59 +6568,6 @@ genuinely separate view that is not covered by a listed target."""
             self.last_best_guess_state,
         )
 
-        deficit_expansion: Dict[str, Any] = {
-            "attempted": False,
-            "reason": "not_needed",
-            "label": label,
-            "episode_id": episode_id,
-            "pending_before": self.search_frontier.pending_count,
-            "pending_after": self.search_frontier.pending_count,
-            "gap_search_tasks": 0,
-            "goal_search_tasks": 0,
-        }
-        if goal_state is not None and not goal_state.fulfilled:
-            expanded = await self._guarded(
-                "expand_goal",
-                self._expand_unfulfilled_table_goal,
-                label,
-                table_exports,
-                goal_state,
-            )
-            if expanded is not None:
-                gap_search_tasks, goal_search_tasks, goal_state, deficit_expansion = (
-                    expanded
-                )
-        elif goal_state is None and self._source_budget_available():
-            expanded = await self._guarded(
-                "enqueue_deficit_searches",
-                self._enqueue_deficit_searches,
-                label,
-                table_exports,
-                goal_state,
-            )
-            if expanded is not None:
-                gap_search_tasks, goal_search_tasks = expanded
-
-        # THE STOP DECISION IS A RECORD, AND THE RUN SOURCE IS WHAT READS IT.
-        # `orchestration_stop_override` is a pure function that raises nothing,
-        # so the deleted loop's `if stop_decision.stop: break` had to be
-        # replaced by something a source can read before a pull -- otherwise the
-        # composition would have one decision edge, "does this run continue",
-        # with no rule at all.
-        stop_decision = self._record_stop_decision(
-            self._stop_context_for(goal_state)
-        )
-        if stop_decision is not None and stop_decision.stop:
-            self.run_termination.stopped = True
-            self.run_termination.reason = stop_decision.reason.value
-            self.run_termination.decision_id = stop_decision.id
-            print(
-                f"\n  Run termination recorded: {stop_decision.reason.value} "
-                f"(frontier_pending={stop_decision.context.frontier_pending}, "
-                f"source_budget_available="
-                f"{stop_decision.context.source_budget_available})"
-            )
-
         strategy_record = {
             "episode_id": episode_id,
             "run_unit_index": run_unit_index,
@@ -6731,7 +6588,6 @@ genuinely separate view that is not covered by a listed target."""
             "derived_table_exports": self.last_derived_table_exports,
             "gap_search_tasks": gap_search_tasks,
             "goal_search_tasks": goal_search_tasks,
-            "deficit_expansion": deficit_expansion,
             "task_goal": goal_state.to_dict() if goal_state else None,
             "skipped_gasl": no_new_sources_path,
             "control_decisions": self._strategy_control_decisions(),
@@ -6793,11 +6649,10 @@ genuinely separate view that is not covered by a listed target."""
     def _stop_context_for(self, goal_state) -> StopContext:
         """The stop inputs, with the frontier required at exactly one site.
 
-        The composition tests the frontier where a strategy's source runs out of
-        tasks, so an empty frontier is terminal for the run only once every
-        eligible family is drained -- which is what `_eligible_families` reports.
-        There is no round budget: continuation belongs to the Episode verdicts,
-        the declared source-unit bound, and the typed terminal conditions here.
+        The search frontier belongs to the currently proposed strategy. Its
+        queue length is recorded here for disclosure but is never a run-level
+        terminal condition: after each root ``continue`` verdict the run source
+        proposes a fresh strategy.
         """
 
         return StopContext(
@@ -6806,7 +6661,7 @@ genuinely separate view that is not covered by a listed target."""
             goal_fulfilled=bool(goal_state is not None and goal_state.fulfilled),
             source_budget_available=self._source_budget_available(),
             frontier_pending=self.search_frontier.pending_count,
-            frontier_required=not self.provider_binding.eligible_families(),
+            frontier_required=False,
             criteria_snapshot_id=self.criteria_snapshot.id,
         )
 
