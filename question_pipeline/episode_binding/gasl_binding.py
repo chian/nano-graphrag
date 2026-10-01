@@ -16,8 +16,8 @@ from method_loop import (
     EpisodeGoal,
     EpisodeRecord,
     EpisodeRequest,
+    EpisodeResult,
     EpisodeTree,
-    EpisodeUpdate,
     Grain,
     Leaf,
     SourceEnd,
@@ -25,7 +25,7 @@ from method_loop import (
     UnitView,
     leaves,
 )
-from question_pipeline.utilities.rarefaction import OBSERVATION_FAILED, ChannelSchema, ControlStep, ControllerConfig, IncidenceObservation, IncidenceState, bind_controller
+from question_pipeline.utilities.rarefaction import OBSERVATION_EXCLUDED, OBSERVATION_FAILED, OBSERVATION_OBSERVED, ChannelSchema, ControlStep, ControllerConfig, IncidenceObservation, IncidenceResult, IncidenceState, bind_controller, incidence_observation
 
 from gasl.adapters.base import (
     BOUND_KIND_NONE,
@@ -115,33 +115,35 @@ def _incidence_input(value: object) -> IncidenceObservation:
     return value
 
 
-def _episode_observation(record: EpisodeRecord) -> IncidenceObservation:
+def _child_incidence_result(record: EpisodeRecord) -> IncidenceResult:
+    """Collect accepted graph results without interpreting the child end."""
+
     observations = tuple(
         _incidence_input(unit.controller_input) for unit in record.unit_records
     )
-    if record.ended_by not in (END_EXHAUSTED, END_YIELD_STOP):
-        reason = f":{record.end_reason}" if record.end_reason else ""
-        return IncidenceObservation.excluded(
-            f"child ended {record.ended_by}{reason}; its trace is retained but "
-            "it does not enter the parent's controller"
-        )
-    if observations and all(
-        observation.status == OBSERVATION_FAILED
-        for observation in observations
-    ):
-        return IncidenceObservation.failed(
-            "child made no numerical judgement: every unit failed"
-        )
     combined = IncidenceObservation.combine(observations)
     schema = _incidence_state(record).report.channel_schema
-    if schema.union_channel is None:
-        return combined
-    return IncidenceObservation(
-        identities=combined.identities,
-        channels={
+    channels = combined.channels
+    if schema.union_channel is not None:
+        channels = {
             channel: combined.channels.get(channel, ())
             for channel in schema.base_channels
-        },
+        }
+    return IncidenceResult(
+        identities=combined.identities,
+        channels=channels,
+        observed_units=sum(
+            observation.status == OBSERVATION_OBSERVED
+            for observation in observations
+        ),
+        failed_units=sum(
+            observation.status == OBSERVATION_FAILED
+            for observation in observations
+        ),
+        excluded_units=sum(
+            observation.status == OBSERVATION_EXCLUDED
+            for observation in observations
+        ),
     )
 
 #: The query episode's scope key — code-minted, constant per invocation (each
@@ -858,25 +860,23 @@ class GraphWalkBinding:
             )
         return walked_data, dict(complete_result(len(walked_data)), **detail)
 
-    def parent_update(
+    def parent_result(
         self,
         comp: WalkComposition,
         record: EpisodeRecord,
-    ) -> EpisodeUpdate:
-        """Compress a completed walk for its parent query Episode."""
+    ) -> EpisodeResult:
+        """Compress walk results independently of the method-owned end."""
 
         rows, walk_completeness = self.interpret(comp, record)
         state = _incidence_state(record)
-        observation = _episode_observation(record)
-        return EpisodeUpdate(
-            record_id=record.episode_id,
-            goal=record.goal,
-            controller_input=observation,
+        result = _child_incidence_result(record)
+        return EpisodeResult(
+            result=result,
             prompt_context={
                 "episode_id": record.episode_id,
                 "units_processed": record.units_consumed,
                 "ended_by": record.ended_by,
-                "distinct_nodes": len(observation.identities),
+                "distinct_nodes": len(result.identities),
                 "estimate": state.report.primary.as_record(),
                 "verdict": state.verdict.as_record(),
             },
@@ -1471,9 +1471,10 @@ class PlannerOperationSource:
         )
         comp.episode = replace(
             comp.episode,
-            to_parent=lambda record: self._services.walk_binding.parent_update(
+            to_parent=lambda record: self._services.walk_binding.parent_result(
                 comp, record
             ),
+            parent_controller_input=incidence_observation,
         )
         self.graphwalks_nested += 1
         self._walk_registry[unit_key] = {

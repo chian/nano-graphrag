@@ -757,13 +757,13 @@ class SearchPageProposer:
 class WebSearchBinding:
     """Methods owned by the search Episode."""
 
-    def _page_episode_update(
+    def _page_episode_result(
         self,
         state: PageRunState,
         record: EpisodeRecord,
-    ) -> EpisodeUpdate:
+    ) -> EpisodeResult:
         result = self._attach_page_result(state)
-        return self._episode_update(
+        return self._episode_result(
             record,
             output=PageEpisodeOutput(
                 unit=state.unit,
@@ -878,7 +878,8 @@ class WebSearchBinding:
             on_close=lambda record: self._close_search(
                 record, strategy_key, family
             ),
-            to_parent=self._search_episode_update,
+            to_parent=self._search_episode_result,
+            parent_controller_input=self._parent_controller_input,
             resume_units=resume_units,
         )
 

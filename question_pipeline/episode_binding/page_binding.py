@@ -1225,7 +1225,8 @@ class PageBinding:
             on_unit=lambda child, contribution, record: self._on_page_child(
                 state, child, contribution, record
             ),
-            to_parent=lambda record: self._page_episode_update(state, record),
+            to_parent=lambda record: self._page_episode_result(state, record),
+            parent_controller_input=self._parent_controller_input,
         )
 
     def _material_leaf(self, unit: PageUnit, material: PageMaterial) -> Leaf:
@@ -1282,13 +1283,13 @@ class PageBinding:
             )
             completed_material = contribution.output
 
-        def publish(record: EpisodeRecord) -> EpisodeUpdate:
+        def publish(record: EpisodeRecord) -> EpisodeResult:
             if completed_material is None:
                 raise RuntimeError("page leaf completed without PageMaterial")
             result = unit.result
             if not isinstance(result, PageResult):
                 raise TypeError("page leaf completed without PageResult")
-            return self._episode_update(
+            return self._episode_result(
                 record,
                 output=PageEpisodeOutput(
                     unit=unit,
@@ -1305,6 +1306,7 @@ class PageBinding:
             request=EpisodeRequest(goal=goal),
             on_unit=remember_material,
             to_parent=publish,
+            parent_controller_input=self._parent_controller_input,
         )
 
     def _make_page_leaf(

@@ -754,7 +754,8 @@ class SourceTableBinding:
             on_unit=lambda leaf, contribution, record: self._on_source_table_query(
                 state, source, leaf, contribution, record
             ),
-            to_parent=self._episode_update,
+            to_parent=self._episode_result,
+            parent_controller_input=self._parent_controller_input,
         )
 
     def _make_source_table_query_leaf(self, unit: SourceTableQueryUnit) -> Leaf:

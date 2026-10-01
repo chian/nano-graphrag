@@ -349,7 +349,8 @@ class ReportBinding:
             on_unit=lambda leaf, contribution, record: self._on_report_window(
                 state, report_state, leaf, contribution, record
             ),
-            to_parent=self._episode_update,
+            to_parent=self._episode_result,
+            parent_controller_input=self._parent_controller_input,
         )
 
     def _make_report_window_leaf(self, unit: ReportWindowUnit) -> Leaf:

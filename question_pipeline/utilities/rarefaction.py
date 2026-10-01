@@ -12,8 +12,14 @@ from collections import Counter
 from dataclasses import dataclass, field
 from numbers import Real
 from statistics import NormalDist, median
-from typing import Callable, Iterable, Mapping, Optional, Sequence
+from typing import Any, Callable, Iterable, Mapping, Optional, Sequence
 
+from method_loop import (
+    END_EXHAUSTED,
+    END_SOURCE_FAILED,
+    END_YIELD_STOP,
+    EpisodeCompletion,
+)
 
 
 # Numeric status and uncertainty vocabularies are declared once. A consumer
@@ -56,7 +62,9 @@ class IncidenceObservation:
     The Episode method treats this object as opaque.  A binding decides which
     stable identities belong to the observation, how they are partitioned into
     channels, and whether the acquisition attempt was observed, failed, or
-    excluded from numerical control.
+    excluded from numerical control. Status controls estimator eligibility; it
+    never erases accepted result identities produced before a later failure or
+    bound cut.
     """
 
     identities: tuple[str, ...] = ()
@@ -80,24 +88,46 @@ class IncidenceObservation:
                 for name, values in dict(self.channels).items()
             },
         )
-        if self.status != OBSERVATION_OBSERVED and (
-            self.identities or self.channels
-        ):
-            raise ValueError(
-                "failed and excluded observations cannot carry incidence data"
-            )
 
     @classmethod
-    def failed(cls, note: str) -> "IncidenceObservation":
+    def failed(
+        cls,
+        note: str,
+        *,
+        identities: Iterable[str] = (),
+        channels: Optional[Mapping[str, Iterable[str]]] = None,
+    ) -> "IncidenceObservation":
         if not str(note).strip():
             raise ValueError("a failed incidence observation must say why")
-        return cls(status=OBSERVATION_FAILED, note=str(note))
+        return cls(
+            identities=tuple(identities),
+            status=OBSERVATION_FAILED,
+            channels={
+                str(name): tuple(values)
+                for name, values in (channels or {}).items()
+            },
+            note=str(note),
+        )
 
     @classmethod
-    def excluded(cls, note: str) -> "IncidenceObservation":
+    def excluded(
+        cls,
+        note: str,
+        *,
+        identities: Iterable[str] = (),
+        channels: Optional[Mapping[str, Iterable[str]]] = None,
+    ) -> "IncidenceObservation":
         if not str(note).strip():
             raise ValueError("an excluded incidence observation must say why")
-        return cls(status=OBSERVATION_EXCLUDED, note=str(note))
+        return cls(
+            identities=tuple(identities),
+            status=OBSERVATION_EXCLUDED,
+            channels={
+                str(name): tuple(values)
+                for name, values in (channels or {}).items()
+            },
+            note=str(note),
+        )
 
     @classmethod
     def combine(
@@ -114,8 +144,6 @@ class IncidenceObservation:
         for observation in observations:
             if not isinstance(observation, IncidenceObservation):
                 raise TypeError("combine() accepts IncidenceObservation values")
-            if observation.status != OBSERVATION_OBSERVED:
-                continue
             for identity in observation.identities:
                 if identity not in seen:
                     seen.add(identity)
@@ -157,6 +185,93 @@ class IncidenceObservation:
             },
             note=str(record.get("note") or ""),
         )
+
+
+@dataclass(frozen=True)
+class IncidenceResult:
+    """Accepted child results before structural completion is interpreted."""
+
+    identities: tuple[str, ...]
+    channels: Mapping[str, tuple[str, ...]]
+    observed_units: int
+    failed_units: int
+    excluded_units: int
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "identities",
+            tuple(dict.fromkeys(str(value) for value in self.identities)),
+        )
+        object.__setattr__(
+            self,
+            "channels",
+            {
+                str(name): tuple(dict.fromkeys(str(value) for value in values))
+                for name, values in dict(self.channels).items()
+            },
+        )
+        for name in ("observed_units", "failed_units", "excluded_units"):
+            value = getattr(self, name)
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                raise ValueError(f"IncidenceResult.{name} must be non-negative")
+
+    def as_record(self) -> dict[str, Any]:
+        return {
+            "identities": list(self.identities),
+            "channels": {
+                name: list(values) for name, values in self.channels.items()
+            },
+            "observed_units": self.observed_units,
+            "failed_units": self.failed_units,
+            "excluded_units": self.excluded_units,
+        }
+
+
+def incidence_observation(
+    result: Any,
+    completion: EpisodeCompletion,
+) -> IncidenceObservation:
+    """Map independent child result and completion facts into control input."""
+
+    if not isinstance(result, IncidenceResult):
+        raise TypeError("incidence input requires IncidenceResult")
+    if not isinstance(completion, EpisodeCompletion):
+        raise TypeError("incidence input requires EpisodeCompletion")
+    if completion.ended_by not in (END_EXHAUSTED, END_YIELD_STOP):
+        reason = f":{completion.end_reason}" if completion.end_reason else ""
+        note = (
+            f"child ended {completion.ended_by}{reason}; accepted results remain "
+            "visible, but the incomplete child is not an incidence sample"
+        )
+        factory = (
+            IncidenceObservation.failed
+            if completion.ended_by == END_SOURCE_FAILED
+            else IncidenceObservation.excluded
+        )
+        return factory(
+            note,
+            identities=result.identities,
+            channels=result.channels,
+        )
+    if completion.units_consumed and not result.observed_units:
+        if result.failed_units:
+            return IncidenceObservation.failed(
+                "child made no complete numerical judgement: its units failed "
+                "or were excluded",
+                identities=result.identities,
+                channels=result.channels,
+            )
+        return IncidenceObservation.excluded(
+            "every child unit was excluded from numerical control",
+            identities=result.identities,
+            channels=result.channels,
+        )
+    return IncidenceObservation(
+        identities=result.identities,
+        channels=result.channels,
+    )
+
 
 _QUADRATURE_LATENT = (
     -6.3639478888298395, -5.190093591304782, -4.1962077112690155,
@@ -309,21 +424,21 @@ class ChannelSchema:
         self,
         credits: Iterable[str],
         memberships: Mapping[str, Iterable[str]],
-        *,
-        active: bool,
     ) -> dict[str, tuple[str, ...]]:
-        """Validate one unit and return distinct membership for every channel."""
+        """Validate accepted results and return membership for every channel.
+
+        Estimator eligibility is deliberately absent from this operation. A
+        failed or bound-cut unit may still carry accepted results produced
+        before its interruption; the observation status decides whether those
+        results form an incidence sample later.
+        """
 
         credit_tuple = self._distinct(credits)
         groups = {
             str(channel): self._distinct(values)
             for channel, values in memberships.items()
         }
-        if not active:
-            if credit_tuple or groups:
-                raise ValueError(
-                    "a crediting-disabled unit must carry no credits or channel memberships"
-                )
+        if not credit_tuple and not groups:
             return {channel: () for channel in self.channels}
 
         if self.union_channel is None:
@@ -708,6 +823,7 @@ class _IncidenceEstimator:
 
         self._samples: list[frozenset[str]] = []
         self._incidence: Counter[str] = Counter()
+        self._known_identities: set[str] = set()
         self._first_seen_order: list[str] = []
         self._unit_labels: list[str] = []
         self._unit_statuses: list[int] = []
@@ -748,7 +864,7 @@ class _IncidenceEstimator:
 
     @property
     def distinct(self) -> int:
-        return len(self._incidence)
+        return len(self._known_identities)
 
     def observe(
         self,
@@ -781,14 +897,16 @@ class _IncidenceEstimator:
         new: list[str] = []
         repeats: list[str] = []
         sample = frozenset(distinct_input) if eligible else frozenset()
-        if eligible:
-            for identity in distinct_input:
-                if self._incidence[identity] == 0:
-                    self._first_seen_order.append(identity)
-                    new.append(identity)
-                else:
-                    repeats.append(identity)
+        for identity in distinct_input:
+            if identity not in self._known_identities:
+                self._known_identities.add(identity)
+                self._first_seen_order.append(identity)
+                new.append(identity)
+            else:
+                repeats.append(identity)
+            if eligible:
                 self._incidence[identity] += 1
+        if eligible:
             self._samples.append(sample)
 
         unit_index = len(self._unit_labels)
@@ -806,7 +924,10 @@ class _IncidenceEstimator:
             cumulative_distinct=self.distinct,
             eligible=eligible,
             observation_status=observation_status,
-            crediting_disabled=observation_status == OBSERVATION_FAILED,
+            crediting_disabled=(
+                observation_status == OBSERVATION_FAILED
+                and not distinct_input
+            ),
             counts_toward_verdict=observation_status == OBSERVATION_OBSERVED,
         )
 
@@ -1766,8 +1887,6 @@ class _NumericalController:
     ) -> VolumeCredit:
         """Reduce the column vector to the method's sole scalar credit."""
 
-        if observation_status == OBSERVATION_EXCLUDED:
-            return VolumeCredit.coded(STATUS_INSUFFICIENT)
         required = set(self.config.required_channels)
         if set(before) != required or set(after) != required:
             raise ValueError(
@@ -2541,7 +2660,6 @@ class EstimatorController:
         memberships = self.channel_schema.project(
             credit_tuple,
             groups,
-            active=observation_status == OBSERVATION_OBSERVED,
         )
         yields = {
             channel: self._estimators[channel].observe(

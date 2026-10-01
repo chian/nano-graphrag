@@ -41,9 +41,11 @@ from method_loop import (
     END_YIELD_STOP,
     Context,
     Episode,
+    EpisodeCompletion,
     EpisodeGoal,
     EpisodeRecord,
     EpisodeRequest,
+    EpisodeResult,
     EpisodeUpdate,
     EpisodeView,
     EpisodeTree,
@@ -57,7 +59,7 @@ from method_loop import (
     UnitView,
 )
 from method_loop import UnitRef
-from question_pipeline.utilities.rarefaction import OBSERVATION_EXCLUDED, OBSERVATION_FAILED, OBSERVATION_OBSERVED, ChannelSchema, ControlStep, ControllerConfig, IncidenceObservation, IncidenceState, adaptive_marginal_credit_threshold, bind_controller
+from question_pipeline.utilities.rarefaction import OBSERVATION_EXCLUDED, OBSERVATION_FAILED, OBSERVATION_OBSERVED, ChannelSchema, ControlStep, ControllerConfig, IncidenceObservation, IncidenceResult, IncidenceState, adaptive_marginal_credit_threshold, bind_controller, incidence_observation
 from question_pipeline.utilities import tables as criteria
 from question_pipeline.utilities.acquisition import select_first_clearing, stable_id
 from question_pipeline.utilities.acquisition import CostErrorClass, ObservationKind, classify_error
@@ -239,33 +241,44 @@ def _incidence_input(value: object) -> IncidenceObservation:
     return value
 
 
-def _episode_observation(record: EpisodeRecord) -> IncidenceObservation:
+def _child_incidence_result(record: EpisodeRecord) -> IncidenceResult:
+    """Collect accepted results without interpreting how the child ended."""
+
     observations = tuple(
         _incidence_input(unit.controller_input) for unit in record.unit_records
     )
-    if record.ended_by not in (END_EXHAUSTED, END_YIELD_STOP):
-        reason = f":{record.end_reason}" if record.end_reason else ""
-        return IncidenceObservation.excluded(
-            f"child ended {record.ended_by}{reason}; its trace is retained but "
-            "it does not enter the parent's controller"
-        )
-    if observations and all(
-        observation.status == OBSERVATION_FAILED
-        for observation in observations
-    ):
-        return IncidenceObservation.failed(
-            "child made no numerical judgement: every unit failed"
-        )
     combined = IncidenceObservation.combine(observations)
     schema = _incidence_state(record).report.channel_schema
-    if schema.union_channel is None:
-        return combined
-    return IncidenceObservation(
-        identities=combined.identities,
-        channels={
+    channels = combined.channels
+    if schema.union_channel is not None:
+        channels = {
             channel: combined.channels.get(channel, ())
             for channel in schema.base_channels
-        },
+        }
+    return IncidenceResult(
+        identities=combined.identities,
+        channels=channels,
+        observed_units=sum(
+            observation.status == OBSERVATION_OBSERVED
+            for observation in observations
+        ),
+        failed_units=sum(
+            observation.status == OBSERVATION_FAILED
+            for observation in observations
+        ),
+        excluded_units=sum(
+            observation.status == OBSERVATION_EXCLUDED
+            for observation in observations
+        ),
+    )
+
+
+def _episode_observation(record: EpisodeRecord) -> IncidenceObservation:
+    """Convenience projection for persistence outside nested message passing."""
+
+    return incidence_observation(
+        _child_incidence_result(record),
+        EpisodeCompletion.from_record(record),
     )
 
 
@@ -280,21 +293,13 @@ def _restored_observation(item: Mapping[str, Any]) -> IncidenceObservation:
         else OBSERVATION_EXCLUDED
     )
     return IncidenceObservation(
-        identities=(
-            tuple(item.get("credits") or ())
-            if status == OBSERVATION_OBSERVED
-            else ()
-        ),
+        identities=tuple(item.get("credits") or ()),
         status=status,
         note=str(item.get("note") or ""),
-        channels=(
-            {
-                str(name): tuple(values)
-                for name, values in dict(item.get("facets") or {}).items()
-            }
-            if status == OBSERVATION_OBSERVED
-            else {}
-        ),
+        channels={
+            str(name): tuple(values)
+            for name, values in dict(item.get("facets") or {}).items()
+        },
     )
 
 
@@ -3207,22 +3212,20 @@ class ProviderRuntime:
             self.run_key,
         ).episode_id
 
-    def _episode_update(
+    def _episode_result(
         self,
         record: EpisodeRecord,
         *,
         prompt_context: Optional[Mapping[str, Any]] = None,
         output: Any = None,
         retain_trace: bool = False,
-    ) -> EpisodeUpdate:
-        """Return the compact parent message, retaining audit state if needed."""
+    ) -> EpisodeResult:
+        """Return accepted child results without assigning completion status."""
 
         if retain_trace:
             self._trace_records[record.episode_id] = record
-        return EpisodeUpdate(
-            record_id=record.episode_id,
-            goal=record.goal,
-            controller_input=_episode_observation(record),
+        return EpisodeResult(
+            result=_child_incidence_result(record),
             prompt_context=(
                 dict(prompt_context)
                 if prompt_context is not None
@@ -3230,6 +3233,13 @@ class ProviderRuntime:
             ),
             output=output,
         )
+
+    @staticmethod
+    def _parent_controller_input(
+        result: Any,
+        completion: EpisodeCompletion,
+    ) -> IncidenceObservation:
+        return incidence_observation(result, completion)
 
     def take_episode_record(self, record_id: str) -> EpisodeRecord:
         """Give the checkpoint writer a retained trace; never used for steering."""
@@ -3342,7 +3352,8 @@ class ProviderComposition:
             on_close=lambda record: self._close_search(
                 record, str(strategy_key), family
             ),
-            to_parent=self._search_episode_update,
+            to_parent=self._search_episode_result,
+            parent_controller_input=self._parent_controller_input,
         )
         strategy_episode = Episode(
             grain=self.strategy_grain,
@@ -3354,11 +3365,12 @@ class ProviderComposition:
                 str(strategy_key),
                 family,
             ),
-            to_parent=lambda record: self._strategy_episode_update(
+            to_parent=lambda record: self._strategy_episode_result(
                 record,
                 strategy_key=str(strategy_key),
                 family=family,
             ),
+            parent_controller_input=self._parent_controller_input,
         )
         return Episode(
             grain=self.run_grain,

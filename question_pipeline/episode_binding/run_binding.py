@@ -437,19 +437,19 @@ def _proposal_tokens(
 class RunBinding:
     """Methods owned by the run Episode."""
 
-    def _strategy_episode_update(
+    def _strategy_episode_result(
         self,
         record: EpisodeRecord,
         *,
         strategy_key: str,
         family: str,
-    ) -> EpisodeUpdate:
+    ) -> EpisodeResult:
         prompt_context = self._strategy_learning_observation(
             strategy_key=strategy_key,
             family=family,
             record=record,
         )
-        return self._episode_update(
+        return self._episode_result(
             record,
             prompt_context=prompt_context,
             retain_trace=self.checkpoint_completed_strategy is not None,

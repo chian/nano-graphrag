@@ -49,6 +49,44 @@ def check_method_layering() -> list[str]:
     return findings
 
 
+def check_episode_update_ownership() -> list[str]:
+    """Keep child completion and EpisodeUpdate construction inside the method."""
+
+    findings: list[str] = []
+    method_owner = "method_loop/episode.py"
+    roots = ("method_loop", "question_pipeline", "gasl", "source_table_language")
+    for root in roots:
+        for path in sorted((ROOT / root).rglob("*.py")):
+            relative = path.relative_to(ROOT).as_posix()
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=relative)
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Call):
+                    continue
+                name = (
+                    node.func.id
+                    if isinstance(node.func, ast.Name)
+                    else node.func.attr
+                    if isinstance(node.func, ast.Attribute)
+                    else ""
+                )
+                keywords = {keyword.arg for keyword in node.keywords}
+                if name == "EpisodeUpdate" and relative != method_owner:
+                    findings.append(
+                        f"{relative}:{node.lineno}: only method_loop may construct "
+                        "EpisodeUpdate; return EpisodeResult from the binding"
+                    )
+                if (
+                    name in {"Episode", "replace"}
+                    and "to_parent" in keywords
+                    and "parent_controller_input" not in keywords
+                ):
+                    findings.append(
+                        f"{relative}:{node.lineno}: a child result needs an explicit "
+                        "parent_controller_input adapter"
+                    )
+    return findings
+
+
 def check_checkpoint_gate() -> list[str]:
     findings: list[str] = []
     runner = _tree("run_question_pipeline.py")
@@ -205,6 +243,7 @@ def main() -> int:
     findings: list[str] = []
     for check in (
         check_method_layering,
+        check_episode_update_ownership,
         check_checkpoint_gate,
         check_evidence_file_ownership,
         check_goal_write_ownership,

@@ -41,12 +41,14 @@ __all__ = [
     "Context",
     "Contribution",
     "Episode",
+    "EpisodeCompletion",
     "EpisodeGoal",
     "GoalPreview",
     "GoalProposal",
     "GoalState",
     "EpisodeRecord",
     "EpisodeRequest",
+    "EpisodeResult",
     "EpisodeTree",
     "EpisodeUpdate",
     "EpisodeView",
@@ -292,11 +294,68 @@ class EpisodeRequest:
 
 
 @dataclass(frozen=True)
+class EpisodeCompletion:
+    """How a child Episode ended, recorded by the method rather than a binding."""
+
+    ended_by: str
+    end_reason: str
+    units_consumed: int
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.ended_by, str) or not self.ended_by:
+            raise ValueError("EpisodeCompletion.ended_by must be a non-empty string")
+        if not isinstance(self.end_reason, str):
+            raise TypeError("EpisodeCompletion.end_reason must be a string")
+        if (
+            isinstance(self.units_consumed, bool)
+            or not isinstance(self.units_consumed, int)
+            or self.units_consumed < 0
+        ):
+            raise ValueError(
+                "EpisodeCompletion.units_consumed must be a non-negative integer"
+            )
+
+    @classmethod
+    def from_record(cls, record: "EpisodeRecord") -> "EpisodeCompletion":
+        if not isinstance(record, EpisodeRecord):
+            raise TypeError("EpisodeCompletion requires an EpisodeRecord")
+        return cls(
+            ended_by=record.ended_by,
+            end_reason=record.end_reason,
+            units_consumed=record.units_consumed,
+        )
+
+    def as_record(self) -> dict[str, Any]:
+        return {
+            "ended_by": self.ended_by,
+            "end_reason": self.end_reason,
+            "units_consumed": self.units_consumed,
+        }
+
+
+@dataclass(frozen=True)
+class EpisodeResult:
+    """A binding's compact child result, independent of how the child ended."""
+
+    result: Any
+    prompt_context: Any = None
+    output: Any = None
+
+
+@dataclass(frozen=True)
 class EpisodeUpdate:
-    """The compact information a completed child returns to its parent."""
+    """The method-owned compact message from one child to its parent.
+
+    ``result`` and ``completion`` remain separate. A child can therefore
+    return accepted results and also report that its source later failed or a
+    bound cut it short. ``controller_input`` is the binding's explicit mapping
+    of those two facts into the parent's numerical component.
+    """
 
     record_id: str
     goal: EpisodeGoal
+    result: Any
+    completion: EpisodeCompletion
     controller_input: Any
     prompt_context: Any = None
     output: Any = None
@@ -306,11 +365,17 @@ class EpisodeUpdate:
             raise ValueError("EpisodeUpdate.record_id must be a non-empty string")
         if not isinstance(self.goal, EpisodeGoal):
             raise TypeError("EpisodeUpdate.goal must be an EpisodeGoal")
+        if not isinstance(self.completion, EpisodeCompletion):
+            raise TypeError(
+                "EpisodeUpdate.completion must be an EpisodeCompletion"
+            )
 
     def as_record(self) -> dict[str, Any]:
         return {
             "record_id": self.record_id,
             "goal": self.goal.as_record(),
+            "result": _record_value(self.result),
+            "completion": self.completion.as_record(),
             "controller_input": _record_value(self.controller_input),
             "prompt_context": _record_value(self.prompt_context),
         }
@@ -717,7 +782,10 @@ class Episode:
     request: EpisodeRequest
     on_unit: Optional[Callable[[Any, Contribution, UnitView], Any]] = None
     on_close: Optional[Callable[[EpisodeRecord], Any]] = None
-    to_parent: Optional[Callable[[EpisodeRecord], EpisodeUpdate]] = None
+    to_parent: Optional[Callable[[EpisodeRecord], EpisodeResult]] = None
+    parent_controller_input: Optional[
+        Callable[[Any, EpisodeCompletion], Any]
+    ] = None
     bound: Optional[int] = None
     resume_units: tuple[ResumeUnit, ...] = ()
 
@@ -735,6 +803,15 @@ class Episode:
             )
         if self.to_parent is not None and not callable(self.to_parent):
             raise TypeError("Episode.to_parent must be callable")
+        if self.parent_controller_input is not None and not callable(
+            self.parent_controller_input
+        ):
+            raise TypeError("Episode.parent_controller_input must be callable")
+        if (self.to_parent is None) != (self.parent_controller_input is None):
+            raise ValueError(
+                "Episode.to_parent and Episode.parent_controller_input must "
+                "be supplied together"
+            )
         if self.on_close is not None and not callable(self.on_close):
             raise TypeError("Episode.on_close must be callable")
         if not isinstance(self.request, EpisodeRequest):
@@ -775,17 +852,27 @@ class Episode:
             raise TypeError(
                 f"nested Episode {record.path!r} has no to_parent function"
             )
-        update = self.to_parent(record)
-        if not isinstance(update, EpisodeUpdate):
-            raise TypeError("Episode.to_parent() must return EpisodeUpdate")
-        if update.record_id != record.episode_id:
-            raise ValueError(
-                "EpisodeUpdate.record_id must identify the completed child record"
+        result = self.to_parent(record)
+        if not isinstance(result, EpisodeResult):
+            raise TypeError("Episode.to_parent() must return EpisodeResult")
+        if self.parent_controller_input is None:
+            raise TypeError(
+                f"nested Episode {record.path!r} has no parent_controller_input"
             )
-        if update.goal != record.goal:
-            raise ValueError(
-                "EpisodeUpdate.goal must preserve the completed Episode Goal"
-            )
+        completion = EpisodeCompletion.from_record(record)
+        controller_input = self.parent_controller_input(
+            result.result,
+            completion,
+        )
+        update = EpisodeUpdate(
+            record_id=record.episode_id,
+            goal=record.goal,
+            result=result.result,
+            completion=completion,
+            controller_input=controller_input,
+            prompt_context=result.prompt_context,
+            output=result.output,
+        )
         return _AcquiredUnit(
             contribution=Contribution(
                 controller_input=update.controller_input,

@@ -42,8 +42,8 @@ class StrategySearches:
 class StrategyBinding:
     """Methods owned by the strategy Episode."""
 
-    def _search_episode_update(self, record: EpisodeRecord) -> EpisodeUpdate:
-        return self._episode_update(record)
+    def _search_episode_result(self, record: EpisodeRecord) -> EpisodeResult:
+        return self._episode_result(record)
 
     def _build_strategy_episode(
         self,
@@ -121,11 +121,12 @@ class StrategyBinding:
             on_close=lambda record: self._close_strategy(
                 record, strategy_key, family
             ),
-            to_parent=lambda record: self._strategy_episode_update(
+            to_parent=lambda record: self._strategy_episode_result(
                 record,
                 strategy_key=strategy_key,
                 family=family,
             ),
+            parent_controller_input=self._parent_controller_input,
             resume_units=tuple(
                 ResumeUnit(
                     label=str(item["label"]),
