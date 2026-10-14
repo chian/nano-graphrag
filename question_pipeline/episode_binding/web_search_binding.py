@@ -8,7 +8,6 @@ from question_pipeline.utilities.model import (
     JEV_EVALUATION_TOKEN_BUDGET,
     JEV_TOKEN_ENCODING,
     JEV_TOKEN_HEADROOM,
-    JevTokenLimitError,
     ModelTier,
     ask_json,
     register_call_site_tier,
@@ -150,6 +149,7 @@ class PageCandidateAssessment:
     text_source: str
     text_chars: int
     text_tokens: int
+    # Kept when loading prior checkpoints; new requests never split on error.
     provider_token_limit_splits: int
 
     @classmethod
@@ -228,7 +228,7 @@ class PageCandidateAssessment:
         }
 
 
-@required_model_result(retry_jev_token_limits=True)
+@required_model_result
 async def assess_page_candidate(
     jev: Any,
     *,
@@ -302,40 +302,17 @@ async def assess_page_candidate(
     input_tokens = 0
     output_tokens = 0
     attempts = 0
-    provider_token_limit_splits = 0
-    evaluated_windows: list[str] = []
-    pending_windows = list(windows)
-    while pending_windows:
-        window = pending_windows.pop(0)
-        window_index = len(evaluated_windows) + 1
-        window_count = window_index + len(pending_windows)
-        try:
-            decision = await jev.noul(
-                state=state_for(window, window_index, window_count),
-                instructions=instructions,
-                criteria=criteria,
-            )
-        except JevTokenLimitError:
-            attempts += 1
-            window_tokens = token_count(window)
-            if window_tokens <= 1:
-                raise
-            pieces = token_window_text(
-                window,
-                budget=max(1, window_tokens // 2),
-            )
-            if len(pieces) < 2:
-                raise
-            provider_token_limit_splits += 1
-            pending_windows[0:0] = pieces
-            continue
-        evaluated_windows.append(window)
+    for window_index, window in enumerate(windows, start=1):
+        decision = await jev.noul(
+            state=state_for(window, window_index, len(windows)),
+            instructions=instructions,
+            criteria=criteria,
+        )
         probabilities.append(float(decision.probability))
         models.append(decision.response.model)
         input_tokens += decision.response.input_tokens
         output_tokens += decision.response.output_tokens
         attempts += decision.response.attempts
-    windows = evaluated_windows
     window_token_counts = tuple(token_count(window) for window in windows)
     return PageCandidateAssessment(
         task_id=str(task.id),
@@ -353,7 +330,7 @@ async def assess_page_candidate(
         text_source=_candidate_text_source(result),
         text_chars=len(text),
         text_tokens=token_count(text),
-        provider_token_limit_splits=provider_token_limit_splits,
+        provider_token_limit_splits=0,
     )
 
 

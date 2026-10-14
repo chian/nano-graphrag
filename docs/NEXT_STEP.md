@@ -46,7 +46,7 @@ external cancellation retains its own identity.
 
 | Outcome | What it means | Interpretation and scope |
 | --- | --- | --- |
-| Existing request retries, JSON re-asks, Search Jev token splitting, and Page proposal correction remain available | Successful recovery returns normally; final failure interrupts | In scope; implementation complete |
+| Existing transient request retries, JSON re-asks, and Page proposal correction remain available | Successful recovery returns normally; final failure interrupts | In scope; implementation complete |
 | Terminal request failures, malformed JSON/Noul results, empty direct responses, and anchored Argo quota notices are promoted centrally | Failed model work cannot become a skipped Page or a completed observation through ordinary exception handling | In scope; implementation saved and static checks passed |
 | Page/Search required-result declarations cover final caller validation after parseable JSON | A final invalid Page proposal is not converted into `SourceEnd` | In scope; unrelated application validators were not broadly audited |
 | Runtime and question-pipeline invariant checks, changed-file compilation, and diff hygiene pass | Static checks found no violations | In scope; no live failure behavior claimed |
@@ -116,7 +116,7 @@ matched the pre-send records. The worker continued into Page planning.
 | --- | --- | --- |
 | Request `e9d26f398972495a8e131f0de640f44f`: local whole-request estimate 21,212; Jev reported 25,788 input tokens | Known payload was fully saved, but local and provider counts differ | In scope; the local tokenizer/serialization estimate undercounts the provider's reported input |
 | Request `aeb018fcb9b34fd482aac3e4ba70dd20`: local estimate 53,753; Jev reported 61,971 input tokens | The larger buffer accommodated this observed difference | In scope; successful mitigation on this page, not universal sizing validation |
-| The saved frontier contains 1,693 distinct candidate assessments; 225 recorded at least one token-limit split, with 728 splits total | Search had already encountered token-limit rejections and recovered by splitting | In scope; this did not begin with a new single-question mode |
+| The saved frontier contains 1,693 distinct candidate assessments; 225 recorded at least one token-limit split, with 728 splits total | Search had already encountered token-limit rejections and hid them by splitting | In scope as historical evidence; provider token-limit splitting has now been removed |
 
 Actual exchanges are under the ignored V23 run's
 `prompts/episode_d81f9549d935bde5080184d3b795ded709aa88e84a555a4eb9792dd78f127a9c/jev_<request_id>.jsonl`.
@@ -126,6 +126,26 @@ The historical counters are in
 multi-question Page calls are present in commit `53de0a8` (September 28).
 These observations do not identify the provider's internal tokenizer or
 prompt formatting, and do not reconstruct the exact older rejected payload.
+
+The October 14 worker was stopped at the operator's instruction. Search no
+longer catches a provider token-limit rejection, halves the page window, and
+retries. The special bypass that allowed that rejection to escape the run's
+terminal-failure latch was also removed. A new token-limit rejection now stops
+the run while preserving the exact attempted request. Historical split counts
+remain loadable as measurements from old checkpoints, but new assessments
+always record zero splits.
+
+The eight saved successful calls show why this correction is necessary. The
+provider's reported input was 3,056--5,605 tokens larger than the token count
+of the exact serialized HTTP body. Across these observations, the difference
+increased with question count (a least-squares description is approximately
+2,920 tokens per request plus 10.16 tokens per question). This is descriptive,
+not a sizing formula. The public API and official Python SDK expose usage only
+after a successful request and publish neither the serving tokenizer nor a
+preflight token-count endpoint. Therefore `o200k_base` measures neither the
+provider's transformed model input nor an exact acceptance boundary. The
+10,000-token packing headroom remains the operator-requested bound, but it is
+not represented as proof that every request will pass.
 
 ## Approved structure
 

@@ -330,9 +330,6 @@ _MODEL_FAILURE_STATE: ContextVar[ModelFailureState | None] = ContextVar(
 _REQUEST_RETRY_OWNER: ContextVar[Any] = ContextVar(
     "question_pipeline_request_retry_owner", default=None
 )
-_JEV_TOKEN_RETRY: ContextVar[bool] = ContextVar(
-    "question_pipeline_jev_token_retry", default=False
-)
 
 
 def model_failure_scope(fn):
@@ -375,38 +372,28 @@ def _model_failure_state(llm: Any) -> ModelFailureState:
     return _rate_gate_for(llm).failure_state
 
 
-def required_model_result(fn=None, *, retry_jev_token_limits: bool = False):
+def required_model_result(fn):
     """Promote a model operation's final validation failure after its retries.
 
     Apply to operations whose result is required, outside their own correction
     loop. Valid negative judgments and ordinary evidence rejections are values
-    and pass through unchanged. Only an explicitly declared Jev splitting
-    operation may receive a recoverable token-limit exception.
+    and pass through unchanged.
     """
-
-    if fn is None:
-        return functools.partial(
-            required_model_result, retry_jev_token_limits=retry_jev_token_limits
-        )
 
     @functools.wraps(fn)
     async def required(llm, *args, **kwargs):
         state = _model_failure_state(llm)
         state.raise_if_interrupted()
-        token = _JEV_TOKEN_RETRY.set(retry_jev_token_limits)
         try:
-            try:
-                result = await fn(llm, *args, **kwargs)
-            except (Exception, ProviderRunInterrupted) as exc:
-                state.interrupt(
-                    exc,
-                    provider=fn.__qualname__,
-                    model=str(getattr(llm, "model", "") or ""),
-                )
-            state.raise_if_interrupted()
-            return result
-        finally:
-            _JEV_TOKEN_RETRY.reset(token)
+            result = await fn(llm, *args, **kwargs)
+        except (Exception, ProviderRunInterrupted) as exc:
+            state.interrupt(
+                exc,
+                provider=fn.__qualname__,
+                model=str(getattr(llm, "model", "") or ""),
+            )
+        state.raise_if_interrupted()
+        return result
 
     return required
 
@@ -807,11 +794,6 @@ class JevDecisionClient:
         failure_state.raise_if_interrupted()
         try:
             result = self._evaluate_with_retries(state, questions)
-        except JevTokenLimitError as exc:
-            if _JEV_TOKEN_RETRY.get():
-                failure_state.raise_if_interrupted()
-                raise
-            failure_state.interrupt(exc, provider="typesafe", model=self.model)
         except (Exception, ProviderRunInterrupted) as exc:
             failure_state.interrupt(exc, provider="typesafe", model=self.model)
         failure_state.raise_if_interrupted()
