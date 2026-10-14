@@ -35,6 +35,7 @@ from domain_schemas.schema_loader import DomainSchema, load_domain_schema
 from gasl import GASLExecutor, NetworkXAdapter
 from gasl.answer_layer import AnswerLayerCompiler
 from gasl.contracts import make_contract
+from gasl.errors import ProviderCreditExhausted
 from gasl.llm import ArgoBridgeLLM
 from graph_metadata import build_metadata, save_graph_metadata
 from hpc.common import save_graph
@@ -127,6 +128,7 @@ from question_pipeline.utilities.model import (
     describe_tiers,
     for_tier,
     instrument_client,
+    model_failure_scope,
     open_scope as prompt_log_open,
     prompt_scope,
     register_call_site_tier,
@@ -684,12 +686,9 @@ class QuestionPipeline:
                 fast_model=(config.fast_model or DEFAULT_FAST_MODEL),
             ),
         )
-        if self.cost_accounting_enabled:
-            # At the provider boundary, not at the call sites: extraction and
-            # GASL never pass through `llm_utils`, and `schema_synthesis` hands
-            # `llm.call_async` straight to the extractor factory.  Instrumenting
-            # the client records all three; instrumenting call sites would not.
-            instrument_client(self.llm)
+        # Guard direct extraction/GASL calls even when cost recording is off.
+        # The provider boundary owns failure propagation for all model tiers.
+        instrument_client(self.llm, record_cost=self.cost_accounting_enabled)
         self.jev_client = (
             jev_client
             if jev_client is not None
@@ -1348,6 +1347,8 @@ class QuestionPipeline:
         ) as meter:
             try:
                 results = self._probe_search_results(query, max_results)
+            except ProviderCreditExhausted:
+                raise
             except BaseException as exc:  # noqa: BLE001 - recorded, then re-raised
                 failure = exc
                 outcome.error = str(exc)
@@ -6286,6 +6287,7 @@ genuinely separate view that is not covered by a listed target."""
         )
         self.provider_binding.restore_checkpoint_state(episode_state)
 
+    @model_failure_scope
     async def run(self) -> Dict[str, Any]:
         """Prepare the frontier, then run the composition ONCE.
 

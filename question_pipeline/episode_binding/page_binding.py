@@ -8,11 +8,14 @@ from method_loop import EpisodeGoal
 from source_table_language import TableRegion
 from question_pipeline.episode_binding.provider_binding import *
 from question_pipeline.utilities.model import (
+    JEV_EVALUATION_TOKEN_BUDGET,
     JEV_REQUEST_TOKEN_BUDGET,
     JEV_TOKEN_ENCODING,
+    JEV_TOKEN_HEADROOM,
     ModelTier,
     ask_json,
     register_call_site_tier,
+    required_model_result,
     token_count,
     token_window_text,
 )
@@ -25,7 +28,6 @@ PAGE_CHILD_LEXICAL_PROBE = "lexical_probe"
 PAGE_CHILD_PROPOSAL_FAILED = "page_child_proposal_failed"
 PAGE_CONTENT_ASSESSMENT_FAILED = "page_content_assessment_failed"
 PAGE_CONTENT_ASSESSMENT_VERSION = "jev_goal_need_vector_v1"
-JEV_PAGE_CONTENT_REQUEST_TARGET = JEV_REQUEST_TOKEN_BUDGET - 9_000
 PAGE_CHILD_TABLE_PREVIEW_CHARS = 512
 
 _PAGE_CHILD_PROPOSER_TIER = register_call_site_tier(
@@ -270,6 +272,25 @@ def _page_content_state(
     }
 
 
+def _page_content_request_fits(
+    jev: Any,
+    *,
+    state: Mapping[str, Any],
+    questions: Mapping[str, Mapping[str, Any]],
+) -> bool:
+    """Pack shared text and questions within both Jev context limits."""
+
+    return (
+        jev.nouls_request_token_count(state=state, questions=questions)
+        <= JEV_REQUEST_TOKEN_BUDGET - JEV_TOKEN_HEADROOM
+        and jev.nouls_request_token_count(
+            state=state, questions=questions, largest_evaluation=True
+        )
+        <= JEV_EVALUATION_TOKEN_BUDGET - JEV_TOKEN_HEADROOM
+    )
+
+
+@required_model_result
 async def assess_page_content(
     jev: Any,
     *,
@@ -309,11 +330,11 @@ async def assess_page_content(
                 needs=needs,
                 windows=(probe,),
             )
-            request_tokens = jev.nouls_request_token_count(
+            if _page_content_request_fits(
+                jev,
                 state=state,
                 questions=questions,
-            )
-            if request_tokens <= JEV_PAGE_CONTENT_REQUEST_TARGET:
+            ):
                 fitted.append(text)
                 continue
             text_tokens = token_count(text)
@@ -354,10 +375,11 @@ async def assess_page_content(
             needs=needs,
             windows=trial,
         )
-        if jev.nouls_request_token_count(
+        if _page_content_request_fits(
+            jev,
             state=state,
             questions=questions,
-        ) <= JEV_PAGE_CONTENT_REQUEST_TARGET:
+        ):
             current = trial
             continue
         if current:
@@ -494,6 +516,7 @@ def _page_child_proposal_from_payload(
     )
 
 
+@required_model_result
 async def propose_page_child(
     llm: Any,
     *,

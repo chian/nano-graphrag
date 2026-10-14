@@ -227,7 +227,7 @@ from nano_graphrag.entity_extraction.typed_module import (
     create_domain_extractor_from_schema,
 )
 
-from question_pipeline.utilities.model import ModelTier, ask_json, register_call_site_tier
+from question_pipeline.utilities.model import ModelTier, ask_json, register_call_site_tier, required_model_result
 
 #: 0M-schema-synthesis: `gpt-5.4-mini` agreed on 0.472 of entity and
 #: relationship types against a registered 0.95 threshold. Stays on the
@@ -1009,6 +1009,26 @@ Return exactly:
             if admitted:
                 rows.append({"table": table_name, "values": admitted})
         return tuple(rows)
+
+
+@required_model_result
+async def extract_required_chunk(
+    extractor: Any,
+    text: str,
+    *,
+    timeout: Optional[float] = None,
+) -> Any:
+    """Require a validated extraction before the chunk becomes an observation.
+
+    Keep the deadline inside the required-result boundary so its TimeoutError
+    interrupts the run. Cancellation still propagates unchanged; a successful
+    empty extraction remains a valid negative result.
+    """
+
+    call = extractor.forward(text)
+    if timeout is not None and timeout > 0:
+        return await asyncio.wait_for(call, timeout=timeout)
+    return await call
 
 
 async def extract_table_rows_from_text(

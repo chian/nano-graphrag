@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-import asyncio
 from dataclasses import dataclass
 from typing import Any
 
 from method_loop import GoalProposal, Leaf
 
-from question_pipeline.utilities.acquisition import ObservationKind, classify_error
-from question_pipeline.episode_binding.provider_binding import EXTRACT_OK, EXTRACT_RAISED, FATE_NO_EXTRACTOR, ChunkUnit, GoalTransition, PageMaterial, PageRunState, TableGoalCandidate, page_fate
+from question_pipeline.utilities.acquisition import ObservationKind
+from question_pipeline.utilities.extraction import extract_required_chunk
+from question_pipeline.episode_binding.provider_binding import EXTRACT_OK, FATE_NO_EXTRACTOR, ChunkUnit, GoalTransition, PageMaterial, PageRunState, TableGoalCandidate, page_fate
 
 
 @dataclass(frozen=True)
@@ -81,41 +81,18 @@ class ChunkBinding:
                 text_chars=len(str(unit.span.text)),
             )
 
-        try:
-            with self.open_prompt_scope(unit.episode_id, unit.episode_path):
-                with self.open_cost_scope(
-                    ObservationKind.SOURCE.value,
-                    unit.label,
-                    unit.episode_id,
-                    unit.episode_path,
-                ):
-                    call = extractor.forward(str(unit.span.text))
-                    result = (
-                        await asyncio.wait_for(
-                            call, timeout=self.extraction_timeout_sec
-                        )
-                        if self.extraction_timeout_sec is not None
-                        and self.extraction_timeout_sec > 0
-                        else await call
-                    )
-        except Exception as exc:  # noqa: BLE001 - one chunk is one failed unit
-            error_class = classify_error(exc)
-            chunk_record.update(
-                {
-                    "failed": True,
-                    "failure_class": error_class or type(exc).__name__,
-                }
-            )
-            return PageMaterial(
-                source_id=source_id,
-                fate=page_fate(
-                    extraction=EXTRACT_RAISED,
-                    error_class=error_class,
-                ),
-                source_record=unit.source_record,
-                chunks=(chunk_record,),
-                text_chars=len(str(unit.span.text)),
-            )
+        with self.open_prompt_scope(unit.episode_id, unit.episode_path):
+            with self.open_cost_scope(
+                ObservationKind.SOURCE.value,
+                unit.label,
+                unit.episode_id,
+                unit.episode_path,
+            ):
+                result = await extract_required_chunk(
+                    extractor,
+                    str(unit.span.text),
+                    timeout=self.extraction_timeout_sec,
+                )
 
         records = [
             {

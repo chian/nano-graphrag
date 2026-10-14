@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import List, Dict, Optional
 from datetime import datetime
 
+from gasl.errors import raise_for_provider_credit_exhaustion
+
 
 FIRECRAWL_SEARCH_PROVIDER = "firecrawl"
 FIRECRAWL_SEARCH_API_VERSION = "v2"
@@ -114,6 +116,9 @@ def search_papers(
                 FIRECRAWL_SEARCH_READ_TIMEOUT_SECONDS,
             ),
         )
+        raise_for_provider_credit_exhaustion(
+            response=response, provider=FIRECRAWL_SEARCH_PROVIDER
+        )
         response.raise_for_status()
 
         body = response.json()
@@ -133,6 +138,9 @@ def search_papers(
         return results
 
     except requests.exceptions.RequestException as e:
+        raise_for_provider_credit_exhaustion(
+            e, provider=FIRECRAWL_SEARCH_PROVIDER
+        )
         print(f"  ✗ Error searching: {e}")
         if raise_on_error:
             raise
@@ -170,6 +178,9 @@ def download_paper_content(
 
     try:
         response = requests.post(scrape_url, headers=headers, json=payload, timeout=60)
+        raise_for_provider_credit_exhaustion(
+            response=response, provider=FIRECRAWL_SEARCH_PROVIDER
+        )
         response.raise_for_status()
 
         data = response.json()
@@ -181,6 +192,9 @@ def download_paper_content(
             return None
 
     except requests.exceptions.RequestException as e:
+        raise_for_provider_credit_exhaustion(
+            e, provider=FIRECRAWL_SEARCH_PROVIDER
+        )
         print(f"  ✗ Error downloading {url}: {e}")
         return None
 

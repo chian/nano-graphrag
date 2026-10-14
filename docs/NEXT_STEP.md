@@ -33,6 +33,68 @@ checkpoint and continued from that same checkpoint. It must preserve the Goal
 row count and evidence identities, resume at the recorded next result rank,
 and keep the controller history continuous.
 
+### Terminal model-call interruption repair — 2026-10-08
+
+The model boundary now interrupts the owning run when required model work
+cannot return a valid result after its existing retries. `ProviderRunInterrupted`
+keeps terminal model failures outside ordinary `Exception` fallbacks. One
+run-scoped latch covers Jev, standard model tiers, and direct extraction/GASL
+calls. Admission, transport retries, and returning results consult that latch;
+a private cancellation tag interrupts the owning run even when a child uses
+`gather(return_exceptions=True)`. Scope closure disables a pending callback, and
+external cancellation retains its own identity.
+
+| Outcome | What it means | Interpretation and scope |
+| --- | --- | --- |
+| Existing request retries, JSON re-asks, Search Jev token splitting, and Page proposal correction remain available | Successful recovery returns normally; final failure interrupts | In scope; implementation complete |
+| Terminal request failures, malformed JSON/Noul results, empty direct responses, and anchored Argo quota notices are promoted centrally | Failed model work cannot become a skipped Page or a completed observation through ordinary exception handling | In scope; implementation saved and static checks passed |
+| Page/Search required-result declarations cover final caller validation after parseable JSON | A final invalid Page proposal is not converted into `SourceEnd` | In scope; unrelated application validators were not broadly audited |
+| Runtime and question-pipeline invariant checks, changed-file compilation, and diff hygiene pass | Static checks found no violations | In scope; no live failure behavior claimed |
+| No worker, shim, run artifact, or checkpoint history was changed by the repair team | The operator's latest saved checkpoint remains the continuation input | In scope; live continuation belongs to the launching session |
+
+The implementation agent was
+`/root/model_failure_stop_orchestrator/implement_terminal_model_failure`.
+Independent review was dispatched serially to
+`/root/model_failure_stop_orchestrator/review_terminal_model_failure`. Its first
+verdict was: **"BLOCKING — two required-model failures can still become
+ordinary failed acquisition units."** Final table-extraction validation and
+the chunk-owned extraction deadline could still return failed `PageMaterial`.
+The saved revision routes both through `extract_required_chunk`, which preserves
+the existing extraction and validation and propagates their terminal errors.
+Both invariant checks, changed-file compilation, and diff hygiene pass on the
+revision. No further audit was performed. The same reviewer reported
+**"GASL design-steward concern: PASS"**, with no additional blocker in the
+shared latch, retry ownership, tagged cancellation, or stale-callback guard.
+Method, estimator/controller arithmetic, credit, Goal
+semantics, model tiers, schema, and unrelated prompts were not changed.
+
+V23 was continued on 2026-10-08 from its latest checkpoint, without rollback,
+using the existing shim. Before launch, the checkpoint and all four live Goal
+files matched their post-stop hashes. The resumed search-page and page-child
+proposal calls completed, and report extraction started for page
+`73849b980df94932#91` under strategy `target_batch_family#1`. The terminal-failure
+path had not yet been verified by a new live failure at that point.
+
+### Jev request sizing and continuation status — 2026-10-14
+
+TypeSafe documents two limits for `jev-1.13.0`: 64,000 tokens per request
+and 32,000 for shared state plus the longest question
+(https://docs.typesafe.ai/models). The client now checks both. Page assessment
+packs to local estimates of 62,000 and 30,000 respectively; Search's
+single-question assessment packs the complete request to 30,000. These are
+local `o200k_base` estimates, not measurements from the provider tokenizer.
+
+| Outcome | What it means | Interpretation and scope |
+| --- | --- | --- |
+| V23 continued on October 13 at 22:47 CDT from `page_001271_000067`, using the existing shim | The corrected limits were used by a real continuation | In scope; no rollback or fresh run |
+| Jev returned HTTP 400 `max_tokens_exceeded` at 22:57 CDT; the worker exited without another completed-page checkpoint | The local checks still did not prevent provider rejection | In scope; request sizing remains unresolved, not validated |
+| The terminal model failure interrupted the run, leaving the checkpoint at search unit 67 | This observed failure was not converted into a completed observation | In scope for the failure-stop repair; not a claim about every failure path |
+
+The rejected payload and its local token counts were not persisted, so the
+exact provider/local discrepancy is not established. Next diagnosis must
+establish those counts and the request shape rather than assume the last
+change resolved the error. The worker is stopped; the shared shim remains up.
+
 ## Approved structure
 
 One opaque estimator-controller component owns the complete numerical

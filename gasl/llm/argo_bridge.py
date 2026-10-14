@@ -21,7 +21,7 @@ from openai import (
     RateLimitError,
     UnprocessableEntityError,
 )
-from ..errors import LLMError
+from ..errors import LLMError, raise_for_provider_credit_exhaustion
 from ..contracts import infer_row_schema
 from ..provenance import WEIGHT_BASIS_UNKNOWN, basis_components, is_no_evidence
 from .runtime_config import resolve_runtime_llm_config
@@ -245,6 +245,7 @@ class ArgoBridgeLLM:
 
     def _create_http_client(self) -> httpx.AsyncClient:
         return httpx.AsyncClient(
+            event_hooks={"response": [self._check_provider_credits]},
             timeout=httpx.Timeout(
                 connect=self._connect_timeout_sec,
                 read=self._read_timeout_sec,
@@ -258,6 +259,15 @@ class ArgoBridgeLLM:
             ),
             http2=False,
         )
+
+    async def _check_provider_credits(self, response: httpx.Response) -> None:
+        """Interrupt before the SDK can retry a billing refusal."""
+
+        if response.status_code >= 400:
+            await response.aread()
+            raise_for_provider_credit_exhaustion(
+                response=response, provider="argo_bridge", model=self.model
+            )
 
     def _create_openai_client(self) -> AsyncOpenAI:
         http_client = self._create_http_client()
@@ -327,6 +337,9 @@ class ArgoBridgeLLM:
             if self.debug:
                 print(f"DEBUG: LLM RESPONSE (streamed):\n{full_text}\n")
                 print("="*80)
+            raise_for_provider_credit_exhaustion(
+                content=full_text, provider="argo_bridge", model=self.model
+            )
             return full_text
 
         kwargs = self._build_create_kwargs(
@@ -342,6 +355,9 @@ class ArgoBridgeLLM:
             self.usage["completion_tokens"] += getattr(u, "completion_tokens", 0) or 0
             self.usage["total_tokens"] += getattr(u, "total_tokens", 0) or 0
         self.usage["calls"] += 1
+        raise_for_provider_credit_exhaustion(
+            content=result, provider="argo_bridge", model=self.model
+        )
         if self.debug:
             print(f"DEBUG: LLM RESPONSE RECEIVED:\n{result}\n")
             print("="*80)
@@ -369,9 +385,15 @@ class ArgoBridgeLLM:
                     ),
                 ) as client:
                     for attempt in range(self._shim_connection_retries + 1):
+                        self._check_model_interruption()
                         response = await client.post(
                             self._client_kwargs["base_url"].rstrip("/") + "/chat/completions",
                             json=payload,
+                        )
+                        raise_for_provider_credit_exhaustion(
+                            response=response,
+                            provider="argo_bridge",
+                            model=self.model,
                         )
                         last_response = response
                         if not self._shim_response_retryable(response):
@@ -414,6 +436,7 @@ class ArgoBridgeLLM:
             retryable_codes = {500, 502, 503, 504}
             last_exc: Optional[Exception] = None
             for attempt in range(self._connection_retries + 1):
+                self._check_model_interruption()
                 try:
                     direct_call = self._call_direct_once(
                         prompt,
@@ -432,6 +455,9 @@ class ArgoBridgeLLM:
                     InternalServerError,
                     TimeoutError,
                 ) as exc:
+                    raise_for_provider_credit_exhaustion(
+                        exc, provider="argo_bridge", model=self.model
+                    )
                     if isinstance(exc, TimeoutError) and not isinstance(exc, asyncio.TimeoutError):
                         raise
                     last_exc = exc
@@ -440,6 +466,9 @@ class ArgoBridgeLLM:
                     await self._reset_loop_client()
                     raise
                 except APIStatusError as exc:
+                    raise_for_provider_credit_exhaustion(
+                        exc, provider="argo_bridge", model=self.model
+                    )
                     if getattr(exc, "status_code", None) not in retryable_codes:
                         raise
                     last_exc = exc
@@ -518,6 +547,9 @@ class ArgoBridgeLLM:
                 fatal=False,
             )
         except Exception as e:
+            raise_for_provider_credit_exhaustion(
+                e, provider="argo_bridge", model=self.model
+            )
             raise LLMError(
                 f"LLM call failed: {e}",
                 "argo_bridge",
@@ -527,6 +559,13 @@ class ArgoBridgeLLM:
                 original_type=type(e).__name__,
                 fatal=False,
             )
+
+    def _check_model_interruption(self) -> None:
+        """Honor a pipeline-supplied stop guard before another paid attempt."""
+
+        guard = getattr(self, "_model_interruption_check", None)
+        if guard is not None:
+            guard()
 
     def call(self, prompt: str) -> str:
         """Make synchronous LLM call (streams if stream_callback is set)."""

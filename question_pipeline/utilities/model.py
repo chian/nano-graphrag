@@ -230,6 +230,12 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from nano_graphrag._utils import extract_first_complete_json
+from gasl.errors import (
+    ModelCallFailed,
+    ProviderCreditExhausted,
+    ProviderRunInterrupted,
+    raise_for_provider_credit_exhaustion,
+)
 
 from question_pipeline.utilities.acquisition import CostErrorClass, classify_error, record_error_class, record_llm_call, record_retry
 
@@ -240,6 +246,168 @@ class LLMJSONError(RuntimeError):
 
 class JevTokenLimitError(RuntimeError):
     """Jev rejected a request because its own token count exceeded context."""
+
+
+class ModelFailureState:
+    """Latch the first terminal failure across this run's tasks and threads."""
+
+    def __init__(
+        self,
+        *,
+        owner: asyncio.Task | None = None,
+        loop: asyncio.AbstractEventLoop | None = None,
+    ) -> None:
+        self._lock = threading.Lock()
+        self._interruption: ProviderRunInterrupted | None = None
+        self._owner = owner
+        self._loop = loop
+        self._active = True
+
+    def close(self) -> None:
+        with self._lock:
+            self._active = False
+
+    def _interrupt_owner(self) -> None:
+        with self._lock:
+            owner = self._owner if self._active else None
+        if owner is not None and not owner.done():
+            # Only this private tag is translated back to the latched failure.
+            # Operator/timeout cancellation keeps its ordinary identity.
+            owner.cancel(self)
+
+    def raise_if_interrupted(self) -> None:
+        with self._lock:
+            interruption = self._interruption
+        if interruption is not None:
+            raise interruption
+
+    def interrupt(
+        self, error: BaseException, *, provider: str, model: str = ""
+    ) -> None:
+        # Cancellation, KeyboardInterrupt and SystemExit retain their identity.
+        if not isinstance(error, (Exception, ProviderRunInterrupted)):
+            raise error
+        try:
+            raise_for_provider_credit_exhaustion(
+                error, provider=provider, model=model
+            )
+        except ProviderCreditExhausted as credit_error:
+            error = credit_error
+        interruption = (
+            error
+            if isinstance(error, ProviderRunInterrupted)
+            else ModelCallFailed(
+                f"Run interrupted: required {provider} model result unavailable: "
+                f"{type(error).__name__}: {error}",
+                provider=provider,
+                model=model,
+                status_code=_status_code(error),
+            )
+        )
+        with self._lock:
+            first = self._interruption is None
+            if self._interruption is None:
+                self._interruption = interruption
+            interruption = self._interruption
+        if first and self._active and self._owner is not None and self._loop is not None:
+            try:
+                current = asyncio.current_task()
+            except RuntimeError:
+                current = None
+            if current is not self._owner:
+                # A gather(return_exceptions=True) must not turn the exception
+                # into data and let its owner publish a failed observation.
+                self._loop.call_soon_threadsafe(self._interrupt_owner)
+        if interruption is error:
+            raise interruption
+        raise interruption from error
+
+
+_MODEL_FAILURE_STATE: ContextVar[ModelFailureState | None] = ContextVar(
+    "question_pipeline_model_failure_state", default=None
+)
+_REQUEST_RETRY_OWNER: ContextVar[Any] = ContextVar(
+    "question_pipeline_request_retry_owner", default=None
+)
+_JEV_TOKEN_RETRY: ContextVar[bool] = ContextVar(
+    "question_pipeline_jev_token_retry", default=False
+)
+
+
+def model_failure_scope(fn):
+    """Give one live pipeline run a shared stop latch, including worker threads.
+
+    An interruption escapes the Episode tree; no close, learning, checkpoint,
+    or final-answer hook is run on its behalf. Resuming creates a fresh scope.
+    """
+
+    @functools.wraps(fn)
+    async def scoped(*args, **kwargs):
+        state = ModelFailureState(
+            owner=asyncio.current_task(), loop=asyncio.get_running_loop()
+        )
+        token = _MODEL_FAILURE_STATE.set(state)
+        try:
+            try:
+                result = await fn(*args, **kwargs)
+            except asyncio.CancelledError as exc:
+                if exc.args and exc.args[0] is state:
+                    state.raise_if_interrupted()
+                raise
+            except ProviderRunInterrupted as exc:
+                state.interrupt(exc, provider=exc.provider, model=exc.model or "")
+            state.raise_if_interrupted()
+            return result
+        finally:
+            # A queued callback must never cancel subsequent work performed
+            # by the same task after this run has already unwound.
+            state.close()
+            _MODEL_FAILURE_STATE.reset(token)
+
+    return scoped
+
+
+def _model_failure_state(llm: Any) -> ModelFailureState:
+    active = _MODEL_FAILURE_STATE.get()
+    if active is not None:
+        return active
+    return _rate_gate_for(llm).failure_state
+
+
+def required_model_result(fn=None, *, retry_jev_token_limits: bool = False):
+    """Promote a model operation's final validation failure after its retries.
+
+    Apply to operations whose result is required, outside their own correction
+    loop. Valid negative judgments and ordinary evidence rejections are values
+    and pass through unchanged. Only an explicitly declared Jev splitting
+    operation may receive a recoverable token-limit exception.
+    """
+
+    if fn is None:
+        return functools.partial(
+            required_model_result, retry_jev_token_limits=retry_jev_token_limits
+        )
+
+    @functools.wraps(fn)
+    async def required(llm, *args, **kwargs):
+        state = _model_failure_state(llm)
+        state.raise_if_interrupted()
+        token = _JEV_TOKEN_RETRY.set(retry_jev_token_limits)
+        try:
+            try:
+                result = await fn(llm, *args, **kwargs)
+            except (Exception, ProviderRunInterrupted) as exc:
+                state.interrupt(
+                    exc,
+                    provider=fn.__qualname__,
+                    model=str(getattr(llm, "model", "") or ""),
+                )
+            state.raise_if_interrupted()
+            return result
+        finally:
+            _JEV_TOKEN_RETRY.reset(token)
+
+    return required
 
 
 class ModelTier(str, Enum):
@@ -257,7 +425,12 @@ class ModelTier(str, Enum):
 JEV_API_ENDPOINT = "https://api.typesafe.ai/v1/systemone"
 JEV_MODEL = "jev-1.13.0"
 JEV_TOKEN_ENCODING = "o200k_base"
+# Jev shares state across questions: the batch and each state/question pair
+# have separate limits. https://docs.typesafe.ai/models
 JEV_REQUEST_TOKEN_BUDGET = 64_000
+JEV_EVALUATION_TOKEN_BUDGET = 32_000
+# Binding-side packing leaves room for provider serialization/tokenizer variance.
+JEV_TOKEN_HEADROOM = 2_000
 
 
 @functools.lru_cache(maxsize=None)
@@ -266,7 +439,7 @@ def _token_encoding(name: str = JEV_TOKEN_ENCODING) -> Any:
 
 
 def token_count(value: Any, *, encoding_name: str = JEV_TOKEN_ENCODING) -> int:
-    """Count tokens in the exact serialized value used for a provider call."""
+    """Estimate provider input tokens using our local JSON encoding/tokenizer."""
 
     text = (
         value
@@ -458,7 +631,9 @@ class JevDecisionClient:
 
         if not isinstance(questions, Mapping) or not questions:
             raise ValueError("Jev evaluate requires at least one typed question")
-        return await asyncio.to_thread(
+        failure_state = _model_failure_state(self)
+        failure_state.raise_if_interrupted()
+        response = await asyncio.to_thread(
             self._evaluate_sync,
             state,
             {
@@ -466,6 +641,10 @@ class JevDecisionClient:
                 for name, question in questions.items()
             },
         )
+        # The worker may finish before another worker latches a failure; check
+        # again when its value actually reaches the event loop's caller.
+        failure_state.raise_if_interrupted()
+        return response
 
     async def noul(
         self,
@@ -534,7 +713,7 @@ class JevDecisionClient:
         instructions: Any,
         criteria: Mapping[str, Any] | None = None,
     ) -> int:
-        """Count the exact request that :meth:`noul` would send."""
+        """Estimate the complete single-question request's token count."""
 
         return token_count(
             self._request_payload(
@@ -548,12 +727,29 @@ class JevDecisionClient:
         *,
         state: Any,
         questions: Mapping[str, Mapping[str, Any]],
+        largest_evaluation: bool = False,
     ) -> int:
-        """Count an exact shared-state, multi-Noul request."""
+        """Estimate batch tokens, or shared state plus the longest question."""
 
-        return token_count(
-            self._request_payload(state, self._noul_questions(questions))
+        return self._request_token_count(
+            state,
+            self._noul_questions(questions),
+            largest_evaluation=largest_evaluation,
         )
+
+    def _request_token_count(
+        self,
+        state: Any,
+        questions: Mapping[str, Mapping[str, Any]],
+        *,
+        largest_evaluation: bool = False,
+    ) -> int:
+        if largest_evaluation:
+            # Every question sees ALL shared state, not just its named window.
+            return token_count(state) + max(
+                token_count(question) for question in questions.values()
+            )
+        return token_count(self._request_payload(state, questions))
 
     @classmethod
     def _noul_questions(
@@ -606,16 +802,46 @@ class JevDecisionClient:
         state: Any,
         questions: Mapping[str, Mapping[str, Any]],
     ) -> JevResponse:
+        failure_state = _model_failure_state(self)
+        failure_state.raise_if_interrupted()
+        try:
+            result = self._evaluate_with_retries(state, questions)
+        except JevTokenLimitError as exc:
+            if _JEV_TOKEN_RETRY.get():
+                failure_state.raise_if_interrupted()
+                raise
+            failure_state.interrupt(exc, provider="typesafe", model=self.model)
+        except (Exception, ProviderRunInterrupted) as exc:
+            failure_state.interrupt(exc, provider="typesafe", model=self.model)
+        failure_state.raise_if_interrupted()
+        return result
+
+    def _evaluate_with_retries(
+        self,
+        state: Any,
+        questions: Mapping[str, Mapping[str, Any]],
+    ) -> JevResponse:
+        failure_state = _model_failure_state(self)
         payload = self._request_payload(state, questions)
         request_tokens = token_count(payload)
         if request_tokens > JEV_REQUEST_TOKEN_BUDGET:
             raise ValueError(
                 "Jev request exceeds its 64,000-token budget: "
-                f"{request_tokens} tokens"
+                f"{request_tokens} estimated tokens"
+            )
+        evaluation_tokens = self._request_token_count(
+            state, questions, largest_evaluation=True
+        )
+        if evaluation_tokens > JEV_EVALUATION_TOKEN_BUDGET:
+            raise ValueError(
+                "Jev shared state plus longest question exceeds its "
+                f"32,000-token budget: {evaluation_tokens} estimated tokens "
+                f"(whole request: {request_tokens})"
             )
         retryable = {408, 425, 429, *range(500, 600)}
         last_error: BaseException | None = None
         for retry_index in range(self.max_retries + 1):
+            failure_state.raise_if_interrupted()
             try:
                 response = requests.post(
                     self.endpoint,
@@ -625,6 +851,9 @@ class JevDecisionClient:
                     },
                     json=payload,
                     timeout=self.timeout_seconds,
+                )
+                raise_for_provider_credit_exhaustion(
+                    response=response, provider="typesafe", model=self.model
                 )
                 if response.status_code in retryable:
                     if retry_index >= self.max_retries:
@@ -663,6 +892,18 @@ class JevDecisionClient:
                 answers = body.get("answers")
                 if not isinstance(answers, Mapping):
                     raise TypeError("Jev response answers must be an object")
+                # Validate requested typed answers before any caller can turn a
+                # missing/malformed measurement into a skipped acquisition unit.
+                for name, question in questions.items():
+                    answer = answers.get(name)
+                    if not isinstance(answer, Mapping) or answer.get("type") != question.get("type"):
+                        raise ValueError(f"Jev response omitted requested typed answer {name!r}")
+                    if question.get("type") == "noul":
+                        probability = answer.get("noul")
+                        if isinstance(probability, bool) or not isinstance(probability, (int, float)):
+                            raise TypeError("Jev Noul probability must be numeric")
+                        if not 0.0 <= float(probability) <= 1.0:
+                            raise ValueError("Jev Noul probability must be between zero and one")
                 usage = body.get("usage") or {}
                 if not isinstance(usage, Mapping):
                     raise TypeError("Jev response usage must be an object")
@@ -678,6 +919,9 @@ class JevDecisionClient:
                     attempts=retry_index + 1,
                 )
             except (requests.RequestException, ValueError, TypeError) as exc:
+                raise_for_provider_credit_exhaustion(
+                    exc, provider="typesafe", model=self.model
+                )
                 last_error = exc
                 status = getattr(getattr(exc, "response", None), "status_code", None)
                 if status not in retryable or retry_index >= self.max_retries:
@@ -770,7 +1014,7 @@ class _RateReservation:
 
 
 class RateGate:
-    """One process-local rolling-window gate shared by all model tiers."""
+    """One run/client admission gate shared by all model tiers."""
 
     _WINDOW_SECONDS = 60.0
 
@@ -783,6 +1027,36 @@ class RateGate:
         self._total_wait_seconds = 0.0
         self._rate_limit_events = 0
         self._rate_limit_retries = 0
+        self._failure_state = ModelFailureState()
+
+    @property
+    def failure_state(self) -> ModelFailureState:
+        return _MODEL_FAILURE_STATE.get() or self._failure_state
+
+    def raise_if_interrupted(self) -> None:
+        """Reject new and returning calls after any terminal model failure."""
+
+        self.failure_state.raise_if_interrupted()
+
+    def interrupt_on_credit_exhaustion(
+        self,
+        error: BaseException,
+        *,
+        provider: str,
+        model: str,
+    ) -> None:
+        """Latch the first billing interruption before a waiter is released."""
+
+        if not isinstance(error, (Exception, ProviderRunInterrupted)):
+            return
+        try:
+            raise_for_provider_credit_exhaustion(
+                error, provider=provider, model=model
+            )
+        except ProviderCreditExhausted as interruption:
+            self.failure_state.interrupt(
+                interruption, provider=provider, model=model
+            )
 
     def estimate_tokens(self, prompt: str, system_prompt: str | None) -> int:
         # Four characters per token is deliberately conservative enough for
@@ -819,10 +1093,12 @@ class RateGate:
         return 0.0
 
     async def acquire(self, estimated_tokens: int) -> _RateReservation:
+        self.raise_if_interrupted()
         await self._semaphore.acquire()
         try:
             while True:
                 async with self._lock:
+                    self.raise_if_interrupted()
                     now = time.monotonic()
                     self._prune(now)
                     wait_seconds = max(0.0, self._blocked_until - now)
@@ -936,7 +1212,10 @@ def for_tier(llm: Any, tier: ModelTier) -> Any:
             served = attach_tier_policy(clone(model=target), policy)
             _set_rate_gate(served, rate_gate)
             if is_instrumented(llm):
-                instrument_client(served)
+                instrument_client(
+                    served,
+                    record_cost=getattr(_innermost_client(llm), "_record_model_cost", True),
+                )
             return served
     if target not in cache:
         served = attach_tier_policy(clone(model=target), policy)
@@ -945,7 +1224,10 @@ def for_tier(llm: Any, tier: ModelTier) -> Any:
         # instrumented is spend that no per-call event ever reports. Instrument
         # it iff the client it was cloned from was.
         if is_instrumented(llm):
-            instrument_client(served)
+            instrument_client(
+                served,
+                record_cost=getattr(_innermost_client(llm), "_record_model_cost", True),
+            )
         cache[target] = served
     return cache[target]
 
@@ -1066,12 +1348,14 @@ def instrument_client(
     llm: Any,
     *,
     rate_policy: RatePolicy | Mapping[str, Any] | None = None,
+    record_cost: bool = True,
 ) -> Any:
     """Record every model call this client serves, as it serves it.
 
-    Purely additive: the wrapper forwards arguments untouched, returns the
-    provider's answer unchanged, and re-raises without substitution. It records
-    the model the call was **served** by, read off the client at call time —
+    The wrapper forwards arguments and answers unchanged while enforcing the
+    shared gate's terminal interruption even for direct extraction/GASL calls
+    that bypass ``_rate_limited_call``. It records the model the call was
+    **served** by, read off the client at call time —
     `for_tier` returns the caller's own client when it has no `clone`, so what
     was configured and what served can differ, and only the second is a cost.
     """
@@ -1090,31 +1374,59 @@ def instrument_client(
 
     @functools.wraps(inner_async)
     async def call_async(*args: Any, **kwargs: Any) -> Any:
+        gate = _rate_gate_for(target)
+        gate.raise_if_interrupted()
         served = str(getattr(target, "model", "") or "")
         try:
             result = await inner_async(*args, **kwargs)
+            raise_for_provider_credit_exhaustion(
+                content=result, provider=type(target).__name__, model=served
+            )
+            if _REQUEST_RETRY_OWNER.get() is not target and (
+                not isinstance(result, str) or not result.strip()
+            ):
+                raise ValueError("Model did not return non-empty text")
         except BaseException as exc:  # noqa: BLE001 - classified and re-raised
+            try:
+                gate.interrupt_on_credit_exhaustion(
+                    exc, provider=type(target).__name__, model=served
+                )
+                # The request wrapper still owns 429/argument compatibility
+                # retries. Direct extraction/GASL calls have no such owner.
+                if isinstance(exc, ProviderRunInterrupted) or (
+                    isinstance(exc, Exception)
+                    and _REQUEST_RETRY_OWNER.get() is not target
+                ):
+                    gate.failure_state.interrupt(
+                        exc, provider=type(target).__name__, model=served
+                    )
+            finally:
+                if record_cost:
+                    prompt_tokens, completion_tokens, calls = _claim_usage(target)
+                    record_llm_call(
+                        model=served,
+                        prompt_tokens=prompt_tokens,
+                        completion_tokens=completion_tokens,
+                        calls=max(calls, 1),
+                        error_class=classify_error(exc),
+                    )
+            raise
+        if record_cost:
             prompt_tokens, completion_tokens, calls = _claim_usage(target)
             record_llm_call(
                 model=served,
                 prompt_tokens=prompt_tokens,
                 completion_tokens=completion_tokens,
                 calls=max(calls, 1),
-                error_class=classify_error(exc),
             )
-            raise
-        prompt_tokens, completion_tokens, calls = _claim_usage(target)
-        record_llm_call(
-            model=served,
-            prompt_tokens=prompt_tokens,
-            completion_tokens=completion_tokens,
-            calls=max(calls, 1),
-        )
+        gate.raise_if_interrupted()
         return result
 
     try:
         target.call_async = call_async
+        target._model_interruption_check = lambda: _rate_gate_for(target).raise_if_interrupted()
         target._cost_instrumented = True
+        target._record_model_cost = record_cost
     except Exception:  # noqa: BLE001 - a client that refuses attributes still works
         return llm
     return llm
@@ -1210,8 +1522,16 @@ async def _rate_limited_call(
         reservation = await gate.acquire(estimate)
         before = _usage_totals(getattr(target, "usage", None))
         try:
+            gate.raise_if_interrupted()
             result = await llm.call_async(prompt, system_prompt=system_prompt)
-        except Exception as exc:
+        except BaseException as exc:
+            gate.interrupt_on_credit_exhaustion(
+                exc,
+                provider=type(target).__name__,
+                model=str(getattr(target, "model", "") or ""),
+            )
+            if not isinstance(exc, Exception):
+                raise
             after = _usage_totals(getattr(target, "usage", None))
             actual = max(0, after[0] - before[0]) + max(0, after[1] - before[1])
             await gate.reconcile(reservation, actual)
@@ -1232,6 +1552,7 @@ async def _rate_limited_call(
             after = _usage_totals(getattr(target, "usage", None))
             actual = max(0, after[0] - before[0]) + max(0, after[1] - before[1])
             await gate.reconcile(reservation, actual or estimate)
+            gate.raise_if_interrupted()
             return result
         finally:
             gate.release()
@@ -1239,6 +1560,34 @@ async def _rate_limited_call(
 
 
 async def _call_llm(llm, prompt: str, *, system_prompt: str | None = None) -> str:
+    gate = _rate_gate_for(llm)
+    target = _innermost_client(llm)
+    token = _REQUEST_RETRY_OWNER.set(target)
+    try:
+        try:
+            result = await _call_llm_with_compatibility(
+                llm, prompt, system_prompt=system_prompt
+            )
+            raise_for_provider_credit_exhaustion(
+                content=result,
+                provider=type(target).__name__,
+                model=str(getattr(target, "model", "") or ""),
+            )
+        except (Exception, ProviderRunInterrupted) as exc:
+            gate.failure_state.interrupt(
+                exc,
+                provider=type(target).__name__,
+                model=str(getattr(target, "model", "") or ""),
+            )
+        gate.raise_if_interrupted()
+        return result
+    finally:
+        _REQUEST_RETRY_OWNER.reset(token)
+
+
+async def _call_llm_with_compatibility(
+    llm, prompt: str, *, system_prompt: str | None = None
+) -> str:
     try:
         return await _rate_limited_call(
             llm,
@@ -1264,7 +1613,15 @@ async def ask_text(
     tier: ModelTier = ModelTier.REASONING,
 ) -> str:
     """Call the LLM asynchronously and return the raw string response."""
-    return await _call_llm(for_tier(llm, tier), prompt, system_prompt=system_prompt)
+    client = for_tier(llm, tier)
+    result = await _call_llm(client, prompt, system_prompt=system_prompt)
+    if not isinstance(result, str) or not result.strip():
+        _model_failure_state(client).interrupt(
+            ValueError("Model did not return non-empty text"),
+            provider=type(_innermost_client(client)).__name__,
+            model=str(getattr(client, "model", "") or ""),
+        )
+    return result
 
 
 async def ask_json(
@@ -1294,9 +1651,11 @@ async def ask_json(
     wants one that survives refactoring.
     """
     client = for_tier(llm, tier)
+    failure_state = _model_failure_state(client)
     last_raw = ""
     current_prompt = prompt
     for attempt in range(retries + 1):
+        failure_state.raise_if_interrupted()
         if attempt:
             # A re-ask after an unparseable reply is a retry that was paid for.
             record_retry()
@@ -1308,8 +1667,13 @@ async def ask_json(
             tier=getattr(tier, "value", str(tier)),
         )
         last_raw = await _call_llm(client, current_prompt, system_prompt=system_prompt)
-        parsed = extract_first_complete_json(last_raw)
+        parsed = (
+            extract_first_complete_json(last_raw)
+            if isinstance(last_raw, str)
+            else None
+        )
         if isinstance(parsed, (dict, list)):
+            failure_state.raise_if_interrupted()
             return parsed
         current_prompt = (
             prompt
@@ -1317,9 +1681,13 @@ async def ask_json(
             "Reply with a single valid JSON value and nothing else."
         )
     record_error_class(CostErrorClass.PARSE_ERROR.value)
-    raise LLMJSONError(
-        f"Model did not return parseable JSON after {retries + 1} attempts. "
-        f"Last response started: {last_raw[:200]!r}"
+    failure_state.interrupt(
+        LLMJSONError(
+            f"Model did not return parseable JSON after {retries + 1} attempts. "
+            f"Last response started: {str(last_raw)[:200]!r}"
+        ),
+        provider=type(_innermost_client(client)).__name__,
+        model=str(getattr(client, "model", "") or ""),
     )
 
 

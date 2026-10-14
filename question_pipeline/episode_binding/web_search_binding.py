@@ -5,19 +5,20 @@ import json
 from method_loop import EpisodeGoal
 from question_pipeline.episode_binding.provider_binding import *
 from question_pipeline.utilities.model import (
-    JEV_REQUEST_TOKEN_BUDGET,
+    JEV_EVALUATION_TOKEN_BUDGET,
     JEV_TOKEN_ENCODING,
+    JEV_TOKEN_HEADROOM,
     JevTokenLimitError,
     ModelTier,
     ask_json,
     register_call_site_tier,
+    required_model_result,
     token_count,
     token_window_text,
 )
 
-JEV_SEARCH_REQUEST_TOKEN_RESERVE = 5_000
 JEV_PAGE_TEXT_TOKEN_LIMIT = (
-    JEV_REQUEST_TOKEN_BUDGET - JEV_SEARCH_REQUEST_TOKEN_RESERVE
+    JEV_EVALUATION_TOKEN_BUDGET - JEV_TOKEN_HEADROOM
 )
 SEARCH_PAGE_SELECTION_VERSION = "model_planned_from_jev_evidence_v5"
 LEGACY_SEARCH_PAGE_SELECTION_VERSIONS = frozenset(
@@ -50,6 +51,7 @@ class SearchPageProposal:
         }
 
 
+@required_model_result
 async def propose_search_page(
     llm: Any,
     *,
@@ -226,6 +228,7 @@ class PageCandidateAssessment:
         }
 
 
+@required_model_result(retry_jev_token_limits=True)
 async def assess_page_candidate(
     jev: Any,
     *,
@@ -281,13 +284,16 @@ async def assess_page_candidate(
             )
             for index, window in enumerate(windows, start=1)
         ]
-        overflow = max(request_tokens) - JEV_REQUEST_TOKEN_BUDGET
+        # Search asks one question per request. Bounding the complete request
+        # also bounds its shared state plus question, including all metadata.
+        overflow = max(request_tokens) - JEV_PAGE_TEXT_TOKEN_LIMIT
         if overflow <= 0:
             break
         if not text or page_budget <= overflow:
             raise ValueError(
-                "Jev Search assessment metadata exceeds its 64,000-token "
-                "request budget before page text can be included"
+                "Jev Search assessment metadata exceeds its "
+                f"{JEV_PAGE_TEXT_TOKEN_LIMIT:,}-token packing target "
+                "before page text can be included"
             )
         page_budget -= max(1, overflow)
 
