@@ -214,6 +214,7 @@ import random
 import sys
 import threading
 import time
+import uuid
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -430,7 +431,7 @@ JEV_TOKEN_ENCODING = "o200k_base"
 JEV_REQUEST_TOKEN_BUDGET = 64_000
 JEV_EVALUATION_TOKEN_BUDGET = 32_000
 # Binding-side packing leaves room for provider serialization/tokenizer variance.
-JEV_TOKEN_HEADROOM = 2_000
+JEV_TOKEN_HEADROOM = 10_000
 
 
 @functools.lru_cache(maxsize=None)
@@ -824,14 +825,58 @@ class JevDecisionClient:
         failure_state = _model_failure_state(self)
         payload = self._request_payload(state, questions)
         request_tokens = token_count(payload)
+        state_tokens = token_count(state)
+        question_tokens = {
+            name: token_count(question) for name, question in questions.items()
+        }
+        evaluation_tokens = state_tokens + max(question_tokens.values())
+        scope = active_scope()
+        request_id = uuid.uuid4().hex
+        log_path = (
+            scope.directory / f"jev_{request_id}.jsonl"
+            if scope is not None else None
+        )
+
+        def record_exchange(event: str, **detail: Any) -> None:
+            if log_path is None:
+                return
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            entry = {
+                "event": event,
+                "request_id": request_id,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "episode_id": scope.episode_id,
+                "episode_path": [list(part) for part in scope.episode_path],
+                **detail,
+            }
+            with log_path.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+        # Prepare the same JSON body used by requests.post(json=payload),
+        # without authentication headers. Retain it before any HTTP attempt.
+        wire_body = requests.Request("POST", self.endpoint, json=payload).prepare().body
+        record_exchange(
+            "request_prepared",
+            model=self.model,
+            endpoint=self.endpoint,
+            payload=payload,
+            wire_body=wire_body.decode("utf-8"),
+            wire_body_sha256=hashlib.sha256(wire_body).hexdigest(),
+            token_estimates={
+                "encoding": JEV_TOKEN_ENCODING,
+                "request_compact_json": request_tokens,
+                "state_compact_json": state_tokens,
+                "questions": question_tokens,
+                "state_plus_longest_question": evaluation_tokens,
+                "wire_json": token_count(wire_body.decode("utf-8")),
+                "packing_headroom": JEV_TOKEN_HEADROOM,
+            },
+        )
         if request_tokens > JEV_REQUEST_TOKEN_BUDGET:
             raise ValueError(
                 "Jev request exceeds its 64,000-token budget: "
                 f"{request_tokens} estimated tokens"
             )
-        evaluation_tokens = self._request_token_count(
-            state, questions, largest_evaluation=True
-        )
         if evaluation_tokens > JEV_EVALUATION_TOKEN_BUDGET:
             raise ValueError(
                 "Jev shared state plus longest question exceeds its "
@@ -842,6 +887,7 @@ class JevDecisionClient:
         last_error: BaseException | None = None
         for retry_index in range(self.max_retries + 1):
             failure_state.raise_if_interrupted()
+            record_exchange("request_attempt", attempt=retry_index + 1)
             try:
                 response = requests.post(
                     self.endpoint,
@@ -851,6 +897,13 @@ class JevDecisionClient:
                     },
                     json=payload,
                     timeout=self.timeout_seconds,
+                )
+                record_exchange(
+                    "response",
+                    attempt=retry_index + 1,
+                    status_code=response.status_code,
+                    body=response.text,
+                    sent_body_sha256=hashlib.sha256(response.request.body).hexdigest(),
                 )
                 raise_for_provider_credit_exhaustion(
                     response=response, provider="typesafe", model=self.model
@@ -919,6 +972,12 @@ class JevDecisionClient:
                     attempts=retry_index + 1,
                 )
             except (requests.RequestException, ValueError, TypeError) as exc:
+                record_exchange(
+                    "error",
+                    attempt=retry_index + 1,
+                    error_type=type(exc).__name__,
+                    message=str(exc),
+                )
                 raise_for_provider_credit_exhaustion(
                     exc, provider="typesafe", model=self.model
                 )

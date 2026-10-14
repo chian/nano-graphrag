@@ -862,7 +862,11 @@ class PageChildProposer:
             return None
 
         try:
-            assessment = await self._ensure_content_assessment(view.goal)
+            with self._open_prompt_scope(
+                view.episode_ref.episode_id,
+                view.path,
+            ):
+                assessment = await self._ensure_content_assessment(view.goal)
         except Exception as exc:
             self._state.content_assessment_error = (
                 f"{type(exc).__name__}: {exc}"

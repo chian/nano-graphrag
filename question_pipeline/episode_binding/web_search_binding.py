@@ -734,16 +734,17 @@ class SearchPageProposer:
             self._on_results(self._task, results)
         assessments: list[PageCandidateAssessment] = []
         try:
-            for rank, result in enumerate(results, start=1):
-                assessments.append(
-                    await self._assess_candidate(
-                        goal=goal,
-                        task=self._task,
-                        result=result,
-                        provider_rank=rank,
-                        extract_text=self._extract_candidate_text,
+            with self._open_prompt_scope(self._episode_id, self._episode_path):
+                for rank, result in enumerate(results, start=1):
+                    assessments.append(
+                        await self._assess_candidate(
+                            goal=goal,
+                            task=self._task,
+                            result=result,
+                            provider_rank=rank,
+                            extract_text=self._extract_candidate_text,
+                        )
                     )
-                )
         except Exception as exc:  # noqa: BLE001 - typed source failure, no fallback
             if self._on_assessment_error is not None:
                 self._on_assessment_error(self._task, exc)

@@ -80,9 +80,13 @@ path had not yet been verified by a new live failure at that point.
 TypeSafe documents two limits for `jev-1.13.0`: 64,000 tokens per request
 and 32,000 for shared state plus the longest question
 (https://docs.typesafe.ai/models). The client now checks both. Page assessment
-packs to local estimates of 62,000 and 30,000 respectively; Search's
-single-question assessment packs the complete request to 30,000. These are
+packs to local estimates of 54,000 and 22,000 respectively; Search's
+single-question assessment packs the complete request to 22,000. These are
 local `o200k_base` estimates, not measurements from the provider tokenizer.
+The operator requested a 10,000-token buffer on October 14 after the failed
+continuation below, which used a 2,000-token buffer (62,000/30,000 targets).
+The larger buffer passed the eight real Page-assessment requests documented
+below; it remains headroom around a local estimate, not an exact provider count.
 
 | Outcome | What it means | Interpretation and scope |
 | --- | --- | --- |
@@ -91,9 +95,37 @@ local `o200k_base` estimates, not measurements from the provider tokenizer.
 | The terminal model failure interrupted the run, leaving the checkpoint at search unit 67 | This observed failure was not converted into a completed observation | In scope for the failure-stop repair; not a claim about every failure path |
 
 The rejected payload and its local token counts were not persisted, so the
-exact provider/local discrepancy is not established. Next diagnosis must
-establish those counts and the request shape rather than assume the last
-change resolved the error. The worker is stopped; the shared shim remains up.
+exact provider/local discrepancy for that rejected request is not established.
+That worker stopped; the shared shim remained up.
+
+On October 14 the operator requested actual Jev request logging. Search and
+Page assessments now open their owning Episode's prompt scope. Before HTTP,
+the Jev client writes the complete payload, serialized JSON body, body hash,
+and local token estimates to a unique `prompts/<episode_id>/jev_<id>.jsonl`.
+Each attempt then records its response status/body or transport error; the
+sent-body hash permits comparison with the pre-send record. Authentication
+headers are not recorded.
+
+The logging-enabled continuation started at 01:27 CDT on October 14 from
+`page_001271_000067`, without restarting the shim. Page `73849b980df94932#97`
+selected the same NEPC `health-report.docx` source that preceded the failures.
+Its eight Jev requests all returned HTTP 200, and all eight sent-body hashes
+matched the pre-send records. The worker continued into Page planning.
+
+| Outcome | What it means | Interpretation and scope |
+| --- | --- | --- |
+| Request `e9d26f398972495a8e131f0de640f44f`: local whole-request estimate 21,212; Jev reported 25,788 input tokens | Known payload was fully saved, but local and provider counts differ | In scope; the local tokenizer/serialization estimate undercounts the provider's reported input |
+| Request `aeb018fcb9b34fd482aac3e4ba70dd20`: local estimate 53,753; Jev reported 61,971 input tokens | The larger buffer accommodated this observed difference | In scope; successful mitigation on this page, not universal sizing validation |
+| The saved frontier contains 1,693 distinct candidate assessments; 225 recorded at least one token-limit split, with 728 splits total | Search had already encountered token-limit rejections and recovered by splitting | In scope; this did not begin with a new single-question mode |
+
+Actual exchanges are under the ignored V23 run's
+`prompts/episode_d81f9549d935bde5080184d3b795ded709aa88e84a555a4eb9792dd78f127a9c/jev_<request_id>.jsonl`.
+The historical counters are in
+`checkpoint_state/page_001271_000067/frontier.json`, deduplicated by
+`(task_id, provider_rank, url)`. Both single-question Search calls and
+multi-question Page calls are present in commit `53de0a8` (September 28).
+These observations do not identify the provider's internal tokenizer or
+prompt formatting, and do not reconstruct the exact older rejected payload.
 
 ## Approved structure
 
