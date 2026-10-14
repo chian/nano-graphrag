@@ -417,6 +417,10 @@ JEV_TOKEN_ENCODING = "o200k_base"
 # have separate limits. https://docs.typesafe.ai/models
 JEV_REQUEST_TOKEN_BUDGET = 64_000
 JEV_EVALUATION_TOKEN_BUDGET = 32_000
+# Eight captured Jev 1.13 requests reported 1.153--1.225 times the local
+# o200k_base count. Use a round multiplier above that observed maximum when
+# predicting Jev input usage; keep raw counts for lossless text windowing.
+JEV_TOKEN_ESTIMATE_MULTIPLIER = 1.25
 # Binding-side packing leaves room for provider serialization/tokenizer variance.
 JEV_TOKEN_HEADROOM = 10_000
 
@@ -427,7 +431,7 @@ def _token_encoding(name: str = JEV_TOKEN_ENCODING) -> Any:
 
 
 def token_count(value: Any, *, encoding_name: str = JEV_TOKEN_ENCODING) -> int:
-    """Estimate provider input tokens using our local JSON encoding/tokenizer."""
+    """Count local tokenizer IDs in text or compact serialized JSON."""
 
     text = (
         value
@@ -446,6 +450,12 @@ def token_count(value: Any, *, encoding_name: str = JEV_TOKEN_ENCODING) -> int:
             disallowed_special=(),
         )
     )
+
+
+def jev_token_estimate(value: Any) -> int:
+    """Estimate Jev input usage from the calibrated local token count."""
+
+    return math.ceil(token_count(value) * JEV_TOKEN_ESTIMATE_MULTIPLIER)
 
 
 def token_window_text(
@@ -701,9 +711,9 @@ class JevDecisionClient:
         instructions: Any,
         criteria: Mapping[str, Any] | None = None,
     ) -> int:
-        """Estimate the complete single-question request's token count."""
+        """Estimate Jev usage for the complete single-question request."""
 
-        return token_count(
+        return jev_token_estimate(
             self._request_payload(
                 state,
                 {"decision": self._noul_question(instructions, criteria)},
@@ -734,10 +744,14 @@ class JevDecisionClient:
     ) -> int:
         if largest_evaluation:
             # Every question sees ALL shared state, not just its named window.
-            return token_count(state) + max(
-                token_count(question) for question in questions.values()
+            return math.ceil(
+                (
+                    token_count(state)
+                    + max(token_count(question) for question in questions.values())
+                )
+                * JEV_TOKEN_ESTIMATE_MULTIPLIER
             )
-        return token_count(self._request_payload(state, questions))
+        return jev_token_estimate(self._request_payload(state, questions))
 
     @classmethod
     def _noul_questions(
@@ -806,12 +820,20 @@ class JevDecisionClient:
     ) -> JevResponse:
         failure_state = _model_failure_state(self)
         payload = self._request_payload(state, questions)
-        request_tokens = token_count(payload)
-        state_tokens = token_count(state)
-        question_tokens = {
+        raw_request_tokens = token_count(payload)
+        raw_state_tokens = token_count(state)
+        raw_question_tokens = {
             name: token_count(question) for name, question in questions.items()
         }
-        evaluation_tokens = state_tokens + max(question_tokens.values())
+        raw_evaluation_tokens = raw_state_tokens + max(
+            raw_question_tokens.values()
+        )
+        request_tokens = math.ceil(
+            raw_request_tokens * JEV_TOKEN_ESTIMATE_MULTIPLIER
+        )
+        evaluation_tokens = math.ceil(
+            raw_evaluation_tokens * JEV_TOKEN_ESTIMATE_MULTIPLIER
+        )
         scope = active_scope()
         request_id = uuid.uuid4().hex
         log_path = (
@@ -846,10 +868,13 @@ class JevDecisionClient:
             wire_body_sha256=hashlib.sha256(wire_body).hexdigest(),
             token_estimates={
                 "encoding": JEV_TOKEN_ENCODING,
-                "request_compact_json": request_tokens,
-                "state_compact_json": state_tokens,
-                "questions": question_tokens,
-                "state_plus_longest_question": evaluation_tokens,
+                "calibration_multiplier": JEV_TOKEN_ESTIMATE_MULTIPLIER,
+                "request_compact_json": raw_request_tokens,
+                "state_compact_json": raw_state_tokens,
+                "questions": raw_question_tokens,
+                "jev_estimated_request": request_tokens,
+                "state_plus_longest_question": raw_evaluation_tokens,
+                "jev_estimated_evaluation": evaluation_tokens,
                 "wire_json": token_count(wire_body.decode("utf-8")),
                 "packing_headroom": JEV_TOKEN_HEADROOM,
             },

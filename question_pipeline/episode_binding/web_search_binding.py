@@ -7,6 +7,7 @@ from question_pipeline.episode_binding.provider_binding import *
 from question_pipeline.utilities.model import (
     JEV_EVALUATION_TOKEN_BUDGET,
     JEV_TOKEN_ENCODING,
+    JEV_TOKEN_ESTIMATE_MULTIPLIER,
     JEV_TOKEN_HEADROOM,
     ModelTier,
     ask_json,
@@ -295,7 +296,9 @@ async def assess_page_candidate(
                 f"{JEV_PAGE_TEXT_TOKEN_LIMIT:,}-token packing target "
                 "before page text can be included"
             )
-        page_budget -= max(1, overflow)
+        # ``overflow`` is in calibrated Jev-estimate units; page windows are
+        # cut in raw local token IDs.
+        page_budget -= max(1, int(overflow / JEV_TOKEN_ESTIMATE_MULTIPLIER))
 
     probabilities: list[float] = []
     models: list[str] = []

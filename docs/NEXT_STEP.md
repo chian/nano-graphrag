@@ -140,12 +140,17 @@ provider's reported input was 3,056--5,605 tokens larger than the token count
 of the exact serialized HTTP body. Across these observations, the difference
 increased with question count (a least-squares description is approximately
 2,920 tokens per request plus 10.16 tokens per question). This is descriptive,
-not a sizing formula. The public API and official Python SDK expose usage only
-after a successful request and publish neither the serving tokenizer nor a
-preflight token-count endpoint. Therefore `o200k_base` measures neither the
-provider's transformed model input nor an exact acceptance boundary. The
-10,000-token packing headroom remains the operator-requested bound, but it is
-not represented as proof that every request will pass.
+not the sizing formula. The observed provider/local ratios were 1.153--1.225
+(mean 1.196), so the operator approved a hard-coded Jev estimate of
+`ceil(local_o200k_count * 1.25)`. Both request packing and the final 64,000 /
+32,000 guards use that estimate. Raw counts remain the basis for lossless text
+windowing and are retained beside the calibrated estimate in each request log.
+The separate 10,000-token packing headroom remains in force.
+
+The public API and official Python SDK expose usage only after a successful
+request and publish neither the serving tokenizer nor a preflight token-count
+endpoint. The 1.25 multiplier is therefore an empirical calibration based on
+eight real calls, not a claim that `o200k_base` is the provider tokenizer.
 
 ## Approved structure
 
